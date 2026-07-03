@@ -33,12 +33,6 @@ import {
 
 const CYCLE_MS = 10000;
 
-// How many recent launch events to keep visible in the tail window. Without
-// this, per-dispatch launch lines would vanish the instant the next tick's
-// ns.clearLog() runs -- a ring buffer persisted across ticks keeps a rolling
-// window of them visible instead of a single tick's worth.
-const MAX_LAUNCH_HISTORY = 30;
-
 // Phase 1's daemon scp'd these to every rooted host over its runs; they're
 // dead weight now that hack.js/grow.js/weaken.js replace them. Swept once at
 // startup, not every CYCLE_MS -- ns.rm just returns false (harmlessly) once
@@ -245,23 +239,14 @@ function samplePrepFields(ns, hosts, target) {
   };
 }
 
-// Appends a timestamped line per successful launch to launchEvents. These
-// feed into the persistent recentLaunches ring buffer (see main()) rather
-// than being printed directly here -- a plain per-tick print would just get
-// wiped the instant ns.clearLog() runs for the next tick's status block.
-function launchJobs(ns, jobs, launchEvents) {
+// launchmonitor.js watches ns.ps() across all hosts and reports new worker
+// processes independently, so this only needs to launch and count failures --
+// it doesn't build its own launch-event log anymore.
+function launchJobs(ns, jobs) {
   let failed = 0;
   for (const job of jobs) {
     const pid = ns.exec(job.script, job.hostname, job.threads, job.target, job.additionalMsec);
-    if (pid === 0) {
-      failed++;
-      continue;
-    }
-    const action = job.script.replace(".js", "");
-    const timestamp = new Date().toLocaleTimeString();
-    launchEvents.push(
-      `${timestamp} ${action.padEnd(7)} ${String(job.threads).padStart(4)}t @ ${job.hostname} -> ${job.target} (+${job.additionalMsec}ms)`
-    );
+    if (pid === 0) failed++;
   }
   return failed;
 }
@@ -375,6 +360,7 @@ export async function main(ns) {
   // its own tail window itself via ns.ui.openTail().
   launchDetached(ns, "targetsmonitor.js");
   launchDetached(ns, "moneymonitor.js");
+  launchDetached(ns, "launchmonitor.js");
 
   let hosts = [];
   let targets = [];
@@ -388,7 +374,6 @@ export async function main(ns) {
   let previousTargetServer = null; // which server previousMoney/previousSecurity belong to
   let previousMoney = null;
   let previousSecurity = null;
-  let recentLaunches = []; // ring buffer of timestamped launch lines, persists across ticks
 
   async function refreshCycle() {
     hosts = getHosts(ns);
@@ -473,7 +458,6 @@ export async function main(ns) {
     let batchSkippedThisTick = false;
     let batchSkipSaturated = false; // true when the skip is expected saturation (batches already in flight), not real trouble
     let batchTargetPrepStatus = null;
-    const launchEvents = [];
 
     if (prepped) {
       let fraction = HACK_FRACTION;
@@ -504,7 +488,7 @@ export async function main(ns) {
 
       if (assigned) {
         if (fraction < HACK_FRACTION) totalBatchesShrunk++;
-        failedLaunches += launchJobs(ns, assigned, launchEvents);
+        failedLaunches += launchJobs(ns, assigned);
         for (const job of assigned) {
           const host = liveHosts.find((h) => h.hostname === job.hostname);
           if (host) host.freeRam -= ramCosts[job.script] * job.threads;
@@ -549,7 +533,7 @@ export async function main(ns) {
     } else {
       const prepFields = samplePrepFields(ns, hosts, batchTarget);
       const { jobs, hosts: remaining, schedule } = planPrep(prepFields, liveHosts, ramCosts);
-      failedLaunches += launchJobs(ns, jobs, launchEvents);
+      failedLaunches += launchJobs(ns, jobs);
       liveHosts = remaining;
 
       // schedule (from planPrep) already distinguishes requested vs. actually
@@ -601,18 +585,10 @@ export async function main(ns) {
       if (isPrepped(liveTargetState(ns, target))) continue;
       const prepFields = samplePrepFields(ns, hosts, target);
       const { jobs, hosts: remaining } = planPrep(prepFields, waterfallPool, ramCosts);
-      failedLaunches += launchJobs(ns, jobs, launchEvents);
+      failedLaunches += launchJobs(ns, jobs);
       waterfallPool = remaining;
     }
     const spentByWaterfall = waterfallAvailableGb - waterfallPool.reduce((sum, h) => sum + h.freeRam, 0);
-
-    // Merge this tick's launches into the persistent ring buffer -- printed
-    // below the status snapshot, this is what keeps launch events visible
-    // for a while instead of vanishing the instant the next tick redraws.
-    recentLaunches.push(...launchEvents);
-    if (recentLaunches.length > MAX_LAUNCH_HISTORY) {
-      recentLaunches.splice(0, recentLaunches.length - MAX_LAUNCH_HISTORY);
-    }
 
     // preWaterfallTotal minus what the waterfall loop actually spent --
     // reserved-but-unspent RAM is still genuinely free right now, just
@@ -759,13 +735,6 @@ export async function main(ns) {
       );
     }
     if (failedLaunches > 0) ns.print(`WARN: ${failedLaunches} launch(es) failed (exec returned pid 0)`);
-
-    ns.print(`--- recent launches (newest first, last ${recentLaunches.length}/${MAX_LAUNCH_HISTORY}) ---`);
-    if (recentLaunches.length === 0) {
-      ns.print("  (none yet)");
-    } else {
-      for (let i = recentLaunches.length - 1; i >= 0; i--) ns.print(`  ${recentLaunches[i]}`);
-    }
 
     await ns.sleep(BATCH_INTERVAL_MS);
   }
