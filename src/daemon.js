@@ -329,6 +329,24 @@ function planSpeculativeBatch(ns, target, pool, ramCosts) {
   return null;
 }
 
+const JOB_LABELS = { hack: "H", weaken1: "W1", grow: "G", weaken2: "W2" };
+
+/**
+ * Collapses a batch's four per-job landings (action, threads, hostname,
+ * landsAt) into one compact line instead of four -- they're already timed to
+ * land within SPACING_MS of each other, so four near-identical "lands
+ * HH:MM:SS" lines were mostly repeating the same information. Returns the
+ * joined per-job segments plus the latest landsAt across all four, for a
+ * single trailing landing reference.
+ */
+function formatCompactBatchLine(landings) {
+  const segments = landings.map(
+    (l) => `${JOB_LABELS[l.action].padEnd(2)} ${String(l.threads).padStart(4)}t@${l.hostname}`
+  );
+  const lastLandsAt = Math.max(...landings.map((l) => l.landsAt));
+  return { segments: segments.join(" | "), lastLandsAt };
+}
+
 function liveTargetState(ns, target) {
   return {
     server: target.server,
@@ -675,15 +693,10 @@ export async function main(ns) {
           `hack fraction ${(lastBatch.hackFraction * 100).toFixed(1)}% | hack chance ${(lastBatch.hackChance * 100).toFixed(0)}% | ` +
           `expected steal ~$${ns.format.number(lastBatch.expectedSteal)}`
       );
-      for (const landing of lastBatch.landings) {
-        const remainingMs = landing.landsAt - now;
-        const status = remainingMs <= 0 ? "LANDED" : `in ${(remainingMs / 1000).toFixed(1)}s`;
-        const marker = landing.action === "hack" ? "  <- steals cash" : "";
-        ns.print(
-          `    ${landing.action.padEnd(7)} ${String(landing.threads).padStart(4)}t @ ${landing.hostname} | ` +
-            `lands ${new Date(landing.landsAt).toLocaleTimeString()} (${status})${marker}`
-        );
-      }
+      const { segments, lastLandsAt } = formatCompactBatchLine(lastBatch.landings);
+      const remainingMs = lastLandsAt - now;
+      const status = remainingMs <= 0 ? "LANDED" : `in ${(remainingMs / 1000).toFixed(1)}s`;
+      ns.print(`    ${segments} | lands ${new Date(lastLandsAt).toLocaleTimeString()} (${status})`);
     }
 
     // Same layout as the real batch above, but for every OTHER ranked target
@@ -717,16 +730,16 @@ export async function main(ns) {
           ["grow", rates.growTime],
           ["weaken2", rates.weakenTime],
         ];
-        for (let i = 0; i < assigned.length; i++) {
-          const job = assigned[i];
-          const [action, duration] = actionDurations[i];
-          const landsInMs = job.additionalMsec + duration;
-          const marker = action === "hack" ? "  <- steals cash" : "";
-          ns.print(
-            `    ${action.padEnd(7)} ${String(job.threads).padStart(4)}t @ ${job.hostname} | ` +
-              `would land ~${new Date(now + landsInMs).toLocaleTimeString()} (in ${(landsInMs / 1000).toFixed(1)}s)${marker}`
-          );
-        }
+        const landings = assigned.map((job, i) => ({
+          action: actionDurations[i][0],
+          threads: job.threads,
+          hostname: job.hostname,
+          landsAt: now + job.additionalMsec + actionDurations[i][1],
+        }));
+        const { segments, lastLandsAt } = formatCompactBatchLine(landings);
+        ns.print(
+          `    ${segments} | would land ~${new Date(lastLandsAt).toLocaleTimeString()} (in ${((lastLandsAt - now) / 1000).toFixed(1)}s)`
+        );
       }
     }
 
