@@ -4,7 +4,10 @@
 // that level, then -- once the whole fleet is level -- spends money bumping
 // every server up one power-of-2 tier together. Repeats (re-checking live
 // player money each step, since a stale number would either overspend or
-// leave cash on the table) until neither move is affordable.
+// leave cash on the table) until neither move is affordable. Once spending
+// stops, every server is renamed to pserv-<sizeGB>gb-<index> (index fixed by
+// its position in the original list) so the hostname always matches its
+// actual capacity.
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -55,10 +58,15 @@ export async function main(ns) {
     );
   }
 
+  const newNames = owned.map((h, i) => `pserv-${ns.getServerMaxRam(h)}gb-${i}`);
+  owned.forEach((h, i) => {
+    if (newNames[i] !== h) ns.cloud.renameServer(h, newNames[i]);
+  });
+
   const spent = startMoney - ns.getPlayer().money;
   ns.tprint("===== fleet upgrade summary =====");
   if (report.length === 0) ns.tprint("  Nothing upgraded (not enough money for any move).");
   for (const line of report) ns.tprint(line);
-  for (const h of owned) ns.tprint(`  ${h}: ${ns.format.ram(ns.getServerMaxRam(h))}`);
+  for (const name of newNames) ns.tprint(`  ${name}: ${ns.format.ram(ns.getServerMaxRam(name))}`);
   ns.tprint(`Spent $${ns.format.number(spent)}, $${ns.format.number(ns.getPlayer().money)} remaining.`);
 }
