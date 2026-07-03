@@ -33,6 +33,13 @@ import {
 
 const CYCLE_MS = 10000;
 
+// Exported so it can be pulled down via viteburner's download feature
+// (press "d" in the dev terminal) for offline review -- 0 GB RAM cost
+// (ns.write), rewritten each tick as a bounded ring buffer so the file
+// doesn't grow unbounded over a long session.
+const DAEMON_LOG_FILE = "daemon-log.json";
+const DAEMON_LOG_MAX_ENTRIES = 600; // ~10 minutes at one entry per BATCH_INTERVAL_MS
+
 // Phase 1's daemon scp'd these to every rooted host over its runs; they're
 // dead weight now that hack.js/grow.js/weaken.js replace them. Swept once at
 // startup, not every CYCLE_MS -- ns.rm just returns false (harmlessly) once
@@ -344,6 +351,22 @@ function liveTargetState(ns, target) {
   };
 }
 
+/**
+ * Appends one tick's worth of batch-relevant state to the in-memory log
+ * buffer and rewrites DAEMON_LOG_FILE in full ("w" mode) -- simplest way to
+ * keep the on-disk file trimmed to DAEMON_LOG_MAX_ENTRIES without needing
+ * append-then-reread. Mutates and returns `entries` for reassignment at the
+ * call site (trimming replaces the array reference).
+ */
+function writeDaemonLog(ns, entries, record) {
+  entries.push(record);
+  if (entries.length > DAEMON_LOG_MAX_ENTRIES) {
+    entries.splice(0, entries.length - DAEMON_LOG_MAX_ENTRIES);
+  }
+  ns.write(DAEMON_LOG_FILE, JSON.stringify(entries, null, 2), "w");
+  return entries;
+}
+
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
@@ -373,6 +396,7 @@ export async function main(ns) {
   let previousTargetServer = null; // which server previousMoney/previousSecurity belong to
   let previousMoney = null;
   let previousSecurity = null;
+  let logEntries = []; // in-memory mirror of DAEMON_LOG_FILE's bounded ring buffer
 
   async function refreshCycle() {
     hosts = getHosts(ns);
@@ -457,6 +481,7 @@ export async function main(ns) {
     let batchSkippedThisTick = false;
     let batchSkipSaturated = false; // true when the skip is expected saturation (batches already in flight), not real trouble
     let batchTargetPrepStatus = null;
+    let batchLaunchedThisTick = null; // distinct from lastBatch, which persists stale across ticks where nothing launched
 
     if (prepped) {
       let fraction = HACK_FRACTION;
@@ -520,6 +545,7 @@ export async function main(ns) {
             landsAt: launchedAt + job.additionalMsec + actionDurations[i][1],
           })),
         };
+        batchLaunchedThisTick = lastBatch;
       } else {
         totalBatchesSkipped++;
         batchSkippedThisTick = true;
@@ -772,6 +798,39 @@ export async function main(ns) {
       );
     }
     if (failedLaunches > 0) ns.print(`WARN: ${failedLaunches} launch(es) failed (exec returned pid 0)`);
+
+    // Exported snapshot for offline review (see DAEMON_LOG_FILE) -- same
+    // numbers the tail window just printed, just persisted somewhere longer
+    // than one tick's worth of tail-window history.
+    logEntries = writeDaemonLog(ns, logEntries, {
+      time: new Date().toLocaleTimeString(),
+      timestamp: Date.now(),
+      batchTarget: batchTarget.server,
+      prepped,
+      security: { current: liveBatchState.currentSecurity, min: batchTarget.minSecurityLevel },
+      money: { current: liveBatchState.currentMoney, max: batchTarget.maxMoney },
+      batchesInFlight,
+      totalBatchesSkipped,
+      totalBatchesShrunk,
+      failedLaunches,
+      pipeline: { depth, reserveGb, commitmentPct, waterfallAvailableGb },
+      utilizationPct: utilization,
+      skippedThisTick: batchSkippedThisTick,
+      skipSaturated: batchSkipSaturated,
+      launchedThisTick: batchLaunchedThisTick
+        ? {
+            id: batchLaunchedThisTick.id,
+            hackFraction: batchLaunchedThisTick.hackFraction,
+            hackChance: batchLaunchedThisTick.hackChance,
+            expectedSteal: batchLaunchedThisTick.expectedSteal,
+            jobs: batchLaunchedThisTick.landings.map((l) => ({
+              action: l.action,
+              threads: l.threads,
+              hostname: l.hostname,
+            })),
+          }
+        : null,
+    });
 
     await ns.sleep(BATCH_INTERVAL_MS);
   }

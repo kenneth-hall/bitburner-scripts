@@ -18,5 +18,12 @@ export default defineConfig({
     sourcemap: 'inline',
     usePolling: true,
     dumpFiles: 'dist',
+    download: {
+      server: ['home'],
+      // Pressing "d" in the dev terminal normally pulls every file on the
+      // server back to disk -- scope it to just the daemon's own exported
+      // log so it doesn't re-download every script into src/ each time.
+      location: (file) => (file === 'daemon-log.json' ? 'logs/daemon-log.json' : null),
+    },
   },
 });
