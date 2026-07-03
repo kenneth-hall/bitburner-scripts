@@ -65,6 +65,26 @@ function tprintTs(ns, message) {
   ns.tprint(`[${new Date().toLocaleTimeString()}] ${message}`);
 }
 
+/**
+ * Fire-and-forget launch for a long-running companion script that opens its
+ * own tail window and never exits (targetsmonitor.js) -- unlike
+ * runAndWait's one-shot utilities, there's nothing to wait for here.
+ */
+function launchDetached(ns, script, ...args) {
+  const scriptRam = ns.getScriptRam(script, "home");
+  const freeRam = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
+  if (scriptRam > freeRam) {
+    tprintTs(
+      ns,
+      `INFO: skipped ${script} at startup -- needs ${ns.format.ram(scriptRam)} but only ${ns.format.ram(freeRam)} free on home`
+    );
+    return;
+  }
+
+  const pid = ns.exec(script, "home", 1, ...args);
+  if (pid === 0) tprintTs(ns, `ERROR: failed to start ${script}`);
+}
+
 async function runAndWait(ns, script, ...args) {
   // Singularity scripts (purchasescripts.js, upgradehomeram.js) carry a RAM
   // multiplier without SF4 and commonly just don't fit on home yet -- that's
@@ -313,6 +333,10 @@ export async function main(ns) {
   // up on restart, and would silently compete with the new one for RAM.
   await runAndWait(ns, "killscripts.js", ns.pid);
   await runAndWait(ns, "purchasescripts.js");
+  // Companion dashboard: read-only, never calls ns.exec, so it has zero
+  // effect on the worker-RAM pool this daemon competes for. Opens its own
+  // tail window (targetsmonitor.js calls ns.ui.openTail() itself).
+  launchDetached(ns, "targetsmonitor.js");
 
   let hosts = [];
   let targets = [];
