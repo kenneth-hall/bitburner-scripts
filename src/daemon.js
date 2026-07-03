@@ -116,8 +116,17 @@ function totalAllocatableRam(hosts) {
  * security-added value computed from the raw count would undersize weaken2.
  */
 function sampleBatchFields(ns, target, hackFraction) {
-  const rawHackThreads = ns.hackAnalyzeThreads(target.server, target.maxMoney * hackFraction);
-  const hackThreads = Math.max(1, Math.ceil(rawHackThreads));
+  // Money-independent sizing: hackAnalyzeThreads(server, maxMoney * fraction)
+  // returns -1 whenever the server currently holds less than that absolute
+  // amount, which the old max(1, ceil(...)) guard silently collapsed to a
+  // single thread -- a drained target would get a near-zero batch and, later,
+  // a wildly under-reserved pipeline. Sizing off ns.hackAnalyze (money stolen
+  // per thread, current-state) instead is strictly more correct too: hacking
+  // fraction f of CURRENT money is exactly what the 1/(1-f) grow multiplier
+  // below is built to restore.
+  const hackPerThread = ns.hackAnalyze(target.server);
+  if (hackPerThread <= 0) return null; // unhackable this tick -- shouldn't happen for an eligible target; avoids dividing into Infinity threads
+  const hackThreads = Math.max(1, Math.ceil(hackFraction / hackPerThread));
   const hackSecurityAdded = ns.hackAnalyzeSecurity(hackThreads, target.server);
 
   const growMultiplier = 1 / (1 - hackFraction);
@@ -288,6 +297,7 @@ export async function main(ns) {
   let totalBatchesSkipped = 0;
   let batchSequence = 0;
   let lastBatch = null; // most recently launched batch's landing schedule, for progress logging
+  let previousTargetServer = null; // which server previousMoney/previousSecurity belong to
   let previousMoney = null;
   let previousSecurity = null;
   let recentLaunches = []; // ring buffer of timestamped launch lines, persists across ticks
@@ -376,6 +386,7 @@ export async function main(ns) {
       let winningRates = null;
       while (fraction >= MIN_HACK_FRACTION) {
         const rates = sampleBatchFields(ns, batchTarget, fraction);
+        if (rates === null) break; // unusable sample (see sampleBatchFields) -- nothing sane to plan this tick
         const jobs = planBatch(rates);
         assigned = assignBatchHosts(jobs, liveHosts, ramCosts);
         if (assigned) {
@@ -480,6 +491,15 @@ export async function main(ns) {
         `batches in flight: ${batchesInFlight} | batches skipped (total): ${totalBatchesSkipped}`
     );
 
+    // previousMoney/previousSecurity are only meaningful when they were
+    // sampled from this same server -- a target-selection flip (ranking
+    // change, hysteresis override) would otherwise diff two unrelated
+    // servers' numbers and print a meaningless spike on the first tick.
+    if (previousTargetServer !== batchTarget.server) {
+      previousMoney = null;
+      previousSecurity = null;
+      previousTargetServer = batchTarget.server;
+    }
     const moneyDelta = previousMoney === null ? 0 : liveBatchState.currentMoney - previousMoney;
     const securityDelta = previousSecurity === null ? 0 : liveBatchState.currentSecurity - previousSecurity;
     previousMoney = liveBatchState.currentMoney;

@@ -2,7 +2,7 @@
 // *where we can run workers*. daemon.js feeds this target list, in rank
 // order, to scheduler.js each cycle.
 
-const HACK_FRACTION = 0.25;
+import { HACK_FRACTION } from "./scheduler.js";
 
 function scanNetwork(ns) {
   const visited = new Set(["home"]);
