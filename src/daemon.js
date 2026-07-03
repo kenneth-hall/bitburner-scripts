@@ -659,6 +659,44 @@ export async function main(ns) {
       }
     }
 
+    // While drifted, stage 1 is prepping instead of sizing a batch this
+    // tick, so lastBatch (below) won't have fresh numbers for the CURRENT
+    // target -- it's the one entry that would otherwise show no H/W/G
+    // breakdown at all. Fill that gap with the same speculative,
+    // bandwidth-checked projection used for the other targets further down,
+    // so this reads as "prep progress, and here's what it unlocks."
+    if (!prepped) {
+      const ownPlan = planSpeculativeBatch(ns, batchTarget, liveHosts, ramCosts);
+      if (ownPlan) {
+        const { rates, assigned, fraction } = ownPlan;
+        const hackChance = ns.hackAnalyzeChance(batchTarget.server);
+        ns.print(
+          `  projected once prepped | hack fraction ${(fraction * 100).toFixed(1)}% | ` +
+            `hack chance ${(hackChance * 100).toFixed(0)}% | expected steal ~$${ns.format.number(batchTarget.maxMoney * fraction)}`
+        );
+        const actionDurations = [
+          ["hack", rates.hackTime],
+          ["weaken1", rates.weakenTime],
+          ["grow", rates.growTime],
+          ["weaken2", rates.weakenTime],
+        ];
+        const now = Date.now();
+        const landings = assigned.map((job, i) => ({
+          action: actionDurations[i][0],
+          threads: job.threads,
+          hostname: job.hostname,
+          landsAt: now + job.additionalMsec + actionDurations[i][1],
+        }));
+        const { line1, line2, lastLandsAt } = formatCompactBatchLines(landings);
+        ns.print(`    ${line1}`);
+        ns.print(
+          `    ${line2} | would land ~${new Date(lastLandsAt).toLocaleTimeString()} (in ${((lastLandsAt - now) / 1000).toFixed(1)}s)`
+        );
+      } else {
+        ns.print("  (no bandwidth for a full batch against this target right now)");
+      }
+    }
+
     // Progress/timing indication: the landing schedule of the most recently
     // launched batch (the schedule this daemon actually built via
     // additionalMsec, not an observation of a running process). Ledger
