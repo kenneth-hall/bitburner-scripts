@@ -327,7 +327,6 @@ export async function main(ns) {
   // instance left running from a previous session would never get cleaned
   // up on restart, and would silently compete with the new one for RAM.
   await runAndWait(ns, "killscripts.js", ns.pid);
-  await runAndWait(ns, "purchasescripts.js");
   // Companion dashboards: both read-only, never call ns.exec, so they have
   // zero effect on the worker-RAM pool this daemon competes for. Each opens
   // its own tail window itself via ns.ui.openTail().
