@@ -3,3 +3,4 @@ dist/
 .claude/settings.local.json
 markdown/
 NetscriptDefinitions.d.ts
+logs/

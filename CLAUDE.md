@@ -12,6 +12,7 @@ This directory is a learning exercise, not a normal software project. The goal i
 
 - **Summarize after acting.** After performing an action (running commands, editing/creating files, installing things, etc.), give a concise summary of what was done.
 - **Flag unplanned deviations.** If something comes up that wasn't part of what we discussed — extra changes needed, files moved/deleted, scope creep, a different approach than planned — call it out explicitly rather than folding it in silently. Keep the user in the loop on anything not already agreed on.
+- **Check results against the log files.** When verifying that a change behaved as expected, check it against the exported log files (e.g. `logs/daemon-batch-log.json`) rather than assuming. If something needed to verify a result isn't captured there, ask the user whether it'd be worth adding it to the logged data instead of guessing.
 
 ## Reference material (allowed)
 
