@@ -382,7 +382,6 @@ export async function main(ns) {
   // its own tail window itself via ns.ui.openTail().
   launchDetached(ns, "targetsmonitor.js");
   launchDetached(ns, "moneymonitor.js");
-  launchDetached(ns, "launchmonitor.js");
 
   let hosts = [];
   let targets = [];
