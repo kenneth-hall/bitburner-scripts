@@ -39,11 +39,6 @@ const CYCLE_MS = 10000;
 // window of them visible instead of a single tick's worth.
 const MAX_LAUNCH_HISTORY = 30;
 
-// Rare-event terminal notification, not part of the per-tick tail-window
-// snapshot: tprint once every time the player's total money crosses another
-// multiple of this amount.
-const MONEY_MILESTONE = 100_000;
-
 // Phase 1's daemon scp'd these to every rooted host over its runs; they're
 // dead weight now that hack.js/grow.js/weaken.js replace them. Swept once at
 // startup, not every CYCLE_MS -- ns.rm just returns false (harmlessly) once
@@ -333,10 +328,11 @@ export async function main(ns) {
   // up on restart, and would silently compete with the new one for RAM.
   await runAndWait(ns, "killscripts.js", ns.pid);
   await runAndWait(ns, "purchasescripts.js");
-  // Companion dashboard: read-only, never calls ns.exec, so it has zero
-  // effect on the worker-RAM pool this daemon competes for. Opens its own
-  // tail window (targetsmonitor.js calls ns.ui.openTail() itself).
+  // Companion dashboards: both read-only, never call ns.exec, so they have
+  // zero effect on the worker-RAM pool this daemon competes for. Each opens
+  // its own tail window itself via ns.ui.openTail().
   launchDetached(ns, "targetsmonitor.js");
+  launchDetached(ns, "moneymonitor.js");
 
   let hosts = [];
   let targets = [];
@@ -351,10 +347,6 @@ export async function main(ns) {
   let previousMoney = null;
   let previousSecurity = null;
   let recentLaunches = []; // ring buffer of timestamped launch lines, persists across ticks
-  // Next total-money milestone to announce -- starts at the next multiple of
-  // MONEY_MILESTONE strictly above whatever the player already has, so
-  // startup doesn't immediately fire for money earned before this run.
-  let nextMoneyMilestone = (Math.floor(ns.getPlayer().money / MONEY_MILESTONE) + 1) * MONEY_MILESTONE;
 
   async function refreshCycle() {
     hosts = getHosts(ns);
@@ -392,16 +384,6 @@ export async function main(ns) {
     if (Date.now() - lastCycleTime >= CYCLE_MS) {
       await refreshCycle();
       lastCycleTime = Date.now();
-    }
-
-    // Rare-event terminal milestone -- independent of targets/RAM state, so
-    // it still fires even on ticks that bail out early below. Looped (not
-    // just `if`) in case a single tick's money jump clears more than one
-    // MONEY_MILESTONE at once.
-    const playerMoney = ns.getPlayer().money;
-    while (playerMoney >= nextMoneyMilestone) {
-      tprintTs(ns, `MILESTONE: total money reached $${ns.format.number(nextMoneyMilestone)} (now $${ns.format.number(playerMoney)})`);
-      nextMoneyMilestone += MONEY_MILESTONE;
     }
 
     if (targets.length === 0) {
