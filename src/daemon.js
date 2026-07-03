@@ -19,11 +19,13 @@ import {
   DRIFT_MONEY_FRACTION,
   MIN_HACK_FRACTION,
   BATCH_INTERVAL_MS,
+  RANK_HYSTERESIS,
   isPrepped,
   shrinkHackFraction,
   planBatch,
   assignBatchHosts,
   planPrep,
+  pickBatchTarget,
 } from "./scheduler.js";
 
 const CYCLE_MS = 10000;
@@ -297,6 +299,7 @@ export async function main(ns) {
   let totalBatchesSkipped = 0;
   let batchSequence = 0;
   let lastBatch = null; // most recently launched batch's landing schedule, for progress logging
+  let incumbentServer = null; // current batch target, sticky across ticks per RANK_HYSTERESIS
   let previousTargetServer = null; // which server previousMoney/previousSecurity belong to
   let previousMoney = null;
   let previousSecurity = null;
@@ -371,7 +374,8 @@ export async function main(ns) {
     // currently in flight, old and new.
     const totalMaxRam = totalAllocatableRam(hosts);
 
-    const batchTarget = targets[0];
+    const batchTarget = pickBatchTarget(targets, incumbentServer, RANK_HYSTERESIS);
+    incumbentServer = batchTarget.server;
     const liveBatchState = liveTargetState(ns, batchTarget);
     const prepped = isPrepped(liveBatchState);
 
@@ -462,7 +466,12 @@ export async function main(ns) {
 
     // Spend leftover RAM prepping lower-ranked targets so they're ready if
     // rankings shift, chaining the shrinking free-RAM pool across targets.
-    for (const target of targets.slice(1)) {
+    // Filtered by server rather than targets.slice(1): with hysteresis the
+    // incumbent may not be targets[0], and slice(1) would then double-prep
+    // the incumbent (still present at its rank) while never touching the
+    // true top-ranked target.
+    const lowerTargets = targets.filter((t) => t.server !== batchTarget.server);
+    for (const target of lowerTargets) {
       if (liveHosts.length === 0 || liveHosts.every((h) => h.freeRam <= 0)) break;
       if (isPrepped(liveTargetState(ns, target))) continue;
       const prepFields = samplePrepFields(ns, hosts, target);

@@ -17,6 +17,14 @@ export const DRIFT_MONEY_FRACTION = 0.9;
 // daemon.js so it can't halve the hack fraction forever when nothing fits.
 export const MIN_HACK_FRACTION = 0.01;
 
+// How much better a challenger's efficiency score must be, as a multiplier,
+// to displace the incumbent batch target. Current-security sampling means a
+// target's score can crater the instant it drifts (a level-up breaks
+// in-flight batches) -- without this, the daemon would rank-flip away from a
+// target mid-re-prep, orphaning the investment stage 1 just made and slamming
+// the reservation to full depth against a cold target.
+export const RANK_HYSTERESIS = 1.25;
+
 export const WORKER_SCRIPTS = {
   hack: "hack.js",
   grow: "grow.js",
@@ -85,6 +93,18 @@ export function planBatch(target) {
       additionalMsec: additionalMsecFor(target.weakenTime, 3 * SPACING_MS),
     },
   ];
+}
+
+/**
+ * Total RAM (GB) a set of jobs occupies, summed as ramCosts[script] * threads
+ * per job. Works for planBatch's four-job output just as well as a
+ * steady-state plan's three-job (hack/grow/weaken) summary -- both are just
+ * {script, threads} arrays.
+ * @param {{script: string, threads: number}[]} jobs
+ * @param {Record<string, number>} ramCosts
+ */
+export function batchRamCost(jobs, ramCosts) {
+  return jobs.reduce((sum, job) => sum + ramCosts[job.script] * job.threads, 0);
 }
 
 /**
@@ -185,4 +205,24 @@ export function planPrep(target, hosts, ramCosts) {
   }
 
   return { jobs, hosts: pool.map((h) => ({ hostname: h.hostname, freeRam: h.freeRam })), schedule };
+}
+
+/**
+ * Chooses the batch target for this tick, applying RANK_HYSTERESIS so a
+ * transient score drop (e.g. current-security sampling tanking a score right
+ * after a level-up drift) can't rank-flip the daemon away from a target
+ * mid-re-prep. `targets` must already be sorted descending by score (as
+ * getTargets returns it), so targets[0] is the only possible challenger --
+ * if it doesn't beat the incumbent by the hysteresis factor, nothing does.
+ * @param {{server: string, score: number}[]} targets
+ * @param {string | null} incumbentServer
+ * @param {number} hysteresis
+ */
+export function pickBatchTarget(targets, incumbentServer, hysteresis) {
+  const incumbent = targets.find((t) => t.server === incumbentServer);
+  if (!incumbent) return targets[0];
+
+  const top = targets[0];
+  if (top.server === incumbent.server) return incumbent;
+  return top.score >= incumbent.score * hysteresis ? top : incumbent;
 }

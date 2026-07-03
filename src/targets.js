@@ -2,7 +2,7 @@
 // *where we can run workers*. daemon.js feeds this target list, in rank
 // order, to scheduler.js each cycle.
 
-import { HACK_FRACTION } from "./scheduler.js";
+import { HACK_FRACTION, WORKER_SCRIPTS, batchRamCost } from "./scheduler.js";
 
 function scanNetwork(ns) {
   const visited = new Set(["home"]);
@@ -24,11 +24,11 @@ function scanNetwork(ns) {
 }
 
 /**
- * Ranks reachable servers by MaxMoney / MinSecurityLevel (same eligibility
- * filter as before: has money, RequiredHackingLevel under half the player's
- * hacking level) and adds an exact steady-state thread plan for each:
- * hack HACK_FRACTION of max money, grow back to max, weaken enough to
- * counteract the security added by both plus hold at min security.
+ * Ranks reachable servers by expected dollars per GB-second (same
+ * eligibility filter as before: has money, RequiredHackingLevel under half
+ * the player's hacking level) and adds an exact steady-state thread plan for
+ * each: hack HACK_FRACTION of current money, grow back to max, weaken enough
+ * to counteract the security added by both plus hold at min security.
  *
  * hackAnalyze/growthAnalyze/weakenAnalyze are all linear in thread count
  * "regardless of how many threads are assigned to each call" (per docs), so
@@ -44,6 +44,14 @@ export function getTargets(ns) {
   const purchased = new Set(ns.cloud.getServerNames());
   const weakenPerThread = ns.weakenAnalyze(1);
 
+  // Read once per call, not per server -- these don't change between
+  // servers, only between game restarts (script file edits).
+  const workerRamCosts = {
+    [WORKER_SCRIPTS.hack]: ns.getScriptRam(WORKER_SCRIPTS.hack, "home"),
+    [WORKER_SCRIPTS.grow]: ns.getScriptRam(WORKER_SCRIPTS.grow, "home"),
+    [WORKER_SCRIPTS.weaken]: ns.getScriptRam(WORKER_SCRIPTS.weaken, "home"),
+  };
+
   const targets = [];
 
   for (const server of scanNetwork(ns)) {
@@ -57,14 +65,42 @@ export function getTargets(ns) {
 
     const minSecurityLevel = ns.getServerMinSecurityLevel(server);
 
+    // Money-independent sizing (mirrors sampleBatchFields in daemon.js):
+    // hackAnalyzeThreads(server, maxMoney * fraction) returns -1 -- silently
+    // floored to 1 thread by the old max(1, ceil(...)) guard -- whenever the
+    // server currently holds less than that absolute amount. A drained
+    // target would then get a near-zero batchRamCost and an *inflated*
+    // score: the ranking's worst error would be a fake #1. hackAnalyze
+    // shouldn't be 0 for a target that passed the reqLevel filter above, but
+    // skip rather than divide into Infinity if it ever is.
+    const hackAnalyzePerThread = ns.hackAnalyze(server);
+    if (hackAnalyzePerThread <= 0) continue;
+
     // cores defaults to 1 for growthAnalyze/growthAnalyzeSecurity/weakenAnalyze below;
     // hosts with more cores (multi-core purchased servers) grow/weaken harder per thread
     // than planned here, so actual prep will run a bit faster than this plan assumes.
-    const hackThreads = Math.max(1, Math.ceil(ns.hackAnalyzeThreads(server, maxMoney * HACK_FRACTION)));
+    const hackThreads = Math.max(1, Math.ceil(HACK_FRACTION / hackAnalyzePerThread));
     const growThreads = Math.max(1, Math.ceil(ns.growthAnalyze(server, 1 / (1 - HACK_FRACTION))));
     const securityAdded =
       ns.hackAnalyzeSecurity(hackThreads, server) + ns.growthAnalyzeSecurity(growThreads, server);
     const weakenThreads = Math.max(1, Math.ceil(securityAdded / weakenPerThread));
+
+    const ramCost = batchRamCost(
+      [
+        { script: WORKER_SCRIPTS.hack, threads: hackThreads },
+        { script: WORKER_SCRIPTS.grow, threads: growThreads },
+        { script: WORKER_SCRIPTS.weaken, threads: weakenThreads },
+      ],
+      workerRamCosts
+    );
+    const weakenTime = ns.getWeakenTime(server);
+
+    // hackAnalyzeChance and weakenTime are both sampled at *current*
+    // security, so a high-security (unprepped/drifted) target scores
+    // pessimistically here -- acceptable, since the score self-corrects as
+    // prep progresses, but it means a great-but-unweakened target ranks low
+    // until the waterfall gets around to prepping it.
+    const score = (maxMoney * HACK_FRACTION * ns.hackAnalyzeChance(server)) / (ramCost * (weakenTime / 1000));
 
     targets.push({
       server,
@@ -72,6 +108,7 @@ export function getTargets(ns) {
       minSecurityLevel,
       requiredHackingLevel: reqLevel,
       ratio: maxMoney / minSecurityLevel,
+      score,
       currentSecurity: ns.getServerSecurityLevel(server),
       currentMoney: ns.getServerMoneyAvailable(server),
       hackThreads,
@@ -84,11 +121,11 @@ export function getTargets(ns) {
       // these, since security drifts faster than the CYCLE_MS refresh.
       hackTime: ns.getHackTime(server),
       growTime: ns.getGrowTime(server),
-      weakenTime: ns.getWeakenTime(server),
+      weakenTime,
     });
   }
 
-  targets.sort((a, b) => b.ratio - a.ratio);
+  targets.sort((a, b) => b.score - a.score);
   return targets;
 }
 
@@ -103,7 +140,7 @@ export async function main(ns) {
   }
   for (const t of targets) {
     ns.tprint(
-      `${t.server}: ratio ${ns.format.number(t.ratio)} | ` +
+      `${t.server}: score ${t.score.toExponential(2)} (ratio ${ns.format.number(t.ratio)}) | ` +
         `sec ${t.currentSecurity.toFixed(1)}/${t.minSecurityLevel} | ` +
         `money ${ns.format.number(t.currentMoney)}/${ns.format.number(t.maxMoney)} | ` +
         `threads H${t.hackThreads}/G${t.growThreads}/W${t.weakenThreads} (${t.totalThreads} total) | ` +
