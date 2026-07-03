@@ -333,18 +333,20 @@ const JOB_LABELS = { hack: "H", weaken1: "W1", grow: "G", weaken2: "W2" };
 
 /**
  * Collapses a batch's four per-job landings (action, threads, hostname,
- * landsAt) into one compact line instead of four -- they're already timed to
- * land within SPACING_MS of each other, so four near-identical "lands
- * HH:MM:SS" lines were mostly repeating the same information. Returns the
- * joined per-job segments plus the latest landsAt across all four, for a
- * single trailing landing reference.
+ * landsAt) into two lines instead of four -- paired by which weaken counters
+ * which action (weaken1 cancels hack's security bump, weaken2 cancels
+ * grow's), rather than one line per job repeating near-identical landing
+ * times (they're already timed to land within SPACING_MS of each other).
+ * Returns both lines plus the latest landsAt across all four, for a single
+ * trailing landing reference.
  */
-function formatCompactBatchLine(landings) {
-  const segments = landings.map(
-    (l) => `${JOB_LABELS[l.action].padEnd(2)} ${String(l.threads).padStart(4)}t@${l.hostname}`
-  );
+function formatCompactBatchLines(landings) {
+  const byAction = Object.fromEntries(landings.map((l) => [l.action, l]));
+  const segment = (l) => `${JOB_LABELS[l.action].padEnd(2)} ${String(l.threads).padStart(4)}t@${l.hostname}`;
+  const line1 = `${segment(byAction.hack)} | ${segment(byAction.weaken1)}`;
+  const line2 = `${segment(byAction.grow)} | ${segment(byAction.weaken2)}`;
   const lastLandsAt = Math.max(...landings.map((l) => l.landsAt));
-  return { segments: segments.join(" | "), lastLandsAt };
+  return { line1, line2, lastLandsAt };
 }
 
 function liveTargetState(ns, target) {
@@ -693,10 +695,11 @@ export async function main(ns) {
           `hack fraction ${(lastBatch.hackFraction * 100).toFixed(1)}% | hack chance ${(lastBatch.hackChance * 100).toFixed(0)}% | ` +
           `expected steal ~$${ns.format.number(lastBatch.expectedSteal)}`
       );
-      const { segments, lastLandsAt } = formatCompactBatchLine(lastBatch.landings);
+      const { line1, line2, lastLandsAt } = formatCompactBatchLines(lastBatch.landings);
       const remainingMs = lastLandsAt - now;
       const status = remainingMs <= 0 ? "LANDED" : `in ${(remainingMs / 1000).toFixed(1)}s`;
-      ns.print(`    ${segments} | lands ${new Date(lastLandsAt).toLocaleTimeString()} (${status})`);
+      ns.print(`    ${line1}`);
+      ns.print(`    ${line2} | lands ${new Date(lastLandsAt).toLocaleTimeString()} (${status})`);
     }
 
     // Same layout as the real batch above, but for every OTHER ranked target
@@ -736,9 +739,10 @@ export async function main(ns) {
           hostname: job.hostname,
           landsAt: now + job.additionalMsec + actionDurations[i][1],
         }));
-        const { segments, lastLandsAt } = formatCompactBatchLine(landings);
+        const { line1, line2, lastLandsAt } = formatCompactBatchLines(landings);
+        ns.print(`    ${line1}`);
         ns.print(
-          `    ${segments} | would land ~${new Date(lastLandsAt).toLocaleTimeString()} (in ${((lastLandsAt - now) / 1000).toFixed(1)}s)`
+          `    ${line2} | would land ~${new Date(lastLandsAt).toLocaleTimeString()} (in ${((lastLandsAt - now) / 1000).toFixed(1)}s)`
         );
       }
     }
