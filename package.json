@@ -1,0 +1,13 @@
+{
+  "name": "bitburner-scripts",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "viteburner"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^4.5.3",
+    "viteburner": "^0.5.3"
+  }
+}
