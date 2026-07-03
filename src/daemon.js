@@ -34,11 +34,12 @@ import {
 const CYCLE_MS = 10000;
 
 // Exported so it can be pulled down via viteburner's download feature
-// (press "d" in the dev terminal) for offline review -- 0 GB RAM cost
-// (ns.write), rewritten each tick as a bounded ring buffer so the file
-// doesn't grow unbounded over a long session.
+// (press "d" in the dev terminal, or automatically every 5 minutes -- see
+// vite.config.ts) for offline review -- 0 GB RAM cost (ns.write), rewritten
+// on every launched batch as a bounded ring buffer so the file doesn't grow
+// unbounded over a long session.
 const DAEMON_LOG_FILE = "daemon-batch-log.json";
-const DAEMON_LOG_MAX_ENTRIES = 600; // ~10 minutes at one entry per BATCH_INTERVAL_MS
+const DAEMON_LOG_MAX_ENTRIES = 1000; // last 1000 launched batches
 
 // Phase 1's daemon scp'd these to every rooted host over its runs; they're
 // dead weight now that hack.js/grow.js/weaken.js replace them. Swept once at
@@ -352,9 +353,9 @@ function liveTargetState(ns, target) {
 }
 
 /**
- * Appends one tick's worth of batch-relevant state to the in-memory log
- * buffer and rewrites DAEMON_LOG_FILE in full ("w" mode) -- simplest way to
- * keep the on-disk file trimmed to DAEMON_LOG_MAX_ENTRIES without needing
+ * Appends one launched batch's snapshot to the in-memory log buffer and
+ * rewrites DAEMON_LOG_FILE in full ("w" mode) -- simplest way to keep the
+ * on-disk file trimmed to DAEMON_LOG_MAX_ENTRIES without needing
  * append-then-reread. Mutates and returns `entries` for reassignment at the
  * call site (trimming replaces the array reference).
  */
@@ -798,38 +799,37 @@ export async function main(ns) {
     }
     if (failedLaunches > 0) ns.print(`WARN: ${failedLaunches} launch(es) failed (exec returned pid 0)`);
 
-    // Exported snapshot for offline review (see DAEMON_LOG_FILE) -- same
-    // numbers the tail window just printed, just persisted somewhere longer
-    // than one tick's worth of tail-window history.
-    logEntries = writeDaemonLog(ns, logEntries, {
-      time: new Date().toLocaleTimeString(),
-      timestamp: Date.now(),
-      batchTarget: batchTarget.server,
-      prepped,
-      security: { current: liveBatchState.currentSecurity, min: batchTarget.minSecurityLevel },
-      money: { current: liveBatchState.currentMoney, max: batchTarget.maxMoney },
-      batchesInFlight,
-      totalBatchesSkipped,
-      totalBatchesShrunk,
-      failedLaunches,
-      pipeline: { depth, reserveGb, commitmentPct, waterfallAvailableGb },
-      utilizationPct: utilization,
-      skippedThisTick: batchSkippedThisTick,
-      skipSaturated: batchSkipSaturated,
-      launchedThisTick: batchLaunchedThisTick
-        ? {
-            id: batchLaunchedThisTick.id,
-            hackFraction: batchLaunchedThisTick.hackFraction,
-            hackChance: batchLaunchedThisTick.hackChance,
-            expectedSteal: batchLaunchedThisTick.expectedSteal,
-            jobs: batchLaunchedThisTick.landings.map((l) => ({
-              action: l.action,
-              threads: l.threads,
-              hostname: l.hostname,
-            })),
-          }
-        : null,
-    });
+    // Exported snapshot for offline review (see DAEMON_LOG_FILE) -- one entry
+    // per launched batch (not one per tick), so a skip-only tick leaves no
+    // record and the ring buffer's DAEMON_LOG_MAX_ENTRIES cap reads as "last
+    // N batches" rather than "last N ticks."
+    if (batchLaunchedThisTick) {
+      logEntries = writeDaemonLog(ns, logEntries, {
+        time: new Date().toLocaleTimeString(),
+        timestamp: Date.now(),
+        batchTarget: batchTarget.server,
+        prepped,
+        security: { current: liveBatchState.currentSecurity, min: batchTarget.minSecurityLevel },
+        money: { current: liveBatchState.currentMoney, max: batchTarget.maxMoney },
+        batchesInFlight,
+        totalBatchesSkipped,
+        totalBatchesShrunk,
+        failedLaunches,
+        pipeline: { depth, reserveGb, commitmentPct, waterfallAvailableGb },
+        utilizationPct: utilization,
+        batch: {
+          id: batchLaunchedThisTick.id,
+          hackFraction: batchLaunchedThisTick.hackFraction,
+          hackChance: batchLaunchedThisTick.hackChance,
+          expectedSteal: batchLaunchedThisTick.expectedSteal,
+          jobs: batchLaunchedThisTick.landings.map((l) => ({
+            action: l.action,
+            threads: l.threads,
+            hostname: l.hostname,
+          })),
+        },
+      });
+    }
 
     await ns.sleep(BATCH_INTERVAL_MS);
   }
