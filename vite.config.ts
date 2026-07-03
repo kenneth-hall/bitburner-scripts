@@ -2,12 +2,16 @@ import { defineConfig } from 'viteburner';
 import { resolve } from 'path';
 import type { Plugin } from 'vite';
 
-const AUTO_EXPORT_INTERVAL_MS = 5 * 60 * 1000;
+const AUTO_EXPORT_INTERVAL_MS = 10 * 1000;
 
 // Fires the same "d" keypress that manually triggers a download, so
 // daemon-batch-log.json -- the only file download.location below lets
 // through -- gets pulled to logs/ on a timer instead of needing someone at
-// the dev terminal to press it.
+// the dev terminal to press it. There's no push channel from the game back
+// to viteburner (downloads are always Node-initiated request/response), so
+// polling is the only way to approximate "pulled right after every batch" --
+// 10s keeps it feeling near-live against a batch cadence of tens of seconds
+// to minutes, without toggling the file watcher on/off every single tick.
 function autoExportDaemonLog(): Plugin {
   return {
     name: 'auto-export-daemon-batch-log',
