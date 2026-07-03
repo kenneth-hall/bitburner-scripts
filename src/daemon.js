@@ -307,6 +307,28 @@ function cleanupOldWorkerFiles(ns, hosts) {
   return removed;
 }
 
+/**
+ * Dry-run version of stage 1's own retry loop: tries HACK_FRACTION, shrinking
+ * down to MIN_HACK_FRACTION, against a given host pool, but never launches
+ * anything -- purely for the tail window's "what would a batch against this
+ * target look like right now" display. Returns null if nothing fits even at
+ * MIN_HACK_FRACTION (no bandwidth for this target at all). Shrink gating
+ * (the empty-pipeline rule) doesn't apply here -- there's no real pipeline
+ * to protect for a target that isn't actually running batches.
+ */
+function planSpeculativeBatch(ns, target, pool, ramCosts) {
+  let fraction = HACK_FRACTION;
+  while (fraction >= MIN_HACK_FRACTION) {
+    const rates = sampleBatchFields(ns, target, fraction);
+    if (rates === null) return null; // unhackable this tick
+    const jobs = planBatch(rates);
+    const assigned = assignBatchHosts(jobs, pool, ramCosts);
+    if (assigned) return { rates, assigned, fraction };
+    fraction = shrinkHackFraction(fraction);
+  }
+  return null;
+}
+
 function liveTargetState(ns, target) {
   return {
     server: target.server,
@@ -661,6 +683,50 @@ export async function main(ns) {
           `    ${landing.action.padEnd(7)} ${String(landing.threads).padStart(4)}t @ ${landing.hostname} | ` +
             `lands ${new Date(landing.landsAt).toLocaleTimeString()} (${status})${marker}`
         );
+      }
+    }
+
+    // Same layout as the real batch above, but for every OTHER ranked target
+    // we currently have the RAM for -- a dry run (planSpeculativeBatch) of
+    // stage 1's own retry loop against each, using the pool as it stands
+    // after this tick's real spend (liveHosts, pre-reservation-carve: the
+    // reserve is a priority rule for the batch target's own pipeline, not a
+    // hard cap on whether OTHER targets could physically fit right now).
+    // Targets where nothing fits even at MIN_HACK_FRACTION are left out
+    // entirely -- that's what "have the bandwidth for" filters on. Landing
+    // times are projected from *now*, not a real launch, since nothing here
+    // is actually dispatched.
+    const bandwidthTargets = [];
+    for (const target of lowerTargets) {
+      const plan = planSpeculativeBatch(ns, target, liveHosts, ramCosts);
+      if (plan) bandwidthTargets.push({ target, plan });
+    }
+    if (bandwidthTargets.length > 0) {
+      ns.print(`--- other targets with bandwidth right now (${bandwidthTargets.length}/${lowerTargets.length}) ---`);
+      const now = Date.now();
+      for (const { target, plan } of bandwidthTargets) {
+        const { rates, assigned, fraction } = plan;
+        const hackChance = ns.hackAnalyzeChance(target.server);
+        ns.print(
+          `  projected on ${target.server} | hack fraction ${(fraction * 100).toFixed(1)}% | ` +
+            `hack chance ${(hackChance * 100).toFixed(0)}% | expected steal ~$${ns.format.number(target.maxMoney * fraction)}`
+        );
+        const actionDurations = [
+          ["hack", rates.hackTime],
+          ["weaken1", rates.weakenTime],
+          ["grow", rates.growTime],
+          ["weaken2", rates.weakenTime],
+        ];
+        for (let i = 0; i < assigned.length; i++) {
+          const job = assigned[i];
+          const [action, duration] = actionDurations[i];
+          const landsInMs = job.additionalMsec + duration;
+          const marker = action === "hack" ? "  <- steals cash" : "";
+          ns.print(
+            `    ${action.padEnd(7)} ${String(job.threads).padStart(4)}t @ ${job.hostname} | ` +
+              `would land ~${new Date(now + landsInMs).toLocaleTimeString()} (in ${(landsInMs / 1000).toFixed(1)}s)${marker}`
+          );
+        }
       }
     }
 
