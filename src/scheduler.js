@@ -49,6 +49,16 @@ export function shrinkHackFraction(fraction) {
 }
 
 /**
+ * How many batches must be in flight at once to keep the pipeline full:
+ * steady state wants one launched per BATCH_INTERVAL_MS until the first
+ * lands weakenTime later.
+ * @param {number} weakenTimeMs
+ */
+export function pipelineDepth(weakenTimeMs) {
+  return Math.ceil(weakenTimeMs / BATCH_INTERVAL_MS);
+}
+
+/**
  * Builds the four one-shot jobs for one batch: hack +0, weaken1 +1*SPACING_MS,
  * grow +2*SPACING_MS, weaken2 +3*SPACING_MS, each timed via additionalMsec so
  * all four land that many milliseconds apart despite launching together.
@@ -105,6 +115,32 @@ export function planBatch(target) {
  */
 export function batchRamCost(jobs, ramCosts) {
   return jobs.reduce((sum, job) => sum + ramCosts[job.script] * job.threads, 0);
+}
+
+/**
+ * Deducts reserveGb from a host pool, largest-free-RAM-first, so the biggest
+ * contiguous blocks -- the only places a batch's grow job can land -- are
+ * what's protected. A host can be reduced to 0 free RAM; carving then moves
+ * on to the next-largest until the reserve is satisfied or the pool runs out
+ * (in which case the returned pool is entirely zeroed). Returns a new pool;
+ * does not mutate the input.
+ * @param {{hostname: string, freeRam: number}[]} hosts
+ * @param {number} reserveGb
+ */
+export function carveReservation(hosts, reserveGb) {
+  const pool = hosts
+    .map((h) => ({ hostname: h.hostname, freeRam: h.freeRam }))
+    .sort((a, b) => b.freeRam - a.freeRam);
+
+  let remaining = reserveGb;
+  for (const host of pool) {
+    if (remaining <= 0) break;
+    const taken = Math.min(host.freeRam, remaining);
+    host.freeRam -= taken;
+    remaining -= taken;
+  }
+
+  return pool;
 }
 
 /**

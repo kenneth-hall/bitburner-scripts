@@ -26,6 +26,9 @@ import {
   assignBatchHosts,
   planPrep,
   pickBatchTarget,
+  pipelineDepth,
+  batchRamCost,
+  carveReservation,
 } from "./scheduler.js";
 
 const CYCLE_MS = 10000;
@@ -248,6 +251,25 @@ function launchJobs(ns, jobs, launchEvents) {
   return failed;
 }
 
+/**
+ * Total RAM (GB) currently occupied by worker-script processes targeting
+ * `server`, across all known hosts -- the reserve's "already committed to
+ * this pipeline" offset. Checking `ramCosts[proc.filename] !== undefined`
+ * naturally restricts the sum to the three worker scripts (ramCosts' only
+ * keys) without a separate WORKER_SCRIPTS membership check.
+ */
+function sumInFlightRam(ns, hosts, server, ramCosts) {
+  let ram = 0;
+  for (const host of hosts) {
+    for (const proc of ns.ps(host.hostname)) {
+      if (String(proc.args[0]) !== server) continue;
+      const cost = ramCosts[proc.filename];
+      if (cost !== undefined) ram += cost * proc.threads;
+    }
+  }
+  return ram;
+}
+
 function countBatchesInFlight(ns, hosts, server) {
   let count = 0;
   for (const host of hosts) {
@@ -297,6 +319,7 @@ export async function main(ns) {
   let ramCosts = {};
   let previousTargetNames = new Set();
   let totalBatchesSkipped = 0;
+  let totalBatchesShrunk = 0; // full-fraction misses that launched anyway at a smaller fraction (bootstrap-only, per shrink gating)
   let batchSequence = 0;
   let lastBatch = null; // most recently launched batch's landing schedule, for progress logging
   let incumbentServer = null; // current batch target, sticky across ticks per RANK_HYSTERESIS
@@ -379,8 +402,28 @@ export async function main(ns) {
     const liveBatchState = liveTargetState(ns, batchTarget);
     const prepped = isPrepped(liveBatchState);
 
+    // "Was a batch already flying before this tick touched anything" -- the
+    // shrink-gating rule below needs the state as of the *start* of the
+    // tick, not after this tick's own launch.
+    const batchesInFlightBeforeTick = countBatchesInFlight(ns, hosts, batchTarget.server);
+
+    // Cost basis + pipeline depth, sampled fresh every tick regardless of
+    // whether this tick's own launch attempt succeeds, shrinks, skips, or
+    // isn't even attempted (drift) -- fullBatchRamCost must always reflect a
+    // full-HACK_FRACTION batch so a runt launch below doesn't quietly shrink
+    // the protected reserve. Sampling while security is elevated (mid
+    // re-prep) overestimates hack threads and therefore the reserve -- the
+    // safe direction, since over-reserving during re-prep protects the
+    // pipeline that's about to restart. weakenTime for the depth comes from
+    // this same fresh sample, not targets.js's CYCLE_MS-stale copy.
+    const fullBatchSample = sampleBatchFields(ns, batchTarget, HACK_FRACTION);
+    const fullBatchJobs = fullBatchSample ? planBatch(fullBatchSample) : [];
+    const fullBatchRamCost = fullBatchSample ? batchRamCost(fullBatchJobs, ramCosts) : 0;
+    const depth = fullBatchSample ? pipelineDepth(fullBatchSample.weakenTime) : 0;
+
     let failedLaunches = 0;
     let batchSkippedThisTick = false;
+    let batchSkipSaturated = false; // true when the skip is expected saturation (batches already in flight), not real trouble
     let batchTargetPrepStatus = null;
     const launchEvents = [];
 
@@ -388,19 +431,31 @@ export async function main(ns) {
       let fraction = HACK_FRACTION;
       let assigned = null;
       let winningRates = null;
+      // Shrink gating: only bootstrap (shrink the fraction) when the
+      // pipeline is empty. With batches already in flight, a full-fraction
+      // miss is a skip, not a shrink -- ungated, the retry loop would pump
+      // runts into RAM-poor scraps, and those runt slots self-perpetuate
+      // (a tick where a runt lands frees only runt-sized RAM) until the
+      // launch-size pattern locks in at period weakenTime.
+      const allowShrink = batchesInFlightBeforeTick === 0;
       while (fraction >= MIN_HACK_FRACTION) {
-        const rates = sampleBatchFields(ns, batchTarget, fraction);
+        const rates = fraction === HACK_FRACTION ? fullBatchSample : sampleBatchFields(ns, batchTarget, fraction);
         if (rates === null) break; // unusable sample (see sampleBatchFields) -- nothing sane to plan this tick
-        const jobs = planBatch(rates);
+        const jobs = fraction === HACK_FRACTION ? fullBatchJobs : planBatch(rates);
         assigned = assignBatchHosts(jobs, liveHosts, ramCosts);
         if (assigned) {
           winningRates = rates;
+          break;
+        }
+        if (!allowShrink) {
+          assigned = null;
           break;
         }
         fraction = shrinkHackFraction(fraction);
       }
 
       if (assigned) {
+        if (fraction < HACK_FRACTION) totalBatchesShrunk++;
         failedLaunches += launchJobs(ns, assigned, launchEvents);
         for (const job of assigned) {
           const host = liveHosts.find((h) => h.hostname === job.hostname);
@@ -437,6 +492,11 @@ export async function main(ns) {
       } else {
         totalBatchesSkipped++;
         batchSkippedThisTick = true;
+        // If batches were already in flight, this is expected saturation
+        // (the pipeline's full and waiting on a landing), not real trouble --
+        // shrink gating deliberately let it fall through to a skip instead of
+        // pumping a runt into the scraps.
+        batchSkipSaturated = !allowShrink;
       }
     } else {
       const prepFields = samplePrepFields(ns, hosts, batchTarget);
@@ -464,21 +524,39 @@ export async function main(ns) {
       };
     }
 
-    // Spend leftover RAM prepping lower-ranked targets so they're ready if
-    // rankings shift, chaining the shrinking free-RAM pool across targets.
-    // Filtered by server rather than targets.slice(1): with hysteresis the
-    // incumbent may not be targets[0], and slice(1) would then double-prep
-    // the incumbent (still present at its rank) while never touching the
-    // true top-ranked target.
+    // Reserve enough RAM to keep the top target's pipeline full, carved out
+    // of the largest hosts first (the only places a batch's grow job can
+    // land), before the lower-target loop sees anything. Measured AFTER
+    // stage 1's launch above so just-launched jobs are counted -- during a
+    // drift this also includes stage 1's own prep jobs against the batch
+    // target, which is deliberate: that RAM is already committed to the same
+    // pipeline's restart (and the elevated-security cost basis above, which
+    // overestimates, pushes the reserve the other way).
+    const inFlightTopTargetRam = sumInFlightRam(ns, hosts, batchTarget.server, ramCosts);
+    const pipelineCost = depth * fullBatchRamCost;
+    const reserveGb = Math.max(0, pipelineCost - inFlightTopTargetRam);
+
+    const preWaterfallTotal = liveHosts.reduce((sum, h) => sum + h.freeRam, 0);
+    const carvedPool = carveReservation(liveHosts, reserveGb);
+    const waterfallAvailableGb = carvedPool.reduce((sum, h) => sum + h.freeRam, 0);
+
+    // Spend leftover (unreserved) RAM prepping lower-ranked targets so
+    // they're ready if rankings shift, chaining the shrinking pool across
+    // targets. Filtered by server rather than targets.slice(1): with
+    // hysteresis the incumbent may not be targets[0], and slice(1) would
+    // then double-prep the incumbent (still present at its rank) while
+    // never touching the true top-ranked target.
     const lowerTargets = targets.filter((t) => t.server !== batchTarget.server);
+    let waterfallPool = carvedPool;
     for (const target of lowerTargets) {
-      if (liveHosts.length === 0 || liveHosts.every((h) => h.freeRam <= 0)) break;
+      if (waterfallPool.length === 0 || waterfallPool.every((h) => h.freeRam <= 0)) break;
       if (isPrepped(liveTargetState(ns, target))) continue;
       const prepFields = samplePrepFields(ns, hosts, target);
-      const { jobs, hosts: remaining } = planPrep(prepFields, liveHosts, ramCosts);
+      const { jobs, hosts: remaining } = planPrep(prepFields, waterfallPool, ramCosts);
       failedLaunches += launchJobs(ns, jobs, launchEvents);
-      liveHosts = remaining;
+      waterfallPool = remaining;
     }
+    const spentByWaterfall = waterfallAvailableGb - waterfallPool.reduce((sum, h) => sum + h.freeRam, 0);
 
     // Merge this tick's launches into the persistent ring buffer -- printed
     // below the status snapshot, this is what keeps launch events visible
@@ -488,16 +566,25 @@ export async function main(ns) {
       recentLaunches.splice(0, recentLaunches.length - MAX_LAUNCH_HISTORY);
     }
 
-    const totalRemaining = liveHosts.reduce((sum, h) => sum + h.freeRam, 0);
+    // preWaterfallTotal minus what the waterfall loop actually spent --
+    // reserved-but-unspent RAM is still genuinely free right now, just
+    // earmarked, so it counts toward "remaining" the same as anything else.
+    const totalRemaining = preWaterfallTotal - spentByWaterfall;
     const utilization = totalMaxRam > 0 ? ((totalMaxRam - totalRemaining) / totalMaxRam) * 100 : 0;
     const batchesInFlight = countBatchesInFlight(ns, hosts, batchTarget.server);
+    const commitmentPct = pipelineCost > 0 ? (inFlightTopTargetRam / pipelineCost) * 100 : 0;
 
     ns.clearLog();
     ns.print(`===== daemon @ ${new Date().toLocaleTimeString()} =====`);
     ns.print(`hosts: ${hosts.length} | targets: ${targets.length} | RAM utilization: ${utilization.toFixed(1)}%`);
     ns.print(
       `batch target: ${batchTarget.server} | ${prepped ? "PREPPED" : "DRIFTED"} | ` +
-        `batches in flight: ${batchesInFlight} | batches skipped (total): ${totalBatchesSkipped}`
+        `batches in flight: ${batchesInFlight} | batches skipped (total): ${totalBatchesSkipped} | ` +
+        `shrunk (total): ${totalBatchesShrunk}`
+    );
+    ns.print(
+      `  pipeline: depth ${depth} | reserve ${ns.format.ram(reserveGb)} | commitment ${commitmentPct.toFixed(1)}% | ` +
+        `waterfall: ${ns.format.ram(waterfallAvailableGb)} free`
     );
 
     // previousMoney/previousSecurity are only meaningful when they were
@@ -571,7 +658,17 @@ export async function main(ns) {
       }
     }
 
-    if (batchSkippedThisTick) ns.print("WARN: batch skipped this tick -- insufficient RAM even at MIN_HACK_FRACTION");
+    if (batchSkippedThisTick) {
+      // Saturated skip (batches already in flight, full-fraction just didn't
+      // fit) is the expected RAM-poor rhythm, not a failure -- shrink gating
+      // exists specifically so this reads as a clean skip instead of a runt
+      // launch. A skip with an EMPTY pipeline is the real signal to watch.
+      ns.print(
+        batchSkipSaturated
+          ? "INFO: batch skipped this tick -- pipeline saturated, waiting on a landing"
+          : "WARN: batch skipped this tick -- insufficient RAM even at MIN_HACK_FRACTION (empty pipeline)"
+      );
+    }
     if (failedLaunches > 0) ns.print(`WARN: ${failedLaunches} launch(es) failed (exec returned pid 0)`);
 
     ns.print(`--- recent launches (newest first, last ${recentLaunches.length}/${MAX_LAUNCH_HISTORY}) ---`);
