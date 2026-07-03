@@ -37,7 +37,7 @@ const CYCLE_MS = 10000;
 // (press "d" in the dev terminal) for offline review -- 0 GB RAM cost
 // (ns.write), rewritten each tick as a bounded ring buffer so the file
 // doesn't grow unbounded over a long session.
-const DAEMON_LOG_FILE = "daemon-log.json";
+const DAEMON_LOG_FILE = "daemon-batch-log.json";
 const DAEMON_LOG_MAX_ENTRIES = 600; // ~10 minutes at one entry per BATCH_INTERVAL_MS
 
 // Phase 1's daemon scp'd these to every rooted host over its runs; they're
