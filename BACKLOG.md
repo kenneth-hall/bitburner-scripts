@@ -248,9 +248,18 @@ _(nothing in progress from this session)_
     baseline on file for `purchasescripts.js` (50.15GB), `purchasecloudservers.js` (5.75GB),
     `fleetupgrade.js` (3.6GB) specifically, but the 0GB pattern held everywhere it was
     checkable, so no reason to expect growth there either.
-  - **Still not done — needs the user, live in-game**: running one of the four purchase
-    scripts to confirm an expense record lands correctly without disturbing income coalescing
-    (only income has landed so far — the soft report above shows zero expenses).
+  - **Purchase-during-income check: closed (2026-07-04), via an accidental live test.** A
+    `purchasecloudservers.js` run with a mixed-up count argument bought 21 servers
+    (`pserv-16gb-0`..`pserv-16gb-20`) in one burst; all 21 landed as correctly-shaped
+    `cloud-purchase` expense records, sandwiched cleanly between two income records
+    (10:31:15 AM and 10:32:57 AM) with no clobbering or dropped writes — exactly the
+    multi-writer scenario the spec flagged as the real risk. All acceptance items for this
+    phase are now closed. (The 21 servers were a mistake, not intentional — cleaned up with
+    a throwaway `ns.cloud.deleteServer` script, unrelated to Phase 5 itself.)
+  - **All acceptance items closed.** Remaining before this phase is fully "shipped": push
+    local `master` to `origin` (currently 4 commits ahead, held back per the user's
+    test-locally-first preference) and delete the now-superseded
+    `origin/worktree-batcher-phase5-translog` branch.
 - **Batcher refactor Phase 4 — Formulas.exe math with legacy fallback** (2026-07-04): all
   runnable and observed acceptance criteria satisfied. Direct same-session comparison showed
   the churn fix (0 flips/16min formulas vs. 9/16min legacy) and reserve-ballooning fix
