@@ -7,6 +7,8 @@
 // of purchase slots). hosts.js picks up any new cloud servers automatically
 // on daemon.js's next refresh -- no extra wiring needed here.
 
+import { recordTransaction } from "./translog.js";
+
 /** @param {NS} ns */
 export async function main(ns) {
   const ramLimit = ns.cloud.getRamLimit();
@@ -46,6 +48,15 @@ export async function main(ns) {
     const hostname = ns.cloud.purchaseServer(`pserv-${requestedSize}gb-${index}`, requestedSize);
     if (!hostname) break;
     purchased.push(hostname);
+    recordTransaction(ns, {
+      type: "expense",
+      source: "cloud-purchase",
+      hostname,
+      ram: requestedSize,
+      amount: cost,
+      timestamp: Date.now(),
+      time: new Date().toLocaleString(),
+    });
     slotsLeft--;
     index++;
   }

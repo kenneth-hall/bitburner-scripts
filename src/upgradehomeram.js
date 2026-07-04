@@ -1,6 +1,9 @@
 // Manual utility, run by hand -- not wired into daemon.js. Needs ~74GB free
 // RAM just to launch (Singularity RAM multiplier without SF4), so if it
 // won't even start, buy home RAM through the game UI first.
+
+import { recordTransaction } from "./translog.js";
+
 /** @param {NS} ns */
 export async function main(ns) {
   const purchased = [];
@@ -10,6 +13,14 @@ export async function main(ns) {
     if (ns.getPlayer().money < cost) break;
     if (!ns.singularity.upgradeHomeRam()) break;
     purchased.push(cost);
+    recordTransaction(ns, {
+      type: "expense",
+      source: "home-ram-upgrade",
+      newRamGb: ns.getServerMaxRam("home"),
+      amount: cost,
+      timestamp: Date.now(),
+      time: new Date().toLocaleString(),
+    });
   }
 
   ns.tprint("===== upgradehomeram summary =====");

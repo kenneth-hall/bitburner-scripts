@@ -1,6 +1,9 @@
 // Manual utility that buys port-opener programs. daemon.js runs this once
 // at startup; it's expensive to launch (Singularity RAM multiplier without
 // SF4), so exec failures here are usually a home-RAM problem, not a bug.
+
+import { recordTransaction } from "./translog.js";
+
 /** @param {NS} ns */
 export async function main(ns) {
   if (!ns.hasTorRouter()) {
@@ -28,6 +31,14 @@ export async function main(ns) {
     }
     if (ns.singularity.purchaseProgram(program)) {
       purchased.push(`${program}: $${ns.format.number(cost)}`);
+      recordTransaction(ns, {
+        type: "expense",
+        source: "darkweb-program",
+        program,
+        amount: cost,
+        timestamp: Date.now(),
+        time: new Date().toLocaleString(),
+      });
     } else {
       skipped.push(`${program}: purchase failed`);
     }

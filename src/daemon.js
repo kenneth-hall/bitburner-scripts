@@ -313,11 +313,13 @@ export async function main(ns) {
   // instance left running from a previous session would never get cleaned
   // up on restart, and would silently compete with the new one for RAM.
   await runAndWait(ns, "killscripts.js", ns.pid);
-  // Companion dashboards: both read-only, never call ns.exec, so they have
-  // zero effect on the worker-RAM pool this daemon competes for. Each opens
-  // its own tail window itself via ns.ui.openTail().
+  // Companion dashboards: neither calls ns.exec, so they have zero effect on
+  // the worker-RAM pool this daemon competes for -- targetsmonitor.js is
+  // read-only, transactionsmonitor.js writes the day's transactions log
+  // (src/translog.js) as income lands. Each opens its own tail window
+  // itself via ns.ui.openTail().
   launchDetached(ns, "targetsmonitor.js");
-  launchDetached(ns, "moneymonitor.js");
+  launchDetached(ns, "transactionsmonitor.js");
 
   let hosts = [];
   let targets = [];

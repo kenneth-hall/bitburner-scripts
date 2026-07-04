@@ -1,5 +1,7 @@
-// ONE-OFF utility, not part of the daemon toolset -- run once by hand, then
-// delete. Repeatedly rebalances the whole owned cloud-server fleet: first
+// Permanent manual utility, not part of the daemon toolset (never launched
+// by daemon.js) -- but not one-off either: it's a transactions-log call site
+// (src/translog.js) now, run repeatedly whenever fleet upgrades are wanted.
+// Repeatedly rebalances the whole owned cloud-server fleet: first
 // spends money bringing every server below the fleet's current max RAM up to
 // that level, then -- once the whole fleet is level -- spends money bumping
 // every server up one power-of-2 tier together. Repeats (re-checking live
@@ -13,6 +15,8 @@
 // rename window). In-flight workers on a renamed host keep running
 // uninterrupted and re-attach to the daemon's tracking at its next refresh --
 // worker identity is filename + args, never hostname.
+
+import { recordTransaction } from "./translog.js";
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -39,10 +43,32 @@ export async function main(ns) {
       const totalCost = costs.reduce((a, b) => a + b, 0);
       if (ns.getPlayer().money < totalCost) break; // can't afford to level the fleet up -- stop
 
-      for (const h of laggards) ns.cloud.upgradeServer(h, maxRam);
-      report.push(
-        `  Leveled ${laggards.length} server(s) up to ${ns.format.ram(maxRam)}: ${laggards.join(", ")} ($${ns.format.number(totalCost)})`,
-      );
+      // ok's per-host boolean matters -- upgradeServer's return was
+      // previously ignored, so a failed upgrade silently reported (and
+      // logged) as if it had succeeded. Zip each host with its pre-sampled
+      // cost (costs is index-aligned with laggards) and only report/record
+      // what actually went through.
+      const results = laggards.map((h, i) => ({ host: h, cost: costs[i], ok: ns.cloud.upgradeServer(h, maxRam) }));
+      const succeeded = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok);
+      for (const r of failed) {
+        ns.tprint(`WARN: upgradeServer failed for ${r.host} -> ${ns.format.ram(maxRam)}`);
+      }
+      if (succeeded.length > 0) {
+        const succeededCost = succeeded.reduce((sum, r) => sum + r.cost, 0);
+        report.push(
+          `  Leveled ${succeeded.length} server(s) up to ${ns.format.ram(maxRam)}: ${succeeded.map((r) => r.host).join(", ")} ($${ns.format.number(succeededCost)})`,
+        );
+        recordTransaction(ns, {
+          type: "expense",
+          source: "fleet-upgrade",
+          detail: `level to ${ns.format.ram(maxRam)}`,
+          servers: succeeded.map((r) => r.host),
+          amount: succeededCost,
+          timestamp: Date.now(),
+          time: new Date().toLocaleString(),
+        });
+      }
       continue;
     }
 
@@ -57,10 +83,27 @@ export async function main(ns) {
     const totalCost = costs.reduce((a, b) => a + b, 0);
     if (ns.getPlayer().money < totalCost) break; // can't afford to bump the whole fleet -- stop
 
-    for (const h of owned) ns.cloud.upgradeServer(h, nextTier);
-    report.push(
-      `  Bumped all ${owned.length} servers ${ns.format.ram(maxRam)} -> ${ns.format.ram(nextTier)} ($${ns.format.number(totalCost)})`,
-    );
+    const results = owned.map((h, i) => ({ host: h, cost: costs[i], ok: ns.cloud.upgradeServer(h, nextTier) }));
+    const succeeded = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    for (const r of failed) {
+      ns.tprint(`WARN: upgradeServer failed for ${r.host} -> ${ns.format.ram(nextTier)}`);
+    }
+    if (succeeded.length > 0) {
+      const succeededCost = succeeded.reduce((sum, r) => sum + r.cost, 0);
+      report.push(
+        `  Bumped ${succeeded.length} server(s) ${ns.format.ram(maxRam)} -> ${ns.format.ram(nextTier)}: ${succeeded.map((r) => r.host).join(", ")} ($${ns.format.number(succeededCost)})`,
+      );
+      recordTransaction(ns, {
+        type: "expense",
+        source: "fleet-upgrade",
+        detail: `bump ${ns.format.ram(maxRam)} -> ${ns.format.ram(nextTier)}`,
+        servers: succeeded.map((r) => r.host),
+        amount: succeededCost,
+        timestamp: Date.now(),
+        time: new Date().toLocaleString(),
+      });
+    }
   }
 
   // renameServer's boolean return matters: the docs don't say whether a
