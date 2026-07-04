@@ -210,6 +210,80 @@ _(nothing in progress from this session)_
 
 ## Ideas / Backlog
 
+- **Stock market — no design yet, mechanics straightened out for future design pass**
+  (2026-07-04): No architecture decided; this is a mechanics reference to design against
+  later, not a spec. Current save state: TIX API access purchased, no WSE account, no 4S
+  data (matches [[bitburner_stock_market_progress]] memory).
+  - **Two independent access doors, not a read/write split**: WSE account gates *manual*
+    trading via the in-game Stock Market UI; TIX API access gates *scripted* trading via
+    `ns.stock`. Each door covers both reading and trading for its own method — it's method
+    (UI vs script) that's gated, not action (read vs buy/sell). You can hold either without
+    the other, which is why scripted trading should already work despite no WSE account.
+  - **4S Market Data is a premium add-on layered on top of whichever method you use**:
+    `getForecast`/`getVolatility` return per-stock probability-of-rise and max per-tick
+    swing — the actual trading edge. Gated by its own purchase: `purchase4SMarketDataTixApi()`
+    for scripts (needs TIX API access, not WSE — a money gate, affordable now) vs.
+    `purchase4SMarketData()` for the UI (needs WSE account). Separate from the base
+    read/trade doors above.
+  - **Progression-locked, not purchasable at all yet**: `placeOrder`/`cancelOrder`/`getOrders`
+    (limit/stop orders) and `buyShort`/`sellShort` (short selling) — their docs say "unlocked
+    later in the game," no purchase function exists for them.
+  - **Doc inconsistency flagged, not yet resolved empirically**: `getPrice()` and
+    `getOrganization()`'s docs list "WSE Account" as a requirement even for the scripted
+    call, which contradicts `purchaseTixApi()`'s own doc ("you can buy TIX API access
+    without a WSE account") and the fact that other read/trade calls (`getSymbols`,
+    `buyStock`, `sellStock`, etc.) don't mention any WSE requirement. Worth testing directly
+    in-game (e.g. `ns.stock.getPrice(ns.stock.getSymbols()[0])`) next time stock market work
+    picks up, since it decides whether scripted reads already work today.
+  - **Not yet decided, needs a real design pass before any code**: any actual trading
+    strategy/script — nothing built yet, this entry is purely the access-mechanics
+    reference gathered via docs + discussion this session.
+
+- **Darknet exploitation — no architecture yet, mechanics captured for future design pass**
+  (2026-07-04): Kenneth has a working mental model of how the darknet (`ns.dnet`) behaves,
+  from discussion + docs in `markdown/bitburner.darknet*.md`, but no design/architecture
+  decided. This entry is a mechanics reference to design against later, not a spec.
+  - **Access/lifecycle chain**: `probe(returnByIP)` / `isDarknetServer(host)` /
+    `getServerDetails(host)` to discover and inspect; `heartbleed(host)` to read logs and
+    diagnose failed auth; `authenticate(host, password)` (direct-connect only) or
+    `connectToSession(host, password)` (any distance, once already authenticated) to get a
+    session; `setStasisLink(true)` / `freezeServer(host)` to hold a foothold against churn
+    (`getStasisLinkLimit()` caps how many links can be active globally at once).
+  - **Network volatility (the mechanic normal-network scripts don't have to deal with)**:
+    `nextMutation()` ticks the whole darknet on its own clock — each cycle, some servers can
+    move (breaks/reforms connections only, script likely survives), go offline (usually
+    permanent, script and access gone), restart (kills all running scripts on that server), or
+    a new server can appear. `getDarknetInstability()` is a cost/budget gate tied to
+    backdooring activity — **open question, not yet checked in-game: is this global or
+    per-server?** Matters for whether "throw more workers at it" has a hidden ceiling.
+  - **Three extraction paths, not mutually exclusive**: (1) RAM — `getBlockedRam(host)` (free,
+    0 GB) to check upside, then `memoryReallocation(host)` (needs auth + direct connection) to
+    free usable RAM, scales with charisma/threads. (2) Money — `phishingAttack()` (must run
+    *on* the darknet server, no target arg), scales with threads/charisma/crime success rate,
+    very occasionally drops a `.cache` file as a bonus; `openCache(filename)` cashes it in
+    (2 GB, costs karma). Caches are **not** a standing resource to seek out directly — the docs
+    only describe them dropping from phishing, so this is "grab it when it appears," not a
+    plannable target. (3) Stock — `promoteStock(sym)` needs no server access at all, just a
+    symbol; raises a stock's *volatility* (not its forecast), decays without reapplication, and
+    is only useful if paired with actual trading (see stock market unlock state in
+    [[bitburner_stock_market_progress]] memory — 4S Market Data feed not active yet, blocked on
+    WSE Account, so `promoteStock` has no trading strategy to pair with today).
+  - **Karma**: `CrimeStats.karma` and `CacheReward.karmaLoss` both use "loss" terminology, and
+    documented faction karma requirements are negative thresholds (e.g. `{ "type": "karma",
+    "karma": -90 }` meaning karma must be ≤ -90) — read together, this suggests both crime and
+    cache-opening push karma the same (more negative) direction that low-karma faction
+    eligibility wants, i.e. no real tension between "open caches freely" and "keep karma low
+    enough for some factions." **Not yet confirmed empirically** — cheap to verify with
+    `ns.getPlayer().karma` before/after opening one cache.
+  - **Prerequisite work**: the "Consistency consolidation" item above (new `src/common.js` with
+    `scanNetwork`/`findPath`/`tryRoot`/etc.) should land first so darknet scripts can reuse
+    those helpers instead of re-deriving BFS/rooting logic a second time.
+  - **Not yet decided, needs a real design pass before any code**: scheduling model for
+    volatile/moving targets (very different from the normal-network batcher's static-topology
+    assumption), which of the three extraction paths to prioritize per server/situation, how to
+    represent/react to `nextMutation()` events, and whether/how this integrates with or runs
+    alongside `daemon.js`.
+
 - **viteburner dev-server silently stops auto-exporting** (2026-07-04): during Phase 5 live
   verification, the `npm run dev` process had been running continuously for 2+ hours (no
   crash, no error output) but stopped producing fresh downloads to `logs/` at some point —
