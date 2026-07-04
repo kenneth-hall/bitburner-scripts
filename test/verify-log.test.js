@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { checkShareCap, checkBudgetInvariant, checkFractionConsistency } from './verify-log-checks.js';
+import { checkShareCap, checkBudgetInvariant, checkFractionConsistency, checkNaturalExit, dropPreConfigStragglers } from './verify-log-checks.js';
 
 const LOG_PATH = process.env.DAEMON_LOG_PATH ?? path.join(process.cwd(), 'logs', 'daemon-batch-log.json');
 
@@ -49,6 +49,15 @@ beforeAll(() => {
   const hasSnapshot = entries.some((e) => e.event === 'snapshot');
   if (!hasSnapshot) {
     throw new Error('This looks like a pre-Phase-7 log (no `snapshot` event) -- re-export from a new multi-target session.');
+  }
+
+  // Opt-in (Phase 9): a boundary copy can carry leftover entries from the
+  // previous window whose own `mode` event already aged out of the ring --
+  // config-dependent checks then hard-fail on "no preceding mode event", a
+  // mixed-window export artifact, not a code defect. Off by default so a
+  // normal single-window log is validated in full.
+  if (process.env.VERIFY_SLICE_STRAGGLERS === '1') {
+    entries = dropPreConfigStragglers(entries);
   }
 });
 
@@ -141,6 +150,7 @@ describe('log format', () => {
             waterfallFreeGb: expect.any(Number),
             memberCount: expect.any(Number),
             members: expect.any(Array),
+            hackingLevel: expect.any(Number),
           });
           for (const m of e.members) {
             expect(m).toMatchObject({
@@ -158,7 +168,7 @@ describe('log format', () => {
           for (const d of e.draining ?? []) {
             expect(d).toMatchObject({ server: expect.any(String), batchesInFlight: expect.any(Number), inFlightRamGb: expect.any(Number) });
           }
-          expect(e.share).toMatchObject({
+          expect(e.sharePool).toMatchObject({
             targetGb: expect.any(Number),
             inFlightRamGb: expect.any(Number),
             threads: expect.any(Number),
@@ -167,8 +177,8 @@ describe('log format', () => {
           // attainedPct is null at targetGb === 0 (see the spec's 0-target
           // case) -- expect.any(Number) can't express "number or null".
           expect(
-            typeof e.share.attainedPct === 'number' || e.share.attainedPct === null,
-            `snapshot at ${e.time} has a non-number, non-null share.attainedPct`
+            typeof e.sharePool.attainedPct === 'number' || e.sharePool.attainedPct === null,
+            `snapshot at ${e.time} has a non-number, non-null sharePool.attainedPct`
           ).toBe(true);
           break;
         case 'mode':
@@ -257,36 +267,12 @@ describe('hard assertions', () => {
   });
 
   it('natural-exit invariant: no batch events and no rising draining counts between an exit and its next enter', () => {
-    // "No new batches after exit, drain only" made mechanically checkable:
-    // walk the log in order, tracking which servers currently have an open
-    // exit (set by `exit`, cleared by the next `enter` for that server). A
-    // `batch` event naming an open-exit server is a hard failure; a
-    // `snapshot`'s `draining` entry for that server is allowed to fall but
-    // never rise between observations.
-    const openExits = new Set();
-    const lastDrainingBatches = new Map();
-    for (const e of entries) {
-      if (e.event === 'exit') {
-        openExits.add(e.server);
-        lastDrainingBatches.delete(e.server);
-      } else if (e.event === 'enter') {
-        openExits.delete(e.server);
-        lastDrainingBatches.delete(e.server);
-      } else if (e.event === 'batch') {
-        expect(openExits.has(e.batchTarget), `batch event for ${e.batchTarget} while it has an open exit -- no new batches after exit`).toBe(false);
-      } else if (e.event === 'snapshot') {
-        const drainingByServer = new Map((e.draining ?? []).map((d) => [d.server, d.batchesInFlight]));
-        for (const server of openExits) {
-          const current = drainingByServer.get(server) ?? 0;
-          if (lastDrainingBatches.has(server)) {
-            expect(current, `${server}'s draining batchesInFlight increased after exit -- drain only, never refill`).toBeLessThanOrEqual(
-              lastDrainingBatches.get(server)
-            );
-          }
-          lastDrainingBatches.set(server, current);
-        }
-      }
-    }
+    // "No new batches after exit, drain only" (Phase 9: extracted into
+    // checkNaturalExit so the validation table in
+    // batcher-refactor-phase9.md is mechanically countable against
+    // logs/phase8-ab/, not hand-derived).
+    const violations = checkNaturalExit(entries);
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
   });
 
   it('budget invariant (Phase 8, updated): every snapshot keeps aggregate member cost within batchBudgetGb (not budgetGb -- share\'s carve reduces it), batchBudgetGb never exceeds budgetGb, and memberCount matches the members array', () => {
@@ -396,15 +382,15 @@ describe('soft reports', () => {
       // Phase 8: raw utilizationPct now includes share's RAM, so it would
       // read misleadingly high against Phase 7's ~20% baseline -- subtract
       // share's share of budgetGb back out for a like-for-like comparison.
-      const shareSnapshots = snapshots.filter((s) => s.share);
+      const shareSnapshots = snapshots.filter((s) => s.sharePool);
       if (shareSnapshots.length > 0) {
-        const batchUtils = shareSnapshots.map((s) => s.utilizationPct - (s.share.inFlightRamGb / s.budgetGb) * 100);
+        const batchUtils = shareSnapshots.map((s) => s.utilizationPct - (s.sharePool.inFlightRamGb / s.budgetGb) * 100);
         console.log(
           `batch-side utilization (share excluded) across ${shareSnapshots.length} snapshot(s): min ${Math.min(...batchUtils).toFixed(1)}% / ` +
             `avg ${avg(batchUtils).toFixed(1)}% / max ${Math.max(...batchUtils).toFixed(1)}% (baseline to beat: Phase 7's ~20%)`
         );
 
-        const attainedPcts = shareSnapshots.map((s) => s.share.attainedPct).filter((p) => typeof p === 'number');
+        const attainedPcts = shareSnapshots.map((s) => s.sharePool.attainedPct).filter((p) => typeof p === 'number');
         if (attainedPcts.length > 0) {
           console.log(
             `share target-attainment across ${attainedPcts.length} snapshot(s): min ${Math.min(...attainedPcts).toFixed(1)}% / ` +
@@ -412,10 +398,20 @@ describe('soft reports', () => {
           );
         }
 
-        const sharePowers = shareSnapshots.map((s) => s.share.sharePower);
+        const sharePowers = shareSnapshots.map((s) => s.sharePool.sharePower);
         console.log(
           `sharePower across ${sharePowers.length} snapshot(s): min ${Math.min(...sharePowers).toFixed(3)} / ` +
             `avg ${avg(sharePowers).toFixed(3)} / max ${Math.max(...sharePowers).toFixed(3)}`
+        );
+      }
+
+      const hackingLevels = snapshots.map((s) => s.hackingLevel).filter((h) => typeof h === 'number');
+      if (hackingLevels.length > 0) {
+        const first = hackingLevels[0];
+        const last = hackingLevels[hackingLevels.length - 1];
+        console.log(
+          `hackingLevel across ${hackingLevels.length} snapshot(s): first ${first} / last ${last} / ` +
+            `min ${Math.min(...hackingLevels)} / max ${Math.max(...hackingLevels)} / delta ${(last - first).toFixed(2)}`
         );
       }
     }

@@ -6,7 +6,7 @@
 // exclude doesn't skip it) -- unlike verify-log.test.js, this never touches a
 // real exported game log.
 import { describe, it, expect } from 'vitest';
-import { checkShareCap, checkBudgetInvariant, checkFractionConsistency } from './verify-log-checks.js';
+import { checkShareCap, checkBudgetInvariant, checkFractionConsistency, checkNaturalExit, dropPreConfigStragglers } from './verify-log-checks.js';
 
 function baseEntries({ shareFraction = 0.25, shareOff = false } = {}) {
   return [
@@ -31,7 +31,7 @@ function cleanSnapshot(overrides = {}) {
     budgetGb: 1000,
     batchBudgetGb: 750,
     members: [{ server: 'a', pipelineCostGb: 700 }],
-    share: { targetGb: 250, inFlightRamGb: 248, threads: 62, attainedPct: 99.2, sharePower: 1.8 },
+    sharePool: { targetGb: 250, inFlightRamGb: 248, threads: 62, attainedPct: 99.2, sharePower: 1.8 },
     ...overrides,
   };
 }
@@ -49,7 +49,7 @@ describe('checker fixtures: clean log', () => {
 describe('checker fixtures: share-cap violation', () => {
   // inFlightRamGb (260) exceeds targetGb (250) + one thread's RAM (~4.19) --
   // everything else stays at the clean fixture's values.
-  const entries = [...baseEntries(), cleanSnapshot({ share: { targetGb: 250, inFlightRamGb: 260, threads: 62, attainedPct: 104, sharePower: 1.8 } })];
+  const entries = [...baseEntries(), cleanSnapshot({ sharePool: { targetGb: 250, inFlightRamGb: 260, threads: 62, attainedPct: 104, sharePower: 1.8 } })];
 
   it('fails only the share-cap check', () => {
     expect(checkShareCap(entries).length).toBeGreaterThan(0);
@@ -76,7 +76,7 @@ describe('checker fixtures: budget invariant violation', () => {
 
 describe('checker fixtures: fraction consistency violation', () => {
   // share.targetGb (999) is nowhere near shareFraction(0.25) x budgetGb(1000) = 250.
-  const entries = [...baseEntries(), cleanSnapshot({ share: { targetGb: 999, inFlightRamGb: 248, threads: 62, attainedPct: 24.8, sharePower: 1.8 } })];
+  const entries = [...baseEntries(), cleanSnapshot({ sharePool: { targetGb: 999, inFlightRamGb: 248, threads: 62, attainedPct: 24.8, sharePower: 1.8 } })];
 
   it('fails only fraction consistency', () => {
     expect(checkShareCap(entries)).toEqual([]); // 248 is well under 999 + tolerance -- not a cap violation
@@ -97,7 +97,7 @@ describe('checker fixtures: share-cap grace window', () => {
       cleanSnapshot({
         time: 't2',
         timestamp: 2010, // 10ms after toggle-off -- well within the 30s grace window
-        share: { targetGb: 0, inFlightRamGb: 40, threads: 10, attainedPct: null, sharePower: 1.2 },
+        sharePool: { targetGb: 0, inFlightRamGb: 40, threads: 10, attainedPct: null, sharePower: 1.2 },
       }),
     ];
     expect(checkShareCap(entries)).toEqual([]);
@@ -110,9 +110,68 @@ describe('checker fixtures: share-cap grace window', () => {
       cleanSnapshot({
         time: 't2',
         timestamp: 2000 + 31_000, // 31s after toggle-off -- past the 30s grace window
-        share: { targetGb: 0, inFlightRamGb: 40, threads: 10, attainedPct: null, sharePower: 1.2 },
+        sharePool: { targetGb: 0, inFlightRamGb: 40, threads: 10, attainedPct: null, sharePower: 1.2 },
       }),
     ];
     expect(checkShareCap(entries).length).toBeGreaterThan(0);
+  });
+});
+
+describe('checkNaturalExit', () => {
+  it('passes a clean exit -> drain -> enter sequence', () => {
+    const entries = [
+      { event: 'exit', time: 't1', timestamp: 1000, server: 'a', reason: 'displaced', batchesInFlight: 2, inFlightRamGb: 10, commitmentPct: 50 },
+      { event: 'snapshot', time: 't2', timestamp: 1100, draining: [{ server: 'a', batchesInFlight: 1, inFlightRamGb: 5 }] },
+      { event: 'snapshot', time: 't3', timestamp: 1200, draining: [] },
+      { event: 'enter', time: 't4', timestamp: 1300, server: 'a', score: 100, displaced: [], prepped: true },
+    ];
+    expect(checkNaturalExit(entries)).toEqual([]);
+  });
+
+  // Modeled on the real Phase 8 failure (batcher-refactor-phase9.md): a
+  // `displaced` exit followed by `batch` events against the same server with
+  // no intervening `enter` -- the pass-3/pass-4 both-lists bug's fingerprint.
+  it('flags a batch event against a server with an open exit and no intervening enter', () => {
+    const entries = [
+      { event: 'exit', time: 't1', timestamp: 1000, server: 'a', reason: 'displaced', batchesInFlight: 2, inFlightRamGb: 10, commitmentPct: 50 },
+      { event: 'batch', time: 't2', timestamp: 1100, batchTarget: 'a' },
+    ];
+    const violations = checkNaturalExit(entries);
+    expect(violations.length).toBe(1);
+    expect(violations[0].reason).toMatch(/batch event for a while it has an open exit/);
+  });
+
+  it('flags a rising draining count for a server with an open exit', () => {
+    const entries = [
+      { event: 'exit', time: 't1', timestamp: 1000, server: 'a', reason: 'displaced', batchesInFlight: 2, inFlightRamGb: 10, commitmentPct: 50 },
+      { event: 'snapshot', time: 't2', timestamp: 1100, draining: [{ server: 'a', batchesInFlight: 1, inFlightRamGb: 5 }] },
+      { event: 'snapshot', time: 't3', timestamp: 1200, draining: [{ server: 'a', batchesInFlight: 2, inFlightRamGb: 10 }] },
+    ];
+    const violations = checkNaturalExit(entries);
+    expect(violations.length).toBe(1);
+    expect(violations[0].reason).toMatch(/increased after exit/);
+  });
+});
+
+describe('dropPreConfigStragglers', () => {
+  it('drops leftover pre-mode-event snapshots, fixing an otherwise-failing fraction-consistency check', () => {
+    // A ring-buffer straggler: a snapshot from the tail end of the previous
+    // window survives, but its own `mode` event has already aged out --
+    // unsliced, it has no preceding mode event at all (a hard violation).
+    // The real window's own mode + snapshot follow right after.
+    const strayFromPreviousWindow = cleanSnapshot({ time: 'stray', timestamp: 500 });
+    const entries = [strayFromPreviousWindow, ...baseEntries(), cleanSnapshot()];
+
+    expect(checkFractionConsistency(entries).length).toBeGreaterThan(0);
+    expect(checkFractionConsistency(dropPreConfigStragglers(entries))).toEqual([]);
+  });
+
+  it('passes a log that already starts with a mode event through unchanged', () => {
+    const entries = [...baseEntries(), cleanSnapshot()];
+    expect(dropPreConfigStragglers(entries)).toEqual(entries);
+  });
+
+  it('passes an empty array through unchanged', () => {
+    expect(dropPreConfigStragglers([])).toEqual([]);
   });
 });

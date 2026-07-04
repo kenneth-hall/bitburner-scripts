@@ -165,28 +165,31 @@ export function countInFlightThreads(ns, hosts, server, script) {
  *
  * Share processes (filename === SHARE_SCRIPT) have no target argument --
  * proc.args[0] is share.js's ignored launch counter, not a server name -- so
- * they're accumulated into the separate `share` bucket and never touch
+ * they're accumulated into the separate `sharePool` bucket and never touch
  * `byTarget`.
  *
  * A server with zero matching processes anywhere is simply absent from
  * `byTarget` -- callers must default-fill (`result.byTarget[server] ??
  * {batches: 0, ramGb: 0}`) rather than assume every known server has a key.
- * `share` is always present, defaulting to `{threads: 0, ramGb: 0}`.
+ * `sharePool` is always present, defaulting to `{threads: 0, ramGb: 0}`.
+ * (Named `sharePool`, not `share` -- Phase 9: `share` collides with
+ * `ns.share`'s exact name and gets charged its 2.4 GB RAM cost even though
+ * nothing here calls it; see batcher-refactor-phase9.md.)
  * @param {NS} ns
  * @param {{hostname: string}[]} hosts
  * @param {Record<string, number>} ramCosts
- * @returns {{byTarget: Record<string, {batches: number, ramGb: number}>, share: {threads: number, ramGb: number}}}
+ * @returns {{byTarget: Record<string, {batches: number, ramGb: number}>, sharePool: {threads: number, ramGb: number}}}
  */
 export function inFlightByTarget(ns, hosts, ramCosts) {
   const byTarget = {};
-  const share = { threads: 0, ramGb: 0 };
+  const sharePool = { threads: 0, ramGb: 0 };
   for (const host of hosts) {
     for (const proc of ns.ps(host.hostname)) {
       const ramPerThread = ramCosts[proc.filename];
       if (ramPerThread === undefined) continue;
       if (proc.filename === SHARE_SCRIPT) {
-        share.threads += proc.threads;
-        share.ramGb += ramPerThread * proc.threads;
+        sharePool.threads += proc.threads;
+        sharePool.ramGb += ramPerThread * proc.threads;
         continue;
       }
       const server = String(proc.args[0]);
@@ -197,7 +200,7 @@ export function inFlightByTarget(ns, hosts, ramCosts) {
       if (proc.filename === WORKER_SCRIPTS.hack) byTarget[server].batches += 1;
     }
   }
-  return { byTarget, share };
+  return { byTarget, sharePool };
 }
 
 /**

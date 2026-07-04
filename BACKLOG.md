@@ -5,65 +5,87 @@ move finished items to Done with a date instead of deleting them.
 
 ## In Progress
 
-_(nothing in progress from this session)_
+- **Batcher refactor Phase 9 — Phase 8 close-out** (2026-07-04): `batcher-refactor-phase9.md`.
+  All three `[code]` work items shipped and verified locally; the two `[live]` steps (RAM gate,
+  clean A/B/A' income session) still need Kenneth in-game — see Next Up for those.
+  - **`pickBatchSet`'s pass-3/pass-4 both-lists bug — fixed.** Added a `justEvicted` set
+    (`scheduler.js`) filled inside pass 3's displacement commit; pass 4's refill loop now skips
+    any candidate in it, so a server evicted this tick can't be re-admitted in the same call (it
+    becomes eligible again next tick as an ordinary non-incumbent). BACKLOG's exact repro
+    (challenger/mid/n00dles, budget 35, hysteresis 1.25) now returns `members == ['challenger']`
+    with both `mid` and `n00dles` in `exits` as `displaced` and zero overlap — confirmed via a
+    plain-node import, not just the test suite. 3 new `test/scheduler.test.js` cases (the repro,
+    an explicit never-evicted-candidate refill case, and an `expectNoOverlap` helper applied to
+    the repro plus all 5 pre-existing displacement-path cases); all 15 pre-fix `pickBatchSet`
+    cases still pass unchanged.
+  - **RAM rename `share` → `sharePool`, shipped in code; live gate still pending.** Renamed the
+    identifier/property in `sampling.js`'s `inFlightByTarget` (`{byTarget, share}` →
+    `{byTarget, sharePool}`), `daemon.js` (`preTickInFlight.sharePool.*`, snapshot key `share:` →
+    `sharePool:`), and `sharecurve.js` (`sweep.sharePool.threads`) — the only construct in the
+    import graph that exactly matched `ns.share`'s name (2.4 GB, `markdown/bitburner.ns.share.md`).
+    `sharePool` re-verified absent from `NetscriptDefinitions.d.ts`. `share.js` itself (the real
+    `ns.share()` call), `SHARE_SCRIPT`, `SHARE_FRACTION`, and `sharePower` (a different identifier,
+    doesn't collide) are untouched by design. **This is a deliberate log-schema change** — noted
+    in `daemon.js`'s log header comment; old exported logs need a checker version from before this
+    commit to validate (git history), the current checker validates only the `sharePool` schema.
+    Still needs Kenneth's before/after `ramcheck.js` gate to confirm the hypothesis
+    (`daemon.js` expected ≈16.30 GB after, down from 18.70) — see Next Up.
+  - **`hackingLevel` added to snapshots, `dropPreConfigStragglers` and `checkNaturalExit`
+    extracted.** `daemon.js`'s snapshot record gains `hackingLevel: ns.getHackingLevel()` (+0.00
+    measured RAM expected — already charged once via `hosts.js`/`targets.js`'s existing calls,
+    per the once-per-name import-charging model); checker validates it and a soft report prints
+    first/last/min/max/delta. New pure helper `dropPreConfigStragglers(entries)` in
+    `test/verify-log-checks.js` slices a log to its first retained `mode` event, wired into
+    `verify-log.test.js`'s `beforeAll` behind `VERIFY_SLICE_STRAGGLERS=1` (opt-in, so a normal
+    single-window log validates in full by default). The natural-exit invariant, previously
+    inline `expect` calls in `verify-log.test.js`, is now `checkNaturalExit(entries)` in
+    `verify-log-checks.js`, matching the style of the other three extracted checks, with new
+    fixture tests in `test/checker-fixtures.test.js` modeled on the real Phase 8 failure.
+  - **`npm test` green at 128/128** (up from Phase 8's 120/120: +6 scheduler, +2 sampling
+    (`sharePool` shape), +6 checker-fixtures (`checkNaturalExit` x3, `dropPreConfigStragglers`
+    x3)).
+  - **Implementation-time validation against the real `logs/phase8-ab/` copies (one-off script,
+    not committed): exact match to the spec's expected table.** `checkNaturalExit` violations:
+    0/0/31/114/114 across the five copies, in order — identical to the numbers that motivated
+    this phase. `Aprime-end`'s fraction-consistency: 15 violations unsliced (stragglers, no
+    preceding `mode` event) → 0 sliced via `dropPreConfigStragglers`, which kept exactly 1757 of
+    2000 entries (first `mode` event at index 243) — matches the spec's prediction exactly. (Old
+    logs use the pre-rename `share` key; the one-off script translated it to `sharePool` before
+    calling the checker, since a real post-rename session log wouldn't need this — see the
+    schema-change note above.)
+  - Branch `worktree-phase9-closeout`.
 
 ## Next Up
 
-- **Fix `pickBatchSet`'s pass-3/pass-4 self-contradiction bug** (found live 2026-07-04, during
-  Phase 8 verification — see Done below). `scheduler.js`'s `pickBatchSet` (Phase 7 code,
-  untouched by Phase 8) can evict an incumbent in pass 3 (displacement) and then immediately
-  re-admit that *same* server via pass 4's refill walk, within the same call, if the eviction
-  freed more budget than the challenger needed and the evicted server's own cost fits in the
-  leftover. The result is self-contradictory: the server appears in both `result.exits`
-  (reason `"displaced"`) and `result.members` simultaneously. Downstream in `daemon.js` this
-  means a real "exit" gets logged and a `drainDeadline` gets set, but the server never actually
-  stops being a batched member (no matching "enter" ever logs either, since `previousMemberSet`
-  already contained it) — not a functional/gameplay bug (the member loop still launches real,
-  correct batches against it), but it corrupts the exit/enter log pairing and fails the
-  natural-exit invariant `verify:log` check. Minimal repro (3 candidates, one call to
-  `pickBatchSet`) confirmed the mechanism exactly:
-  ```js
-  const candidates = [
-    { server: 'challenger', score: 300, pipelineCostGb: 12, prepped: true },
-    { server: 'mid', score: 70, pipelineCostGb: 30, prepped: true },
-    { server: 'n00dles', score: 60, pipelineCostGb: 5, prepped: true },
-  ];
-  pickBatchSet(candidates, ['mid', 'n00dles'], 35, 1.25);
-  // -> result.exits has n00dles (displaced) AND result.members has n00dles -- both true
-  ```
-  Fix direction (not yet implemented): pass 4's refill walk needs to exclude servers this same
-  tick's pass 3 just evicted (e.g. track a `justEvicted` set alongside `seatedServers` and skip
-  it in the refill loop), or accept displaced servers as ineligible for refill entirely this
-  tick. A calmer Phase-7-only session apparently never triggered this; Phase 8's share-fraction
-  toggle causing a large simultaneous budget swing is what exposed it. Needs its own unit test
-  in `test/scheduler.test.js` (the repro above, asserting a server never appears in both
-  `exits` and `members`) before/alongside the fix.
+- **Phase 9 RAM gate — live measurement needed** (2026-07-04): the `share`→`sharePool` rename
+  above is shipped in code; closing the RAM-anomaly item for real needs Kenneth's before/after
+  `ramcheck.js daemon.js share.js targets.js` per `batcher-refactor-phase9.md`'s RAM gate
+  section — before syncing Phase 9 (expect daemon 18.70, share 4.00), then after (expect daemon
+  ≈16.30 if the collision hypothesis is confirmed, unchanged 18.70 if falsified — see the spec's
+  decision tree and fallback diagnostic plan for the `ramtest-e*.js` matrix if it doesn't land
+  cleanly on either number). Also record `targets.js`'s before/after for the bundle-vs-
+  reachability import-charging question.
 
-- **Phase 8 tuning follow-up: get a clean A/B/A' session** (2026-07-04). This session's data had
-  two real quality problems (see Done below): window A ran only ~5 min (spec wants >=10), and
-  the income comparison was dominated by natural hacking-level growth over the ~30-minute
-  session rather than share's actual cost. A properly-timed re-run (all three windows >=10 min,
-  ideally over a shorter wall-clock span to reduce level-growth confound, or with the confound
-  explicitly tracked via `ns.getHackingLevel()` readings at each boundary) would make the
-  income-side number trustworthy enough to actually revisit `SHARE_FRACTION`. The rep-side
-  comparison (see Done below) is already solid and doesn't need re-doing.
+- **Phase 8/9 tuning follow-up: get a clean A/B/A' session** (2026-07-04, carried from Phase 8,
+  now unblocked). This needs the pass-4 fix above (done) and the RAM gate above (run first, per
+  spec ordering) before Kenneth runs the live session: three ≥10-minute windows (share
+  off/on/off), fleet frozen, one calendar day, `VERIFY_WINDOWS`/`npm run verify:log` on each
+  boundary copy (with `VERIFY_SLICE_STRAGGLERS=1` if a copy hard-fails on a missing preceding
+  `mode` event). Required output: windowed $/min for A/B/A' with each window's `hackingLevel`
+  drift (now auto-reported per the snapshot addition above) next to it, and a keep/raise/lower
+  recommendation for `SHARE_FRACTION`. Phase 8's rep-side result (2.78 vs 1.92 rep/sec,
+  ~45% boost) already stands and isn't re-measured.
 
-- **Phase 8 RAM anomaly: root cause still unknown, waived** (2026-07-04, decided by Kenneth
-  after an extensive live bisection — see Done below for the full investigation trail).
-  `daemon.js` measures 18.7 GB with Phase 8's changes vs. an expected ~16.3 GB (16.10 GB
-  Phase-7 baseline + `ns.getSharePower`'s documented 0.2 GB) -- a genuine +2.6 GB unexplained
-  delta, confirmed reproducible via ~20 live `getScriptRam` measurements, not a stale-baseline
-  artifact. Real-file slicing narrowed the trigger to daemon.js's own steps 1-2 (`refreshCycle`
-  + the pre-tick sweep), but every manual reconstruction of that same code (flat function
-  calls, real `ramCosts` via `ns.scp`+`ns.getScriptRam`, loop-vs-flat placement, every pairwise
-  and full-combination test of daemon.js's imports) measured the expected linear cost instead
-  — meaning the actual trigger is some structural detail of the real file that wasn't isolated
-  before time was called on the investigation. Not a functional defect (every tested variant
-  only differs in the RAM number, never in behavior) -- explicitly waived as an acceptance
-  criterion for this phase. Revisit with fresh eyes: candidate next step would be bisecting the
-  *real* `daemon.js` file itself top-to-bottom via `git show`+splice (the technique that
-  reliably reproduced it every time) rather than reconstructing scenarios from scratch (which
-  never once reproduced it, across ~10 attempts).
+- **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
+  same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
+  likely also applies to `WORKER_SCRIPTS`' keys — `hack`/`grow`/`weaken` (`scheduler.js`) match
+  `ns.hack`/`ns.grow`/`ns.weaken`'s names exactly, which would mean every importer of
+  `WORKER_SCRIPTS` has been paying a phantom 0.1 + 0.15 + 0.15 = 0.4 GB since Phase 2. Verifiable
+  with the same E-matrix technique (`batcher-refactor-phase9.md`'s fallback diagnostic plan) —
+  object keys, not standalone identifiers, so worth confirming object-literal-key charging
+  specifically before assuming it applies. Renaming `WORKER_SCRIPTS`' keys is a wider refactor
+  than this phase's scope (touches every `WORKER_SCRIPTS[...]` call site across `scheduler.js`,
+  `daemon.js`, `sampling.js`) — not started.
 
 - **targetsmonitor "ratio" column → actual priority metric**: Investigated a suspected bug
   (2026-07-04) — "ratio" numbers looked suspiciously round/inconsistent, hypothesis was that

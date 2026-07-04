@@ -226,6 +226,16 @@ describe('planPrep', () => {
 
 describe('pickBatchSet', () => {
   const memberServers = (result) => result.members.map((m) => m.server);
+  // Phase 9: the exits/members lists must never share a server -- the
+  // pass-3/pass-4 both-lists bug (a server evicted by pass 3 re-admitted by
+  // pass 4's refill in the same call) is exactly a violation of this.
+  const expectNoOverlap = (result) => {
+    const memberSet = new Set(memberServers(result));
+    const exitServers = result.exits.map((e) => e.server);
+    for (const server of exitServers) {
+      expect(memberSet.has(server), `${server} appears in both exits and members`).toBe(false);
+    }
+  };
 
   it('fills spare budget in score order, excluding whatever no longer fits', () => {
     const candidates = [
@@ -265,6 +275,7 @@ describe('pickBatchSet', () => {
       expect(memberServers(result)).toEqual(['top']);
       expect(result.exits).toEqual([{ server: 'mid', reason: 'displaced' }]);
       expect(result.displacement).toEqual({ entrant: 'top', displaced: ['mid'] });
+      expectNoOverlap(result);
     });
 
     it('gate blocks an unprepped challenger even when its score is over threshold', () => {
@@ -289,6 +300,7 @@ describe('pickBatchSet', () => {
       expect(memberServers(result)).toEqual(['second']);
       expect(result.exits).toEqual([{ server: 'mid', reason: 'displaced' }]);
       expect(result.displacement).toEqual({ entrant: 'second', displaced: ['mid'] });
+      expectNoOverlap(result);
     });
   });
 
@@ -340,6 +352,7 @@ describe('pickBatchSet', () => {
     expect(result.exits).toHaveLength(3);
     expect(result.displacement.entrant).toBe('challenger');
     expect(new Set(result.displacement.displaced)).toEqual(new Set(['inc1', 'inc2', 'inc3']));
+    expectNoOverlap(result);
   });
 
   it('allows at most one displacement per tick even when two challengers qualify', () => {
@@ -352,6 +365,7 @@ describe('pickBatchSet', () => {
     expect(memberServers(result)).toEqual(['chA']);
     expect(result.exits).toEqual([{ server: 'inc', reason: 'displaced' }]);
     expect(result.displacement.entrant).toBe('chA');
+    expectNoOverlap(result);
   });
 
   it('rule-4 refill admits a small non-member into budget freed by a displacement', () => {
@@ -364,6 +378,45 @@ describe('pickBatchSet', () => {
     expect(memberServers(result)).toEqual(['big', 'small']);
     expect(result.exits).toEqual([{ server: 'inc', reason: 'displaced' }]);
     expect(result.displacement).toEqual({ entrant: 'big', displaced: ['inc'] });
+    expectNoOverlap(result);
+  });
+
+  it('Phase 9 BACKLOG repro: pass-4 refill must not re-admit a server pass 3 just evicted', () => {
+    // Exact repro from batcher-refactor-phase9.md: displacing both incumbents
+    // frees 35 GB against a 12 GB entrant, leaving 23 GB of slack -- enough
+    // for pass 4 to re-seat n00dles (cost 5) if it weren't excluded as
+    // just-evicted. Before the fix this put n00dles in both `exits`
+    // (displaced) and `members`, corrupting the daemon's exit/enter pairing.
+    const candidates = [
+      { server: 'challenger', score: 300, pipelineCostGb: 12, prepped: true },
+      { server: 'mid', score: 70, pipelineCostGb: 30, prepped: true },
+      { server: 'n00dles', score: 60, pipelineCostGb: 5, prepped: true },
+    ];
+    const result = pickBatchSet(candidates, ['mid', 'n00dles'], 35, 1.25);
+    expect(memberServers(result)).toEqual(['challenger']);
+    expect(result.exits).toEqual(
+      expect.arrayContaining([
+        { server: 'mid', reason: 'displaced' },
+        { server: 'n00dles', reason: 'displaced' },
+      ])
+    );
+    expect(result.exits).toHaveLength(2);
+    expectNoOverlap(result);
+  });
+
+  it('refill still works: a never-evicted cheap candidate is admitted from budget a displacement freed', () => {
+    // Same shape as the rule-4 refill case above, but stated explicitly as
+    // the justEvicted guard's negative-space check: 'small' was never a
+    // seated incumbent, so it must still be admitted in pass 4 even though
+    // 'inc' was evicted in the same tick.
+    const candidates = [
+      { server: 'big', score: 300, pipelineCostGb: 50, prepped: true },
+      { server: 'inc', score: 100, pipelineCostGb: 60, prepped: true },
+      { server: 'small', score: 90, pipelineCostGb: 10, prepped: true },
+    ];
+    const result = pickBatchSet(candidates, ['inc'], 60, 1.25);
+    expect(memberServers(result)).toContain('small');
+    expectNoOverlap(result);
   });
 
   it('an incumbent missing from candidates exits "ineligible"', () => {

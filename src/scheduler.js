@@ -330,6 +330,15 @@ export function pickBatchSet(candidates, incumbentServers, budgetGb, hysteresis)
   let displacement = null;
   const seatedIncumbents = seated.filter((m) => incumbentSet.has(m.server));
   const evictionOrder = [...seatedIncumbents].sort((a, b) => a.score - b.score);
+  // Servers pass 3 evicted this tick -- pass 4's refill must not re-seat one
+  // of these even if the freed budget and its own cost both fit. Otherwise a
+  // server ends up in both `exits` (reason "displaced") and `members` from
+  // the same call: daemon.js logs a real exit and sets a drainDeadline, but
+  // the server never actually left previousMemberSet, so no matching `enter`
+  // ever fires -- corrupting the exit/enter pairing the natural-exit
+  // invariant depends on. A displaced server becomes eligible again next
+  // tick, competing as an ordinary non-incumbent (pass 2).
+  const justEvicted = new Set();
 
   for (const challenger of candidates) {
     if (seatedServers.has(challenger.server)) continue;
@@ -354,6 +363,7 @@ export function pickBatchSet(candidates, incumbentServers, budgetGb, hysteresis)
         seatedServers.delete(evicted.server);
         seated.splice(seated.indexOf(evicted), 1);
         exits.push({ server: evicted.server, reason: "displaced" });
+        justEvicted.add(evicted.server);
       }
       remaining += freed;
       seated.push(challenger);
@@ -371,10 +381,12 @@ export function pickBatchSet(candidates, incumbentServers, budgetGb, hysteresis)
 
   // Pass 4: refill -- a displacement can free more budget than the entrant
   // consumed. Run one more rule-2-style pass so slack isn't stranded until
-  // next tick. Only meaningful after an actual displacement.
+  // next tick. Only meaningful after an actual displacement. Excludes
+  // justEvicted (see its declaration above): a server evicted this same tick
+  // is ineligible for re-admission until next tick.
   if (displacement) {
     for (const candidate of candidates) {
-      if (seatedServers.has(candidate.server)) continue;
+      if (seatedServers.has(candidate.server) || justEvicted.has(candidate.server)) continue;
       if (candidate.pipelineCostGb <= remaining) {
         seated.push(candidate);
         seatedServers.add(candidate.server);

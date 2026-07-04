@@ -64,7 +64,7 @@ export async function main(ns) {
   const currentSharePower = ns.getSharePower();
   const ramCosts = { [SHARE_SCRIPT]: ramPerThread };
   const sweep = inFlightByTarget(ns, hosts, ramCosts);
-  const currentThreads = sweep.share.threads;
+  const currentThreads = sweep.sharePool.threads;
 
   const curve = CANDIDATE_FRACTIONS.map((fraction) => {
     const threads = Math.floor((fraction * capacity) / ramPerThread);
