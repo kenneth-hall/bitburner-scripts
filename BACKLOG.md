@@ -104,6 +104,18 @@ _(nothing in progress from this session)_
     `daemon.js`, then reverted at the user's request — mid-testing, this chat is for request
     tracking only, not implementation. Design above reflects what was decided/built before the
     revert, kept here so a future implementation doesn't have to re-derive it.
+  - **Implemented and reverted again, 2026-07-04**: a full implementation shipped as
+    `batcher-refactor-phase6.md` (`common.js`, `eventlog.js`, `factionwatcher.js`,
+    `backdoorfactions.js`, plus the `hosts.js`/`connect.js`/`daemon.js` wiring described
+    below), then fully reverted the same day at the user's request — they judged it not
+    worth further development right now after realizing they'd misunderstood some of the
+    underlying game mechanics (notably: they don't currently have Singularity access
+    unlocked, and had assumed some factions could be safely auto-joined with no downside).
+    None of this is implemented; treat every item on this backlog entry as still to do.
+    Reverted via `git revert` (history preserved, not rewritten) — see
+    `batcher-refactor-phase6.md`'s status note for the full file/commit list before
+    resuming, and re-confirm the settled decisions below still hold given the
+    Singularity-access correction.
   - Existing scaffolding to reuse: `connect.js` already BFS-pathfinds to a target (its
     `DEFAULT_TARGET` is already `"CSEC"`) but only prints the path — needs adapting to actually
     drive `ns.singularity.connect()` hop by hop. `hosts.js`'s `PORT_OPENERS`/nuke logic can be
