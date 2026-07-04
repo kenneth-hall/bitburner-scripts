@@ -28,19 +28,47 @@ export function parseWindows(spec) {
 }
 
 /**
- * Hacking-income $/min for one window, over income records fully contained
- * within it (firstTimestamp >= start, lastTimestamp <= end) -- the coalescing
- * gap (translog.js's INCOME_COALESCE_GAP_MS) is small relative to a 10+
- * minute A/B window, so partial-overlap edge effects are negligible.
+ * Hacking-income $/min for one window. Income records coalesce over up to
+ * INCOME_WINDOW_MAX_MS (5 min, translog.js) on a rolling cadence independent
+ * of the A/B toggle timestamps, so a record straddling a window boundary is
+ * the common case, not a rare edge -- a strict "fully contained" filter was
+ * tried first and found (via a real session, 2026-07-04) to silently drop
+ * most records near every boundary. Instead, each record's amount is
+ * pro-rated by the fraction of its [firstTimestamp, lastTimestamp] interval
+ * that overlaps this window (assumes a roughly even income rate within a
+ * single coalesced record, which holds unless a huge one-off windfall lands
+ * inside a record that also straddles a boundary). A record entirely outside
+ * the window contributes 0; one entirely inside contributes its full amount.
  * @param {any[]} entries
  * @param {{label: string, start: number, end: number}} window
  */
 export function windowedIncomeRate(entries, window) {
-  const income = entries.filter(
-    (r) => r.type === 'income' && r.firstTimestamp >= window.start && r.lastTimestamp <= window.end
-  );
-  const total = income.reduce((sum, r) => sum + r.amount, 0);
+  let total = 0;
+  let count = 0;
+  for (const r of entries) {
+    if (r.type !== 'income') continue;
+    const recordSpanMs = r.lastTimestamp - r.firstTimestamp;
+
+    if (recordSpanMs === 0) {
+      // A single-instant record has no interval to overlap -- count it in
+      // full if that instant falls inside the window (the overlapMs<=0 path
+      // below would otherwise always skip it, since overlapEnd-overlapStart
+      // can never exceed 0 for a zero-width interval).
+      if (r.firstTimestamp >= window.start && r.firstTimestamp <= window.end) {
+        total += r.amount;
+        count++;
+      }
+      continue;
+    }
+
+    const overlapStart = Math.max(r.firstTimestamp, window.start);
+    const overlapEnd = Math.min(r.lastTimestamp, window.end);
+    const overlapMs = overlapEnd - overlapStart;
+    if (overlapMs <= 0) continue;
+    total += r.amount * (overlapMs / recordSpanMs);
+    count++;
+  }
   const windowMs = window.end - window.start;
   const perMinute = windowMs > 0 ? total / (windowMs / 60_000) : 0;
-  return { label: window.label, total, perMinute, count: income.length };
+  return { label: window.label, total, perMinute, count };
 }

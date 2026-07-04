@@ -17,7 +17,13 @@ import { parseWindows, windowedIncomeRate } from './windowed-rate.js';
 const LOG_DIR = process.env.TRANSACTIONS_LOG_DIR ?? path.join(process.cwd(), 'logs');
 const FILENAME_PATTERN = /^transactions-\d{4}-\d{2}-\d{2}\.json$/;
 
-const VALID_EXPENSE_SOURCES = new Set(['cloud-purchase', 'fleet-upgrade', 'darkweb-program', 'home-ram-upgrade']);
+const VALID_EXPENSE_SOURCES = new Set([
+  'cloud-purchase',
+  'fleet-upgrade',
+  'darkweb-program',
+  'home-ram-upgrade',
+  'single-server-upgrade', // upgradecloudserver.js -- missing from this whitelist since that script's own phase; found via a real 2026-07-04 session log
+]);
 const VALID_INCOME_SOURCES = new Set(['hacking']);
 
 let files; // [{ name, entries }]

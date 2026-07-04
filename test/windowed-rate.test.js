@@ -33,7 +33,7 @@ describe('windowedIncomeRate', () => {
     { type: 'expense', source: 'fleet-upgrade', amount: 500, timestamp: 1200 }, // never counted
   ];
 
-  it('sums only income records fully contained within the window, computing $/min', () => {
+  it('sums income records fully contained within the window, computing $/min', () => {
     const window = { label: 'A', start: 0, end: 60_000 }; // 1 minute
     const result = windowedIncomeRate(entries, window);
     expect(result).toEqual({ label: 'A', total: 3000, perMinute: 3000, count: 2 });
@@ -55,5 +55,46 @@ describe('windowedIncomeRate', () => {
   it('returns zeros for a window with no matching income', () => {
     const window = { label: 'empty', start: 100_000, end: 200_000 };
     expect(windowedIncomeRate(entries, window)).toEqual({ label: 'empty', total: 0, perMinute: 0, count: 0 });
+  });
+
+  // --- overlap proration (2026-07-04 fix: a strict fully-contained filter
+  // was found, via a real session, to silently drop most records -- income
+  // coalesces on a rolling ~5min cadence independent of window boundaries,
+  // so straddling is the common case) ---
+
+  describe('records straddling a window boundary', () => {
+    const straddling = [{ type: 'income', source: 'hacking', amount: 1000, firstTimestamp: 0, lastTimestamp: 1000 }];
+
+    it('prorates a record straddling the END boundary by the overlapping fraction', () => {
+      const window = { label: 'w', start: 0, end: 250 }; // covers the first 25% of the record's span
+      const result = windowedIncomeRate(straddling, window);
+      expect(result.total).toBeCloseTo(250);
+      expect(result.count).toBe(1);
+    });
+
+    it('prorates a record straddling the START boundary by the overlapping fraction', () => {
+      const window = { label: 'w', start: 750, end: 2000 }; // covers the last 25% of the record's span
+      const result = windowedIncomeRate(straddling, window);
+      expect(result.total).toBeCloseTo(250);
+    });
+
+    it('splits a record spanning two adjacent windows so the halves sum to the full amount', () => {
+      const first = windowedIncomeRate(straddling, { label: 'first', start: 0, end: 400 });
+      const second = windowedIncomeRate(straddling, { label: 'second', start: 400, end: 1000 });
+      expect(first.total + second.total).toBeCloseTo(1000);
+    });
+
+    it('caps a record whose full span exceeds the window at only the overlapping portion', () => {
+      const wide = [{ type: 'income', source: 'hacking', amount: 1000, firstTimestamp: 0, lastTimestamp: 1000 }];
+      const window = { label: 'inner', start: 200, end: 400 }; // 20% of the record's span, fully inside it
+      const result = windowedIncomeRate(wide, window);
+      expect(result.total).toBeCloseTo(200);
+    });
+  });
+
+  it('counts a zero-span record in full when it falls inside the window', () => {
+    const zeroSpan = [{ type: 'income', source: 'hacking', amount: 500, firstTimestamp: 100, lastTimestamp: 100 }];
+    const result = windowedIncomeRate(zeroSpan, { label: 'w', start: 0, end: 200 });
+    expect(result.total).toBe(500);
   });
 });
