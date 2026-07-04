@@ -3,6 +3,7 @@
 // order, to scheduler.js each cycle.
 
 import { HACK_FRACTION, WORKER_SCRIPTS, batchRamCost } from "./scheduler.js";
+import { steadyStatePlan, hasFormulas, isForcedLegacy } from "./sampling.js";
 
 function scanNetwork(ns) {
   const visited = new Set(["home"]);
@@ -26,23 +27,23 @@ function scanNetwork(ns) {
 /**
  * Ranks reachable servers by expected dollars per GB-second (same
  * eligibility filter as before: has money, RequiredHackingLevel under half
- * the player's hacking level) and adds an exact steady-state thread plan for
- * each: hack HACK_FRACTION of current money, grow back to max, weaken enough
- * to counteract the security added by both plus hold at min security.
+ * the player's hacking level) and adds a steady-state thread plan for each:
+ * hack HACK_FRACTION, grow back to max, weaken enough to counteract the
+ * security added by both plus hold at min security. The plan itself
+ * (steadyStatePlan, in sampling.js) is mode-aware -- formulas mode scores at
+ * the target's prepped state instead of its current condition, which is the
+ * Phase 4 churn fix (see that function's doc comment).
  *
  * hackAnalyze/growthAnalyze/weakenAnalyze are all linear in thread count
  * "regardless of how many threads are assigned to each call" (per docs), so
  * splitting a target's thread plan across multiple processes/hosts doesn't
  * change the total effect -- the daemon relies on this to spread threads.
- * growthAnalyze does ignore the $1-per-thread additive bonus grow() gets at
- * very low money, so growThreads is a slight overestimate there; harmless
- * since we round up anyway.
  * @param {NS} ns
  */
 export function getTargets(ns) {
   const myHackLevel = ns.getHackingLevel();
   const purchased = new Set(ns.cloud.getServerNames());
-  const weakenPerThread = ns.weakenAnalyze(1);
+  const useFormulas = hasFormulas(ns);
 
   // Read once per call, not per server -- these don't change between
   // servers, only between game restarts (script file edits).
@@ -65,25 +66,12 @@ export function getTargets(ns) {
 
     const minSecurityLevel = ns.getServerMinSecurityLevel(server);
 
-    // Money-independent sizing (mirrors sampleBatchFields in daemon.js):
-    // hackAnalyzeThreads(server, maxMoney * fraction) returns -1 -- silently
-    // floored to 1 thread by the old max(1, ceil(...)) guard -- whenever the
-    // server currently holds less than that absolute amount. A drained
-    // target would then get a near-zero batchRamCost and an *inflated*
-    // score: the ranking's worst error would be a fake #1. hackAnalyze
-    // shouldn't be 0 for a target that passed the reqLevel filter above, but
-    // skip rather than divide into Infinity if it ever is.
-    const hackAnalyzePerThread = ns.hackAnalyze(server);
-    if (hackAnalyzePerThread <= 0) continue;
-
-    // cores defaults to 1 for growthAnalyze/growthAnalyzeSecurity/weakenAnalyze below;
-    // hosts with more cores (multi-core purchased servers) grow/weaken harder per thread
-    // than planned here, so actual prep will run a bit faster than this plan assumes.
-    const hackThreads = Math.max(1, Math.ceil(HACK_FRACTION / hackAnalyzePerThread));
-    const growThreads = Math.max(1, Math.ceil(ns.growthAnalyze(server, 1 / (1 - HACK_FRACTION))));
-    const securityAdded =
-      ns.hackAnalyzeSecurity(hackThreads, server) + ns.growthAnalyzeSecurity(growThreads, server);
-    const weakenThreads = Math.max(1, Math.ceil(securityAdded / weakenPerThread));
+    // null means unhackable this tick (mirrors sampleBatchFields's identical
+    // guard) -- a drained target would otherwise get a near-zero ramCost and
+    // an *inflated* score, the ranking's worst error (a fake #1).
+    const plan = steadyStatePlan(ns, { server, minSecurityLevel, maxMoney }, useFormulas);
+    if (plan === null) continue;
+    const { hackThreads, growThreads, weakenThreads, weakenTime, hackChance } = plan;
 
     const ramCost = batchRamCost(
       [
@@ -93,14 +81,8 @@ export function getTargets(ns) {
       ],
       workerRamCosts
     );
-    const weakenTime = ns.getWeakenTime(server);
 
-    // hackAnalyzeChance and weakenTime are both sampled at *current*
-    // security, so a high-security (unprepped/drifted) target scores
-    // pessimistically here -- acceptable, since the score self-corrects as
-    // prep progresses, but it means a great-but-unweakened target ranks low
-    // until the waterfall gets around to prepping it.
-    const score = (maxMoney * HACK_FRACTION * ns.hackAnalyzeChance(server)) / (ramCost * (weakenTime / 1000));
+    const score = (maxMoney * HACK_FRACTION * hackChance) / (ramCost * (weakenTime / 1000));
 
     targets.push({
       server,
@@ -118,10 +100,17 @@ export function getTargets(ns) {
       // Phase 2: durations for the batch scheduler's timing math. These are
       // only refreshed every CYCLE_MS here; the live batch path in daemon.js
       // re-samples fresh durations at every batch launch instead of using
-      // these, since security drifts faster than the CYCLE_MS refresh.
+      // these, since security drifts faster than the CYCLE_MS refresh. No
+      // formulas branch needed here -- same as batch timing (sampleBatchFields
+      // splits "cost basis" from "real timing" via steadyWeakenTime for
+      // exactly this reason), real duration is fixed by current state, not
+      // the prepped-state score. `plan.weakenTime` (prepped-state in formulas
+      // mode) already fed the score above; this field is deliberately a
+      // fresh current-state sample instead, so samplePrepFields' job-landing
+      // math and this status line stay consistent with hackTime/growTime.
       hackTime: ns.getHackTime(server),
       growTime: ns.getGrowTime(server),
-      weakenTime,
+      weakenTime: ns.getWeakenTime(server),
     });
   }
 
@@ -129,13 +118,28 @@ export function getTargets(ns) {
   return targets;
 }
 
+// Exported so each run's summary can be read back offline (see logs/ and
+// vite.config.ts's download filter) instead of relying on copy-pasted
+// terminal output. Filename carries the epoch-ms timestamp so repeated runs
+// (e.g. a before/after prep comparison) each land as their own file instead
+// of overwriting each other -- letting multiple runs be compared without
+// needing a fresh prompt/paste after every single one.
+function targetsSummaryFile(timestamp) {
+  return `targets-summary-${timestamp}.json`;
+}
+
 /** @param {NS} ns */
 export async function main(ns) {
   const targets = getTargets(ns);
+  const useFormulas = hasFormulas(ns);
+  const forcedLegacy = isForcedLegacy(ns);
+  const mathLabel = useFormulas ? "formulas" : forcedLegacy ? "legacy (forced)" : "legacy";
+  const timestamp = Date.now();
 
-  ns.tprint("===== targets summary =====");
+  ns.tprint(`===== targets summary (math: ${mathLabel}) =====`);
   if (targets.length === 0) {
     ns.tprint("No eligible targets found.");
+    ns.write(targetsSummaryFile(timestamp), JSON.stringify({ time: new Date().toLocaleTimeString(), timestamp, mathLabel, targets: [] }, null, 2), "w");
     return;
   }
   for (const t of targets) {
@@ -147,4 +151,10 @@ export async function main(ns) {
         `times H${ns.format.time(t.hackTime)}/G${ns.format.time(t.growTime)}/W${ns.format.time(t.weakenTime)}`
     );
   }
+
+  ns.write(
+    targetsSummaryFile(timestamp),
+    JSON.stringify({ time: new Date().toLocaleTimeString(), timestamp, mathLabel, targets }, null, 2),
+    "w"
+  );
 }

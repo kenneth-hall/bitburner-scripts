@@ -44,9 +44,19 @@ export default defineConfig({
     download: {
       server: ['home'],
       // Pressing "d" in the dev terminal normally pulls every file on the
-      // server back to disk -- scope it to just the daemon's own exported
-      // log so it doesn't re-download every script into src/ each time.
-      location: (file) => (file === 'daemon-batch-log.json' ? 'logs/daemon-batch-log.json' : null),
+      // server back to disk -- scope it to just the exported logs so it
+      // doesn't re-download every script into src/ each time. Prefer this
+      // over copy-pasted terminal output whenever a script's result needs to
+      // be read back: daemon-batch-log.json is the daemon's own ring-buffered
+      // history (one file, overwritten in place); targets-summary-<epoch
+      // ms>.json is one file PER RUN of targets.js (a one-shot script, no
+      // ring buffer), so repeated runs (e.g. a before/after comparison) each
+      // land as their own file in logs/ instead of overwriting each other.
+      location: (file) => {
+        if (file === 'daemon-batch-log.json') return 'logs/daemon-batch-log.json';
+        if (/^targets-summary-\d+\.json$/.test(file)) return `logs/${file}`;
+        return null;
+      },
     },
   },
 });

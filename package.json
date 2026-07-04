@@ -3,11 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "viteburner"
+    "dev": "viteburner",
+    "test": "vitest run",
+    "verify:log": "vitest run --config vitest.verify.config.ts"
   },
   "devDependencies": {
     "typescript": "^5.4.5",
     "vite": "^4.5.3",
-    "viteburner": "^0.5.3"
+    "viteburner": "^0.5.3",
+    "vitest": "0.34.6"
   }
 }

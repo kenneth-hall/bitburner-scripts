@@ -8,11 +8,16 @@ This directory is a learning exercise, not a normal software project. The goal i
 - **Give feedback proactively.** Periodically (and whenever it's relevant) comment on the user's Claude Code usage and prompting — what worked well, what could be clearer or more effective, better ways they could have asked for something, useful features/skills/commands they didn't use but could have. Treat this as an ongoing coaching relationship, not a one-time note.
 - **Don't cheat via other players' solutions.** Do not look up, reference, or adapt other users' direct implementations/solutions/scripts for Bitburner (e.g. GitHub repos of someone's personal Bitburner scripts, forum "here's my code" posts). Work from the game's own mechanics and API instead.
 
+## Tracking work
+
+- **Check `BACKLOG.md` for current priorities before starting work**, and keep it up to date — move items between In Progress / Next Up / Ideas / Done as status changes, with a date when something finishes.
+
 ## Communication
 
 - **Summarize after acting.** After performing an action (running commands, editing/creating files, installing things, etc.), give a concise summary of what was done.
 - **Flag unplanned deviations.** If something comes up that wasn't part of what we discussed — extra changes needed, files moved/deleted, scope creep, a different approach than planned — call it out explicitly rather than folding it in silently. Keep the user in the loop on anything not already agreed on.
 - **Check results against the log files.** When verifying that a change behaved as expected, check it against the exported log files (e.g. `logs/daemon-batch-log.json`) rather than assuming. If something needed to verify a result isn't captured there, ask the user whether it'd be worth adding it to the logged data instead of guessing.
+- **Prefer an exported log over copy/pasted terminal output.** Terminal copy/paste from the game is lossy (dropped line breaks, truncated scrollback, garbled merges) and burns the user's time re-pasting. When a script's result needs to be read back and isn't already logged, add a small `ns.write(...)` export for it (and a `vite.config.ts` download-filter entry) instead of asking for another paste. Two patterns depending on the script: a long-running daemon overwrites one ring-buffered file in place (`daemon-batch-log.json`); a one-shot script writes a new timestamped file per run (`targets-summary-<epoch ms>.json`) so repeated runs (e.g. a before/after comparison) don't overwrite each other and don't need a fresh prompt after every run.
 
 ## Reference material (allowed)
 

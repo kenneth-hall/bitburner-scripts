@@ -30,16 +30,23 @@ import {
   batchRamCost,
   carveReservation,
 } from "./scheduler.js";
+import { sampleBatchFields, samplePrepFields, hasFormulas, isForcedLegacy, crossCheckFormulas } from "./sampling.js";
 
 const CYCLE_MS = 10000;
 
 // Exported so it can be pulled down via viteburner's download feature
 // (press "d" in the dev terminal, or automatically every 5 minutes -- see
 // vite.config.ts) for offline review -- 0 GB RAM cost (ns.write), rewritten
-// on every launched batch as a bounded ring buffer so the file doesn't grow
-// unbounded over a long session.
+// as a bounded ring buffer so the file doesn't grow unbounded over a long
+// session. Every record carries an `event` field ("batch" | "skip" | "flip" |
+// "mode" | "xcheck") -- the cap means "last 1000 events", not "last 1000
+// batches", so anything reading the log must filter by `event`. Ordering is
+// defined on `timestamp` for most events, but `firstTimestamp` for coalesced
+// skips -- an in-place-updated skip's `lastTimestamp` can legitimately exceed
+// the `timestamp` of records appended after it.
 const DAEMON_LOG_FILE = "daemon-batch-log.json";
-const DAEMON_LOG_MAX_ENTRIES = 1000; // last 1000 launched batches
+const DAEMON_LOG_MAX_ENTRIES = 1000;
+const LOG_FLUSH_INTERVAL_MS = 10000; // lazy-flush cadence for coalesced skip updates
 
 // Phase 1's daemon scp'd these to every rooted host over its runs; they're
 // dead weight now that hack.js/grow.js/weaken.js replace them. Swept once at
@@ -131,122 +138,6 @@ function totalAllocatableRam(hosts) {
   }, 0);
 }
 
-/**
- * Samples fresh per-batch thread counts and durations for a prepped target.
- * GROW_BUFFER is applied to the grow thread count BEFORE growthAnalyzeSecurity
- * is called on it -- growth is exponential in threads, so buffering the
- * security-added value computed from the raw count would undersize weaken2.
- */
-function sampleBatchFields(ns, target, hackFraction) {
-  // Money-independent sizing: hackAnalyzeThreads(server, maxMoney * fraction)
-  // returns -1 whenever the server currently holds less than that absolute
-  // amount, which the old max(1, ceil(...)) guard silently collapsed to a
-  // single thread -- a drained target would get a near-zero batch and, later,
-  // a wildly under-reserved pipeline. Sizing off ns.hackAnalyze (money stolen
-  // per thread, current-state) instead is strictly more correct too: hacking
-  // fraction f of CURRENT money is exactly what the 1/(1-f) grow multiplier
-  // below is built to restore.
-  const hackPerThread = ns.hackAnalyze(target.server);
-  if (hackPerThread <= 0) return null; // unhackable this tick -- shouldn't happen for an eligible target; avoids dividing into Infinity threads
-  const hackThreads = Math.max(1, Math.ceil(hackFraction / hackPerThread));
-  const hackSecurityAdded = ns.hackAnalyzeSecurity(hackThreads, target.server);
-
-  const growMultiplier = 1 / (1 - hackFraction);
-  const rawGrowThreads = ns.growthAnalyze(target.server, growMultiplier);
-  const growThreads = Math.max(1, Math.ceil(rawGrowThreads * GROW_BUFFER));
-  const growSecurityAdded = ns.growthAnalyzeSecurity(growThreads, target.server);
-
-  const weakenPerThread = ns.weakenAnalyze(1);
-  const weaken1Threads = Math.max(1, Math.ceil((hackSecurityAdded * WEAKEN_BUFFER) / weakenPerThread));
-  const weaken2Threads = Math.max(1, Math.ceil((growSecurityAdded * WEAKEN_BUFFER) / weakenPerThread));
-
-  return {
-    server: target.server,
-    hackThreads,
-    growThreads,
-    weaken1Threads,
-    weaken2Threads,
-    hackTime: ns.getHackTime(target.server),
-    growTime: ns.getGrowTime(target.server),
-    weakenTime: ns.getWeakenTime(target.server),
-  };
-}
-
-/** Sums threads of a given script already running against a target, across all known hosts. */
-function countInFlightThreads(ns, hosts, server, script) {
-  let threads = 0;
-  for (const host of hosts) {
-    for (const proc of ns.ps(host.hostname)) {
-      if (proc.filename === script && String(proc.args[0]) === server) threads += proc.threads;
-    }
-  }
-  return threads;
-}
-
-/**
- * Samples live prep thread counts for a target that isn't prepped. Reuses
- * the CYCLE_MS-cached growTime/weakenTime from targets.js -- prep needs no
- * sub-second timing precision, unlike the batch path.
- *
- * Discounts whatever's already in flight against this target before sizing
- * this tick's request -- without this, a target that's still far from
- * prepped gets a fresh full-size weaken/grow request every tick on top of
- * whatever previous ticks already launched (which can take minutes to land),
- * quickly pinning RAM with redundant, stacked copies of the same job.
- * ns.ps can't tell a weaken.js process launched for the security-gap purpose
- * apart from one launched to counter a grow's security increase (same script,
- * same args), so in-flight weaken threads are credited to the gap first
- * (the more concrete, already-measured need), with any leftover credited to
- * the grow's counter-weaken.
- */
-function samplePrepFields(ns, hosts, target) {
-  const server = target.server;
-  const currentSecurity = ns.getServerSecurityLevel(server);
-  const currentMoney = ns.getServerMoneyAvailable(server);
-  const weakenPerThread = ns.weakenAnalyze(1);
-
-  const inFlightWeaken = countInFlightThreads(ns, hosts, server, WORKER_SCRIPTS.weaken);
-  const inFlightGrow = countInFlightThreads(ns, hosts, server, WORKER_SCRIPTS.grow);
-
-  const securityGap = Math.max(0, currentSecurity - target.minSecurityLevel);
-  const rawWeakenThreadsForGap = securityGap > DRIFT_SEC_EPSILON ? Math.max(1, Math.ceil(securityGap / weakenPerThread)) : 0;
-  const weakenThreadsForGap = Math.max(0, rawWeakenThreadsForGap - inFlightWeaken);
-
-  const needsGrow = currentMoney < target.maxMoney * DRIFT_MONEY_FRACTION;
-  let growThreads = 0;
-  let weakenThreadsForGrow = 0;
-  if (needsGrow) {
-    // growthAnalyze ignores the $1/thread additive bonus grow() gets at very
-    // low money (per docs), and a bare maxMoney/currentMoney blows up to
-    // Infinity once a server's been emptied -- floor currentMoney at 1 so the
-    // multiplier stays finite; the additive bonus covers the rest in practice.
-    const safeCurrentMoney = Math.max(currentMoney, 1);
-    const growMultiplier = target.maxMoney / safeCurrentMoney;
-    const rawGrowThreads = Math.max(1, Math.ceil(ns.growthAnalyze(server, growMultiplier)));
-    growThreads = Math.max(0, rawGrowThreads - inFlightGrow);
-
-    if (growThreads > 0) {
-      // Sized off the DISCOUNTED grow count -- this only needs to counter the
-      // security this tick's new grow threads will add, not the in-flight
-      // ones (those already got their own counter-weaken when they launched).
-      const growSecurityAdded = ns.growthAnalyzeSecurity(growThreads, server);
-      const leftoverInFlightWeaken = Math.max(0, inFlightWeaken - rawWeakenThreadsForGap);
-      weakenThreadsForGrow = Math.max(0, Math.ceil(growSecurityAdded / weakenPerThread) - leftoverInFlightWeaken);
-    }
-  }
-
-  return {
-    server,
-    growThreads,
-    weakenThreadsForGap,
-    weakenThreadsForGrow,
-    growTime: target.growTime,
-    weakenTime: target.weakenTime,
-    currentSecurity,
-    currentMoney,
-  };
-}
-
 // launchmonitor.js watches ns.ps() across all hosts and reports new worker
 // processes independently, so this only needs to launch and count failures --
 // it doesn't build its own launch-event log anymore.
@@ -309,10 +200,10 @@ function cleanupOldWorkerFiles(ns, hosts) {
  * (the empty-pipeline rule) doesn't apply here -- there's no real pipeline
  * to protect for a target that isn't actually running batches.
  */
-function planSpeculativeBatch(ns, target, pool, ramCosts) {
+function planSpeculativeBatch(ns, target, pool, ramCosts, useFormulas) {
   let fraction = HACK_FRACTION;
   while (fraction >= MIN_HACK_FRACTION) {
-    const rates = sampleBatchFields(ns, target, fraction);
+    const rates = sampleBatchFields(ns, target, fraction, useFormulas);
     if (rates === null) return null; // unhackable this tick
     const jobs = planBatch(rates);
     const assigned = assignBatchHosts(jobs, pool, ramCosts);
@@ -352,20 +243,64 @@ function liveTargetState(ns, target) {
   };
 }
 
+/** Rewrites DAEMON_LOG_FILE in full ("w" mode) from the in-memory buffer. */
+function flushDaemonLog(ns, entries) {
+  ns.write(DAEMON_LOG_FILE, JSON.stringify(entries, null, 2), "w");
+}
+
 /**
- * Appends one launched batch's snapshot to the in-memory log buffer and
- * rewrites DAEMON_LOG_FILE in full ("w" mode) -- simplest way to keep the
- * on-disk file trimmed to DAEMON_LOG_MAX_ENTRIES without needing
- * append-then-reread. Mutates and returns `entries` for reassignment at the
- * call site (trimming replaces the array reference).
+ * Appends one event to the in-memory log buffer and flushes immediately --
+ * used for every event type except coalesced skips (see recordSkipEvent),
+ * which mutate in place and flush lazily instead. Mutates and returns
+ * `entries` for reassignment at the call site (trimming replaces the array
+ * reference).
  */
-function writeDaemonLog(ns, entries, record) {
+function appendLogEvent(ns, entries, record) {
   entries.push(record);
   if (entries.length > DAEMON_LOG_MAX_ENTRIES) {
     entries.splice(0, entries.length - DAEMON_LOG_MAX_ENTRIES);
   }
-  ns.write(DAEMON_LOG_FILE, JSON.stringify(entries, null, 2), "w");
+  flushDaemonLog(ns, entries);
   return entries;
+}
+
+/**
+ * Records a skip tick, coalescing consecutive skips with the same target and
+ * saturated/empty classification into one record (count, firstTimestamp,
+ * lastTimestamp) instead of appending -- a long saturation stretch at
+ * BATCH_INTERVAL_MS cadence would otherwise evict hundreds of batch records
+ * from the ring buffer. Never flushes itself -- returns `appended` so the
+ * caller can flush immediately for a fresh record, or defer to the lazy
+ * ~10s timer for an in-place update (mutates the in-memory array only).
+ */
+function recordSkipEvent(entries, record) {
+  const last = entries[entries.length - 1];
+  if (last && last.event === "skip" && last.batchTarget === record.batchTarget && last.saturated === record.saturated) {
+    last.count += 1;
+    last.lastTimestamp = record.timestamp;
+    last.time = record.time;
+    last.batchesInFlight = record.batchesInFlight;
+    last.pipeline = record.pipeline;
+    last.utilizationPct = record.utilizationPct;
+    return { entries, appended: false };
+  }
+
+  entries.push({
+    event: "skip",
+    time: record.time,
+    firstTimestamp: record.timestamp,
+    lastTimestamp: record.timestamp,
+    count: 1,
+    batchTarget: record.batchTarget,
+    saturated: record.saturated,
+    batchesInFlight: record.batchesInFlight,
+    pipeline: record.pipeline,
+    utilizationPct: record.utilizationPct,
+  });
+  if (entries.length > DAEMON_LOG_MAX_ENTRIES) {
+    entries.splice(0, entries.length - DAEMON_LOG_MAX_ENTRIES);
+  }
+  return { entries, appended: true };
 }
 
 /** @param {NS} ns */
@@ -397,10 +332,37 @@ export async function main(ns) {
   let previousMoney = null;
   let previousSecurity = null;
   let logEntries = []; // in-memory mirror of DAEMON_LOG_FILE's bounded ring buffer
+  let lastLazyFlush = Date.now(); // last time a coalesced skip update was flushed to disk
+  let previousCommitmentPct = 0; // incumbent's commitment as of its last active tick -- the flip log's "abandoned" figure, since a flip tick never recomputes cost basis for the outgoing target
+  let useFormulas = false;
+  let forcedLegacy = false;
+  let previousMathMode = null; // null until the first refreshCycle, so startup also announces its mode once
 
   async function refreshCycle() {
     hosts = getHosts(ns);
     targets = getTargets(ns);
+
+    // Re-checked every CYCLE_MS (decided): a mid-run Formulas.exe purchase
+    // upgrades the math within one refresh, no restart; after a reset the
+    // check silently falls back to legacy. Nothing to remember across resets.
+    useFormulas = hasFormulas(ns);
+    forcedLegacy = isForcedLegacy(ns);
+    if (useFormulas !== previousMathMode) {
+      tprintTs(ns, `INFO: math mode ${useFormulas ? "formulas" : forcedLegacy ? "legacy (forced)" : "legacy"}`);
+      previousMathMode = useFormulas;
+      // Also fires on the very first refreshCycle (previousMathMode starts
+      // null), so every log file states its mode from the first record and
+      // is self-describing -- the log checker validates against this
+      // recorded config, not whatever the source tree says today.
+      logEntries = appendLogEvent(ns, logEntries, {
+        event: "mode",
+        time: new Date().toLocaleTimeString(),
+        timestamp: Date.now(),
+        formulas: useFormulas,
+        forcedLegacy,
+        config: { HACK_FRACTION, GROW_BUFFER, WEAKEN_BUFFER, DRIFT_SEC_EPSILON, DRIFT_MONEY_FRACTION, RANK_HYSTERESIS, BATCH_INTERVAL_MS },
+      });
+    }
 
     for (const host of hosts) {
       if (host.hostname === "home") continue;
@@ -421,6 +383,35 @@ export async function main(ns) {
       if (!currentTargetNames.has(name)) tprintTs(ns, `INFO: dropped target ${name}`);
     }
     previousTargetNames = currentTargetNames;
+
+    // Runtime canary, once per CYCLE_MS: compares formulas math against
+    // legacy at the *current* state (not prepped -- both branches only agree
+    // there if the target happens to be exactly at min/max) for whichever
+    // server is the active batch target. Skipped in legacy mode (nothing to
+    // cross-check) and on the very first refresh (no incumbent yet).
+    if (useFormulas && incumbentServer !== null) {
+      const crossCheckTarget = targets.find((t) => t.server === incumbentServer);
+      if (crossCheckTarget) {
+        const mismatches = crossCheckFormulas(ns, crossCheckTarget);
+        for (const mismatch of mismatches) {
+          tprintTs(
+            ns,
+            `WARN: xcheck mismatch on ${crossCheckTarget.server} (${mismatch.field}${mismatch.soft ? ", soft" : ""}): ` +
+              `legacy=${mismatch.legacy} formulas=${mismatch.formulas}`
+          );
+          logEntries = appendLogEvent(ns, logEntries, {
+            event: "xcheck",
+            time: new Date().toLocaleTimeString(),
+            timestamp: Date.now(),
+            target: crossCheckTarget.server,
+            field: mismatch.field,
+            legacy: mismatch.legacy,
+            formulas: mismatch.formulas,
+            soft: mismatch.soft,
+          });
+        }
+      }
+    }
   }
 
   await refreshCycle();
@@ -431,7 +422,27 @@ export async function main(ns) {
   let lastCycleTime = Date.now();
 
   while (true) {
-    if (Date.now() - lastCycleTime >= CYCLE_MS) {
+    // Guard against the fleetupgrade.js rename window, airtight not
+    // best-effort: fleetupgrade.js contains no await, so it runs atomically
+    // between daemon ticks -- every rename lands while the daemon sleeps --
+    // and there are no awaits between this guard and the per-host calls
+    // below, so no try/catch is needed either. Checked every tick (not just
+    // on the CYCLE_MS cadence) because renames can land mid-cycle: while a
+    // renamed host is missing from `hosts`, its workers are invisible to
+    // countBatchesInFlight/sumInFlightRam, so batchesInFlightBeforeTick can
+    // read 0 with a full pipeline in flight -- reopening the shrink gate and
+    // letting a runt launch mid-pipeline, the exact ratchet Phase 3 closed.
+    // An immediate refreshCycle() (not waiting out CYCLE_MS) closes that
+    // window within the tick that detects it.
+    const vanishedHostnames = hosts.filter((h) => !ns.serverExists(h.hostname)).map((h) => h.hostname);
+    if (vanishedHostnames.length > 0) {
+      for (const hostname of vanishedHostnames) {
+        tprintTs(ns, `INFO: host ${hostname} no longer exists (renamed mid-cycle?) -- refreshing immediately`);
+      }
+      hosts = hosts.filter((h) => !vanishedHostnames.includes(h.hostname));
+      await refreshCycle();
+      lastCycleTime = Date.now();
+    } else if (Date.now() - lastCycleTime >= CYCLE_MS) {
       await refreshCycle();
       lastCycleTime = Date.now();
     }
@@ -453,8 +464,47 @@ export async function main(ns) {
     // currently in flight, old and new.
     const totalMaxRam = totalAllocatableRam(hosts);
 
-    const batchTarget = pickBatchTarget(targets, incumbentServer, RANK_HYSTERESIS);
+    // Scored at its prepped state, a fresh unlock can clear RANK_HYSTERESIS
+    // while still stone-cold in formulas mode -- gate the flip on the
+    // challenger actually being prepped, sampled only when there's a real
+    // challenge to check (targets[0] isn't already the incumbent). Legacy
+    // mode passes true unconditionally, preserving today's behavior exactly:
+    // legacy's current-state scoring already only lets a challenger through
+    // once the waterfall has warmed it up.
+    let challengerPrepped = true;
+    if (useFormulas && incumbentServer !== null && targets[0].server !== incumbentServer) {
+      challengerPrepped = isPrepped(liveTargetState(ns, targets[0]));
+    }
+    const previousIncumbentServer = incumbentServer;
+    const batchTarget = pickBatchTarget(targets, incumbentServer, RANK_HYSTERESIS, challengerPrepped);
     incumbentServer = batchTarget.server;
+
+    // Flip detection: previousIncumbentServer !== null excludes the very
+    // first tick's initial pick (not a flip, nothing was abandoned). The
+    // outgoing target's cost basis is never recomputed this tick (stage 1
+    // below only sizes the NEW batchTarget) -- previousCommitmentPct is
+    // last tick's already-computed figure for whatever was batchTarget then,
+    // which by construction is exactly this tick's outgoing incumbent.
+    if (previousIncumbentServer !== null && batchTarget.server !== previousIncumbentServer) {
+      const fromTarget = targets.find((t) => t.server === previousIncumbentServer);
+      const toTarget = targets.find((t) => t.server === batchTarget.server);
+      tprintTs(
+        ns,
+        `INFO: target flip ${previousIncumbentServer} -> ${batchTarget.server} ` +
+          `(abandoned ${previousCommitmentPct.toFixed(1)}% commitment)`
+      );
+      logEntries = appendLogEvent(ns, logEntries, {
+        event: "flip",
+        time: new Date().toLocaleTimeString(),
+        timestamp: Date.now(),
+        from: previousIncumbentServer,
+        to: batchTarget.server,
+        fromScore: fromTarget ? fromTarget.score : null,
+        toScore: toTarget ? toTarget.score : null,
+        commitmentPct: previousCommitmentPct,
+      });
+    }
+
     const liveBatchState = liveTargetState(ns, batchTarget);
     const prepped = isPrepped(liveBatchState);
 
@@ -467,15 +517,18 @@ export async function main(ns) {
     // whether this tick's own launch attempt succeeds, shrinks, skips, or
     // isn't even attempted (drift) -- fullBatchRamCost must always reflect a
     // full-HACK_FRACTION batch so a runt launch below doesn't quietly shrink
-    // the protected reserve. Sampling while security is elevated (mid
-    // re-prep) overestimates hack threads and therefore the reserve -- the
-    // safe direction, since over-reserving during re-prep protects the
-    // pipeline that's about to restart. weakenTime for the depth comes from
-    // this same fresh sample, not targets.js's CYCLE_MS-stale copy.
-    const fullBatchSample = sampleBatchFields(ns, batchTarget, HACK_FRACTION);
+    // the protected reserve. In legacy mode, sampling while security is
+    // elevated (mid re-prep) overestimates hack threads and therefore the
+    // reserve -- the safe direction, since over-reserving during re-prep
+    // protects the pipeline that's about to restart. In formulas mode the
+    // cost basis is exact at the prepped state regardless of current drift,
+    // so this overestimate doesn't apply. steadyWeakenTime (not weakenTime)
+    // feeds depth -- it's the cost-basis duration, not real job timing, not
+    // targets.js's CYCLE_MS-stale copy.
+    const fullBatchSample = sampleBatchFields(ns, batchTarget, HACK_FRACTION, useFormulas);
     const fullBatchJobs = fullBatchSample ? planBatch(fullBatchSample) : [];
     const fullBatchRamCost = fullBatchSample ? batchRamCost(fullBatchJobs, ramCosts) : 0;
-    const depth = fullBatchSample ? pipelineDepth(fullBatchSample.weakenTime) : 0;
+    const depth = fullBatchSample ? pipelineDepth(fullBatchSample.steadyWeakenTime) : 0;
 
     let failedLaunches = 0;
     let batchSkippedThisTick = false;
@@ -495,7 +548,7 @@ export async function main(ns) {
       // launch-size pattern locks in at period weakenTime.
       const allowShrink = batchesInFlightBeforeTick === 0;
       while (fraction >= MIN_HACK_FRACTION) {
-        const rates = fraction === HACK_FRACTION ? fullBatchSample : sampleBatchFields(ns, batchTarget, fraction);
+        const rates = fraction === HACK_FRACTION ? fullBatchSample : sampleBatchFields(ns, batchTarget, fraction, useFormulas);
         if (rates === null) break; // unusable sample (see sampleBatchFields) -- nothing sane to plan this tick
         const jobs = fraction === HACK_FRACTION ? fullBatchJobs : planBatch(rates);
         assigned = assignBatchHosts(jobs, liveHosts, ramCosts);
@@ -556,7 +609,7 @@ export async function main(ns) {
         batchSkipSaturated = !allowShrink;
       }
     } else {
-      const prepFields = samplePrepFields(ns, hosts, batchTarget);
+      const prepFields = samplePrepFields(ns, hosts, batchTarget, useFormulas);
       const { jobs, hosts: remaining, schedule } = planPrep(prepFields, liveHosts, ramCosts);
       failedLaunches += launchJobs(ns, jobs);
       liveHosts = remaining;
@@ -608,7 +661,7 @@ export async function main(ns) {
     for (const target of lowerTargets) {
       if (waterfallPool.length === 0 || waterfallPool.every((h) => h.freeRam <= 0)) break;
       if (isPrepped(liveTargetState(ns, target))) continue;
-      const prepFields = samplePrepFields(ns, hosts, target);
+      const prepFields = samplePrepFields(ns, hosts, target, useFormulas);
       const { jobs, hosts: remaining } = planPrep(prepFields, waterfallPool, ramCosts);
       failedLaunches += launchJobs(ns, jobs);
       waterfallPool = remaining;
@@ -622,10 +675,17 @@ export async function main(ns) {
     const utilization = totalMaxRam > 0 ? ((totalMaxRam - totalRemaining) / totalMaxRam) * 100 : 0;
     const batchesInFlight = countBatchesInFlight(ns, hosts, batchTarget.server);
     const commitmentPct = pipelineCost > 0 ? (inFlightTopTargetRam / pipelineCost) * 100 : 0;
+    // Cached for the NEXT tick's flip detection -- if batchTarget changes
+    // then, this tick's figure is the only record of what the (about to be
+    // abandoned) incumbent's commitment was.
+    previousCommitmentPct = commitmentPct;
 
     ns.clearLog();
     ns.print(`===== daemon @ ${new Date().toLocaleTimeString()} =====`);
-    ns.print(`hosts: ${hosts.length} | targets: ${targets.length} | RAM utilization: ${utilization.toFixed(1)}%`);
+    const mathLabel = useFormulas ? "formulas" : forcedLegacy ? "legacy (forced)" : "legacy";
+    ns.print(
+      `hosts: ${hosts.length} | targets: ${targets.length} | RAM utilization: ${utilization.toFixed(1)}% | math: ${mathLabel}`
+    );
     ns.print(
       `batch target: ${batchTarget.server} | ${prepped ? "PREPPED" : "DRIFTED"} | ` +
         `batches in flight: ${batchesInFlight} | batches skipped (total): ${totalBatchesSkipped} | ` +
@@ -691,7 +751,7 @@ export async function main(ns) {
     // bandwidth-checked projection used for the other targets further down,
     // so this reads as "prep progress, and here's what it unlocks."
     if (!prepped) {
-      const ownPlan = planSpeculativeBatch(ns, batchTarget, liveHosts, ramCosts);
+      const ownPlan = planSpeculativeBatch(ns, batchTarget, liveHosts, ramCosts, useFormulas);
       if (ownPlan) {
         const { rates, assigned, fraction } = ownPlan;
         const hackChance = ns.hackAnalyzeChance(batchTarget.server);
@@ -753,7 +813,7 @@ export async function main(ns) {
     // is actually dispatched.
     const bandwidthTargets = [];
     for (const target of lowerTargets) {
-      const plan = planSpeculativeBatch(ns, target, liveHosts, ramCosts);
+      const plan = planSpeculativeBatch(ns, target, liveHosts, ramCosts, useFormulas);
       if (plan) bandwidthTargets.push({ target, plan });
     }
     if (bandwidthTargets.length > 0) {
@@ -799,12 +859,15 @@ export async function main(ns) {
     }
     if (failedLaunches > 0) ns.print(`WARN: ${failedLaunches} launch(es) failed (exec returned pid 0)`);
 
-    // Exported snapshot for offline review (see DAEMON_LOG_FILE) -- one entry
-    // per launched batch (not one per tick), so a skip-only tick leaves no
-    // record and the ring buffer's DAEMON_LOG_MAX_ENTRIES cap reads as "last
-    // N batches" rather than "last N ticks."
+    // Exported snapshot for offline review (see DAEMON_LOG_FILE). Batch
+    // launches always flush immediately; skip ticks coalesce into the
+    // previous skip record when the target/classification match, flushing
+    // only every LOG_FLUSH_INTERVAL_MS while coalescing (a long saturation
+    // stretch at BATCH_INTERVAL_MS cadence would otherwise mean a full-buffer
+    // JSON.stringify once a second for as long as it lasts).
     if (batchLaunchedThisTick) {
-      logEntries = writeDaemonLog(ns, logEntries, {
+      logEntries = appendLogEvent(ns, logEntries, {
+        event: "batch",
         time: new Date().toLocaleTimeString(),
         timestamp: Date.now(),
         batchTarget: batchTarget.server,
@@ -829,6 +892,21 @@ export async function main(ns) {
           })),
         },
       });
+    } else if (batchSkippedThisTick) {
+      const skipResult = recordSkipEvent(logEntries, {
+        time: new Date().toLocaleTimeString(),
+        timestamp: Date.now(),
+        batchTarget: batchTarget.server,
+        saturated: batchSkipSaturated,
+        batchesInFlight,
+        pipeline: { depth, reserveGb, commitmentPct, waterfallAvailableGb },
+        utilizationPct: utilization,
+      });
+      logEntries = skipResult.entries;
+      if (skipResult.appended || Date.now() - lastLazyFlush >= LOG_FLUSH_INTERVAL_MS) {
+        flushDaemonLog(ns, logEntries);
+        lastLazyFlush = Date.now();
+      }
     }
 
     await ns.sleep(BATCH_INTERVAL_MS);

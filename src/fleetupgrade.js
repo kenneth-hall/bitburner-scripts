@@ -8,6 +8,11 @@
 // stops, every server is renamed to pserv-<sizeGB>gb-<index> (index fixed by
 // its position in the original list) so the hostname always matches its
 // actual capacity.
+//
+// Safe to run alongside daemon.js (Phase 4's serverExists guard covers the
+// rename window). In-flight workers on a renamed host keep running
+// uninterrupted and re-attach to the daemon's tracking at its next refresh --
+// worker identity is filename + args, never hostname.
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -58,15 +63,26 @@ export async function main(ns) {
     );
   }
 
+  // renameServer's boolean return matters: the docs don't say whether a
+  // rename can fail while scripts are running on the box, but assume it can
+  // -- calling getServerMaxRam on a name that never actually took would
+  // throw. On failure, warn and keep reporting under the old (still real)
+  // name instead.
   const newNames = owned.map((h, i) => `pserv-${ns.getServerMaxRam(h)}gb-${i}`);
-  owned.forEach((h, i) => {
-    if (newNames[i] !== h) ns.cloud.renameServer(h, newNames[i]);
+  const reportedNames = owned.map((h, i) => {
+    if (newNames[i] === h) return h;
+    const renamed = ns.cloud.renameServer(h, newNames[i]);
+    if (!renamed) {
+      ns.tprint(`WARN: rename ${h} -> ${newNames[i]} failed, still reporting under ${h}`);
+      return h;
+    }
+    return newNames[i];
   });
 
   const spent = startMoney - ns.getPlayer().money;
   ns.tprint("===== fleet upgrade summary =====");
   if (report.length === 0) ns.tprint("  Nothing upgraded (not enough money for any move).");
   for (const line of report) ns.tprint(line);
-  for (const name of newNames) ns.tprint(`  ${name}: ${ns.format.ram(ns.getServerMaxRam(name))}`);
+  for (const name of reportedNames) ns.tprint(`  ${name}: ${ns.format.ram(ns.getServerMaxRam(name))}`);
   ns.tprint(`Spent $${ns.format.number(spent)}, $${ns.format.number(ns.getPlayer().money)} remaining.`);
 }

@@ -250,15 +250,25 @@ export function planPrep(target, hosts, ramCosts) {
  * mid-re-prep. `targets` must already be sorted descending by score (as
  * getTargets returns it), so targets[0] is the only possible challenger --
  * if it doesn't beat the incumbent by the hysteresis factor, nothing does.
+ *
+ * `challengerPrepped` (default true, preserving old call sites) gates a
+ * flip on the challenger actually being ready to batch: scored at its
+ * prepped state, a fresh unlock can clear the hysteresis bar while still
+ * stone-cold, which would otherwise flip stage 1 into a full prep cycle
+ * during which nothing batches -- trading noise-flips for cold-flips. The
+ * incumbent-vanished case (top branch below) is untouched -- there's
+ * nothing to keep, so it wins regardless of prep state.
  * @param {{server: string, score: number}[]} targets
  * @param {string | null} incumbentServer
  * @param {number} hysteresis
+ * @param {boolean} [challengerPrepped]
  */
-export function pickBatchTarget(targets, incumbentServer, hysteresis) {
+export function pickBatchTarget(targets, incumbentServer, hysteresis, challengerPrepped = true) {
   const incumbent = targets.find((t) => t.server === incumbentServer);
   if (!incumbent) return targets[0];
 
   const top = targets[0];
   if (top.server === incumbent.server) return incumbent;
+  if (!challengerPrepped) return incumbent;
   return top.score >= incumbent.score * hysteresis ? top : incumbent;
 }

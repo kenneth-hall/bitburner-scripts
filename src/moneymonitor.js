@@ -28,7 +28,14 @@ export async function main(ns) {
   ns.disableLog("ALL");
   ns.ui.openTail();
 
-  let intervalStartMoney = ns.getPlayer().money;
+  // Hacking income only (decided): ns.getMoneySources().sinceStart.hacking is
+  // a cumulative counter, so its delta is spend-proof and non-negative --
+  // unlike the player's raw balance, which plunges negative in any window
+  // where a server purchase/upgrade happens to land. The docs never define
+  // how sinceStart differs from sinceInstall; for a windowed delta it doesn't
+  // matter -- both are cumulative and reset only alongside events that kill
+  // this monitor anyway.
+  let intervalStartHackingIncome = ns.getMoneySources().sinceStart.hacking;
   let lastReportTime = Date.now();
   const entries = [];
 
@@ -37,16 +44,17 @@ export async function main(ns) {
 
   while (true) {
     if (Date.now() - lastReportTime >= INCOME_REPORT_MS) {
-      const playerMoney = ns.getPlayer().money;
-      const earned = playerMoney - intervalStartMoney;
+      const playerMoney = ns.getPlayer().money; // kept on the line for context (total balance), no longer the earned figure
+      const hackingIncomeNow = ns.getMoneySources().sinceStart.hacking;
+      const earned = hackingIncomeNow - intervalStartHackingIncome;
       const perMinute = earned / (INCOME_REPORT_MS / 60_000);
       logEvent(
         ns,
         entries,
         `[${new Date().toLocaleTimeString()}] $${ns.format.number(playerMoney)} total | ` +
-          `${earned >= 0 ? "+" : ""}$${ns.format.number(earned)} in last 5m (~$${ns.format.number(perMinute)}/min)`
+          `+$${ns.format.number(earned)} hacking income in last 5m (~$${ns.format.number(perMinute)}/min)`
       );
-      intervalStartMoney = playerMoney;
+      intervalStartHackingIncome = hackingIncomeNow;
       lastReportTime = Date.now();
     }
 
