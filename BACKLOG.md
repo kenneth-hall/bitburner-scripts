@@ -5,9 +5,56 @@ move finished items to Done with a date instead of deleting them.
 
 ## In Progress
 
-_(nothing in progress from this session)_
+- **Batcher refactor Phase 7 — multi-target batching with natural exit**
+  (`batcher-refactor-phase7.md`): **implementation complete, merged to `master` (2026-07-04),
+  pending live verification.** `pickBatchSet` (scheduler.js, 4-pass RAM-bounded greedy
+  admission/displacement/refill, replaces `pickBatchTarget`), `inFlightByTarget`
+  (sampling.js, one combined `ns.ps` sweep replacing daemon.js's per-target
+  `sumInFlightRam`/`countBatchesInFlight`), and the daemon.js multi-member rewrite (member
+  loop, aggregate reserve carve, `enter`/`exit`/`snapshot` log events replacing `flip`,
+  pinned `mode` event, per-target skip coalescing, redesigned tail display) are all in.
+  Unit tests updated throughout (`pickBatchSet`: 13 cases, `inFlightByTarget`: 5 cases,
+  `verify-log.test.js`: schema v2 shapes + 3 new hard assertions spot-checked against a
+  hand-built synthetic log). `npm test` green at 88/88.
+  - **Still needed before this moves to Done**: a live ≥20-minute formulas-mode session,
+    `npm run verify:log` against the fresh export, at least one natural exit observed (organic
+    or forced via the `legacy-mode.txt` marker trick), and an income-rate comparison against
+    a pre-Phase-7 session. Held back from `git push` per the test-locally-first preference for
+    daemon.js-touching changes — code is committed on `master` locally, not yet pushed.
+  - Once live-verified: supersedes the consolidation item's in-flight-scanner sub-item (below)
+    and ships the monitor-cleanup item's utilization time series as `snapshot` events —
+    annotate both entries then. One open question recorded in the spec (evidence-window size
+    vs. per-type log retention) stays open regardless.
 
 ## Next Up
+
+- **`ns.share()` script + dedicated RAM allocation**: build a script that loops `ns.share()`
+  to boost faction rep-gain rate, and give it a real, intentional RAM allocation in
+  `daemon.js`'s accounting rather than letting it just fight for whatever scraps are left
+  over after batch/prep. Promoted from the "Share-with-factions RAM interaction" investigation
+  (2026-07-04, see its findings below) into an actual build item.
+  - **Already confirmed (2026-07-04 investigation)**: `daemon.js`'s `refreshFreeRam()` and
+    `hosts.js`'s `getHosts()` both compute free RAM fresh every cycle from live
+    `ns.getServerMaxRam`/`ns.getServerUsedRam`, which reflect *any* running process, not just
+    daemon's own workers — so RAM accounting already adapts correctly to a share script's
+    footprint with no `daemon.js` change needed for that part.
+  - **Share script itself, not yet built**: a small script (e.g. `share.js`) that loops
+    `await ns.share()` forever; needs a launch mechanism (daemon-startup companion, same
+    `launchDetached` pattern as `targetsmonitor.js`/`transactionsmonitor.js`, vs. a manual
+    one-off) and a decision on how many threads/hosts it claims.
+  - **Allocation strategy, not yet designed**: decide whether share gets a fixed GB or
+    thread-count carve-out (mirroring `carveReservation`'s pattern for batch pipelines) or a
+    percentage of total capacity, and where it sits in `daemon.js`'s per-tick budget math
+    relative to the Phase 7 member-set reservation (before or after the batch reserve carve —
+    share should probably not be allowed to starve the batching pipeline it exists alongside).
+  - **`killscripts.js` gotcha (already found, not yet fixed)**: `killscripts.js` (run once by
+    `daemon.js` on every startup) kills every process on `home` except its own pid and the
+    caller's pid, plus `killall`s every other scanned server — a share script isn't protected,
+    so it would get killed on every daemon restart unless explicitly excluded (e.g. by
+    filename), the same way `daemon.js` already protects itself by pid.
+  - Verification: TBD once designed — likely a live session showing share running
+    continuously across a daemon restart, with RAM utilization/reservation numbers correctly
+    accounting for its allocation.
 
 - **targetsmonitor "ratio" column → actual priority metric**: Investigated a suspected bug
   (2026-07-04) — "ratio" numbers looked suspiciously round/inconsistent, hypothesis was that
@@ -148,21 +195,6 @@ _(nothing in progress from this session)_
     live-validation follow-up when built, same as the waived fleetupgrade test.
 
 ## Ideas / Backlog
-
-- **Share-with-factions RAM interaction**: concern raised (2026-07-04) — once a script
-  dedicates RAM to `ns.share()` (boosts faction rep-gain rate; no such script exists in
-  `src/` yet), will `daemon.js` correctly notice the reduced free RAM? Investigated:
-  **confirmed fine already** — `daemon.js`'s `refreshFreeRam()` and `hosts.js`'s
-  `getHosts()` both compute free RAM fresh every cycle from live `ns.getServerMaxRam`/
-  `ns.getServerUsedRam`, which reflect *any* running process, not just daemon's own workers
-  — no change needed for RAM accounting to adapt.
-  - **Real gotcha found, not yet fixed**: `killscripts.js` (run once by `daemon.js` on every
-    startup) kills every process on `home` except its own pid and the caller's pid, plus
-    `killall`s every other scanned server — a future share script isn't protected, so it
-    would get killed on every daemon restart unless explicitly excluded (e.g. by filename),
-    the same way `daemon.js` already protects itself by pid.
-  - Blocked on: no share script exists yet — revisit the `killscripts.js` protection once
-    one is actually built.
 
 - **viteburner dev-server silently stops auto-exporting** (2026-07-04): during Phase 5 live
   verification, the `npm run dev` process had been running continuously for 2+ hours (no
