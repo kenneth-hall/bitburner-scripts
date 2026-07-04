@@ -57,6 +57,11 @@ const CYCLE_MS = 10000;
 // appended after it. The single most recent `mode` event is pinned at the
 // head by trimLog() rather than evicted by ordinary FIFO trimming (see
 // trimLog's comment) -- everything else ages out in arrival order.
+// Phase 9 schema change: `snapshot` events carry `sharePool` (was `share` --
+// renamed to stop colliding with ns.share's RAM-cost name, see
+// batcher-refactor-phase9.md) and a new `hackingLevel` field. Old logs stay
+// readable by old checker versions via git; the current checker validates
+// only the current schema.
 const DAEMON_LOG_FILE = "daemon-batch-log.json";
 const DAEMON_LOG_MAX_ENTRIES = 2000; // raised from 1000 (Phase 7): N members means N x the batch/skip events per tick
 const LOG_FLUSH_INTERVAL_MS = 10000; // lazy-flush cadence for batch/skip/snapshot events; mode/enter/exit flush immediately
@@ -531,7 +536,7 @@ export async function main(ns) {
     // live pool only ever hovers just under target and decays toward it
     // within ~10s of a toggle -- expected, not "fixed" (see share.js).
     const shareTargetGb = effectiveShareFraction * totalMaxRam;
-    const shareTopUp = planShareTopUp(shareTargetGb, preTickInFlight.share.ramGb, ramCosts[SHARE_SCRIPT], liveHosts);
+    const shareTopUp = planShareTopUp(shareTargetGb, preTickInFlight.sharePool.ramGb, ramCosts[SHARE_SCRIPT], liveHosts);
     const shareLaunch = launchShareJobs(ns, shareTopUp.jobs, ramCosts[SHARE_SCRIPT], shareLaunchCounter);
     failedLaunches += shareLaunch.failed;
     shareLaunchCounter = shareLaunch.nextCounter;
@@ -542,8 +547,8 @@ export async function main(ns) {
     // Computed from preTickInFlight + this tick's launches rather than a
     // third ns.ps() sweep -- Phase 7's two-sweeps-per-tick property is
     // load-bearing (see sampling.js's inFlightByTarget doc comment).
-    const shareInFlightRamGb = preTickInFlight.share.ramGb + shareLaunch.launchedRamGb;
-    const shareInFlightThreads = preTickInFlight.share.threads + shareLaunch.launchedThreads;
+    const shareInFlightRamGb = preTickInFlight.sharePool.ramGb + shareLaunch.launchedRamGb;
+    const shareInFlightThreads = preTickInFlight.sharePool.threads + shareLaunch.launchedThreads;
     const batchBudgetGb = (1 - effectiveShareFraction) * totalMaxRam;
 
     // --- Step 4: candidate sampling, pickBatchSet, enter/exit logging ------
@@ -761,9 +766,9 @@ export async function main(ns) {
     // --- Step 6: aggregate reserve carve ------------------------------------
     // Second in-flight sweep, AFTER this tick's launches, so the reserve
     // reflects what's actually committed now (including anything just
-    // launched above). Its `share` field is deliberately unused (see step 3
-    // -- share's post-top-up state is tracked arithmetically instead, so this
-    // stays exactly two sweeps per tick, not three).
+    // launched above). Its `sharePool` field is deliberately unused (see step
+    // 3 -- share's post-top-up state is tracked arithmetically instead, so
+    // this stays exactly two sweeps per tick, not three).
     const postLaunchInFlight = inFlightByTarget(ns, hosts, ramCosts);
     let totalReserveGb = 0;
     const memberReserve = new Map(); // server -> {reserveGb, inFlightRamGb, batchesInFlight}
@@ -953,6 +958,7 @@ export async function main(ns) {
         batchBudgetGb,
         waterfallFreeGb: waterfallAvailableGb,
         memberCount: result.members.length,
+        hackingLevel: ns.getHackingLevel(),
         members: result.members.map((m) => {
           const info = memberReserve.get(m.server);
           return {
@@ -967,7 +973,7 @@ export async function main(ns) {
             commitmentPct: m.pipelineCostGb > 0 ? (info.inFlightRamGb / m.pipelineCostGb) * 100 : 0,
           };
         }),
-        share: {
+        sharePool: {
           targetGb: shareTargetGb,
           inFlightRamGb: shareInFlightRamGb,
           threads: shareInFlightThreads,

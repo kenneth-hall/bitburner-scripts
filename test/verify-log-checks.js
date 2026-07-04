@@ -29,28 +29,28 @@ export function checkShareCap(entries) {
   // top-ups launch the same script, so this should be ~constant; taking the
   // min guards against a rounding sliver reading as a violation.
   const perThreadSamples = entries
-    .filter((e) => e.event === 'snapshot' && e.share && e.share.threads > 0)
-    .map((e) => e.share.inFlightRamGb / e.share.threads);
+    .filter((e) => e.event === 'snapshot' && e.sharePool && e.sharePool.threads > 0)
+    .map((e) => e.sharePool.inFlightRamGb / e.sharePool.threads);
   const perThreadRamGb = perThreadSamples.length > 0 ? Math.min(...perThreadSamples) : 0;
 
   let lastZeroFractionTimestamp = null;
   for (const e of entries) {
     if (e.event === 'mode' && e.shareFraction === 0) lastZeroFractionTimestamp = e.timestamp;
-    if (e.event !== 'snapshot' || !e.share) continue;
+    if (e.event !== 'snapshot' || !e.sharePool) continue;
 
-    if (e.share.targetGb > 0) {
-      if (e.share.inFlightRamGb > e.share.targetGb + perThreadRamGb) {
+    if (e.sharePool.targetGb > 0) {
+      if (e.sharePool.inFlightRamGb > e.sharePool.targetGb + perThreadRamGb) {
         violations.push({
           time: e.time,
-          reason: `inFlightRamGb ${e.share.inFlightRamGb} exceeds targetGb ${e.share.targetGb} + one thread (${perThreadRamGb})`,
+          reason: `inFlightRamGb ${e.sharePool.inFlightRamGb} exceeds targetGb ${e.sharePool.targetGb} + one thread (${perThreadRamGb})`,
         });
       }
     } else {
       const withinGrace = lastZeroFractionTimestamp !== null && e.timestamp - lastZeroFractionTimestamp < SHARE_CAP_GRACE_MS;
-      if (!withinGrace && e.share.inFlightRamGb > perThreadRamGb) {
+      if (!withinGrace && e.sharePool.inFlightRamGb > perThreadRamGb) {
         violations.push({
           time: e.time,
-          reason: `zero-target inFlightRamGb ${e.share.inFlightRamGb} exceeds one-thread tolerance outside the ${SHARE_CAP_GRACE_MS}ms grace window`,
+          reason: `zero-target inFlightRamGb ${e.sharePool.inFlightRamGb} exceeds one-thread tolerance outside the ${SHARE_CAP_GRACE_MS}ms grace window`,
         });
       }
     }
@@ -94,21 +94,84 @@ export function checkFractionConsistency(entries) {
   let latestShareFraction = null;
   for (const e of entries) {
     if (e.event === 'mode') latestShareFraction = e.shareFraction;
-    if (e.event !== 'snapshot' || !e.share) continue;
+    if (e.event !== 'snapshot' || !e.sharePool) continue;
 
     if (latestShareFraction === null) {
-      violations.push({ time: e.time, reason: 'snapshot has no preceding mode event to validate share.targetGb against' });
+      violations.push({ time: e.time, reason: 'snapshot has no preceding mode event to validate sharePool.targetGb against' });
       continue;
     }
     const expected = latestShareFraction * e.budgetGb;
-    const actual = e.share.targetGb;
+    const actual = e.sharePool.targetGb;
     const tolerance = FRACTION_TOLERANCE * Math.max(Math.abs(expected), 1e-9);
     if (Math.abs(actual - expected) > tolerance) {
       violations.push({
         time: e.time,
-        reason: `share.targetGb ${actual} vs expected ${expected} (shareFraction ${latestShareFraction} x budgetGb ${e.budgetGb}) outside ${FRACTION_TOLERANCE * 100}% tolerance`,
+        reason: `sharePool.targetGb ${actual} vs expected ${expected} (shareFraction ${latestShareFraction} x budgetGb ${e.budgetGb}) outside ${FRACTION_TOLERANCE * 100}% tolerance`,
       });
     }
   }
   return violations;
+}
+
+/**
+ * Natural-exit invariant (Phase 9 extraction of the check that lived inline
+ * in verify-log.test.js): once a server has an open exit (an `exit` event
+ * with no `enter` for that server since), "no new batches after exit, drain
+ * only" must hold -- no `batch` event may target it, and its `snapshot`
+ * `draining` entry's batchesInFlight may only fall, never rise, between
+ * observations. Returns one violation per offending `batch` event and one
+ * per rising draining observation.
+ * @param {any[]} entries
+ */
+export function checkNaturalExit(entries) {
+  const violations = [];
+  const openExits = new Set();
+  const lastDrainingBatches = new Map();
+  for (const e of entries) {
+    if (e.event === 'exit') {
+      openExits.add(e.server);
+      lastDrainingBatches.delete(e.server);
+    } else if (e.event === 'enter') {
+      openExits.delete(e.server);
+      lastDrainingBatches.delete(e.server);
+    } else if (e.event === 'batch') {
+      if (openExits.has(e.batchTarget)) {
+        violations.push({ time: e.time, reason: `batch event for ${e.batchTarget} while it has an open exit -- no new batches after exit` });
+      }
+    } else if (e.event === 'snapshot') {
+      const drainingByServer = new Map((e.draining ?? []).map((d) => [d.server, d.batchesInFlight]));
+      for (const server of openExits) {
+        const current = drainingByServer.get(server) ?? 0;
+        if (lastDrainingBatches.has(server) && current > lastDrainingBatches.get(server)) {
+          violations.push({ time: e.time, reason: `${server}'s draining batchesInFlight increased after exit -- drain only, never refill` });
+        }
+        lastDrainingBatches.set(server, current);
+      }
+    }
+  }
+  return violations;
+}
+
+/**
+ * Ring-buffer straggler slicing (Phase 9, opt-in). A boundary copy of the log
+ * can contain leftover entries from the previous session window whose own
+ * `mode` event has already aged out of the ring -- config-dependent checks
+ * (fraction consistency) then hard-fail with "no preceding mode event" even
+ * though nothing is actually broken, just a mixed-window export artifact.
+ * Drops everything before the first retained `mode` event and nothing else;
+ * a log that already starts with `mode` (or is empty) passes through
+ * unchanged.
+ *
+ * Caveat, deliberately not hidden: any `exit` events inside the dropped
+ * prefix are dropped too, so natural-exit tracking (checkNaturalExit) only
+ * covers the sliced range -- an exit whose matching enter/drain lived
+ * entirely in the dropped prefix is invisible to it. Only reach for this
+ * when a copy hard-fails on the missing-mode-event message, not by default.
+ * @param {any[]} entries
+ * @returns {any[]}
+ */
+export function dropPreConfigStragglers(entries) {
+  const firstModeIndex = entries.findIndex((e) => e.event === 'mode');
+  if (firstModeIndex === -1) return entries; // no mode event at all -- the existing format guard already fails this case clearly
+  return entries.slice(firstModeIndex);
 }

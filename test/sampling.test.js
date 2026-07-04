@@ -213,7 +213,7 @@ describe('inFlightByTarget', () => {
 
   // --- Phase 8: share bucket ---------------------------------------------
 
-  it('accumulates share processes into `share` by filename, with thread and RAM totals, never touching byTarget', () => {
+  it('accumulates share processes into `sharePool` by filename, with thread and RAM totals, never touching byTarget', () => {
     const RAM_COSTS_WITH_SHARE = { ...RAM_COSTS, [SHARE_SCRIPT]: 4 };
     function shareAndBatchPs(hostname) {
       const byHost = {
@@ -227,15 +227,15 @@ describe('inFlightByTarget', () => {
     }
     const ns = makeMockNs({ ps: shareAndBatchPs });
     const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS_WITH_SHARE);
-    expect(result.share).toEqual({ threads: 7, ramGb: 28 }); // (5+2) threads * 4 GB
+    expect(result.sharePool).toEqual({ threads: 7, ramGb: 28 }); // (5+2) threads * 4 GB
     expect(Object.keys(result.byTarget)).toEqual(['joesguns']); // share never creates a byTarget entry
   });
 
-  it('yields {threads: 0, ramGb: 0} for share when no share processes are running', () => {
+  it('yields {threads: 0, ramGb: 0} for sharePool when no share processes are running', () => {
     const RAM_COSTS_WITH_SHARE = { ...RAM_COSTS, [SHARE_SCRIPT]: 4 };
     const ns = makeMockNs({ ps: multiTargetPs }); // no share.js processes present
     const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS_WITH_SHARE);
-    expect(result.share).toEqual({ threads: 0, ramGb: 0 });
+    expect(result.sharePool).toEqual({ threads: 0, ramGb: 0 });
   });
 });
 
