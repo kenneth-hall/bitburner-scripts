@@ -5,37 +5,51 @@ move finished items to Done with a date instead of deleting them.
 
 ## In Progress
 
-_(nothing in progress from this session)_
+- **Batcher refactor Phase 8 — faction share allocation** (2026-07-04): `batcher-refactor-phase8.md`.
+  Builds the "`ns.share()` script + dedicated RAM allocation" item below into a hard carve:
+  `SHARE_FRACTION = 0.25` (untuned by design, see spec) of `totalAllocatableRam` is
+  unconditionally reserved for `share.js` (a one-cycle `ns.share()` worker, topped up every
+  tick by `planShareTopUp` in `scheduler.js`, smallest-free-RAM-first — opposite end from
+  `carveReservation`'s largest-first, so share consumes fragments and leaves contiguous blocks
+  for batching's grow jobs); the batch admission budget becomes `(1 - SHARE_FRACTION) x
+  totalAllocatableRam`. Zero `ns.kill` call sites (natural-exit philosophy, matching Phase 7)
+  — scaling down just means stopping the top-up and letting the pool decay over ~10s.
+  Runtime toggle: a 0-byte `share-off.txt` marker on home forces the fraction to 0 for
+  same-session A/B measurement. `sampling.js`'s `inFlightByTarget` gained a breaking shape
+  change (`{byTarget, share}`) to fold share's sweep into the existing two-sweeps-per-tick
+  budget rather than adding a third. New manual tuning script `src/sharecurve.js`
+  (formulas-gated) predicts the sharePower curve across candidate fractions, exported to
+  `logs/sharecurve-<epoch ms>.json`.
+  - **Runnable, verified (2026-07-04): `npm test` green at 115/115** (8 new `planShareTopUp`
+    cases, `inFlightByTarget`'s 5 existing cases updated for the new shape plus 2 new share
+    cases, 8 checker-fixture cases for the 3 new `verify-log` hard assertions run via synthetic
+    fixtures against extracted pure functions in `test/verify-log-checks.js`, 8 cases for the
+    new `test/windowed-rate.js` helper). `npm run verify:log` sanity-checked against a
+    synthetic Phase-8-shaped fixture log (not a real session) — all 13 checks pass, including
+    the share-cap invariant (with its 30s zero-target grace window), the updated budget
+    invariant (`batchBudgetGb`, not raw `budgetGb`), and fraction consistency; soft reports
+    extended with share target-attainment/sharePower min-avg-max and a share-excluded
+    batch-side utilization figure. `test/verify-transactions.test.js` gained a
+    `VERIFY_WINDOWS`-driven windowed $/min report for the A/B/A' income comparison, sanity
+    checked against a synthetic transactions fixture.
+  - **Not yet done — needs a live game session (this is the phase's actual acceptance
+    criterion, not optional)**: the A (share off) → B (share on) → A' (share off) protocol,
+    each window >= 10 min, same calendar day, with faction work running throughout so rep/sec
+    has something to multiply. Requires manually recording the faction rep number from the
+    game UI at each of the 4 window boundaries (no Singularity-free way to read it
+    programmatically), running `sharecurve.js` once during window B, and copying
+    `logs/daemon-batch-log.json` at each boundary (2000-entry ring only holds the last
+    ~4-6 minutes at high member counts). The resulting `BACKLOG.md` entry — measured
+    income/rep for A/B/A', measured vs. predicted share power, and a keep/raise/lower
+    recommendation on `SHARE_FRACTION` — is a required output of this phase, not yet written.
+  - **RAM gate: not yet measured live.** Expected `daemon.js` 16.10 -> ~16.30 GB
+    (+`ns.getSharePower` 0.2 GB); `share.js` ~4.00 GB (1.6 base + 2.4 `ns.share`) — confirm
+    both with `mem` in-game; flag anything over ~0.5 GB unexplained.
+  - Shipped on branch `worktree-phase8-share`, not yet merged — this whole phase (especially
+    the daemon.js RAM-carve change) needs the user's live in-game verification before merging,
+    per this project's usual rule for daemon-touching changes.
 
 ## Next Up
-
-- **`ns.share()` script + dedicated RAM allocation**: build a script that loops `ns.share()`
-  to boost faction rep-gain rate, and give it a real, intentional RAM allocation in
-  `daemon.js`'s accounting rather than letting it just fight for whatever scraps are left
-  over after batch/prep. Promoted from the "Share-with-factions RAM interaction" investigation
-  (2026-07-04, see its findings below) into an actual build item.
-  - **Already confirmed (2026-07-04 investigation)**: `daemon.js`'s `refreshFreeRam()` and
-    `hosts.js`'s `getHosts()` both compute free RAM fresh every cycle from live
-    `ns.getServerMaxRam`/`ns.getServerUsedRam`, which reflect *any* running process, not just
-    daemon's own workers — so RAM accounting already adapts correctly to a share script's
-    footprint with no `daemon.js` change needed for that part.
-  - **Share script itself, not yet built**: a small script (e.g. `share.js`) that loops
-    `await ns.share()` forever; needs a launch mechanism (daemon-startup companion, same
-    `launchDetached` pattern as `targetsmonitor.js`/`transactionsmonitor.js`, vs. a manual
-    one-off) and a decision on how many threads/hosts it claims.
-  - **Allocation strategy, not yet designed**: decide whether share gets a fixed GB or
-    thread-count carve-out (mirroring `carveReservation`'s pattern for batch pipelines) or a
-    percentage of total capacity, and where it sits in `daemon.js`'s per-tick budget math
-    relative to the Phase 7 member-set reservation (before or after the batch reserve carve —
-    share should probably not be allowed to starve the batching pipeline it exists alongside).
-  - **`killscripts.js` gotcha (already found, not yet fixed)**: `killscripts.js` (run once by
-    `daemon.js` on every startup) kills every process on `home` except its own pid and the
-    caller's pid, plus `killall`s every other scanned server — a share script isn't protected,
-    so it would get killed on every daemon restart unless explicitly excluded (e.g. by
-    filename), the same way `daemon.js` already protects itself by pid.
-  - Verification: TBD once designed — likely a live session showing share running
-    continuously across a daemon restart, with RAM utilization/reservation numbers correctly
-    accounting for its allocation.
 
 - **targetsmonitor "ratio" column → actual priority metric**: Investigated a suspected bug
   (2026-07-04) — "ratio" numbers looked suspiciously round/inconsistent, hypothesis was that

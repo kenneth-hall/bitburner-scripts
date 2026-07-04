@@ -16,6 +16,7 @@ import {
   isForcedLegacy,
   crossCheckFormulas,
 } from '../src/sampling.js';
+import { SHARE_SCRIPT } from '../src/scheduler.js';
 
 // --- mock ns -----------------------------------------------------------
 
@@ -175,32 +176,32 @@ describe('inFlightByTarget', () => {
     const ns = makeMockNs({ ps: multiTargetPs });
     const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
     // joesguns: hack.js(home,3)=4.8 + grow.js(home,2)=3.5 + grow.js(pserv-0,1)=1.75
-    expect(result.joesguns.ramGb).toBeCloseTo(10.05);
+    expect(result.byTarget.joesguns.ramGb).toBeCloseTo(10.05);
     // harakiri-sushi: hack.js(pserv-0,4)=6.4 + weaken.js(pserv-0,6)=10.5
-    expect(result['harakiri-sushi'].ramGb).toBeCloseTo(16.9);
+    expect(result.byTarget['harakiri-sushi'].ramGb).toBeCloseTo(16.9);
     // n00dles: weaken.js(home,5)=8.75
-    expect(result.n00dles.ramGb).toBeCloseTo(8.75);
+    expect(result.byTarget.n00dles.ramGb).toBeCloseTo(8.75);
   });
 
   it('counts batches via hack.js occurrences only', () => {
     const ns = makeMockNs({ ps: multiTargetPs });
     const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
-    expect(result.joesguns.batches).toBe(1);
-    expect(result['harakiri-sushi'].batches).toBe(1);
-    expect(result.n00dles.batches).toBe(0); // weaken-only, no hack.js present
+    expect(result.byTarget.joesguns.batches).toBe(1);
+    expect(result.byTarget['harakiri-sushi'].batches).toBe(1);
+    expect(result.byTarget.n00dles.batches).toBe(0); // weaken-only, no hack.js present
   });
 
   it('ignores non-worker filenames entirely (no stray key, no RAM contribution)', () => {
     const ns = makeMockNs({ ps: multiTargetPs });
     const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
-    expect(result.undefined).toBeUndefined();
-    expect(Object.keys(result).sort()).toEqual(['harakiri-sushi', 'joesguns', 'n00dles']);
+    expect(result.byTarget.undefined).toBeUndefined();
+    expect(Object.keys(result.byTarget).sort()).toEqual(['harakiri-sushi', 'joesguns', 'n00dles']);
   });
 
-  it('a target with no processes anywhere is absent from the result', () => {
+  it('a target with no processes anywhere is absent from byTarget', () => {
     const ns = makeMockNs({ ps: multiTargetPs });
     const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
-    expect(result['nectar-net']).toBeUndefined();
+    expect(result.byTarget['nectar-net']).toBeUndefined();
   });
 
   it('an idle host contributes nothing (goldens above already exclude pserv-1)', () => {
@@ -208,6 +209,33 @@ describe('inFlightByTarget', () => {
     const withIdleHost = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
     const withoutIdleHost = inFlightByTarget(ns, [{ hostname: 'home' }, { hostname: 'pserv-0' }], RAM_COSTS);
     expect(withIdleHost).toEqual(withoutIdleHost);
+  });
+
+  // --- Phase 8: share bucket ---------------------------------------------
+
+  it('accumulates share processes into `share` by filename, with thread and RAM totals, never touching byTarget', () => {
+    const RAM_COSTS_WITH_SHARE = { ...RAM_COSTS, [SHARE_SCRIPT]: 4 };
+    function shareAndBatchPs(hostname) {
+      const byHost = {
+        home: [
+          { filename: 'hack.js', args: ['joesguns'], threads: 3 },
+          { filename: SHARE_SCRIPT, args: [1], threads: 5 }, // args[0] is the ignored launch counter, not a target
+        ],
+        'pserv-0': [{ filename: SHARE_SCRIPT, args: [2], threads: 2 }],
+      };
+      return byHost[hostname] ?? [];
+    }
+    const ns = makeMockNs({ ps: shareAndBatchPs });
+    const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS_WITH_SHARE);
+    expect(result.share).toEqual({ threads: 7, ramGb: 28 }); // (5+2) threads * 4 GB
+    expect(Object.keys(result.byTarget)).toEqual(['joesguns']); // share never creates a byTarget entry
+  });
+
+  it('yields {threads: 0, ramGb: 0} for share when no share processes are running', () => {
+    const RAM_COSTS_WITH_SHARE = { ...RAM_COSTS, [SHARE_SCRIPT]: 4 };
+    const ns = makeMockNs({ ps: multiTargetPs }); // no share.js processes present
+    const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS_WITH_SHARE);
+    expect(result.share).toEqual({ threads: 0, ramGb: 0 });
   });
 });
 

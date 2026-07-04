@@ -2,7 +2,7 @@
 // decides "formulas or legacy?" per calculation -- daemon.js and targets.js
 // call these functions and never branch on mode themselves.
 
-import { WORKER_SCRIPTS, HACK_FRACTION, GROW_BUFFER, WEAKEN_BUFFER, DRIFT_SEC_EPSILON, DRIFT_MONEY_FRACTION } from "./scheduler.js";
+import { WORKER_SCRIPTS, SHARE_SCRIPT, HACK_FRACTION, GROW_BUFFER, WEAKEN_BUFFER, DRIFT_SEC_EPSILON, DRIFT_MONEY_FRACTION } from "./scheduler.js";
 
 // Forced-legacy override: while this 0.1 GB marker file exists on home,
 // hasFormulas reports false even with Formulas.exe owned. Deleting it flips
@@ -154,36 +154,50 @@ export function countInFlightThreads(ns, hosts, server, script) {
  * sumInFlightRam/countBatchesInFlight (each scanned ns.ps once PER TARGET --
  * with N active members that was N full sweeps every tick). Called at most
  * twice per tick (pre-launch, and post-launch for the reserve's re-measure)
- * regardless of member count.
+ * regardless of member count -- this is load-bearing (see Phase 8's daemon
+ * comment), so share info is folded into this same pass rather than adding a
+ * third sweep.
  *
- * `ramCosts` (keyed by filename: hack.js/grow.js/weaken.js) doubles as the
- * worker-script membership filter -- checking `ramCosts[proc.filename] !==
- * undefined` naturally restricts the sum to the three worker scripts without
- * a separate WORKER_SCRIPTS membership check.
+ * `ramCosts` (keyed by filename: hack.js/grow.js/weaken.js/share.js) doubles
+ * as the worker-script membership filter -- checking `ramCosts[proc.filename]
+ * !== undefined` naturally restricts the sum to those scripts without a
+ * separate WORKER_SCRIPTS/SHARE_SCRIPT membership check.
  *
- * A server with zero matching processes anywhere is simply absent from the
- * result -- callers must default-fill (`result[server] ?? {batches: 0,
- * ramGb: 0}`) rather than assume every known server has a key.
+ * Share processes (filename === SHARE_SCRIPT) have no target argument --
+ * proc.args[0] is share.js's ignored launch counter, not a server name -- so
+ * they're accumulated into the separate `share` bucket and never touch
+ * `byTarget`.
+ *
+ * A server with zero matching processes anywhere is simply absent from
+ * `byTarget` -- callers must default-fill (`result.byTarget[server] ??
+ * {batches: 0, ramGb: 0}`) rather than assume every known server has a key.
+ * `share` is always present, defaulting to `{threads: 0, ramGb: 0}`.
  * @param {NS} ns
  * @param {{hostname: string}[]} hosts
  * @param {Record<string, number>} ramCosts
- * @returns {Record<string, {batches: number, ramGb: number}>}
+ * @returns {{byTarget: Record<string, {batches: number, ramGb: number}>, share: {threads: number, ramGb: number}}}
  */
 export function inFlightByTarget(ns, hosts, ramCosts) {
-  const result = {};
+  const byTarget = {};
+  const share = { threads: 0, ramGb: 0 };
   for (const host of hosts) {
     for (const proc of ns.ps(host.hostname)) {
       const ramPerThread = ramCosts[proc.filename];
       if (ramPerThread === undefined) continue;
+      if (proc.filename === SHARE_SCRIPT) {
+        share.threads += proc.threads;
+        share.ramGb += ramPerThread * proc.threads;
+        continue;
+      }
       const server = String(proc.args[0]);
-      if (!result[server]) result[server] = { batches: 0, ramGb: 0 };
-      result[server].ramGb += ramPerThread * proc.threads;
+      if (!byTarget[server]) byTarget[server] = { batches: 0, ramGb: 0 };
+      byTarget[server].ramGb += ramPerThread * proc.threads;
       // Each batch has exactly one hack.js job against its target -- the
       // same proxy countBatchesInFlight used.
-      if (proc.filename === WORKER_SCRIPTS.hack) result[server].batches += 1;
+      if (proc.filename === WORKER_SCRIPTS.hack) byTarget[server].batches += 1;
     }
   }
-  return result;
+  return { byTarget, share };
 }
 
 /**

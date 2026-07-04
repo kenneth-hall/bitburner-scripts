@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { checkShareCap, checkBudgetInvariant, checkFractionConsistency } from './verify-log-checks.js';
 
 const LOG_PATH = process.env.DAEMON_LOG_PATH ?? path.join(process.cwd(), 'logs', 'daemon-batch-log.json');
 
@@ -136,6 +137,7 @@ describe('log format', () => {
             timestamp: expect.any(Number),
             utilizationPct: expect.any(Number),
             budgetGb: expect.any(Number),
+            batchBudgetGb: expect.any(Number),
             waterfallFreeGb: expect.any(Number),
             memberCount: expect.any(Number),
             members: expect.any(Array),
@@ -156,6 +158,18 @@ describe('log format', () => {
           for (const d of e.draining ?? []) {
             expect(d).toMatchObject({ server: expect.any(String), batchesInFlight: expect.any(Number), inFlightRamGb: expect.any(Number) });
           }
+          expect(e.share).toMatchObject({
+            targetGb: expect.any(Number),
+            inFlightRamGb: expect.any(Number),
+            threads: expect.any(Number),
+            sharePower: expect.any(Number),
+          });
+          // attainedPct is null at targetGb === 0 (see the spec's 0-target
+          // case) -- expect.any(Number) can't express "number or null".
+          expect(
+            typeof e.share.attainedPct === 'number' || e.share.attainedPct === null,
+            `snapshot at ${e.time} has a non-number, non-null share.attainedPct`
+          ).toBe(true);
           break;
         case 'mode':
           expect(e).toMatchObject({
@@ -163,6 +177,8 @@ describe('log format', () => {
             timestamp: expect.any(Number),
             formulas: expect.any(Boolean),
             forcedLegacy: expect.any(Boolean),
+            shareFraction: expect.any(Number),
+            shareOff: expect.any(Boolean),
             config: {
               HACK_FRACTION: expect.any(Number),
               GROW_BUFFER: expect.any(Number),
@@ -171,6 +187,7 @@ describe('log format', () => {
               DRIFT_MONEY_FRACTION: expect.any(Number),
               RANK_HYSTERESIS: expect.any(Number),
               BATCH_INTERVAL_MS: expect.any(Number),
+              SHARE_FRACTION: expect.any(Number),
             },
           });
           break;
@@ -272,13 +289,23 @@ describe('hard assertions', () => {
     }
   });
 
-  it('budget invariant: every snapshot keeps aggregate member cost within budget, and memberCount matches the members array', () => {
+  it('budget invariant (Phase 8, updated): every snapshot keeps aggregate member cost within batchBudgetGb (not budgetGb -- share\'s carve reduces it), batchBudgetGb never exceeds budgetGb, and memberCount matches the members array', () => {
+    const violations = checkBudgetInvariant(entries);
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
     for (const e of entries) {
       if (e.event !== 'snapshot') continue;
-      const totalCost = e.members.reduce((sum, m) => sum + m.pipelineCostGb, 0);
-      expect(totalCost, `snapshot at ${e.time} has members totalling more than budgetGb`).toBeLessThanOrEqual(e.budgetGb);
       expect(e.memberCount, `snapshot at ${e.time} has memberCount != members.length`).toBe(e.members.length);
     }
+  });
+
+  it('share-cap invariant: in-flight share RAM never exceeds targetGb by more than one thread, with a 30s decay grace window after a toggle-off', () => {
+    const violations = checkShareCap(entries);
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
+  });
+
+  it('fraction consistency: every snapshot\'s share.targetGb matches the latest preceding mode event\'s shareFraction x budgetGb within 2% relative tolerance', () => {
+    const violations = checkFractionConsistency(entries);
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
   });
 
   it('enter/exit sanity: displaced entrants cross-reference a same-tick displaced exit and vice versa', () => {
@@ -365,6 +392,32 @@ describe('soft reports', () => {
       console.log(
         `member count across snapshots: min ${Math.min(...memberCounts)} / avg ${avg(memberCounts).toFixed(1)} / max ${Math.max(...memberCounts)}`
       );
+
+      // Phase 8: raw utilizationPct now includes share's RAM, so it would
+      // read misleadingly high against Phase 7's ~20% baseline -- subtract
+      // share's share of budgetGb back out for a like-for-like comparison.
+      const shareSnapshots = snapshots.filter((s) => s.share);
+      if (shareSnapshots.length > 0) {
+        const batchUtils = shareSnapshots.map((s) => s.utilizationPct - (s.share.inFlightRamGb / s.budgetGb) * 100);
+        console.log(
+          `batch-side utilization (share excluded) across ${shareSnapshots.length} snapshot(s): min ${Math.min(...batchUtils).toFixed(1)}% / ` +
+            `avg ${avg(batchUtils).toFixed(1)}% / max ${Math.max(...batchUtils).toFixed(1)}% (baseline to beat: Phase 7's ~20%)`
+        );
+
+        const attainedPcts = shareSnapshots.map((s) => s.share.attainedPct).filter((p) => typeof p === 'number');
+        if (attainedPcts.length > 0) {
+          console.log(
+            `share target-attainment across ${attainedPcts.length} snapshot(s): min ${Math.min(...attainedPcts).toFixed(1)}% / ` +
+              `avg ${avg(attainedPcts).toFixed(1)}% / max ${Math.max(...attainedPcts).toFixed(1)}%`
+          );
+        }
+
+        const sharePowers = shareSnapshots.map((s) => s.share.sharePower);
+        console.log(
+          `sharePower across ${sharePowers.length} snapshot(s): min ${Math.min(...sharePowers).toFixed(3)} / ` +
+            `avg ${avg(sharePowers).toFixed(3)} / max ${Math.max(...sharePowers).toFixed(3)}`
+        );
+      }
     }
 
     const batchCountByTarget = new Map();
