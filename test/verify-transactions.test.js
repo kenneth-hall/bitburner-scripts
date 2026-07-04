@@ -12,11 +12,18 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { INCOME_WINDOW_MAX_MS } from '../src/translog.js';
+import { parseWindows, windowedIncomeRate } from './windowed-rate.js';
 
 const LOG_DIR = process.env.TRANSACTIONS_LOG_DIR ?? path.join(process.cwd(), 'logs');
 const FILENAME_PATTERN = /^transactions-\d{4}-\d{2}-\d{2}\.json$/;
 
-const VALID_EXPENSE_SOURCES = new Set(['cloud-purchase', 'fleet-upgrade', 'darkweb-program', 'home-ram-upgrade']);
+const VALID_EXPENSE_SOURCES = new Set([
+  'cloud-purchase',
+  'fleet-upgrade',
+  'darkweb-program',
+  'home-ram-upgrade',
+  'single-server-upgrade', // upgradecloudserver.js -- missing from this whitelist since that script's own phase; found via a real 2026-07-04 session log
+]);
 const VALID_INCOME_SOURCES = new Set(['hacking']);
 
 let files; // [{ name, entries }]
@@ -139,6 +146,27 @@ describe('soft reports', () => {
       } else {
         console.log('  expenses: none');
       }
+    }
+
+    expect(true).toBe(true); // this block only reports; it never fails
+  });
+
+  it('prints per-window hacking income $/min for Phase 8\'s A/B/A\' toggle protocol (VERIFY_WINDOWS)', () => {
+    const windows = parseWindows(process.env.VERIFY_WINDOWS);
+    if (windows.length === 0) {
+      console.log('\n--- verify-transactions windowed report --- (set VERIFY_WINDOWS="label1:startMs-endMs,label2:startMs-endMs,..." to enable)');
+      expect(true).toBe(true);
+      return;
+    }
+
+    // Windows are absolute epoch-ms, so combining every day-file's entries is
+    // safe even though the A/B/A' protocol is meant to stay inside one
+    // calendar day (see the file-format comment above on midnight rotation).
+    const allEntries = files.flatMap((f) => f.entries);
+    console.log('\n--- verify-transactions windowed report ---');
+    for (const window of windows) {
+      const { label, total, perMinute, count } = windowedIncomeRate(allEntries, window);
+      console.log(`  ${label}: $${total.toFixed(0)} over ${((window.end - window.start) / 60000).toFixed(1)} min (~$${perMinute.toFixed(0)}/min, ${count} record(s))`);
     }
 
     expect(true).toBe(true); // this block only reports; it never fails

@@ -12,6 +12,8 @@ import { getHosts } from "./hosts.js";
 import { getTargets } from "./targets.js";
 import {
   WORKER_SCRIPTS,
+  SHARE_FRACTION,
+  SHARE_SCRIPT,
   HACK_FRACTION,
   GROW_BUFFER,
   WEAKEN_BUFFER,
@@ -29,6 +31,7 @@ import {
   pipelineDepth,
   batchRamCost,
   carveReservation,
+  planShareTopUp,
 } from "./scheduler.js";
 import {
   sampleBatchFields,
@@ -70,6 +73,12 @@ const OLD_WORKER_FILES = ["hackloop.js", "growloop.js", "weakenloop.js"];
 // the CYCLE_MS cadence. The codebase already duplicates small helpers this
 // way (e.g. scanNetwork appears in hosts.js/targets.js/killscripts.js).
 const HOME_RESERVE_GB = 32;
+
+// Phase 8: a 0-byte marker file on home forces the effective share fraction
+// to 0 for same-session A/B measurement, without a build swap -- checked
+// every tick (ns.fileExists is 0 GB), same pattern as sampling.js's
+// legacy-mode.txt.
+const SHARE_OFF_MARKER = "share-off.txt";
 
 // daemon.js runs unattended for a long time, so unlike a one-shot manual
 // utility's output (already implicitly timestamped by "you just ran it"),
@@ -159,6 +168,33 @@ function launchJobs(ns, jobs) {
     if (pid === 0) failed++;
   }
   return failed;
+}
+
+/**
+ * Launches this tick's share top-up jobs, each carrying a unique, ignored
+ * counter arg (see share.js's header comment) so a top-up landing on a host
+ * still running a live share worker from the previous tick doesn't collide
+ * with Bitburner's duplicate filename+args exec restriction. Returns only
+ * the RAM/threads of jobs that actually started (pid !== 0) -- a failed exec
+ * never ran, so it shouldn't inflate the reported in-flight share total, even
+ * though its planned RAM is still deducted from the live host pool by the
+ * caller (matching the batch launch path's existing behavior).
+ */
+function launchShareJobs(ns, jobs, ramPerThread, startCounter) {
+  let counter = startCounter;
+  let failed = 0;
+  let launchedRamGb = 0;
+  let launchedThreads = 0;
+  for (const job of jobs) {
+    const pid = ns.exec(SHARE_SCRIPT, job.hostname, job.threads, counter++);
+    if (pid === 0) {
+      failed++;
+    } else {
+      launchedRamGb += ramPerThread * job.threads;
+      launchedThreads += job.threads;
+    }
+  }
+  return { failed, launchedRamGb, launchedThreads, nextCounter: counter };
 }
 
 function liveTargetState(ns, target) {
@@ -301,6 +337,12 @@ export async function main(ns) {
   let forcedLegacy = false;
   let previousMathMode = null; // null until the first refreshCycle, so startup also announces its mode once
 
+  // --- Phase 8 share-allocation state ---
+  let shareOff = ns.fileExists(SHARE_OFF_MARKER, "home");
+  let effectiveShareFraction = shareOff ? 0 : SHARE_FRACTION;
+  let previousShareFraction = effectiveShareFraction; // seeded (not null): the startup mode event below already carries this value, so no separate toggle-triggered event fires for it
+  let shareLaunchCounter = 0; // monotonically increasing, ignored exec arg -- see share.js/launchShareJobs
+
   // --- Phase 7 multi-member state (replaces the old single incumbentServer) ---
   let memberServers = []; // last tick's active member server names, score order -- the pickBatchSet "incumbentServers" input
   let lastKnownPipelineCostGb = new Map(); // server -> cost, refreshed every tick a seat is held; read (never recomputed) at exit time
@@ -309,6 +351,32 @@ export async function main(ns) {
   let lastLaunchInfo = null; // single most-recent launch across all members, for the compact "last launch" display line
   let justRefreshed = true; // true only for the tick that just ran refreshCycle() -- gates the once-per-CYCLE_MS snapshot event
   let pendingImmediateFlush = false; // set when a mode/enter/exit event was appended this tick -- forces an immediate flush instead of the lazy timer
+
+  // Appends a "mode" event carrying BOTH the math-mode and share-allocation
+  // config, whichever changed -- the log's one config record, so a toggle of
+  // either is visible with a timestamp regardless of which one moved.
+  function recordModeEvent() {
+    logEntries = appendLogEvent(logEntries, openSkipRecords, {
+      event: "mode",
+      time: new Date().toLocaleTimeString(),
+      timestamp: Date.now(),
+      formulas: useFormulas,
+      forcedLegacy,
+      shareFraction: effectiveShareFraction,
+      shareOff,
+      config: {
+        HACK_FRACTION,
+        GROW_BUFFER,
+        WEAKEN_BUFFER,
+        DRIFT_SEC_EPSILON,
+        DRIFT_MONEY_FRACTION,
+        RANK_HYSTERESIS,
+        BATCH_INTERVAL_MS,
+        SHARE_FRACTION,
+      },
+    });
+    pendingImmediateFlush = true;
+  }
 
   async function refreshCycle() {
     hosts = getHosts(ns);
@@ -325,27 +393,22 @@ export async function main(ns) {
       // Also fires on the very first refreshCycle (previousMathMode starts
       // null), so every log file states its mode from the first record and
       // is self-describing -- the log checker validates against this
-      // recorded config, not whatever the source tree says today.
-      logEntries = appendLogEvent(logEntries, openSkipRecords, {
-        event: "mode",
-        time: new Date().toLocaleTimeString(),
-        timestamp: Date.now(),
-        formulas: useFormulas,
-        forcedLegacy,
-        config: { HACK_FRACTION, GROW_BUFFER, WEAKEN_BUFFER, DRIFT_SEC_EPSILON, DRIFT_MONEY_FRACTION, RANK_HYSTERESIS, BATCH_INTERVAL_MS },
-      });
-      pendingImmediateFlush = true;
+      // recorded config, not whatever the source tree says today. Relies on
+      // effectiveShareFraction/shareOff already being current for this tick
+      // (set at the top of the main loop, before refreshCycle can be called).
+      recordModeEvent();
     }
 
     for (const host of hosts) {
       if (host.hostname === "home") continue;
-      ns.scp([WORKER_SCRIPTS.hack, WORKER_SCRIPTS.grow, WORKER_SCRIPTS.weaken], host.hostname);
+      ns.scp([WORKER_SCRIPTS.hack, WORKER_SCRIPTS.grow, WORKER_SCRIPTS.weaken, SHARE_SCRIPT], host.hostname);
     }
 
     ramCosts = {
       [WORKER_SCRIPTS.hack]: ns.getScriptRam(WORKER_SCRIPTS.hack, "home"),
       [WORKER_SCRIPTS.grow]: ns.getScriptRam(WORKER_SCRIPTS.grow, "home"),
       [WORKER_SCRIPTS.weaken]: ns.getScriptRam(WORKER_SCRIPTS.weaken, "home"),
+      [SHARE_SCRIPT]: ns.getScriptRam(SHARE_SCRIPT, "home"),
     };
 
     const currentTargetNames = new Set(targets.map((t) => t.server));
@@ -398,6 +461,22 @@ export async function main(ns) {
     justRefreshed = false;
     pendingImmediateFlush = false;
 
+    // Marker re-checked every tick (ns.fileExists is 0 GB), independent of
+    // the CYCLE_MS host/target refresh cadence -- a toggle mid-cycle takes
+    // effect within one tick, matching the spec's A/B-measurement intent.
+    // Computed BEFORE refreshCycle() might run below, so its own mode event
+    // (on a math-mode change) always carries this tick's current share state.
+    shareOff = ns.fileExists(SHARE_OFF_MARKER, "home");
+    const nextShareFraction = shareOff ? 0 : SHARE_FRACTION;
+    if (nextShareFraction !== previousShareFraction) {
+      tprintTs(ns, nextShareFraction === 0 ? `INFO: share OFF (${SHARE_OFF_MARKER})` : `INFO: share ON (${(nextShareFraction * 100).toFixed(0)}%)`);
+      effectiveShareFraction = nextShareFraction;
+      previousShareFraction = nextShareFraction;
+      recordModeEvent();
+    } else {
+      effectiveShareFraction = nextShareFraction;
+    }
+
     // Guard against the fleetupgrade.js rename window, airtight not
     // best-effort: fleetupgrade.js contains no await, so it runs atomically
     // between daemon ticks -- every rename lands while the daemon sleeps --
@@ -442,8 +521,32 @@ export async function main(ns) {
     // pipelines against below.
     const totalMaxRam = totalAllocatableRam(hosts);
     const preTickInFlight = inFlightByTarget(ns, hosts, ramCosts);
+    let failedLaunches = 0;
 
-    // --- Step 3: candidate sampling, pickBatchSet, enter/exit logging ------
+    // --- Step 3: share top-up (hard carve, before anything batch-related) --
+    // Share is the hard carve's senior claimant: it draws from the pool
+    // first every tick, and batching's aggregate is bounded by its own
+    // reduced budget below (batchBudgetGb) -- steady-state coexistence is by
+    // construction, not by yielding. One-cycle workers (share.js) mean the
+    // live pool only ever hovers just under target and decays toward it
+    // within ~10s of a toggle -- expected, not "fixed" (see share.js).
+    const shareTargetGb = effectiveShareFraction * totalMaxRam;
+    const shareTopUp = planShareTopUp(shareTargetGb, preTickInFlight.share.ramGb, ramCosts[SHARE_SCRIPT], liveHosts);
+    const shareLaunch = launchShareJobs(ns, shareTopUp.jobs, ramCosts[SHARE_SCRIPT], shareLaunchCounter);
+    failedLaunches += shareLaunch.failed;
+    shareLaunchCounter = shareLaunch.nextCounter;
+    for (const job of shareTopUp.jobs) {
+      const host = liveHosts.find((h) => h.hostname === job.hostname);
+      if (host) host.freeRam -= ramCosts[SHARE_SCRIPT] * job.threads;
+    }
+    // Computed from preTickInFlight + this tick's launches rather than a
+    // third ns.ps() sweep -- Phase 7's two-sweeps-per-tick property is
+    // load-bearing (see sampling.js's inFlightByTarget doc comment).
+    const shareInFlightRamGb = preTickInFlight.share.ramGb + shareLaunch.launchedRamGb;
+    const shareInFlightThreads = preTickInFlight.share.threads + shareLaunch.launchedThreads;
+    const batchBudgetGb = (1 - effectiveShareFraction) * totalMaxRam;
+
+    // --- Step 4: candidate sampling, pickBatchSet, enter/exit logging ------
     const candidates = [];
     const targetsByServer = new Map(targets.map((t) => [t.server, t]));
     const liveStates = new Map(); // server -> liveTargetState, reused by the member loop and display below
@@ -485,8 +588,12 @@ export async function main(ns) {
     // assignBatchHosts still requires each job to land on a single host -- a
     // pipeline can fit the aggregate budget while a given tick's job doesn't
     // fit any one host. Handled downstream by the existing per-member
-    // shrink/skip retry loop (step 4), not here.
-    const result = pickBatchSet(candidates, memberServers, totalMaxRam, RANK_HYSTERESIS);
+    // shrink/skip retry loop (step 5), not here.
+    //
+    // budgetGb is batchBudgetGb, not totalMaxRam (Phase 8's entire
+    // batching-visible change): share's hard carve already physically took
+    // its RAM in step 3, so batching is admitted against what's left.
+    const result = pickBatchSet(candidates, memberServers, batchBudgetGb, RANK_HYSTERESIS);
 
     const candidateByServer = new Map(candidates.map((c) => [c.server, c]));
     const membersByServer = new Map(result.members.map((m) => [m.server, m]));
@@ -494,7 +601,7 @@ export async function main(ns) {
     const newMemberSet = new Set(result.members.map((m) => m.server));
 
     for (const exit of result.exits) {
-      const inFlightInfo = preTickInFlight[exit.server] ?? { batches: 0, ramGb: 0 };
+      const inFlightInfo = preTickInFlight.byTarget[exit.server] ?? { batches: 0, ramGb: 0 };
       // "ineligible" exits have no fresh sample this tick by definition, so
       // commitmentPct is computed from the last-known cost cached below,
       // never recomputed live.
@@ -551,7 +658,7 @@ export async function main(ns) {
       lastKnownPipelineCostGb.set(member.server, member.pipelineCostGb);
     }
 
-    // --- Step 4: member loop, score order (pickBatchSet already sorted) ----
+    // --- Step 5: member loop, score order (pickBatchSet already sorted) ----
     // Transition dynamics to expect (documented, not "fixed"): a displacing
     // entrant starts with an empty pipeline while the evictee's RAM drains
     // over up to a weakenTime, so the entrant's first ticks will
@@ -560,16 +667,15 @@ export async function main(ns) {
     // account for pipeline cost only, while a drifted member's stage-1 prep
     // dispatch below is uncapped -- several members re-prepping
     // simultaneously can transiently starve a higher member's pipeline
-    // *refill* (the reserve carve happens after all members act, step 5).
+    // *refill* (the reserve carve happens after all members act, step 6).
     // Score-ordered launches keep per-tick priority correct and the system
     // self-corrects within a weakenTime; skip clusters during simultaneous
     // re-preps are expected, not a bug to gate on.
-    let failedLaunches = 0;
     const memberResults = [];
 
     for (const member of result.members) {
       const target = targetsByServer.get(member.server);
-      const batchesInFlightBeforeTick = preTickInFlight[member.server]?.batches ?? 0;
+      const batchesInFlightBeforeTick = preTickInFlight.byTarget[member.server]?.batches ?? 0;
 
       if (member.realPrepped) {
         // Shrink gating: only bootstrap (shrink the fraction) when THIS
@@ -652,15 +758,17 @@ export async function main(ns) {
       }
     }
 
-    // --- Step 5: aggregate reserve carve ------------------------------------
+    // --- Step 6: aggregate reserve carve ------------------------------------
     // Second in-flight sweep, AFTER this tick's launches, so the reserve
     // reflects what's actually committed now (including anything just
-    // launched above).
+    // launched above). Its `share` field is deliberately unused (see step 3
+    // -- share's post-top-up state is tracked arithmetically instead, so this
+    // stays exactly two sweeps per tick, not three).
     const postLaunchInFlight = inFlightByTarget(ns, hosts, ramCosts);
     let totalReserveGb = 0;
     const memberReserve = new Map(); // server -> {reserveGb, inFlightRamGb, batchesInFlight}
     for (const member of result.members) {
-      const info = postLaunchInFlight[member.server] ?? { batches: 0, ramGb: 0 };
+      const info = postLaunchInFlight.byTarget[member.server] ?? { batches: 0, ramGb: 0 };
       const reserveGb = Math.max(0, member.pipelineCostGb - info.ramGb);
       memberReserve.set(member.server, { reserveGb, inFlightRamGb: info.ramGb, batchesInFlight: info.batches });
       totalReserveGb += reserveGb;
@@ -670,7 +778,7 @@ export async function main(ns) {
     const carvedPool = carveReservation(liveHosts, totalReserveGb); // existing mechanism, unchanged -- one aggregate carve, largest-hosts-first, just a bigger number
     const waterfallAvailableGb = carvedPool.reduce((sum, h) => sum + h.freeRam, 0);
 
-    // --- Step 6: waterfall (non-members) ------------------------------------
+    // --- Step 7: waterfall (non-members) ------------------------------------
     const nonMemberTargets = targets.filter((t) => !newMemberSet.has(t.server));
     let waterfallPool = carvedPool;
     const preppedThisTick = [];
@@ -691,9 +799,9 @@ export async function main(ns) {
     const totalRemaining = preWaterfallTotal - spentByWaterfall;
     const utilization = totalMaxRam > 0 ? ((totalMaxRam - totalRemaining) / totalMaxRam) * 100 : 0;
 
-    // --- Step 7: display, logging, sleep ------------------------------------
-    const drainingServers = Object.keys(postLaunchInFlight).filter(
-      (server) => !newMemberSet.has(server) && postLaunchInFlight[server].batches > 0
+    // --- Step 8: display, logging, sleep ------------------------------------
+    const drainingServers = Object.keys(postLaunchInFlight.byTarget).filter(
+      (server) => !newMemberSet.has(server) && postLaunchInFlight.byTarget[server].batches > 0
     );
 
     ns.clearLog();
@@ -721,7 +829,20 @@ export async function main(ns) {
     for (const server of drainingServers) {
       const deadline = drainDeadlines.get(server);
       const etaLabel = deadline ? `~${Math.max(0, (deadline - Date.now()) / 60000).toFixed(1)}m left` : "eta unknown";
-      ns.print(`  ${server.padEnd(15)} DRAINING ${postLaunchInFlight[server].batches} batch(es) landing, ${etaLabel}`);
+      ns.print(`  ${server.padEnd(15)} DRAINING ${postLaunchInFlight.byTarget[server].batches} batch(es) landing, ${etaLabel}`);
+    }
+
+    const sharePower = ns.getSharePower();
+    if (shareOff) {
+      ns.print(`share: OFF (${SHARE_OFF_MARKER})`);
+    } else {
+      const shareAttainedPct = shareTargetGb > 0 ? (shareInFlightRamGb / shareTargetGb) * 100 : null;
+      ns.print(
+        `share: ${ns.format.ram(shareInFlightRamGb)}/${ns.format.ram(shareTargetGb)}` +
+          `${shareAttainedPct !== null ? ` (${shareAttainedPct.toFixed(1)}%)` : ""} | ` +
+          `${shareInFlightThreads.toLocaleString()}t | power ${sharePower.toFixed(2)} | ` +
+          `batch budget ${ns.format.ram(batchBudgetGb)}`
+      );
     }
 
     ns.print(
@@ -819,15 +940,17 @@ export async function main(ns) {
     if (justRefreshed) {
       const draining = drainingServers.map((server) => ({
         server,
-        batchesInFlight: postLaunchInFlight[server].batches,
-        inFlightRamGb: postLaunchInFlight[server].ramGb,
+        batchesInFlight: postLaunchInFlight.byTarget[server].batches,
+        inFlightRamGb: postLaunchInFlight.byTarget[server].ramGb,
       }));
+      const shareAttainedPct = shareTargetGb > 0 ? (shareInFlightRamGb / shareTargetGb) * 100 : null;
       const snapshotRecord = {
         event: "snapshot",
         time: new Date().toLocaleTimeString(),
         timestamp: Date.now(),
         utilizationPct: utilization,
         budgetGb: totalMaxRam,
+        batchBudgetGb,
         waterfallFreeGb: waterfallAvailableGb,
         memberCount: result.members.length,
         members: result.members.map((m) => {
@@ -844,6 +967,13 @@ export async function main(ns) {
             commitmentPct: m.pipelineCostGb > 0 ? (info.inFlightRamGb / m.pipelineCostGb) * 100 : 0,
           };
         }),
+        share: {
+          targetGb: shareTargetGb,
+          inFlightRamGb: shareInFlightRamGb,
+          threads: shareInFlightThreads,
+          attainedPct: shareAttainedPct,
+          sharePower,
+        },
       };
       if (draining.length > 0) snapshotRecord.draining = draining;
       logEntries = appendLogEvent(logEntries, openSkipRecords, snapshotRecord);

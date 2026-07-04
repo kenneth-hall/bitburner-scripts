@@ -31,6 +31,13 @@ export const WORKER_SCRIPTS = {
   weaken: "weaken.js",
 };
 
+// Phase 8: faction share allocation. Deliberately not folded into
+// WORKER_SCRIPTS -- everything that iterates WORKER_SCRIPTS (scp loops,
+// ramCosts maps, in-flight target bucketing) means "the three targeted batch
+// workers", and share has no target argument.
+export const SHARE_FRACTION = 0.25;
+export const SHARE_SCRIPT = "share.js";
+
 /**
  * A target counts as prepped once it's within these margins of min
  * security / max money; only prepped targets get hack-containing batches.
@@ -381,4 +388,52 @@ export function pickBatchSet(candidates, incumbentServers, budgetGb, hysteresis)
   // this tick's free RAM."
   seated.sort((a, b) => b.score - a.score);
   return { members: seated, exits, displacement };
+}
+
+/**
+ * Whole-thread share top-up: computes the gap between a live target GB and
+ * what's already in flight, then fills it from the host pool
+ * smallest-free-RAM-first -- deliberately the opposite end from
+ * carveReservation's largest-first, since big contiguous blocks are the only
+ * places a batch's grow job can land; share consumes fragments first and
+ * preserves them for batching.
+ *
+ * Never overshoots the target: total launched threads across all returned
+ * jobs is bounded by floor(gap / ramPerThread), computed once up front, not
+ * per host. Whatever of that bound the pool can't fit (too fragmented, or
+ * genuinely too full this tick) comes back as shortfallGb -- informational
+ * only; the caller retries next tick. Does not mutate hosts; returns jobs
+ * only, same as the rest of this module -- the daemon adjusts its own live
+ * pool copy after launching.
+ * @param {number} targetGb
+ * @param {number} inFlightShareGb
+ * @param {number} ramPerThread
+ * @param {{hostname: string, freeRam: number}[]} hosts
+ * @returns {{jobs: {hostname: string, threads: number}[], shortfallGb: number}}
+ */
+export function planShareTopUp(targetGb, inFlightShareGb, ramPerThread, hosts) {
+  const gapGb = targetGb - inFlightShareGb;
+  if (gapGb <= 0) return { jobs: [], shortfallGb: 0 };
+
+  const maxThreads = Math.floor(gapGb / ramPerThread);
+
+  const pool = hosts
+    .map((h) => ({ hostname: h.hostname, freeRam: h.freeRam }))
+    .filter((h) => h.freeRam > 0)
+    .sort((a, b) => a.freeRam - b.freeRam);
+
+  const jobs = [];
+  let remainingThreads = maxThreads;
+  for (const host of pool) {
+    if (remainingThreads <= 0) break;
+    const affordable = Math.floor(host.freeRam / ramPerThread);
+    if (affordable <= 0) continue;
+    const threads = Math.min(remainingThreads, affordable);
+    jobs.push({ hostname: host.hostname, threads });
+    remainingThreads -= threads;
+  }
+
+  const placedThreads = maxThreads - remainingThreads;
+  const shortfallGb = gapGb - placedThreads * ramPerThread;
+  return { jobs, shortfallGb };
 }

@@ -5,6 +5,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   WORKER_SCRIPTS,
+  SHARE_FRACTION,
+  SHARE_SCRIPT,
   SPACING_MS,
   BATCH_INTERVAL_MS,
   DRIFT_SEC_EPSILON,
@@ -17,6 +19,7 @@ import {
   assignBatchHosts,
   planPrep,
   pickBatchSet,
+  planShareTopUp,
 } from '../src/scheduler.js';
 
 describe('isPrepped', () => {
@@ -403,5 +406,90 @@ describe('pickBatchSet', () => {
 
     expect(candidates).toEqual(candidatesSnapshot);
     expect(incumbentServers).toEqual(incumbentSnapshot);
+  });
+});
+
+describe('Phase 8 share constants', () => {
+  it('are exported', () => {
+    expect(SHARE_FRACTION).toBe(0.25);
+    expect(SHARE_SCRIPT).toBe('share.js');
+  });
+});
+
+describe('planShareTopUp', () => {
+  const ramPerThread = 4; // GB/thread, matches share.js's expected 4.00 GB
+
+  it('fills toward target smallest-host-first', () => {
+    const hosts = [
+      { hostname: 'big', freeRam: 100 },
+      { hostname: 'small', freeRam: 20 },
+      { hostname: 'mid', freeRam: 40 },
+    ];
+    // gap = 40 GB -> 10 threads. smallest-first: small(20->5t), mid(40->10t
+    // but only 5 remain needed) -- so small takes 5, mid takes the last 5.
+    const { jobs, shortfallGb } = planShareTopUp(40, 0, ramPerThread, hosts);
+    expect(jobs).toEqual([
+      { hostname: 'small', threads: 5 },
+      { hostname: 'mid', threads: 5 },
+    ]);
+    expect(shortfallGb).toBe(0);
+  });
+
+  it('splits across hosts when one host cannot cover the whole gap', () => {
+    const hosts = [
+      { hostname: 'a', freeRam: 8 }, // 2t
+      { hostname: 'b', freeRam: 12 }, // 3t
+    ];
+    const { jobs, shortfallGb } = planShareTopUp(20, 0, ramPerThread, hosts); // gap 20 -> 5 threads wanted
+    expect(jobs).toEqual([
+      { hostname: 'a', threads: 2 },
+      { hostname: 'b', threads: 3 },
+    ]);
+    expect(shortfallGb).toBe(0); // exactly 5 threads placed (2+3), matching maxThreads
+  });
+
+  it('rounds down to whole threads only, per host', () => {
+    const hosts = [{ hostname: 'a', freeRam: 9 }]; // floor(9/4) = 2 threads, 1 GB left over unusable
+    const { jobs } = planShareTopUp(100, 0, ramPerThread, hosts);
+    expect(jobs).toEqual([{ hostname: 'a', threads: 2 }]);
+  });
+
+  it('never overshoots the target even when the pool has room to spare', () => {
+    const hosts = [{ hostname: 'huge', freeRam: 10_000 }];
+    // gap = 10 GB -> exactly 2 threads (8 GB), even though the host could fit far more.
+    const { jobs, shortfallGb } = planShareTopUp(10, 0, ramPerThread, hosts);
+    expect(jobs).toEqual([{ hostname: 'huge', threads: 2 }]);
+    expect(shortfallGb).toBe(2); // the 2 GB sub-thread remainder of the gap, unplaceable regardless of pool size
+  });
+
+  it('returns zero jobs at or above target, including targetGb = 0 (the marker case)', () => {
+    const hosts = [{ hostname: 'a', freeRam: 100 }];
+    expect(planShareTopUp(0, 0, ramPerThread, hosts)).toEqual({ jobs: [], shortfallGb: 0 });
+    expect(planShareTopUp(50, 50, ramPerThread, hosts)).toEqual({ jobs: [], shortfallGb: 0 });
+    expect(planShareTopUp(50, 80, ramPerThread, hosts)).toEqual({ jobs: [], shortfallGb: 0 }); // already over target
+  });
+
+  it('reports shortfallGb when the pool cannot fit the whole gap', () => {
+    const hosts = [{ hostname: 'a', freeRam: 8 }]; // 2 threads = 8 GB
+    // gap = 40 GB -> wants 10 threads, pool only fits 2 -> shortfall = 8 threads' worth = 32 GB
+    const { jobs, shortfallGb } = planShareTopUp(40, 0, ramPerThread, hosts);
+    expect(jobs).toEqual([{ hostname: 'a', threads: 2 }]);
+    expect(shortfallGb).toBe(32);
+  });
+
+  it('skips zero-free hosts entirely', () => {
+    const hosts = [
+      { hostname: 'empty', freeRam: 0 },
+      { hostname: 'ok', freeRam: 8 },
+    ];
+    const { jobs } = planShareTopUp(8, 0, ramPerThread, hosts);
+    expect(jobs).toEqual([{ hostname: 'ok', threads: 2 }]);
+  });
+
+  it('does not mutate the input hosts array', () => {
+    const hosts = [{ hostname: 'a', freeRam: 20 }];
+    const snapshot = JSON.parse(JSON.stringify(hosts));
+    planShareTopUp(20, 0, ramPerThread, hosts);
+    expect(hosts).toEqual(snapshot);
   });
 });

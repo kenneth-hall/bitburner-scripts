@@ -49,16 +49,18 @@ export default defineConfig({
       // over copy-pasted terminal output whenever a script's result needs to
       // be read back. Three patterns: daemon-batch-log.json is the daemon's
       // own ring-buffered history (one file, overwritten in place);
-      // targets-summary-<epoch ms>.json is one file PER RUN of targets.js (a
-      // one-shot script, no ring buffer), so repeated runs (e.g. a
-      // before/after comparison) each land as their own file in logs/
-      // instead of overwriting each other; transactions-YYYY-MM-DD.json
-      // (src/translog.js) is daily-rotating -- one file per calendar day,
-      // written live as income/expenses happen, rotating at the day
-      // boundary.
+      // targets-summary-<epoch ms>.json / sharecurve-<epoch ms>.json are one
+      // file PER RUN of targets.js / sharecurve.js (one-shot scripts, no ring
+      // buffer), so repeated runs (e.g. a before/after comparison) each land
+      // as their own file in logs/ instead of overwriting each other;
+      // transactions-YYYY-MM-DD.json (src/translog.js) is daily-rotating --
+      // one file per calendar day, written live as income/expenses happen,
+      // rotating at the day boundary.
       location: (file) => {
         if (file === 'daemon-batch-log.json') return 'logs/daemon-batch-log.json';
         if (/^targets-summary-\d+\.json$/.test(file)) return `logs/${file}`;
+        if (/^sharecurve-\d+\.json$/.test(file)) return `logs/${file}`;
+        if (file === 'ramcheck-result.json') return 'logs/ramcheck-result.json';
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         return null;
       },
