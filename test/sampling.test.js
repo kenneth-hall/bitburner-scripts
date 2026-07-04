@@ -10,6 +10,7 @@ import {
   sampleBatchFields,
   samplePrepFields,
   countInFlightThreads,
+  inFlightByTarget,
   steadyStatePlan,
   hasFormulas,
   isForcedLegacy,
@@ -142,6 +143,71 @@ describe('countInFlightThreads', () => {
     expect(countInFlightThreads(ns, HOSTS, 'joesguns', 'grow.js')).toBe(5);
     expect(countInFlightThreads(ns, HOSTS, 'joesguns', 'hack.js')).toBe(7);
     expect(countInFlightThreads(ns, HOSTS, 'nowhere', 'weaken.js')).toBe(0);
+  });
+});
+
+// --- inFlightByTarget ----------------------------------------------------
+
+describe('inFlightByTarget', () => {
+  // 3 hosts (one idle), multiple real targets, a weaken-only target (proves
+  // batches:0 with no hack.js present), and a non-worker decoy process.
+  const MULTI_TARGET_HOSTS = [{ hostname: 'home' }, { hostname: 'pserv-0' }, { hostname: 'pserv-1' }];
+  function multiTargetPs(hostname) {
+    const byHost = {
+      home: [
+        { filename: 'hack.js', args: ['joesguns'], threads: 3 },
+        { filename: 'grow.js', args: ['joesguns'], threads: 2 },
+        { filename: 'weaken.js', args: ['n00dles'], threads: 5 },
+        { filename: 'daemon.js', args: [], threads: 1 }, // non-worker decoy -- must be fully ignored
+      ],
+      'pserv-0': [
+        { filename: 'hack.js', args: ['harakiri-sushi'], threads: 4 },
+        { filename: 'weaken.js', args: ['harakiri-sushi'], threads: 6 },
+        { filename: 'grow.js', args: ['joesguns'], threads: 1 },
+      ],
+      'pserv-1': [], // idle host
+    };
+    return byHost[hostname] ?? [];
+  }
+  const RAM_COSTS = { 'hack.js': 1.6, 'grow.js': 1.75, 'weaken.js': 1.75 };
+
+  it('attributes RAM by filename x threads across hosts, per target', () => {
+    const ns = makeMockNs({ ps: multiTargetPs });
+    const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
+    // joesguns: hack.js(home,3)=4.8 + grow.js(home,2)=3.5 + grow.js(pserv-0,1)=1.75
+    expect(result.joesguns.ramGb).toBeCloseTo(10.05);
+    // harakiri-sushi: hack.js(pserv-0,4)=6.4 + weaken.js(pserv-0,6)=10.5
+    expect(result['harakiri-sushi'].ramGb).toBeCloseTo(16.9);
+    // n00dles: weaken.js(home,5)=8.75
+    expect(result.n00dles.ramGb).toBeCloseTo(8.75);
+  });
+
+  it('counts batches via hack.js occurrences only', () => {
+    const ns = makeMockNs({ ps: multiTargetPs });
+    const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
+    expect(result.joesguns.batches).toBe(1);
+    expect(result['harakiri-sushi'].batches).toBe(1);
+    expect(result.n00dles.batches).toBe(0); // weaken-only, no hack.js present
+  });
+
+  it('ignores non-worker filenames entirely (no stray key, no RAM contribution)', () => {
+    const ns = makeMockNs({ ps: multiTargetPs });
+    const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
+    expect(result.undefined).toBeUndefined();
+    expect(Object.keys(result).sort()).toEqual(['harakiri-sushi', 'joesguns', 'n00dles']);
+  });
+
+  it('a target with no processes anywhere is absent from the result', () => {
+    const ns = makeMockNs({ ps: multiTargetPs });
+    const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
+    expect(result['nectar-net']).toBeUndefined();
+  });
+
+  it('an idle host contributes nothing (goldens above already exclude pserv-1)', () => {
+    const ns = makeMockNs({ ps: multiTargetPs });
+    const withIdleHost = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS);
+    const withoutIdleHost = inFlightByTarget(ns, [{ hostname: 'home' }, { hostname: 'pserv-0' }], RAM_COSTS);
+    expect(withIdleHost).toEqual(withoutIdleHost);
   });
 });
 

@@ -149,6 +149,44 @@ export function countInFlightThreads(ns, hosts, server, script) {
 }
 
 /**
+ * One-pass in-flight sweep across every worker process on every known host,
+ * bucketed by target (proc.args[0]). Replaces daemon.js's per-target
+ * sumInFlightRam/countBatchesInFlight (each scanned ns.ps once PER TARGET --
+ * with N active members that was N full sweeps every tick). Called at most
+ * twice per tick (pre-launch, and post-launch for the reserve's re-measure)
+ * regardless of member count.
+ *
+ * `ramCosts` (keyed by filename: hack.js/grow.js/weaken.js) doubles as the
+ * worker-script membership filter -- checking `ramCosts[proc.filename] !==
+ * undefined` naturally restricts the sum to the three worker scripts without
+ * a separate WORKER_SCRIPTS membership check.
+ *
+ * A server with zero matching processes anywhere is simply absent from the
+ * result -- callers must default-fill (`result[server] ?? {batches: 0,
+ * ramGb: 0}`) rather than assume every known server has a key.
+ * @param {NS} ns
+ * @param {{hostname: string}[]} hosts
+ * @param {Record<string, number>} ramCosts
+ * @returns {Record<string, {batches: number, ramGb: number}>}
+ */
+export function inFlightByTarget(ns, hosts, ramCosts) {
+  const result = {};
+  for (const host of hosts) {
+    for (const proc of ns.ps(host.hostname)) {
+      const ramPerThread = ramCosts[proc.filename];
+      if (ramPerThread === undefined) continue;
+      const server = String(proc.args[0]);
+      if (!result[server]) result[server] = { batches: 0, ramGb: 0 };
+      result[server].ramGb += ramPerThread * proc.threads;
+      // Each batch has exactly one hack.js job against its target -- the
+      // same proxy countBatchesInFlight used.
+      if (proc.filename === WORKER_SCRIPTS.hack) result[server].batches += 1;
+    }
+  }
+  return result;
+}
+
+/**
  * Samples live prep thread counts for a target that isn't prepped. Reuses
  * the CYCLE_MS-cached growTime/weakenTime from targets.js -- prep needs no
  * sub-second timing precision, unlike the batch path.

@@ -244,31 +244,141 @@ export function planPrep(target, hosts, ramCosts) {
 }
 
 /**
- * Chooses the batch target for this tick, applying RANK_HYSTERESIS so a
- * transient score drop (e.g. current-security sampling tanking a score right
- * after a level-up drift) can't rank-flip the daemon away from a target
- * mid-re-prep. `targets` must already be sorted descending by score (as
- * getTargets returns it), so targets[0] is the only possible challenger --
- * if it doesn't beat the incumbent by the hysteresis factor, nothing does.
+ * Rebuilds the active batch-member set every tick (Phase 7), replacing
+ * pickBatchTarget's single incumbent. `candidates` must already be sorted
+ * score-descending (as getTargets/the daemon's candidate list produces it)
+ * and pre-filtered to drop any target whose sample came back null this tick
+ * (unhackable) -- an incumbent missing from `candidates` for that reason
+ * exits "ineligible".
  *
- * `challengerPrepped` (default true, preserving old call sites) gates a
- * flip on the challenger actually being ready to batch: scored at its
- * prepped state, a fresh unlock can clear the hysteresis bar while still
- * stone-cold, which would otherwise flip stage 1 into a full prep cycle
- * during which nothing batches -- trading noise-flips for cold-flips. The
- * incumbent-vanished case (top branch below) is untouched -- there's
- * nothing to keep, so it wins regardless of prep state.
- * @param {{server: string, score: number}[]} targets
- * @param {string | null} incumbentServer
+ * Runs four sequential passes, each walking score order with skip-and-continue
+ * "fits" checks (never prefix-stop): a mid-list candidate that doesn't fit is
+ * passed over, the walk continues to cheaper/lower-score ones.
+ *
+ * Known approximation (also comment this at the daemon.js call site): this is
+ * a fleet-total GB budget check, but assignBatchHosts still requires each job
+ * to land on a single host -- a pipeline can fit the aggregate budget while a
+ * given tick's job doesn't fit any one host. Handled downstream by the
+ * existing per-tick shrink/skip retry loop, not here.
+ * @param {{server: string, score: number, pipelineCostGb: number, prepped: boolean}[]} candidates
+ * @param {string[]} incumbentServers last tick's member list (order irrelevant -- only membership checked)
+ * @param {number} budgetGb
  * @param {number} hysteresis
- * @param {boolean} [challengerPrepped]
+ * @returns {{
+ *   members: {server: string, score: number, pipelineCostGb: number, prepped: boolean}[],
+ *   exits: {server: string, reason: "unaffordable" | "ineligible" | "displaced"}[],
+ *   displacement: {entrant: string, displaced: string[]} | null
+ * }}
  */
-export function pickBatchTarget(targets, incumbentServer, hysteresis, challengerPrepped = true) {
-  const incumbent = targets.find((t) => t.server === incumbentServer);
-  if (!incumbent) return targets[0];
+export function pickBatchSet(candidates, incumbentServers, budgetGb, hysteresis) {
+  const incumbentSet = new Set(incumbentServers);
+  const byServer = new Map(candidates.map((c) => [c.server, c]));
 
-  const top = targets[0];
-  if (top.server === incumbent.server) return incumbent;
-  if (!challengerPrepped) return incumbent;
-  return top.score >= incumbent.score * hysteresis ? top : incumbent;
+  let remaining = budgetGb;
+  const seated = [];
+  const seatedServers = new Set();
+  const exits = [];
+
+  // Pass 1: incumbents keep their seats first, walked in score order.
+  // Skip-and-continue: a higher-scored incumbent that doesn't fit does NOT
+  // stop the walk -- a lower-scored, cheaper incumbent later in the same
+  // walk still gets checked against the (unchanged) remaining budget and
+  // keeps its seat if it fits. Evicting it just because a bigger sibling
+  // didn't fit would waste an already-warm pipeline for no reason.
+  for (const candidate of candidates) {
+    if (!incumbentSet.has(candidate.server)) continue;
+    if (candidate.pipelineCostGb <= remaining) {
+      seated.push(candidate);
+      seatedServers.add(candidate.server);
+      remaining -= candidate.pipelineCostGb;
+    } else {
+      exits.push({ server: candidate.server, reason: "unaffordable" });
+    }
+  }
+  // Incumbents absent from `candidates` entirely (dropped by eligibility or
+  // a null sample this tick) -- nothing to fit-check, independent of the
+  // budget walk above.
+  for (const server of incumbentServers) {
+    if (!byServer.has(server)) exits.push({ server, reason: "ineligible" });
+  }
+
+  // Pass 2: non-incumbents fill spare budget freely, score order. No prepped
+  // gate here -- entering on spare budget displaces nothing, and stage 1
+  // will prep a cold entrant exactly as the waterfall would have.
+  for (const candidate of candidates) {
+    if (seatedServers.has(candidate.server) || incumbentSet.has(candidate.server)) continue;
+    if (candidate.pipelineCostGb <= remaining) {
+      seated.push(candidate);
+      seatedServers.add(candidate.server);
+      remaining -= candidate.pipelineCostGb;
+    }
+  }
+
+  // Pass 3: displacement -- gated, at most one entrant per tick. Only seated
+  // incumbents are evictable here (never a pass-2 entrant). evictionOrder is
+  // ascending by score (lowest-scored seat first): once one incumbent fails
+  // the hysteresis gate in this ascending walk, every subsequent
+  // (higher-scored) incumbent needs an even bigger clearance, so all the
+  // rest necessarily fail too -- safe to stop early.
+  let displacement = null;
+  const seatedIncumbents = seated.filter((m) => incumbentSet.has(m.server));
+  const evictionOrder = [...seatedIncumbents].sort((a, b) => a.score - b.score);
+
+  for (const challenger of candidates) {
+    if (seatedServers.has(challenger.server)) continue;
+    if (challenger.pipelineCostGb <= remaining) continue; // already fits -- not a displacement case
+    if (!challenger.prepped) continue; // gate (b): a stone-cold challenger can clear hysteresis while still not ready to batch
+
+    let freed = 0;
+    const toEvict = [];
+    for (const incumbent of evictionOrder) {
+      if (!seatedServers.has(incumbent.server)) continue;
+      // gate (a), per evicted incumbent individually:
+      if (challenger.score < incumbent.score * hysteresis) break;
+      toEvict.push(incumbent);
+      freed += incumbent.pipelineCostGb;
+      if (remaining + freed >= challenger.pipelineCostGb) break; // evict only as many seats as needed
+    }
+
+    if (toEvict.length > 0 && remaining + freed >= challenger.pipelineCostGb) {
+      // Commit: this challenger is the single highest-scored qualifying one,
+      // since candidates is walked top-down and we stop at the first hit.
+      for (const evicted of toEvict) {
+        seatedServers.delete(evicted.server);
+        seated.splice(seated.indexOf(evicted), 1);
+        exits.push({ server: evicted.server, reason: "displaced" });
+      }
+      remaining += freed;
+      seated.push(challenger);
+      seatedServers.add(challenger.server);
+      remaining -= challenger.pipelineCostGb;
+      displacement = { entrant: challenger.server, displaced: toEvict.map((e) => e.server) };
+      break; // at most one displacement entry per tick
+    }
+    // Didn't qualify (gate failed, or no combination of evictable incumbents
+    // frees enough budget) -- continue to the next (lower-scored) candidate.
+    // This is the deliberate divergence from pickBatchTarget: an unprepped
+    // top-scored candidate no longer blocks a lower-scored, prepped
+    // candidate that individually clears the hysteresis bar.
+  }
+
+  // Pass 4: refill -- a displacement can free more budget than the entrant
+  // consumed. Run one more rule-2-style pass so slack isn't stranded until
+  // next tick. Only meaningful after an actual displacement.
+  if (displacement) {
+    for (const candidate of candidates) {
+      if (seatedServers.has(candidate.server)) continue;
+      if (candidate.pipelineCostGb <= remaining) {
+        seated.push(candidate);
+        seatedServers.add(candidate.server);
+        remaining -= candidate.pipelineCostGb;
+      }
+    }
+  }
+
+  // Final order: always score-descending regardless of admission order --
+  // callers rely on this for "highest-value pipeline gets first claim on
+  // this tick's free RAM."
+  seated.sort((a, b) => b.score - a.score);
+  return { members: seated, exits, displacement };
 }

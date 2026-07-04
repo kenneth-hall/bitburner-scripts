@@ -16,7 +16,7 @@ import {
   carveReservation,
   assignBatchHosts,
   planPrep,
-  pickBatchTarget,
+  pickBatchSet,
 } from '../src/scheduler.js';
 
 describe('isPrepped', () => {
@@ -221,55 +221,187 @@ describe('planPrep', () => {
   });
 });
 
-describe('pickBatchTarget', () => {
-  const targets = [
-    { server: 'top', score: 124.99 },
-    { server: 'mid', score: 100 },
-    { server: 'low', score: 50 },
-  ];
+describe('pickBatchSet', () => {
+  const memberServers = (result) => result.members.map((m) => m.server);
 
-  it('holds the incumbent when the challenger is just under the hysteresis factor', () => {
-    // incumbent 100 * 1.25 = 125; top at 124.99 does not clear it.
-    expect(pickBatchTarget(targets, 'mid', 1.25).server).toBe('mid');
+  it('fills spare budget in score order, excluding whatever no longer fits', () => {
+    const candidates = [
+      { server: 'a', score: 300, pipelineCostGb: 40, prepped: true },
+      { server: 'b', score: 200, pipelineCostGb: 30, prepped: true },
+      { server: 'c', score: 100, pipelineCostGb: 50, prepped: true },
+    ];
+    const result = pickBatchSet(candidates, [], 100, 1.25);
+    expect(memberServers(result)).toEqual(['a', 'b']);
+    expect(result.exits).toEqual([]);
+    expect(result.displacement).toBeNull();
   });
 
-  it('flips when the challenger meets the factor exactly (>=)', () => {
-    const flipped = [{ server: 'top', score: 125 }, ...targets.slice(1)];
-    expect(pickBatchTarget(flipped, 'mid', 1.25).server).toBe('top');
+  describe('single-pipeline budget (degenerate case, mirrors old pickBatchTarget)', () => {
+    const budget = 40; // exactly one pipeline's cost
+
+    it('holds the incumbent when the challenger is just under the hysteresis factor', () => {
+      // incumbent 100 * 1.25 = 125; top at 124.99 does not clear it.
+      const candidates = [
+        { server: 'top', score: 124.99, pipelineCostGb: 40, prepped: true },
+        { server: 'mid', score: 100, pipelineCostGb: 40, prepped: true },
+        { server: 'low', score: 50, pipelineCostGb: 40, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, ['mid'], budget, 1.25);
+      expect(memberServers(result)).toEqual(['mid']);
+      expect(result.exits).toEqual([]);
+      expect(result.displacement).toBeNull();
+    });
+
+    it('flips when the challenger meets the factor exactly (>=)', () => {
+      const candidates = [
+        { server: 'top', score: 125, pipelineCostGb: 40, prepped: true },
+        { server: 'mid', score: 100, pipelineCostGb: 40, prepped: true },
+        { server: 'low', score: 50, pipelineCostGb: 40, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, ['mid'], budget, 1.25);
+      expect(memberServers(result)).toEqual(['top']);
+      expect(result.exits).toEqual([{ server: 'mid', reason: 'displaced' }]);
+      expect(result.displacement).toEqual({ entrant: 'top', displaced: ['mid'] });
+    });
+
+    it('gate blocks an unprepped challenger even when its score is over threshold', () => {
+      const candidates = [
+        { server: 'top', score: 125, pipelineCostGb: 40, prepped: false },
+        { server: 'mid', score: 100, pipelineCostGb: 40, prepped: true },
+        { server: 'low', score: 50, pipelineCostGb: 40, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, ['mid'], budget, 1.25);
+      expect(memberServers(result)).toEqual(['mid']);
+      expect(result.exits).toEqual([]);
+      expect(result.displacement).toBeNull();
+    });
+
+    it('deliberate divergence: an unprepped top-scored candidate no longer blocks a lower-scored, prepped challenger', () => {
+      const candidates = [
+        { server: 'top', score: 200, pipelineCostGb: 40, prepped: false },
+        { server: 'second', score: 130, pipelineCostGb: 40, prepped: true },
+        { server: 'mid', score: 100, pipelineCostGb: 40, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, ['mid'], budget, 1.25);
+      expect(memberServers(result)).toEqual(['second']);
+      expect(result.exits).toEqual([{ server: 'mid', reason: 'displaced' }]);
+      expect(result.displacement).toEqual({ entrant: 'second', displaced: ['mid'] });
+    });
   });
 
-  it('keeps the incumbent when it is itself the top target', () => {
-    expect(pickBatchTarget(targets, 'top', 1.25).server).toBe('top');
+  it('skip-and-continue: a mid-list unaffordable incumbent does not stop cheaper, lower-scored incumbents from seating', () => {
+    const candidates = [
+      { server: 'a', score: 300, pipelineCostGb: 30, prepped: true },
+      { server: 'b', score: 200, pipelineCostGb: 90, prepped: true },
+      { server: 'c', score: 100, pipelineCostGb: 20, prepped: true },
+    ];
+    const result = pickBatchSet(candidates, ['a', 'b', 'c'], 100, 1.25);
+    expect(memberServers(result)).toEqual(['a', 'c']);
+    expect(result.exits).toEqual([{ server: 'b', reason: 'unaffordable' }]);
+    expect(result.displacement).toBeNull();
   });
 
-  it('falls back to targets[0] when the incumbent vanished from the list', () => {
-    expect(pickBatchTarget(targets, 'gone', 1.25).server).toBe('top');
+  it('an incumbent seats before a better-scored non-incumbent whose score does not clear hysteresis', () => {
+    const candidates = [
+      { server: 'nc', score: 110, pipelineCostGb: 40, prepped: true },
+      { server: 'inc', score: 100, pipelineCostGb: 40, prepped: true },
+    ];
+    const result = pickBatchSet(candidates, ['inc'], 40, 1.25);
+    expect(memberServers(result)).toEqual(['inc']);
+    expect(result.exits).toEqual([]);
+    expect(result.displacement).toBeNull();
   });
 
-  it('picks targets[0] with no incumbent at all', () => {
-    expect(pickBatchTarget(targets, null, 1.25).server).toBe('top');
+  it('spare-budget entry requires no prepped gate', () => {
+    const candidates = [{ server: 'a', score: 100, pipelineCostGb: 30, prepped: false }];
+    const result = pickBatchSet(candidates, [], 50, 1.25);
+    expect(memberServers(result)).toEqual(['a']);
   });
 
-  it('does not flip an over-threshold challenger when challengerPrepped is false', () => {
-    const flipped = [{ server: 'top', score: 125 }, ...targets.slice(1)];
-    expect(pickBatchTarget(flipped, 'mid', 1.25, false).server).toBe('mid');
+  it('displacement evicts multiple lowest-scored seats, all listed in exits and displacement.displaced', () => {
+    const candidates = [
+      { server: 'challenger', score: 300, pipelineCostGb: 70, prepped: true },
+      { server: 'inc3', score: 80, pipelineCostGb: 35, prepped: true },
+      { server: 'inc2', score: 70, pipelineCostGb: 30, prepped: true },
+      { server: 'inc1', score: 60, pipelineCostGb: 25, prepped: true },
+    ];
+    const result = pickBatchSet(candidates, ['inc1', 'inc2', 'inc3'], 90, 1.25);
+    expect(memberServers(result)).toEqual(['challenger']);
+    expect(result.exits).toEqual(
+      expect.arrayContaining([
+        { server: 'inc1', reason: 'displaced' },
+        { server: 'inc2', reason: 'displaced' },
+        { server: 'inc3', reason: 'displaced' },
+      ])
+    );
+    expect(result.exits).toHaveLength(3);
+    expect(result.displacement.entrant).toBe('challenger');
+    expect(new Set(result.displacement.displaced)).toEqual(new Set(['inc1', 'inc2', 'inc3']));
   });
 
-  it('flips an over-threshold challenger when challengerPrepped is true', () => {
-    const flipped = [{ server: 'top', score: 125 }, ...targets.slice(1)];
-    expect(pickBatchTarget(flipped, 'mid', 1.25, true).server).toBe('top');
+  it('allows at most one displacement per tick even when two challengers qualify', () => {
+    const candidates = [
+      { server: 'chA', score: 300, pipelineCostGb: 50, prepped: true },
+      { server: 'chB', score: 200, pipelineCostGb: 50, prepped: true },
+      { server: 'inc', score: 100, pipelineCostGb: 50, prepped: true },
+    ];
+    const result = pickBatchSet(candidates, ['inc'], 50, 1.25);
+    expect(memberServers(result)).toEqual(['chA']);
+    expect(result.exits).toEqual([{ server: 'inc', reason: 'displaced' }]);
+    expect(result.displacement.entrant).toBe('chA');
   });
 
-  it('defaults challengerPrepped to true, preserving old call sites', () => {
-    const flipped = [{ server: 'top', score: 125 }, ...targets.slice(1)];
-    expect(pickBatchTarget(flipped, 'mid', 1.25).server).toBe('top');
+  it('rule-4 refill admits a small non-member into budget freed by a displacement', () => {
+    const candidates = [
+      { server: 'big', score: 300, pipelineCostGb: 50, prepped: true },
+      { server: 'inc', score: 100, pipelineCostGb: 60, prepped: true },
+      { server: 'small', score: 90, pipelineCostGb: 10, prepped: true },
+    ];
+    const result = pickBatchSet(candidates, ['inc'], 60, 1.25);
+    expect(memberServers(result)).toEqual(['big', 'small']);
+    expect(result.exits).toEqual([{ server: 'inc', reason: 'displaced' }]);
+    expect(result.displacement).toEqual({ entrant: 'big', displaced: ['inc'] });
   });
 
-  it('ignores challengerPrepped when the incumbent is itself the top target', () => {
-    expect(pickBatchTarget(targets, 'top', 1.25, false).server).toBe('top');
+  it('an incumbent missing from candidates exits "ineligible"', () => {
+    const candidates = [{ server: 'other', score: 50, pipelineCostGb: 30, prepped: true }];
+    const result = pickBatchSet(candidates, ['gone'], 100, 1.25);
+    expect(memberServers(result)).toEqual(['other']);
+    expect(result.exits).toEqual([{ server: 'gone', reason: 'ineligible' }]);
   });
 
-  it('ignores challengerPrepped when the incumbent vanished from the list', () => {
-    expect(pickBatchTarget(targets, 'gone', 1.25, false).server).toBe('top');
+  it('a budget shrink below an incumbent\'s cost exits "unaffordable"', () => {
+    const candidates = [{ server: 'inc', score: 100, pipelineCostGb: 80, prepped: true }];
+    const result = pickBatchSet(candidates, ['inc'], 50, 1.25);
+    expect(memberServers(result)).toEqual([]);
+    expect(result.exits).toEqual([{ server: 'inc', reason: 'unaffordable' }]);
+  });
+
+  it('empty candidates returns empty members, with every incumbent exiting "ineligible"', () => {
+    const result = pickBatchSet([], ['x', 'y'], 100, 1.25);
+    expect(result.members).toEqual([]);
+    expect(result.exits).toEqual(
+      expect.arrayContaining([
+        { server: 'x', reason: 'ineligible' },
+        { server: 'y', reason: 'ineligible' },
+      ])
+    );
+    expect(result.exits).toHaveLength(2);
+  });
+
+  it('does not mutate its input arrays', () => {
+    const candidates = [
+      { server: 'big', score: 300, pipelineCostGb: 50, prepped: true },
+      { server: 'inc', score: 100, pipelineCostGb: 60, prepped: true },
+      { server: 'small', score: 90, pipelineCostGb: 10, prepped: true },
+    ];
+    const incumbentServers = ['inc'];
+    const candidatesSnapshot = JSON.parse(JSON.stringify(candidates));
+    const incumbentSnapshot = JSON.parse(JSON.stringify(incumbentServers));
+
+    pickBatchSet(candidates, incumbentServers, 60, 1.25);
+
+    expect(candidates).toEqual(candidatesSnapshot);
+    expect(incumbentServers).toEqual(incumbentSnapshot);
   });
 });
