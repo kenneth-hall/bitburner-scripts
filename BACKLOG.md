@@ -192,19 +192,24 @@ _(nothing in progress from this session)_
   `npm test` green at 107/107 (78 existing + 29 new: `common`, `hosts`, `eventlog`,
   `factionwatcher`, `backdoorfactions`, plus `verify-events.test.js` added to the
   `verify:log` glob).
-  - **Scope addition beyond the spec, decided by the user mid-session**: `backdoorfactions.js`
-    also auto-accepts invitations for **CyberSec** and **Netburners** (`AUTO_JOIN_FACTIONS`)
-    the moment they appear, independent of the per-server backdoor loop — the user judged
-    these two have no downside to joining automatically, unlike the project's normal
-    "backdoor only, no auto-join" default. **NiteSec is NOT auto-joined** — stays backdoor-only,
-    manual join, per the original spec. This adds `ns.singularity.checkFactionInvitations()`
-    (3 GB base) and `ns.singularity.joinFaction()` (3 GB base) to `backdoorfactions.js`'s
-    RAM cost on top of the spec's own estimate — expect a noticeably higher figure than the
-    spec's ~100 GB projection; measure and record at live verification.
-  - **Also used plain string literals** (`"CyberSec"`, `"NiteSec"`, `"Netburners"`) instead of
+  - **Auto-join tried, then walked back same day (2026-07-04)**: `backdoorfactions.js`
+    briefly also auto-accepted invitations for CyberSec and Netburners, but was reverted at
+    the user's request before shipping — the user doesn't have Singularity access unlocked
+    in the current save yet, so the extra `checkFactionInvitations`/`joinFaction` RAM (6 GB
+    base on top of the spec's own ~100 GB estimate) bought nothing usable right now. Backdoor
+    behavior matches the original spec exactly: `CSEC`/`avmnite-02h` only, no auto-join for
+    any faction.
+  - **Also used plain string literals** (`"CyberSec"`, `"NiteSec"`) instead of
     `ns.enums.FactionName` as the spec suggested — the enum's only doc file is explicitly
-    spoiler-labeled (lists every faction in the game), and a two/three-entry constant map gets
+    spoiler-labeled (lists every faction in the game), and a two-entry constant map gets
     nothing from importing it. Confirmed with the user.
+  - **Added same day, at the user's request**: `daemon.js` now writes a `daemon-started`
+    event on every manual `run daemon.js` from the terminal — restarts/crashes are exactly the
+    downtime gaps the companions' startup reconciliation has to account for, so having them
+    logged makes those gaps visible after the fact. `daemon.js` imports `eventlog.js` for
+    this (Singularity-free, so no conflict with the ground rules) — its RAM is no longer
+    expected exactly flat vs. Phase 5's baseline, +1 GB for `getResetInfo`; measure and
+    record the real delta at live verification.
   - **Not yet done**: live `getScriptRam` measurements for every touched/new script (this
     pass is implementation + unit tests only, no running game session from here); the live
     daemon-restart acceptance check; the real end-to-end reset validation (see the

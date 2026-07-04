@@ -14,7 +14,7 @@ import path from 'node:path';
 
 const LOG_PATH = process.env.EVENTS_LOG_PATH ?? path.join(process.cwd(), 'logs', 'events-log.json');
 
-const KNOWN_TYPES = new Set(['faction-joined', 'backdoor-installed']);
+const KNOWN_TYPES = new Set(['faction-joined', 'backdoor-installed', 'daemon-started']);
 
 let entries;
 
