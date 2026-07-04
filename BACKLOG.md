@@ -5,51 +5,65 @@ move finished items to Done with a date instead of deleting them.
 
 ## In Progress
 
-- **Batcher refactor Phase 8 — faction share allocation** (2026-07-04): `batcher-refactor-phase8.md`.
-  Builds the "`ns.share()` script + dedicated RAM allocation" item below into a hard carve:
-  `SHARE_FRACTION = 0.25` (untuned by design, see spec) of `totalAllocatableRam` is
-  unconditionally reserved for `share.js` (a one-cycle `ns.share()` worker, topped up every
-  tick by `planShareTopUp` in `scheduler.js`, smallest-free-RAM-first — opposite end from
-  `carveReservation`'s largest-first, so share consumes fragments and leaves contiguous blocks
-  for batching's grow jobs); the batch admission budget becomes `(1 - SHARE_FRACTION) x
-  totalAllocatableRam`. Zero `ns.kill` call sites (natural-exit philosophy, matching Phase 7)
-  — scaling down just means stopping the top-up and letting the pool decay over ~10s.
-  Runtime toggle: a 0-byte `share-off.txt` marker on home forces the fraction to 0 for
-  same-session A/B measurement. `sampling.js`'s `inFlightByTarget` gained a breaking shape
-  change (`{byTarget, share}`) to fold share's sweep into the existing two-sweeps-per-tick
-  budget rather than adding a third. New manual tuning script `src/sharecurve.js`
-  (formulas-gated) predicts the sharePower curve across candidate fractions, exported to
-  `logs/sharecurve-<epoch ms>.json`.
-  - **Runnable, verified (2026-07-04): `npm test` green at 115/115** (8 new `planShareTopUp`
-    cases, `inFlightByTarget`'s 5 existing cases updated for the new shape plus 2 new share
-    cases, 8 checker-fixture cases for the 3 new `verify-log` hard assertions run via synthetic
-    fixtures against extracted pure functions in `test/verify-log-checks.js`, 8 cases for the
-    new `test/windowed-rate.js` helper). `npm run verify:log` sanity-checked against a
-    synthetic Phase-8-shaped fixture log (not a real session) — all 13 checks pass, including
-    the share-cap invariant (with its 30s zero-target grace window), the updated budget
-    invariant (`batchBudgetGb`, not raw `budgetGb`), and fraction consistency; soft reports
-    extended with share target-attainment/sharePower min-avg-max and a share-excluded
-    batch-side utilization figure. `test/verify-transactions.test.js` gained a
-    `VERIFY_WINDOWS`-driven windowed $/min report for the A/B/A' income comparison, sanity
-    checked against a synthetic transactions fixture.
-  - **Not yet done — needs a live game session (this is the phase's actual acceptance
-    criterion, not optional)**: the A (share off) → B (share on) → A' (share off) protocol,
-    each window >= 10 min, same calendar day, with faction work running throughout so rep/sec
-    has something to multiply. Requires manually recording the faction rep number from the
-    game UI at each of the 4 window boundaries (no Singularity-free way to read it
-    programmatically), running `sharecurve.js` once during window B, and copying
-    `logs/daemon-batch-log.json` at each boundary (2000-entry ring only holds the last
-    ~4-6 minutes at high member counts). The resulting `BACKLOG.md` entry — measured
-    income/rep for A/B/A', measured vs. predicted share power, and a keep/raise/lower
-    recommendation on `SHARE_FRACTION` — is a required output of this phase, not yet written.
-  - **RAM gate: not yet measured live.** Expected `daemon.js` 16.10 -> ~16.30 GB
-    (+`ns.getSharePower` 0.2 GB); `share.js` ~4.00 GB (1.6 base + 2.4 `ns.share`) — confirm
-    both with `mem` in-game; flag anything over ~0.5 GB unexplained.
-  - Shipped on branch `worktree-phase8-share`, not yet merged — this whole phase (especially
-    the daemon.js RAM-carve change) needs the user's live in-game verification before merging,
-    per this project's usual rule for daemon-touching changes.
+_(nothing in progress from this session)_
 
 ## Next Up
+
+- **Fix `pickBatchSet`'s pass-3/pass-4 self-contradiction bug** (found live 2026-07-04, during
+  Phase 8 verification — see Done below). `scheduler.js`'s `pickBatchSet` (Phase 7 code,
+  untouched by Phase 8) can evict an incumbent in pass 3 (displacement) and then immediately
+  re-admit that *same* server via pass 4's refill walk, within the same call, if the eviction
+  freed more budget than the challenger needed and the evicted server's own cost fits in the
+  leftover. The result is self-contradictory: the server appears in both `result.exits`
+  (reason `"displaced"`) and `result.members` simultaneously. Downstream in `daemon.js` this
+  means a real "exit" gets logged and a `drainDeadline` gets set, but the server never actually
+  stops being a batched member (no matching "enter" ever logs either, since `previousMemberSet`
+  already contained it) — not a functional/gameplay bug (the member loop still launches real,
+  correct batches against it), but it corrupts the exit/enter log pairing and fails the
+  natural-exit invariant `verify:log` check. Minimal repro (3 candidates, one call to
+  `pickBatchSet`) confirmed the mechanism exactly:
+  ```js
+  const candidates = [
+    { server: 'challenger', score: 300, pipelineCostGb: 12, prepped: true },
+    { server: 'mid', score: 70, pipelineCostGb: 30, prepped: true },
+    { server: 'n00dles', score: 60, pipelineCostGb: 5, prepped: true },
+  ];
+  pickBatchSet(candidates, ['mid', 'n00dles'], 35, 1.25);
+  // -> result.exits has n00dles (displaced) AND result.members has n00dles -- both true
+  ```
+  Fix direction (not yet implemented): pass 4's refill walk needs to exclude servers this same
+  tick's pass 3 just evicted (e.g. track a `justEvicted` set alongside `seatedServers` and skip
+  it in the refill loop), or accept displaced servers as ineligible for refill entirely this
+  tick. A calmer Phase-7-only session apparently never triggered this; Phase 8's share-fraction
+  toggle causing a large simultaneous budget swing is what exposed it. Needs its own unit test
+  in `test/scheduler.test.js` (the repro above, asserting a server never appears in both
+  `exits` and `members`) before/alongside the fix.
+
+- **Phase 8 tuning follow-up: get a clean A/B/A' session** (2026-07-04). This session's data had
+  two real quality problems (see Done below): window A ran only ~5 min (spec wants >=10), and
+  the income comparison was dominated by natural hacking-level growth over the ~30-minute
+  session rather than share's actual cost. A properly-timed re-run (all three windows >=10 min,
+  ideally over a shorter wall-clock span to reduce level-growth confound, or with the confound
+  explicitly tracked via `ns.getHackingLevel()` readings at each boundary) would make the
+  income-side number trustworthy enough to actually revisit `SHARE_FRACTION`. The rep-side
+  comparison (see Done below) is already solid and doesn't need re-doing.
+
+- **Phase 8 RAM anomaly: root cause still unknown, waived** (2026-07-04, decided by Kenneth
+  after an extensive live bisection — see Done below for the full investigation trail).
+  `daemon.js` measures 18.7 GB with Phase 8's changes vs. an expected ~16.3 GB (16.10 GB
+  Phase-7 baseline + `ns.getSharePower`'s documented 0.2 GB) -- a genuine +2.6 GB unexplained
+  delta, confirmed reproducible via ~20 live `getScriptRam` measurements, not a stale-baseline
+  artifact. Real-file slicing narrowed the trigger to daemon.js's own steps 1-2 (`refreshCycle`
+  + the pre-tick sweep), but every manual reconstruction of that same code (flat function
+  calls, real `ramCosts` via `ns.scp`+`ns.getScriptRam`, loop-vs-flat placement, every pairwise
+  and full-combination test of daemon.js's imports) measured the expected linear cost instead
+  — meaning the actual trigger is some structural detail of the real file that wasn't isolated
+  before time was called on the investigation. Not a functional defect (every tested variant
+  only differs in the RAM number, never in behavior) -- explicitly waived as an acceptance
+  criterion for this phase. Revisit with fresh eyes: candidate next step would be bisecting the
+  *real* `daemon.js` file itself top-to-bottom via `git show`+splice (the technique that
+  reliably reproduced it every time) rather than reconstructing scenarios from scratch (which
+  never once reproduced it, across ~10 attempts).
 
 - **targetsmonitor "ratio" column → actual priority metric**: Investigated a suspected bug
   (2026-07-04) — "ratio" numbers looked suspiciously round/inconsistent, hypothesis was that
@@ -270,6 +284,89 @@ move finished items to Done with a date instead of deleting them.
 
 ## Done (recent)
 
+- **Batcher refactor Phase 8 — faction share allocation** (2026-07-04): `batcher-refactor-phase8.md`.
+  Builds the "`ns.share()` script + dedicated RAM allocation" item into a hard carve:
+  `SHARE_FRACTION = 0.25` (untuned by design, see spec) of `totalAllocatableRam` is
+  unconditionally reserved for `share.js` (a one-cycle `ns.share()` worker, topped up every
+  tick by `planShareTopUp` in `scheduler.js`, smallest-free-RAM-first — opposite end from
+  `carveReservation`'s largest-first, so share consumes fragments and leaves contiguous blocks
+  for batching's grow jobs); the batch admission budget becomes `(1 - SHARE_FRACTION) x
+  totalAllocatableRam`. Zero `ns.kill` call sites (natural-exit philosophy, matching Phase 7) —
+  scaling down just means stopping the top-up and letting the pool decay over ~10s. Runtime
+  toggle: a 0-byte `share-off.txt` marker on home forces the fraction to 0 for same-session A/B
+  measurement. `sampling.js`'s `inFlightByTarget` gained a breaking shape change
+  (`{byTarget, share}`) to fold share's sweep into the existing two-sweeps-per-tick budget
+  rather than adding a third. New manual tuning script `src/sharecurve.js` (formulas-gated)
+  predicts the sharePower curve across candidate fractions, exported to
+  `logs/sharecurve-<epoch ms>.json`. Branch `worktree-phase8-share`, draft PR #1, not yet
+  merged (pending a merge decision, not blocked on anything technical).
+  - **Runnable: `npm test` green at 120/120** (8 new `planShareTopUp` cases,
+    `inFlightByTarget`'s 5 existing cases updated for the new shape plus 2 new share cases, 8
+    checker-fixture cases for the 3 new `verify-log` hard assertions run via synthetic fixtures
+    against extracted pure functions in `test/verify-log-checks.js`, 13 cases for the new
+    `test/windowed-rate.js` helper). `npm run verify:log` validated against real boundary-copied
+    logs from the live session below (see Ring-buffer note) — all pass 13/13 once each copy is
+    read as its own self-contained window.
+  - **Two bugs found and fixed along the way, unrelated to the phase's own core logic**:
+    `test/windowed-rate.js`'s income-window helper originally required a record be *fully
+    contained* in a window to count it — found live that income records coalesce on their own
+    rolling ~5min cadence independent of the A/B toggle boundaries, so straddling is the common
+    case, not a rare edge; the strict filter silently dropped almost every record near every
+    boundary. Rewritten to prorate by time-overlap instead. Separately,
+    `verify-transactions.test.js`'s `VALID_EXPENSE_SOURCES` whitelist was missing
+    `upgradecloudserver.js`'s `'single-server-upgrade'` source (a gap since that script's own
+    phase, unrelated to Phase 8) — added.
+  - **Ring-buffer eviction, observed exactly as the spec warned**: a log copy taken well after
+    a toggle can contain leftover entries from the *previous* window whose own `mode` event has
+    since aged out of the 2000-entry ring (only the single most recent `mode` event is pinned).
+    `verify-log`'s `latestConfigAsOf`-style checks then have no config to validate those
+    stragglers against — a real, false-positive-looking failure that isn't a code defect, just
+    a consequence of validating a mixed-window copy as if it were one window. Confirmed by
+    slicing the log from its own `mode` event onward (dropping the stragglers): all 13 checks
+    pass clean. Lesson for the next A/B session: take boundary copies *more* frequently than
+    just at the toggle moments, or always slice from the latest `mode` event before validating.
+  - **Live A/B/A' session, NiteSec hacking-type faction work throughout (2026-07-04)**:
+    - **A (share OFF), 3:12:20–3:17:23 PM, ~5min — short of the >=10min target**, flagged live
+      and accepted as a known limitation (redoing the whole ~35min protocol wasn't worth it
+      this session). Rep 15.612k→15.8k (thin data, not a reliable full-window rate).
+    - **B (share ON), 3:17:23–3:28:28 PM, 11min 5sec** — meets the target. Rep 15.8k→17.65k
+      (**2.78 rep/sec average**).
+    - **A' (share OFF again), 3:28:28–3:39:33 PM, 11min 5sec** — meets the target. Rep
+      17.65k→18.926k (**1.92 rep/sec average**).
+    - **B-vs-A' is the trustworthy comparison** (both full >=10min windows, temporally
+      adjacent, so much less exposed to session-long hacking-level drift than A is): **rep/sec
+      was ~45% higher under share** (2.78 vs 1.92). This lines up well with the measured
+      `sharePower` of 1.417 (a ~42% multiplier) — independent confirmation that share is doing
+      what it's supposed to, for hacking-type faction work.
+    - **Income (windowed, overlap-prorated)**: A ~$805M/min, B ~$494M/min, A' ~$2.25B/min.
+      A-vs-B alone would suggest share cuts income roughly in half (plausible, matches the
+      spec's accepted RAM/XP tradeoff), but A''s number is 4-5x everything else and is almost
+      certainly dominated by natural hacking-level growth compounding over the ~30-minute
+      session, not a share effect — **not clean enough to quote an income cost from this
+      session** (see the Next Up follow-up item for a cleaner re-run).
+    - **`sharecurve.js` run once during window B**: capacity 1.06 PB, 65,662 threads actually in
+      flight (vs. the 25% target's theoretical 66,102 — the expected one-cycle-worker
+      undershoot), measured `sharePower` 1.417. Curve: 5%→1.380, 10%→1.407, 15%→1.424,
+      25%→1.444, 40%→1.463, 50%→1.472, 75%→1.488, 100%→1.499 (steep diminishing returns already
+      visible — 25% already captures ~89% of the theoretical max power at 100% RAM commitment).
+      Decision-rule check: predicted power at the actual 65,662 threads (interpolated) = 1.4437
+      vs. measured 1.417 — a 1.85% gap, comfortably inside the 2x defect bound. **Pass, no
+      defect.**
+    - **Recommendation on `SHARE_FRACTION`: keep at 25% for now.** The curve's steep diminishing
+      returns mean 25% already captures most of the achievable rep boost (raising it further
+      buys little more power for a lot more batching RAM given the curve's shape), and this
+      session's income-cost data isn't clean enough to justify either raising or lowering it
+      with confidence. Revisit once the cleaner re-run (see Next Up) gives a trustworthy
+      income-cost number.
+  - **RAM gate: `share.js` closed at exactly 4.00 GB as expected (1.6 base + 2.4 `ns.share`).
+    `daemon.js` measured 18.7 GB against an expected ~16.3 GB — unexplained +2.6 GB delta,
+    waived as an acceptance criterion after an extensive live bisection failed to pin the exact
+    cause** (see the two Next Up follow-up items for the full investigation trail and the
+    accepted path forward).
+  - A real, pre-existing Phase 7 bug in `pickBatchSet` was discovered during this session's log
+    validation (natural-exit invariant failure) — not fixed here (out of this phase's stated
+    scope, which explicitly excludes touching `pickBatchSet`'s internals); see the dedicated
+    Next Up item for the full mechanism and a minimal repro.
 - **Batcher refactor Phase 7 — multi-target batching with natural exit** (2026-07-04):
   `batcher-refactor-phase7.md`. Replaced the single hysteresis-protected incumbent with a
   RAM-bounded, score-greedy member set: `pickBatchSet` (scheduler.js, 4-pass admission/
