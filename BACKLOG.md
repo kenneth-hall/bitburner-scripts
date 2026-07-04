@@ -5,26 +5,7 @@ move finished items to Done with a date instead of deleting them.
 
 ## In Progress
 
-- **Batcher refactor Phase 7 — multi-target batching with natural exit**
-  (`batcher-refactor-phase7.md`): **implementation complete, merged to `master` (2026-07-04),
-  pending live verification.** `pickBatchSet` (scheduler.js, 4-pass RAM-bounded greedy
-  admission/displacement/refill, replaces `pickBatchTarget`), `inFlightByTarget`
-  (sampling.js, one combined `ns.ps` sweep replacing daemon.js's per-target
-  `sumInFlightRam`/`countBatchesInFlight`), and the daemon.js multi-member rewrite (member
-  loop, aggregate reserve carve, `enter`/`exit`/`snapshot` log events replacing `flip`,
-  pinned `mode` event, per-target skip coalescing, redesigned tail display) are all in.
-  Unit tests updated throughout (`pickBatchSet`: 13 cases, `inFlightByTarget`: 5 cases,
-  `verify-log.test.js`: schema v2 shapes + 3 new hard assertions spot-checked against a
-  hand-built synthetic log). `npm test` green at 88/88.
-  - **Still needed before this moves to Done**: a live ≥20-minute formulas-mode session,
-    `npm run verify:log` against the fresh export, at least one natural exit observed (organic
-    or forced via the `legacy-mode.txt` marker trick), and an income-rate comparison against
-    a pre-Phase-7 session. Held back from `git push` per the test-locally-first preference for
-    daemon.js-touching changes — code is committed on `master` locally, not yet pushed.
-  - Once live-verified: supersedes the consolidation item's in-flight-scanner sub-item (below)
-    and ships the monitor-cleanup item's utilization time series as `snapshot` events —
-    annotate both entries then. One open question recorded in the spec (evidence-window size
-    vs. per-type log retention) stays open regardless.
+_(nothing in progress from this session)_
 
 ## Next Up
 
@@ -84,6 +65,9 @@ move finished items to Done with a date instead of deleting them.
     comment documents this exact trap). The monitor can't see the daemon's incumbent without
     coupling to it, so make the display honest: relabel the marker "top-ranked by score" and
     add a one-line legend noting the daemon's actual target can differ under hysteresis.
+    **Post-Phase-7 update (2026-07-04)**: there's no longer a single "incumbent" — the legend
+    text should say "the daemon's active *set* can differ" instead of "the daemon's actual
+    target can differ." Leave the actual text edit for this item's own implementation.
   - Verification: run `targetsmonitor.js` and `targets.js` in-game, eyeball both against a
     `targets-summary` export; `npm test` stays green (no unit-tested code changes).
 
@@ -114,9 +98,11 @@ move finished items to Done with a date instead of deleting them.
     out of `launchDetached`/`runAndWait` into one local helper (make the skip message
     call-site-neutral). Fix `runAndWait`'s docstring — it narrates
     `purchasescripts.js`/`upgradehomeram.js` but its only call site is `killscripts.js`.
-    Move `sumInFlightRam`/`countBatchesInFlight` into `sampling.js` next to their sibling
+    ~~Move `sumInFlightRam`/`countBatchesInFlight` into `sampling.js` next to their sibling
     `countInFlightThreads`, with unit tests in `test/sampling.test.js` reusing the
-    `inFlightPs` fixture style.
+    `inFlightPs` fixture style.~~ **Superseded by Phase 7 (2026-07-04, see Done below)**:
+    shipped as `inFlightByTarget`, a single combined `ns.ps` sweep rather than a straight
+    move of the two separate functions — don't redo this sub-item.
   - **Small consolidations and comment fixes**: `cloudcosts.js` exports the power-of-2
     `standardSizes` builder, `purchasecloudservers.js` imports it (lives in cloudcosts, not
     common.js, to keep `ns.cloud.*` out of common importers' bundles). Header fixes:
@@ -246,8 +232,12 @@ move finished items to Done with a date instead of deleting them.
   launch happened, with no cue when it's not this tick's launch. Wants an out-of-game
   (maybe live) dashboard. Candidate logs discussed (2026-07-04) — the $ transactions log
   idea has since shipped as Phase 5 (see Done below); remaining open ideas:
-  - **RAM utilization time series**: `utilization` is computed every tick in `daemon.js` but
-    only displayed, never logged as its own series — needed for a dashboard chart.
+  - ~~**RAM utilization time series**: `utilization` is computed every tick in `daemon.js` but
+    only displayed, never logged as its own series — needed for a dashboard chart.~~
+    **Shipped by Phase 7 (2026-07-04, see Done below)** as `snapshot` log events
+    (`utilizationPct`, `memberCount`, per-member breakdown, once per `CYCLE_MS`) — the
+    verbosity half of this item is also addressed by Phase 7's tail-popup redesign; the
+    out-of-game dashboard half stays open here.
   - **Per-target income/efficiency log**: `batch` events log expected steal but nothing
     closes the loop on realized money per target over time, to sanity-check the ranking
     score against real outcomes.
@@ -256,6 +246,48 @@ move finished items to Done with a date instead of deleting them.
 
 ## Done (recent)
 
+- **Batcher refactor Phase 7 — multi-target batching with natural exit** (2026-07-04):
+  `batcher-refactor-phase7.md`. Replaced the single hysteresis-protected incumbent with a
+  RAM-bounded, score-greedy member set: `pickBatchSet` (scheduler.js, 4-pass admission/
+  displacement/refill, replaces `pickBatchTarget`), `inFlightByTarget` (sampling.js, one
+  combined `ns.ps` sweep replacing daemon.js's per-target `sumInFlightRam`/
+  `countBatchesInFlight`), and a full daemon.js rewrite around a per-tick member loop
+  (aggregate reserve carve, `enter`/`exit`/`snapshot` log events replacing `flip`, pinned
+  `mode` event against ring-buffer eviction, per-target skip coalescing, redesigned tail
+  display). `npm test` green at 88/88 (13 new `pickBatchSet` cases, 5 new `inFlightByTarget`
+  cases, `pickBatchTarget`'s old suite removed).
+  - **Live-verified same day (2026-07-04)**: ~34-minute formulas-mode session.
+    `npm run verify:log` green (11/11, including all three new hard assertions —
+    natural-exit invariant, budget invariant, enter/exit sanity). **Up to 10 targets batched
+    concurrently** (member count: min 4 / avg 7.5 / max 10 across 110 retained snapshots) vs.
+    exactly 1 before. **Utilization: min 6.9% / avg 20.3% / max 40.1%**, well above the
+    pre-Phase-7 baseline of ~6.3%. **7 natural exits observed**, all organic (no forced
+    `legacy-mode.txt` trick needed), reasons `unaffordable`/`displaced`; every exited server
+    that had in-flight work drained and re-entered cleanly. Confirmed via
+    `grep -rn "ns.kill\|killall" src/daemon.js`: zero call sites — natural exit is
+    scheduling-only, exactly as designed.
+  - **Real stress test, not synthetic**: mid-session, `upgradecloudserver.js` was run a
+    couple of times, renaming/recreating a purchased host and silently killing whatever
+    worker processes were running on it. This caused a mass simultaneous drift across
+    nearly every active member and repeated rapid exit/re-entry cycling for the
+    lowest-scored member (`n00dles`: 5 of the session's 7 exits, some only 8 seconds apart).
+    Confirmed **not a Phase 7 defect** — an external fleet-operations confound any daemon
+    design would be exposed to — but a good real-world robustness signal: all 11
+    `verify-log` hard assertions still passed through it, including the natural-exit
+    invariant holding across `n00dles`'s rapid cycling. Worth a future BACKLOG item on
+    `upgradecloudserver.js` sharing `fleetupgrade.js`'s known rename-hazard, not filed yet.
+  - **RAM gate: closed (2026-07-04).** `daemon.js` 16.10GB in-game — exact match to Phase 5's
+    recorded 16.10GB baseline, zero growth (expected: no new `ns` API surface added).
+  - **Income comparison: inconclusive, not concerning.** Session-window rate (~$587M/min)
+    came in ~12.5% under Phase 5's baseline (~$671M/min), but the comparison is confounded
+    by two factors unrelated to Phase 7's correctness: the highest-scored target (`phantasy`,
+    score 2541 vs. next-highest 1850) sat mid-prep for the entire session without producing
+    income, and the `upgradecloudserver.js` disruption above. Not treated as a regression;
+    a clean uninterrupted re-run would be needed for a tight number, not done.
+  - **Pushed to `origin/master` (2026-07-04).**
+  - One open question from the spec stays open: evidence-window size vs. per-type log
+    retention (all event types share one 2000-entry ring, so high-member-count sessions only
+    retain the last several minutes for offline review) — deferred, not decided.
 - **Batcher refactor Phase 5 — daily transactions log** (2026-07-04): `batcher-refactor-phase5.md`.
   Retired `moneymonitor.js` in favor of `src/translog.js` (shared write helper:
   `transactionsFileName`, `recordTransaction`, `shouldCoalesce`) and `src/transactionsmonitor.js`
@@ -300,10 +332,9 @@ move finished items to Done with a date instead of deleting them.
     multi-writer scenario the spec flagged as the real risk. All acceptance items for this
     phase are now closed. (The 21 servers were a mistake, not intentional — cleaned up with
     a throwaway `ns.cloud.deleteServer` script, unrelated to Phase 5 itself.)
-  - **All acceptance items closed.** Remaining before this phase is fully "shipped": push
-    local `master` to `origin` (currently 4 commits ahead, held back per the user's
-    test-locally-first preference) and delete the now-superseded
-    `origin/worktree-batcher-phase5-translog` branch.
+  - **All acceptance items closed.** Since pushed to `origin/master` in an earlier session.
+    Still remaining: delete the now-superseded `origin/worktree-batcher-phase5-translog`
+    branch.
 - **Batcher refactor Phase 4 — Formulas.exe math with legacy fallback** (2026-07-04): all
   runnable and observed acceptance criteria satisfied. Direct same-session comparison showed
   the churn fix (0 flips/16min formulas vs. 9/16min legacy) and reserve-ballooning fix
