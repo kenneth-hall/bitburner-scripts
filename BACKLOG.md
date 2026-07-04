@@ -175,6 +175,25 @@ _(nothing in progress from this session)_
   then hand Claude the exact path so it reads it directly) and write the steps down so future
   sessions aren't rediscovering this each time.
 
+- **Claude Code workflow to learn: automating the spec-review loop** (2026-07-04): designed in
+  chat; using the prompt-only version for now (main session writes the spec since it holds the
+  requirements context, a cold-context subagent peer-reviews it, main session addresses blocking
+  issues and presents final draft + changelog + open questions for approval). Two automation
+  levels to build/learn when ready:
+  - **Level 1 — reviewer subagent**: `.claude/agents/spec-reviewer.md` (YAML frontmatter +
+    markdown body that becomes its system prompt). Fixed rubric: review against the stated
+    requirements; flag ambiguity, missing edge cases, untestable acceptance criteria, hidden
+    assumptions. Read-only tools (`tools: Read, Glob, Grep`). Required verdict format: APPROVE
+    or a numbered list of blocking issues only.
+  - **Level 2 — `/spec` skill**: `.claude/skills/spec/SKILL.md` encoding the whole loop (write
+    spec to `specs/<name>.md` → delegate review to spec-reviewer → address blocking issues,
+    anything disputed becomes an open question → present draft/changelog/open questions → wait
+    for approval before implementing).
+  - Deliberately rejected: multi-round author↔reviewer convergence (no natural stopping point;
+    rubber-stamp and invented-nitpick failure modes). One review round; a manually requested
+    second pass is the escalation valve, and unresolved disagreements go to Kenneth as open
+    questions rather than forced consensus.
+
 - **Monitor cleanup + more meaningful logging**: `daemon.js`'s tail popup is very verbose
   and some numbers look stale or reset next cycle — concretely: the `durations:` line reads
   `batchTarget.hackTime/growTime/weakenTime`, only refreshed in `refreshCycle()` (up to
@@ -219,11 +238,19 @@ _(nothing in progress from this session)_
     including the day file). `npm run verify:log` green (14/14) against the real file:
     two well-formed coalesced income records, $7.18B/10.7min in the soft report, zero
     hard-assertion failures.
-  - **Still waived, not done — needs the user, live in-game**: the RAM gate (`getScriptRam`
-    before/after for `daemon.js`, `transactionsmonitor.js`, `purchasecloudservers.js`,
-    `fleetupgrade.js`, `purchasescripts.js`, `upgradehomeram.js`); running one of the four
-    purchase scripts to confirm an expense record lands correctly without disturbing income
-    coalescing (only income has landed so far — the soft report above shows zero expenses).
+  - **RAM gate: closed (2026-07-04).** `daemon.js` 16.1GB — exact match to Phase 4's recorded
+    16.10GB baseline, zero growth (expected: `daemon.js` never imports `translog.js`, only
+    swaps a filename string). `transactionsmonitor.js` 2.6GB — base(1.6) + `getMoneySources`
+    (1.0) + `translog.js`'s 0GB `ns.read`/`ns.write`, actually *lighter* than the 3.10GB Phase
+    4 recorded for old `moneymonitor.js` (this version never calls `ns.getPlayer()`, which the
+    old total-balance line used and the new hacking-income-only design dropped).
+    `upgradehomeram.js` 74.15GB matches its own header's "~74GB" almost exactly. No historical
+    baseline on file for `purchasescripts.js` (50.15GB), `purchasecloudservers.js` (5.75GB),
+    `fleetupgrade.js` (3.6GB) specifically, but the 0GB pattern held everywhere it was
+    checkable, so no reason to expect growth there either.
+  - **Still not done — needs the user, live in-game**: running one of the four purchase
+    scripts to confirm an expense record lands correctly without disturbing income coalescing
+    (only income has landed so far — the soft report above shows zero expenses).
 - **Batcher refactor Phase 4 — Formulas.exe math with legacy fallback** (2026-07-04): all
   runnable and observed acceptance criteria satisfied. Direct same-session comparison showed
   the churn fix (0 flips/16min formulas vs. 9/16min legacy) and reserve-ballooning fix
