@@ -8,13 +8,14 @@ move finished items to Done with a date instead of deleting them.
 - **Batcher refactor Phase 9 — Phase 8 close-out** (2026-07-04): `batcher-refactor-phase9.md`.
   All three `[code]` work items shipped and verified locally; the two `[live]` steps (RAM gate,
   clean A/B/A' income session) still need Kenneth in-game — see Next Up for those.
-  - **Status as of 2026-07-04, mid-session, picking back up here**: code is done and PR #3
-    (`worktree-phase9-closeout` → `master`) is open, **not yet merged**. RAM gate's "before"
-    half is done (see the RAM gate item in Next Up for the numbers). Remaining, in order: (1)
-    merge PR #3 and pull `master` into the main checkout so viteburner has the new files, (2)
-    confirm sync, restart `daemon.js` in-game, (3) RAM gate "after" measurement, (4) the clean
-    A/B/A' session, (5) close out this item and the two Next Up items it unblocks with the
-    final numbers.
+  - **Status as of 2026-07-04, picking back up here**: code is done and PR #3
+    (`worktree-phase9-closeout` → `master`) is **merged**. RAM gate's "before" half is done (see
+    the RAM gate item in Next Up for the numbers). Remaining, in order: (1) sync the main
+    checkout to latest `master` so viteburner has the new files (it was 2 commits behind, with a
+    stale uncommitted `BACKLOG.md` diff left over from before this phase's implementation — flag
+    that to Kenneth rather than resolving it silently), (2) confirm sync, restart `daemon.js`
+    in-game, (3) RAM gate "after" measurement, (4) the clean A/B/A' session, (5) close out this
+    item and the two Next Up items it unblocks with the final numbers.
   - **Aside, unblocked mid-session**: found and fixed a stale viteburner Remote API connection
     (socket showed `ESTABLISHED` on port 12525 but was actually dead — a fresh dev-server
     restart immediately logged `disconnected`). Killed and restarted `npm run dev`; Kenneth
@@ -70,17 +71,17 @@ move finished items to Done with a date instead of deleting them.
 ## Next Up
 
 - **Phase 9 RAM gate — before half done, after half still needed** (2026-07-04): the
-  `share`→`sharePool` rename is shipped in code (PR #3, not yet merged). **"Before" measurement
-  taken 2026-07-04, pre-Phase-9 code**: `run ramcheck.js daemon.js share.js targets.js` →
-  `daemon.js: 18.7 GB | share.js: 4 GB | targets.js: 12.65 GB` — exact match on the first two
-  (18.70/4.00 expected); `targets.js`'s 12.65 GB is the new before-reference for the
-  bundle-vs-reachability question (no prior baseline existed). **Still needed**: merge PR #3,
-  pull `master` in the main checkout, confirm viteburner syncs, restart `daemon.js` in-game,
-  then re-run the same `ramcheck.js` command for the "after" numbers. Decision tree: `daemon.js`
-  ≈16.30 GB → collision hypothesis confirmed; unchanged 18.70 → falsified, run the fallback
-  `ramtest-e*.js` matrix from the spec; anything else → partially confirmed, same fallback.
-  `targets.js` dropping by 2.4 from 12.65 means bundle/whole-file charging; unchanged means
-  reachability-based.
+  `share`→`sharePool` rename is shipped in code and **PR #3 is merged to `master`**. **"Before"
+  measurement taken 2026-07-04, pre-Phase-9 code**: `run ramcheck.js daemon.js share.js
+  targets.js` → `daemon.js: 18.7 GB | share.js: 4 GB | targets.js: 12.65 GB` — exact match on the
+  first two (18.70/4.00 expected); `targets.js`'s 12.65 GB is the new before-reference for the
+  bundle-vs-reachability question (no prior baseline existed). **Still needed**: pull `master`
+  in the main checkout (currently behind), confirm viteburner syncs, restart `daemon.js`
+  in-game, then re-run the same `ramcheck.js` command for the "after" numbers. Decision tree:
+  `daemon.js` ≈16.30 GB → collision hypothesis confirmed; unchanged 18.70 → falsified, run the
+  fallback `ramtest-e*.js` matrix from the spec; anything else → partially confirmed, same
+  fallback. `targets.js` dropping by 2.4 from 12.65 means bundle/whole-file charging; unchanged
+  means reachability-based.
 
 - **Phase 8/9 tuning follow-up: get a clean A/B/A' session** (2026-07-04, carried from Phase 8,
   now unblocked). This needs the pass-4 fix above (done) and the RAM gate above (run first, per
