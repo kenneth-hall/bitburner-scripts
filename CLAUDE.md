@@ -12,6 +12,18 @@ This directory is a learning exercise, not a normal software project. The goal i
 
 - **Check `BACKLOG.md` for current priorities before starting work**, and keep it up to date — move items between In Progress / Next Up / Ideas / Done as status changes, with a date when something finishes.
 
+## Git permissions
+
+- **Full git ownership authorized (2026-07-04, Kenneth).** Branch off `master` for new feature
+  work, commit, push, open/manage PRs, and merge back into `master` yourself — no need to stop
+  and ask before merging in an interactive session. This is a standing authorization, not a
+  one-time approval for a specific PR.
+- **Exception: background/autonomous job sessions.** Some session types (background jobs) carry
+  a fixed instruction that overrides project-level authorization and blocks pushing to
+  `main`/`master`, force-pushing, or merging, regardless of what this file says — that's a
+  property of the execution mode, not something this file can turn off. In that mode, get the
+  branch/PR ready and ask Kenneth to do the actual merge.
+
 ## Communication
 
 - **Summarize after acting.** After performing an action (running commands, editing/creating files, installing things, etc.), give a concise summary of what was done.
