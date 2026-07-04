@@ -42,23 +42,24 @@ _(nothing in progress from this session)_
 
 - **Consistency consolidation** (from the 2026-07-04 code audit; was item 3 of the original
   Phase 5 draft — full-consolidation depth chosen explicitly; behavior-preserving throughout,
-  with the RAM gate and a before/after daemon session as the safety net). Do this *before*
-  the backdoor item below — it extracts `tryRoot` and `findPath`, which the backdoor script
-  imports.
+  with the RAM gate and a before/after daemon session as the safety net).
+  - **Shipped early via Phase 6 (2026-07-04)**: `src/common.js` now exists with `findPath`
+    (generalized from `connect.js`, takes an explicit `start` param) and `tprintTs` (copied
+    from `daemon.js`'s private one — `daemon.js`'s own copy is untouched); `hosts.js` now
+    exports `tryRoot`. Remaining scope below is unchanged except those three pieces are done.
   - **New shared module `src/common.js`** — charter (state it in the header): ns-dependent
     helpers shared by multiple scripts; no policy decisions, no batching math; keep the ns
     surface minimal and cheap (`scan`, `tprint`, `getScriptRam` — every importer's bundle
-    pays for all of it; nothing `ns.cloud.*` or Singularity). Contents: `scanNetwork(ns)`
-    (BFS copy-pasted identically in `hosts.js`/`targets.js`/`killscripts.js` — move verbatim,
-    rewire all three); `findPath(ns, target)` (BFS parent-chain walk from `connect.js`);
-    `tprintTs(ns, message)` (from `daemon.js`; also use it for `hosts.js`'s rooted-host
-    notification, which currently fires mid-daemon-run with no timestamp); `workerRamCosts(ns)`
-    (the three-script `getScriptRam` map built in both `daemon.js`'s `refreshCycle` and
-    `targets.js`'s `getTargets`; takes `WORKER_SCRIPTS` from `scheduler.js`).
+    pays for all of it; nothing `ns.cloud.*` or Singularity). Remaining contents to add:
+    `scanNetwork(ns)` (BFS copy-pasted identically in `hosts.js`/`targets.js`/`killscripts.js`
+    — move verbatim, rewire all three); `workerRamCosts(ns)` (the three-script `getScriptRam`
+    map built in both `daemon.js`'s `refreshCycle` and `targets.js`'s `getTargets`; takes
+    `WORKER_SCRIPTS` from `scheduler.js`). Also still to do: use `tprintTs` for `hosts.js`'s
+    rooted-host notification, which currently fires mid-daemon-run with no timestamp.
   - **`hosts.js` restructure**: export `HOME_RESERVE_GB` (`daemon.js` imports it, deletes its
-    private copy). Split `getHosts` into `tryRoot(ns, server)` (the PORT_OPENERS/nuke block,
-    returns whether the server ended up rooted) and `listHosts(ns)` (pure listing, no rooting
-    side effects); `getHosts` composes the two, exact current behavior. Switch
+    private copy). Split the remaining non-rooting listing logic out of `getHosts` into
+    `listHosts(ns)` (pure listing, no rooting side effects — `tryRoot` already shipped, see
+    above); `getHosts` composes the two, exact current behavior. Switch
     `launchmonitor.js` to `listHosts` — its "fully read-only" header is false today because
     `getHosts` nukes newly-rootable servers from inside a monitor, racing the daemon's
     refresh; after the switch, update the header to say it deliberately uses the non-rooting
@@ -88,54 +89,18 @@ _(nothing in progress from this session)_
     acceptance runs; the transactions log (Phase 5) should show income unchanged in
     character too.
 
-- **Post-reset auto-backdoor for joinable factions**: after an augmentation install (which
-  resets hacking level and, per the user, the eligibility state for these invites), auto-check
-  which faction-invite backdoor targets we now qualify for (not yet joined that faction, and
-  hacking level high enough to reach/root their server) and install the backdoor as soon as
-  eligible. Named targets so far: CyberSec (`CSEC`) and NiteSec (`avmnite-02h`) — scoped to
-  exactly these two for now, more can be added later without spoiling anything not yet reached.
-  Clarified (2026-07-04): runs standalone *after* a reset (not pre-reset prep); backdoor only,
-  no auto-`joinFaction`; should be wired in as a companion process launched from `daemon.js`'s
-  startup (same pattern as `targetsmonitor.js`/`transactionsmonitor.js`), not inlined into
-  `daemon.js`'s own file — its Singularity calls (`connect`/`installBackdoor`/`getCurrentServer`)
-  carry the same RAM multiplier without SF4 that `daemon.js` already avoids for
-  `purchasescripts.js`/`upgradehomeram.js`.
-  - **Reverted 2026-07-04**: a `backdoorfactions.js` companion was implemented and wired into
-    `daemon.js`, then reverted at the user's request — mid-testing, this chat is for request
-    tracking only, not implementation. Design above reflects what was decided/built before the
-    revert, kept here so a future implementation doesn't have to re-derive it.
-  - Existing scaffolding to reuse: `connect.js` already BFS-pathfinds to a target (its
-    `DEFAULT_TARGET` is already `"CSEC"`) but only prints the path — needs adapting to actually
-    drive `ns.singularity.connect()` hop by hop. `hosts.js`'s `PORT_OPENERS`/nuke logic can be
-    reused to root the target first if it isn't already. **Depends on the consolidation item
-    above** for the `tryRoot` and `findPath` extractions.
-  - **Behavior (from the withdrawn Phase 5 draft, settled)**: per target on a
-    `POLL_MS = 60_000` loop — done conditions that skip permanently (backdoor already
-    installed, check the server object's backdoor field, verify exact name in
-    `markdown\bitburner.server.md`; or faction already joined via `ns.getPlayer().factions`);
-    eligibility (hacking level ≥ required, root available or `tryRoot` succeeds); action
-    (root if needed, walk `findPath` hop by hop via `ns.singularity.connect` — verify its
-    adjacency semantics — sanity-check location with `getCurrentServer` before
-    `await ns.singularity.installBackdoor()`, `tprintTs` each install); **exit when every
-    target is done**, freeing its Singularity-sized RAM. `killscripts.js` sweeps it on daemon
-    restart; relaunch is idempotent because every action re-checks state first.
-  - **Open decisions from the 2026-07-04 spec review, settle at implementation**:
-    (a) *Launch-retry gap* — post-reset home RAM is smallest exactly when this script matters
-    most, so `launchDetached`'s INFO-skip could mean it never launches until the next daemon
-    restart, days later. Decide: slow daemon-side relaunch retry (exec-by-filename adds no
-    RAM to the daemon) vs. a skip message that explicitly tells the user to run it manually
-    once RAM allows. (b) *Terminal hijack* — `singularity.connect` moves the player's
-    terminal connection; a background loop that yanks you off a server mid-manual-session and
-    dumps you at `home` is a live-play irritant. Decide: save `getCurrentServer` at loop
-    start and restore *that* after installing, or accept and document.
-  - Verification: runnable now against the current save (targets likely already
-    joined/backdoored — confirm actual save state first; it must tprint its skip reasoning
-    once per target and exit cleanly, with daemon startup wiring undisturbed and
-    `npm run verify:log` green). The real end-to-end (level up → root → connect-walk →
-    backdoor → exit) is structurally deferred to the next reset — record as a
-    live-validation follow-up when built, same as the waived fleetupgrade test.
-
 ## Ideas / Backlog
+
+- **Backdoor/auto-join live-validation follow-up** (Phase 6, 2026-07-04): the real end-to-end
+  (reset → hacking level up → root → connect-walk → backdoor installed → event logged →
+  CyberSec/Netburners auto-joined → event logged, all under the new reset's `resetId`) is
+  structurally deferred to the next reset — can't be exercised before then. Same waived-test
+  pattern as the fleetupgrade-while-running item below. When it happens, confirm:
+  `events-log.json` survives the reset unmodified in place; `factionwatcher.js`'s startup
+  reconciliation doesn't re-log anything already recorded under the new `resetId` (it
+  shouldn't, since reconciliation keys on `resetId`, but this is the first real test of that);
+  `backdoorfactions.js` actually walks/backdoors/exits correctly against live hacking-level
+  gating, not just the mocked `walkTo` unit tests.
 
 - **Share-with-factions RAM interaction**: concern raised (2026-07-04) — once a script
   dedicates RAM to `ns.share()` (boosts faction rep-gain rate; no such script exists in
@@ -211,6 +176,40 @@ _(nothing in progress from this session)_
     currently only visible live in the popup's prep-dispatched lines and lost once prepped.
 
 ## Done (recent)
+
+- **Batcher refactor Phase 6 — post-reset auto-backdoor + persistent events log** (2026-07-04):
+  `batcher-refactor-phase6.md`. New `src/common.js` (`findPath` generalized with an explicit
+  `start` param, `tprintTs`), `hosts.js`'s `tryRoot` extraction (behavior-preserving,
+  `connect.js` rewired to import `findPath`). New `src/eventlog.js` (`recordEvent`, patterned
+  on `translog.js`) writing the persistent, whole-playthrough `events-log.json` — never
+  rotated, `resetId` per record from `ns.getResetInfo().lastAugReset`. New
+  `src/factionwatcher.js` (always-on companion, no tail window, startup reconciliation against
+  the events log) and `src/backdoorfactions.js` (post-reset backdoor installer for `CSEC`/
+  `avmnite-02h`, the only file allowed Singularity calls). `daemon.js`'s `launchDetached` now
+  returns a boolean and retries any of its four companions (`targetsmonitor.js`,
+  `transactionsmonitor.js`, `factionwatcher.js`, `backdoorfactions.js`) every `CYCLE_MS` until
+  each launches once — applies uniformly, so the two pre-existing monitors get the retry too.
+  `npm test` green at 107/107 (78 existing + 29 new: `common`, `hosts`, `eventlog`,
+  `factionwatcher`, `backdoorfactions`, plus `verify-events.test.js` added to the
+  `verify:log` glob).
+  - **Scope addition beyond the spec, decided by the user mid-session**: `backdoorfactions.js`
+    also auto-accepts invitations for **CyberSec** and **Netburners** (`AUTO_JOIN_FACTIONS`)
+    the moment they appear, independent of the per-server backdoor loop — the user judged
+    these two have no downside to joining automatically, unlike the project's normal
+    "backdoor only, no auto-join" default. **NiteSec is NOT auto-joined** — stays backdoor-only,
+    manual join, per the original spec. This adds `ns.singularity.checkFactionInvitations()`
+    (3 GB base) and `ns.singularity.joinFaction()` (3 GB base) to `backdoorfactions.js`'s
+    RAM cost on top of the spec's own estimate — expect a noticeably higher figure than the
+    spec's ~100 GB projection; measure and record at live verification.
+  - **Also used plain string literals** (`"CyberSec"`, `"NiteSec"`, `"Netburners"`) instead of
+    `ns.enums.FactionName` as the spec suggested — the enum's only doc file is explicitly
+    spoiler-labeled (lists every faction in the game), and a two/three-entry constant map gets
+    nothing from importing it. Confirmed with the user.
+  - **Not yet done**: live `getScriptRam` measurements for every touched/new script (this
+    pass is implementation + unit tests only, no running game session from here); the live
+    daemon-restart acceptance check; the real end-to-end reset validation (see the
+    live-validation follow-up in Ideas above). Branch merged locally into the main checkout's
+    `master` (not pushed) so `npm run dev` can pick it up for in-game testing.
 
 - **Batcher refactor Phase 5 — daily transactions log** (2026-07-04): `batcher-refactor-phase5.md`.
   Retired `moneymonitor.js` in favor of `src/translog.js` (shared write helper:

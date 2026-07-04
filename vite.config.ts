@@ -55,11 +55,15 @@ export default defineConfig({
       // instead of overwriting each other; transactions-YYYY-MM-DD.json
       // (src/translog.js) is daily-rotating -- one file per calendar day,
       // written live as income/expenses happen, rotating at the day
-      // boundary.
+      // boundary; events-log.json (src/eventlog.js) is continuous across
+      // the WHOLE playthrough -- never rotated or reset, one record per
+      // milestone event (faction joins, backdoor installs), each carrying a
+      // resetId field identifying which reset it happened in.
       location: (file) => {
         if (file === 'daemon-batch-log.json') return 'logs/daemon-batch-log.json';
         if (/^targets-summary-\d+\.json$/.test(file)) return `logs/${file}`;
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
+        if (file === 'events-log.json') return 'logs/events-log.json';
         return null;
       },
     },

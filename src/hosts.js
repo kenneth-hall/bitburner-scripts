@@ -32,6 +32,27 @@ function scanNetwork(ns) {
 }
 
 /**
+ * Roots `server` if it isn't already: checks required hacking level and port
+ * openers owned, opens each owned port program, then nukes. Returns true if
+ * the server ends up rooted (already rooted, or newly nuked here), false if
+ * it's out of reach (level too high or not enough port openers owned yet).
+ * @param {NS} ns
+ */
+export function tryRoot(ns, server) {
+  if (ns.hasRootAccess(server)) return true;
+
+  const owned = PORT_OPENERS.filter((p) => ns.fileExists(p.file, "home"));
+  const reqLevel = ns.getServerRequiredHackingLevel(server);
+  const reqPorts = ns.getServerNumPortsRequired(server);
+  if (reqLevel > ns.getHackingLevel() || reqPorts > owned.length) return false;
+
+  for (const program of owned) program.open(ns, server);
+  ns.nuke(server);
+  ns.tprint(`INFO: rooted new host ${server}`);
+  return true;
+}
+
+/**
  * Scans the network, nukes anything newly rootable (regardless of whether it
  * holds money), and returns every host we can run workers on: rooted network
  * servers, purchased servers, and home. Home's free RAM is reported with
@@ -40,24 +61,13 @@ function scanNetwork(ns) {
  * @param {NS} ns
  */
 export function getHosts(ns) {
-  const owned = PORT_OPENERS.filter((p) => ns.fileExists(p.file, "home"));
   const purchased = new Set(ns.cloud.getServerNames());
-  const myHackLevel = ns.getHackingLevel();
 
   const hosts = [];
 
   for (const server of scanNetwork(ns)) {
     if (purchased.has(server)) continue;
-
-    if (!ns.hasRootAccess(server)) {
-      const reqLevel = ns.getServerRequiredHackingLevel(server);
-      const reqPorts = ns.getServerNumPortsRequired(server);
-      if (reqLevel > myHackLevel || reqPorts > owned.length) continue;
-
-      for (const program of owned) program.open(ns, server);
-      ns.nuke(server);
-      ns.tprint(`INFO: rooted new host ${server}`);
-    }
+    if (!tryRoot(ns, server)) continue;
 
     hosts.push({
       hostname: server,
