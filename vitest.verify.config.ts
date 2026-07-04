@@ -8,8 +8,14 @@ import { defineConfig } from 'vitest/config';
 // viteburner plugin) for the same game-independence reason as the main
 // config. Covers both the daemon log checker and the transactions log
 // checker -- `npm run verify:log` runs both.
+//
+// exclude still matters here even with such a narrow include: a leftover
+// .claude/worktrees/ checkout has its own test/verify-*.test.js copy that
+// the include glob above would also match, running the checker twice
+// against the same logs/ (see vitest.config.ts's exclude comment).
 export default defineConfig({
   test: {
     include: ['test/verify-*.test.js'],
+    exclude: ['.claude/worktrees/**'],
   },
 });

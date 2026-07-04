@@ -152,6 +152,16 @@ _(nothing in progress from this session)_
   - Blocked on: no share script exists yet — revisit the `killscripts.js` protection once
     one is actually built.
 
+- **Claude Code workflow blocker: getting a screenshot into a terminal session** (2026-07-04):
+  when debugging a live in-game error, copy/pasting the terminal text came through garbled/
+  incomplete (same lossiness `CLAUDE.md`'s log-export rule already calls out for terminal
+  copy/paste in general), so we fell back to a screenshot — but `Ctrl+V`-pasting a Snip &
+  Sketch capture directly into the Claude Code terminal input didn't attach anything, and a
+  saved file at a guessed path (Desktop/Downloads/Pictures/the worktree) wasn't found either.
+  Not a Bitburner item — revisit once we land on a reliable method (probably: save the file,
+  then hand Claude the exact path so it reads it directly) and write the steps down so future
+  sessions aren't rediscovering this each time.
+
 - **Monitor cleanup + more meaningful logging**: `daemon.js`'s tail popup is very verbose
   and some numbers look stale or reset next cycle — concretely: the `durations:` line reads
   `batchTarget.hackTime/growTime/weakenTime`, only refreshed in `refreshCycle()` (up to
