@@ -69,42 +69,24 @@ function tprintTs(ns, message) {
   ns.tprint(`[${new Date().toLocaleTimeString()}] ${message}`);
 }
 
-// Companions daemon.js launches via launchDetached below, retried every
-// CYCLE_MS refresh until each one succeeds once (see companionLaunched in
-// main()) -- post-reset home RAM is smallest exactly when a companion like
-// backdoorfactions.js matters most, so a single startup attempt could miss
-// it by days. Applied uniformly to all four: the two pre-existing monitors
-// get the same retry as a small behavior improvement (a RAM-skipped monitor
-// now eventually launches), not just the two new companions.
-const COMPANION_SCRIPTS = ["targetsmonitor.js", "transactionsmonitor.js", "factionwatcher.js", "backdoorfactions.js"];
-
 /**
  * Fire-and-forget launch for a long-running companion script that opens its
- * own tail window and never exits -- unlike runAndWait's one-shot utilities,
- * there's nothing to wait for here. Returns true iff exec returned a nonzero
- * pid. `announceSkip` is false for retry attempts so a companion that keeps
- * not fitting doesn't spam the same INFO message every CYCLE_MS -- the
- * one-time startup message already said it's waiting.
+ * own tail window and never exits (targetsmonitor.js) -- unlike
+ * runAndWait's one-shot utilities, there's nothing to wait for here.
  */
-function launchDetached(ns, script, { announceSkip = true } = {}) {
+function launchDetached(ns, script, ...args) {
   const scriptRam = ns.getScriptRam(script, "home");
   const freeRam = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
   if (scriptRam > freeRam) {
-    if (announceSkip) {
-      tprintTs(
-        ns,
-        `INFO: skipped ${script} at startup -- needs ${ns.format.ram(scriptRam)} but only ${ns.format.ram(freeRam)} free on home`
-      );
-    }
-    return false;
+    tprintTs(
+      ns,
+      `INFO: skipped ${script} at startup -- needs ${ns.format.ram(scriptRam)} but only ${ns.format.ram(freeRam)} free on home`
+    );
+    return;
   }
 
-  const pid = ns.exec(script, "home", 1);
-  if (pid === 0) {
-    tprintTs(ns, `ERROR: failed to start ${script}`);
-    return false;
-  }
-  return true;
+  const pid = ns.exec(script, "home", 1, ...args);
+  if (pid === 0) tprintTs(ns, `ERROR: failed to start ${script}`);
 }
 
 async function runAndWait(ns, script, ...args) {
@@ -331,17 +313,13 @@ export async function main(ns) {
   // instance left running from a previous session would never get cleaned
   // up on restart, and would silently compete with the new one for RAM.
   await runAndWait(ns, "killscripts.js", ns.pid);
-  // Companions: none of the four calls ns.exec, so they have zero effect on
-  // the worker-RAM pool this daemon competes for. targetsmonitor.js is
-  // read-only; transactionsmonitor.js writes the day's transactions log
-  // (src/translog.js) as income lands; factionwatcher.js writes the
-  // persistent events log as factions are joined; backdoorfactions.js
-  // installs backdoors and writes backdoor-installed events, then exits once
-  // its targets are done. Each opens its own tail window (or, for
-  // factionwatcher.js, deliberately doesn't -- see its header) via
-  // ns.ui.openTail(). Any not yet successfully launched here is retried
-  // every CYCLE_MS inside refreshCycle() below -- see companionLaunched.
-  const companionLaunched = new Map(COMPANION_SCRIPTS.map((script) => [script, launchDetached(ns, script)]));
+  // Companion dashboards: neither calls ns.exec, so they have zero effect on
+  // the worker-RAM pool this daemon competes for -- targetsmonitor.js is
+  // read-only, transactionsmonitor.js writes the day's transactions log
+  // (src/translog.js) as income lands. Each opens its own tail window
+  // itself via ns.ui.openTail().
+  launchDetached(ns, "targetsmonitor.js");
+  launchDetached(ns, "transactionsmonitor.js");
 
   let hosts = [];
   let targets = [];
@@ -363,20 +341,6 @@ export async function main(ns) {
   let previousMathMode = null; // null until the first refreshCycle, so startup also announces its mode once
 
   async function refreshCycle() {
-    // Retry any companion that hasn't launched yet -- silent (no repeated
-    // INFO-skip spam; the startup attempt already announced it's waiting),
-    // announcing only the eventual success. Stops retrying that script the
-    // moment it launches once; if it later exits on its own (e.g.
-    // backdoorfactions.js finishing), it's deliberately not relaunched until
-    // the next daemon restart.
-    for (const script of COMPANION_SCRIPTS) {
-      if (companionLaunched.get(script)) continue;
-      if (launchDetached(ns, script, { announceSkip: false })) {
-        companionLaunched.set(script, true);
-        tprintTs(ns, `INFO: ${script} launched (retry)`);
-      }
-    }
-
     hosts = getHosts(ns);
     targets = getTargets(ns);
 
