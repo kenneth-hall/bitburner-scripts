@@ -152,6 +152,19 @@ _(nothing in progress from this session)_
   - Blocked on: no share script exists yet — revisit the `killscripts.js` protection once
     one is actually built.
 
+- **viteburner dev-server silently stops auto-exporting** (2026-07-04): during Phase 5 live
+  verification, the `npm run dev` process had been running continuously for 2+ hours (no
+  crash, no error output) but stopped producing fresh downloads to `logs/` at some point —
+  `daemon-batch-log.json` and the transactions file both stopped updating even though
+  `daemon.js` kept running and writing in-game. A full restart of the dev server fixed it
+  (clean reconnect, full re-sync). Root cause not confirmed — one candidate: this process's
+  stdin isn't a TTY ("`current stdin is not a TTY. Keypress events may not work`" at startup),
+  and the auto-export mechanism (`vite.config.ts`'s `autoExportDaemonLog` plugin) works by
+  synthetically emitting a `keypress` event on `process.stdin`, which may not survive a
+  websocket reconnect cleanly in a non-TTY process. Not investigated further this session —
+  worth digging into if it recurs, since a restart is an easy workaround but an unnoticed
+  stall could look like "no income landing" when it's actually "not exporting."
+
 - **Claude Code workflow blocker: getting a screenshot into a terminal session** (2026-07-04):
   when debugging a live in-game error, copy/pasting the terminal text came through garbled/
   incomplete (same lossiness `CLAUDE.md`'s log-export rule already calls out for terminal
@@ -197,15 +210,20 @@ _(nothing in progress from this session)_
     per host and are excluded from both the terminal report and the transactions record; if
     zero hosts in a batch succeed, no record is written at all. Also reclassified the file's
     header (ONE-OFF → permanent manual utility), since it's now a permanent log call site.
-  - **Waived, not done this session — needs the user, live in-game**: the RAM gate
-    (`getScriptRam` before/after for `daemon.js`, `transactionsmonitor.js`,
-    `purchasecloudservers.js`, `fleetupgrade.js`, `purchasescripts.js`, `upgradehomeram.js`);
-    the ≥15-minute live acceptance run (day file auto-exports to `logs/`, a real purchase
-    lands as a correctly-shaped expense record without disturbing income coalescing, income
-    sums reconcile against the `getMoneySources` delta); deleting `moneymonitor.js`'s in-game
-    copy (`rm moneymonitor.js` at the terminal — viteburner doesn't delete files it no longer
-    manages); and a visual check of the new tail popup. None of these are achievable without
-    launching the actual game.
+  - **Live-verified same day (2026-07-04), post-merge**: daemon restarted with the merged
+    code, `transactionsmonitor.js` confirmed running (tail popup showing correct running
+    total/rate), `moneymonitor.js` deleted in-game. `transactions-2026-07-04.json`
+    auto-exported to `logs/` after a viteburner dev-server hiccup was diagnosed and fixed
+    (the process had been alive for 2+ hours but silently stopped producing fresh
+    downloads — restarting it forced a clean reconnect and re-sync of everything,
+    including the day file). `npm run verify:log` green (14/14) against the real file:
+    two well-formed coalesced income records, $7.18B/10.7min in the soft report, zero
+    hard-assertion failures.
+  - **Still waived, not done — needs the user, live in-game**: the RAM gate (`getScriptRam`
+    before/after for `daemon.js`, `transactionsmonitor.js`, `purchasecloudservers.js`,
+    `fleetupgrade.js`, `purchasescripts.js`, `upgradehomeram.js`); running one of the four
+    purchase scripts to confirm an expense record lands correctly without disturbing income
+    coalescing (only income has landed so far — the soft report above shows zero expenses).
 - **Batcher refactor Phase 4 — Formulas.exe math with legacy fallback** (2026-07-04): all
   runnable and observed acceptance criteria satisfied. Direct same-session comparison showed
   the churn fix (0 flips/16min formulas vs. 9/16min legacy) and reserve-ballooning fix
