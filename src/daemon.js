@@ -31,7 +31,6 @@ import {
   carveReservation,
 } from "./scheduler.js";
 import { sampleBatchFields, samplePrepFields, hasFormulas, isForcedLegacy, crossCheckFormulas } from "./sampling.js";
-import { recordEvent } from "./eventlog.js";
 
 const CYCLE_MS = 10000;
 
@@ -326,12 +325,6 @@ function recordSkipEvent(entries, record) {
 export async function main(ns) {
   ns.disableLog("ALL");
   ns.ui.openTail();
-
-  // Every manual `run daemon.js` from the terminal is itself a milestone
-  // worth a permanent record -- restarts/crashes are exactly the downtime
-  // gaps the other companions' startup reconciliation has to account for,
-  // so having them logged here makes those gaps visible after the fact.
-  recordEvent(ns, { type: "daemon-started" });
 
   // Pass our own pid so killscripts.js protects only *this* daemon.js
   // instance, not every process named daemon.js -- otherwise a stale
