@@ -35,9 +35,15 @@ move finished items to Done with a date instead of deleting them.
     `cloud.upgradeServer` 0.25 + `fileExists` 0.1; `translog.js`'s `recordTransaction` adds 0 via
     `ns.read`/`ns.write`). `daemon.js` itself: **+0.00 expected** (exec-by-filename only, no new
     `ns` surface).
-  - **Next: Kenneth runs the Live validation section** (RAM gate, Round A items 1–7, Round B on
-    the next natural augment install) and reports back; this entry moves to Done once that's
-    confirmed, per the spec's acceptance criteria.
+  - **RAM gate: closed (2026-07-05).** `run ramcheck.js daemon.js financemanager.js
+    cloudupgrader.js` in-game: `daemon.js` **16.3 GB** (exact match to the Phase 9 baseline,
+    zero growth as expected), `financemanager.js` **3.35 GB**, `cloudupgrader.js` **3.7 GB** —
+    both exact matches to the predicted numbers above. No identifier-hygiene hunt needed.
+    (Hit the known "viteburner dev-server silently stops auto-exporting" bug again getting this
+    reading — `npm run dev` was up but `logs/ramcheck-result.json` wasn't updating; killed and
+    restarted it, which fixed it immediately, same workaround as prior occurrences.)
+  - **Next: Kenneth runs Round A (items 1–7) and, on the next natural augment install, Round B**;
+    this entry moves to Done once both are confirmed, per the spec's acceptance criteria.
 
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
   same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
