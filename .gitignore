@@ -4,3 +4,7 @@ dist/
 markdown/
 NetscriptDefinitions.d.ts
 logs/
+
+# Local-only scratch (not project state)
+Capture.JPG
+open-claude.bat
