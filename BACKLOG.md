@@ -7,6 +7,23 @@ move finished items to Done with a date instead of deleting them.
 
 ## Next Up
 
+- **Priority order — next three phases (agreed with Kenneth 2026-07-05, post-Phase-11):** work them
+  in this sequence, chosen for compounding benefit (Kenneth's call: 3 → 1 → 2):
+  1. **`/spec` command** — the "Level 2 — `/spec` command" sub-item of "automating the spec-review
+     loop" (Ideas). First, because it's the meta-tool: once built, it can spec out phases 1 and 2
+     below, so the workflow investment pays off immediately on the very next two phases.
+  2. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
+     sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
+     architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
+     and closes the money→RAM→income flywheel: more home RAM feeds the whole batcher.
+  3. **Consistency consolidation (`src/common.js`)** — the Next Up item below. Behavior-preserving,
+     and it mints the `tryRoot`/`findPath`/`scanNetwork` helpers that the auto-backdoor and darknet
+     phases both depend on, so it must land before either of those (its only hard ordering
+     constraint — nothing in this batch conflicts with it going third).
+  - The remaining Next Up items (Source-File watcher, RAM-analyzer hygiene) are quick wins to
+    fold into whichever phase is already touching those files, not standalone phases. (The
+    targetsmonitor priority-column item folded into Phase 12 — see Done.)
+
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
   "no matter what." Recommended against running the full ~67GB script resident indefinitely — the
@@ -38,40 +55,6 @@ move finished items to Done with a date instead of deleting them.
     `WORKER_SCRIPTS` suspicion above, now confirmed for a *method name* collision (not just a
     standalone identifier or object key) — raises confidence that the `WORKER_SCRIPTS` phantom
     charge is real and worth the E-matrix confirmation pass.
-
-- **targetsmonitor "ratio" column → actual priority metric**: Investigated a suspected bug
-  (2026-07-04) — "ratio" numbers looked suspiciously round/inconsistent, hypothesis was that
-  purchased-but-uninstalled augmentations were leaking in. No bug found: `ratio`
-  (`targets.js:92`, `maxMoney / minSecurityLevel`) is purely server-intrinsic, fixed at
-  world-gen, with no player-derived input in the formula at all — confirmed against the code
-  and against `installAugmentations`'s docs (aug effects apply only on install/reset, never
-  on purchase), so neither a hacking level-up nor an uninstalled aug can move it. The real
-  driver of "these numbers changed": `getTargets()` sorts by `score` (money-per-GB-second,
-  the actual ranking metric) while the display only ever showed the unrelated `ratio` field
-  — a level-up reshuffles which targets appear/rank, moving rows around even though no
-  individual server's ratio value changes.
-  - **Decided**: stop displaying `ratio`; show `t.score` instead, labeled `priority`, using
-    the `toExponential(2)` rendering `targets.js` already uses for score so the two displays
-    read consistently. Apply to both `targetsmonitor.js`'s live dashboard (replace the
-    `ratio` column) and `targets.js`'s own `main()` summary (drop the `(ratio ...)`
-    parenthetical — score is already printed first).
-  - **Also decided (from the withdrawn Phase 5 draft)**: remove the `ratio` field from the
-    target objects `getTargets` builds. Grep confirmed (2026-07-04) its only consumers are
-    `targetsmonitor.js:57` and `targets.js:147` (`sampling.js:330`'s `ratio` is an unrelated
-    local; the daemon log and verify-log never touch the field). This changes the
-    `targets-summary-*.json` schema — note it in the file's comment. If a third consumer
-    turns up at implementation, keep the field and flag it instead.
-  - **Also decided**: fix the misleading `->` marker in `targetsmonitor.js` — it claims the
-    top-ranked entry is `daemon.js`'s current batch target, which is wrong under
-    `RANK_HYSTERESIS` (the incumbent can sit below rank 0 — `daemon.js`'s own `lowerTargets`
-    comment documents this exact trap). The monitor can't see the daemon's incumbent without
-    coupling to it, so make the display honest: relabel the marker "top-ranked by score" and
-    add a one-line legend noting the daemon's actual target can differ under hysteresis.
-    **Post-Phase-7 update (2026-07-04)**: there's no longer a single "incumbent" — the legend
-    text should say "the daemon's active *set* can differ" instead of "the daemon's actual
-    target can differ." Leave the actual text edit for this item's own implementation.
-  - Verification: run `targetsmonitor.js` and `targets.js` in-game, eyeball both against a
-    `targets-summary` export; `npm test` stays green (no unit-tested code changes).
 
 - **Consistency consolidation** (from the 2026-07-04 code audit; was item 3 of the original
   Phase 5 draft — full-consolidation depth chosen explicitly; behavior-preserving throughout,
@@ -290,6 +273,29 @@ move finished items to Done with a date instead of deleting them.
     represent/react to `nextMutation()` events, and whether/how this integrates with or runs
     alongside `daemon.js`.
 
+- **Dev-loop observability — get errors/signal into files, not lossy terminal copy/paste**
+  (2026-07-05): umbrella theme over three items sharing one root cause — the game↔repo bridge
+  produces signal (errors, stalls) that today is only visible in the terminal, where copy/paste is
+  lossy (the same reason `CLAUDE.md`'s log-export rule prefers exported files over pasted terminal
+  output). **Fresh motivating example (2026-07-05):** Phase 12's root-access error flood (Recent
+  Errors tab filled with `weaken.js`/`grow.js` crashes from a `targets.js` eligibility bug) was
+  only visible in-game — no exported log surfaced it, and it was diagnosed from Kenneth's live
+  observation rather than a file. Still no log-capture work done this phase; the fix was in the
+  eligibility logic itself, not in surfacing the error. New idea filed here:
+  - **Export sync/game errors to `logs/`** (2026-07-05, Kenneth): when the viteburner sync with the
+    filesystem breaks, it prints an error in the `npm run dev` terminal — capture *that* to a file.
+    **Primary target is the Node-side sync/dev-server error** (emitted by the viteburner process,
+    not in-game), so the capture is Node-side: tee the dev-server stdout/stderr to a log, or a
+    `vite.config.ts` plugin hook. Chicken-and-egg wrinkle to design around: at the moment sync
+    breaks, the in-game→`logs/` export bridge is exactly what's down, so an `ns.write` can't carry
+    the error out — this has to be captured on the Node side. Separate, easier sub-case if wanted:
+    in-game **script runtime errors** can be `try/catch`'d → `ns.write` and exported the normal way.
+    Decide scope (sync errors first) at pickup.
+  - Groups with the two items just below, same theme: **"viteburner dev-server silently stops
+    auto-exporting"** (the *silent* variant — same bridge, no error emitted at all) and **"getting a
+    screenshot into a terminal session"** (the lossy-terminal workaround that motivated the theme).
+    Consider physically consolidating all three under this heading on the next real reorg.
+
 - **viteburner dev-server silently stops auto-exporting** (2026-07-04): during Phase 5 live
   verification, the `npm run dev` process had been running continuously for 2+ hours (no
   crash, no error output) but stopped producing fresh downloads to `logs/` at some point —
@@ -406,8 +412,56 @@ move finished items to Done with a date instead of deleting them.
 
 ## Done (recent)
 
-- **Phase 11 — resource manager: active procurement** (2026-07-05, done; branch
-  `worktree-phase11-procurement`, not yet merged/pushed): `resource-manager-phase11-spec.md`
+- **Phase 12 — targeting: root-access eligibility fix (+ ratio→priority fold-in)**
+  (2026-07-05, done; merged to `master` and pushed, branch `phase12-targeting`):
+  `targeting-phase12-features.md`, `targeting-phase12-spec.md`. Unplanned hotfix —
+  jumped the agreed post-Phase-11 priority queue — for a live error flood on the current
+  post-augment-install save: `weaken.js`/`grow.js` crashed continuously (`Cannot
+  weaken/grow <server> because you do not have root access`) against seven unrooted servers
+  (computek, the-hub, crush-fitness, johnson-ortho, omega-net, phantasy, silver-helix) because
+  `targets.js`'s `getTargets()` eligibility filter checked money and hacking level but never
+  `ns.hasRootAccess` — masked pre-reset since everything passing the level filter was already
+  rooted, exposed once the reset cost TOR/port-opener ownership while hacking level kept
+  climbing.
+  - **Fix**: new pure exported predicate `isEligibleTarget({rooted, maxMoney,
+    requiredHackingLevel, myHackLevel})` in `src/targets.js`, adding root access as a condition
+    alongside the existing money/level checks (semantics preserved exactly otherwise). No
+    worker-side guard (would cost 0.05 GB/thread fleet-wide to guard now-unreachable state), no
+    rooting logic added to `targets.js` (stays `hosts.js`'s job), zero `daemon.js` code change —
+    it inherits the fix through `getTargets()`.
+  - **Fold-in (BACKLOG's own quick-win, moved here from Next Up)**: `targetsmonitor.js` and
+    `targets.js`'s summary now show `priority ${score.toExponential(2)}` instead of the
+    unrelated server-intrinsic `ratio` field (removed from the target objects and from
+    `targets-summary-*.json`'s schema); the misleading `->` marker in `targetsmonitor.js` is
+    relabeled with a legend ("top-ranked by score (the daemon's active set can differ under
+    hysteresis)") instead of falsely claiming it's the daemon's current batch target.
+  - **`npm test` green at 190/190** (184 pre-phase + 6 new `test/targets.test.js` cases for
+    `isEligibleTarget`, including the not-rooted regression case and the exact-half-level
+    boundary).
+  - **RAM gate: closed (2026-07-05), via `ramcheck.js` → `logs/ramcheck-result.json`** (not
+    `mem`/terminal — see `feedback_oneoff_scripts_need_logged_output` memory). `daemon.js`
+    **16.3 GB (exact match, flat)**, `targets.js` **12.7 GB (+0.05, as predicted)**,
+    `targetsmonitor.js` **12.7 GB** — no historical baseline was ever recorded for
+    `targetsmonitor.js` specifically, but the number is fully explained (same
+    `hasRootAccess`-via-`getTargets` reachability as `targets.js`) with no unexplained delta, so
+    no identifier-hygiene hunt needed.
+  - **Live validation: complete (2026-07-05).** Daemon restarted; Recent Errors tab stayed
+    clean over a 10-minute window (no new root-access errors). `targetsmonitor.js` confirmed
+    showing the `priority` column and marker legend. `run targets.js` exported
+    `targets-summary-1783270612596.json` — 11 rooted-only targets, no `ratio` field anywhere,
+    none of the seven previously-erroring servers present. `npm run verify:log` green (28/28)
+    against the live session log: 7 natural exits, all ordinary `unaffordable` reasons (nothing
+    error-related), 11 members batched, zero skips, zero xcheck mismatches.
+  - **Aside (2026-07-05): viteburner's export bridge went silently stale mid-session** — two
+    `ramcheck.js` runs produced byte-identical stale output before the dev server was
+    killed+restarted, confirming the connection had gone dead despite `ESTABLISHED` looking
+    fine. Not a Phase 12 code issue; see the `feedback_viteburner_stale_connection_workaround`
+    memory (updated this session to preempt this at the start of future phases' RAM-gate steps
+    rather than diagnosing it reactively each time).
+
+- **Phase 11 — resource manager: active procurement** (2026-07-05, done; merged to master and
+  pushed as of 2026-07-05, branch `worktree-phase11-procurement` deleted post-merge):
+  `resource-manager-phase11-spec.md`
   (peer-reviewed, APPROVE with no blocking issues; postscript added after Round B — see below).
   Closes the loop Phase 10 left open — automates the purchases `financemanager.js`'s reservations
   were only protecting, so a fresh reset can bootstrap the fleet with minimal hand-buys.

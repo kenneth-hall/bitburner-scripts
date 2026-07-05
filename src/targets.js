@@ -25,19 +25,39 @@ function scanNetwork(ns) {
 }
 
 /**
- * Ranks reachable servers by expected dollars per GB-second (same
- * eligibility filter as before: has money, RequiredHackingLevel under half
- * the player's hacking level) and adds a steady-state thread plan for each:
- * hack HACK_FRACTION, grow back to max, weaken enough to counteract the
- * security added by both plus hold at min security. The plan itself
- * (steadyStatePlan, in sampling.js) is mode-aware -- formulas mode scores at
- * the target's prepped state instead of its current condition, which is the
- * Phase 4 churn fix (see that function's doc comment).
+ * Eligibility predicate: root access, positive max money, and
+ * RequiredHackingLevel strictly under half the player's hacking level. Pure
+ * and ns-free so it can be unit-tested directly. The purchased-server
+ * exclusion is deliberately not part of this predicate -- it's a
+ * set-membership check against owned servers, not a server-intrinsic
+ * eligibility condition, so it stays as the caller's own early `continue`.
+ * @param {{rooted: boolean, maxMoney: number, requiredHackingLevel: number, myHackLevel: number}} params
+ */
+export function isEligibleTarget({ rooted, maxMoney, requiredHackingLevel, myHackLevel }) {
+  return rooted && maxMoney > 0 && requiredHackingLevel < myHackLevel / 2;
+}
+
+/**
+ * Ranks reachable servers by expected dollars per GB-second (eligibility:
+ * root access, has money, RequiredHackingLevel under half the player's
+ * hacking level -- see isEligibleTarget) and adds a steady-state thread plan
+ * for each: hack HACK_FRACTION, grow back to max, weaken enough to
+ * counteract the security added by both plus hold at min security. The plan
+ * itself (steadyStatePlan, in sampling.js) is mode-aware -- formulas mode
+ * scores at the target's prepped state instead of its current condition,
+ * which is the Phase 4 churn fix (see that function's doc comment).
  *
  * hackAnalyze/growthAnalyze/weakenAnalyze are all linear in thread count
  * "regardless of how many threads are assigned to each call" (per docs), so
  * splitting a target's thread plan across multiple processes/hosts doesn't
  * change the total effect -- the daemon relies on this to spread threads.
+ *
+ * Root access is read fresh each call, so a standalone `run targets.js` sees
+ * whatever root state exists right now -- for a server that just became
+ * rootable, that can lag up to one daemon cycle (CYCLE_MS) behind
+ * daemon.js's own refreshCycle, which always calls getHosts() (rooting)
+ * immediately before getTargets(). Root is monotonic within a session, so
+ * there's no reverse lag to worry about.
  * @param {NS} ns
  */
 export function getTargets(ns) {
@@ -58,11 +78,10 @@ export function getTargets(ns) {
   for (const server of scanNetwork(ns)) {
     if (purchased.has(server)) continue;
 
+    const rooted = ns.hasRootAccess(server);
     const maxMoney = ns.getServerMaxMoney(server);
-    if (maxMoney <= 0) continue;
-
     const reqLevel = ns.getServerRequiredHackingLevel(server);
-    if (reqLevel >= myHackLevel / 2) continue;
+    if (!isEligibleTarget({ rooted, maxMoney, requiredHackingLevel: reqLevel, myHackLevel })) continue;
 
     const minSecurityLevel = ns.getServerMinSecurityLevel(server);
 
@@ -89,7 +108,6 @@ export function getTargets(ns) {
       maxMoney,
       minSecurityLevel,
       requiredHackingLevel: reqLevel,
-      ratio: maxMoney / minSecurityLevel,
       score,
       currentSecurity: ns.getServerSecurityLevel(server),
       currentMoney: ns.getServerMoneyAvailable(server),
@@ -124,6 +142,9 @@ export function getTargets(ns) {
 // (e.g. a before/after prep comparison) each land as their own file instead
 // of overwriting each other -- letting multiple runs be compared without
 // needing a fresh prompt/paste after every single one.
+// Phase 12: dropped the `ratio` field from each target object (score is the
+// actual ranking metric; ratio was server-intrinsic and unrelated to
+// priority) -- exported files from this point on no longer carry it.
 function targetsSummaryFile(timestamp) {
   return `targets-summary-${timestamp}.json`;
 }
@@ -144,7 +165,7 @@ export async function main(ns) {
   }
   for (const t of targets) {
     ns.tprint(
-      `${t.server}: score ${t.score.toExponential(2)} (ratio ${ns.format.number(t.ratio)}) | ` +
+      `${t.server}: score ${t.score.toExponential(2)} | ` +
         `sec ${t.currentSecurity.toFixed(1)}/${t.minSecurityLevel} | ` +
         `money ${ns.format.number(t.currentMoney)}/${ns.format.number(t.maxMoney)} | ` +
         `threads H${t.hackThreads}/G${t.growThreads}/W${t.weakenThreads} (${t.totalThreads} total) | ` +
