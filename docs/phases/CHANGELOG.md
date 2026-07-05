@@ -16,6 +16,17 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   phase-naming conventions in `CLAUDE.md`; added `.gitattributes` (binary-safe PDFs); started
   tracking shared `.claude/` config; deleted/ignored root clutter.
 
+- **Claude Code — spec-review loop automated** (started 2026-07-04). Documented the
+  brainstorm→spec→implement workflow in `CLAUDE.md` and moved the four standing rules
+  (Singularity RAM, transaction logging, tests+log validation, spoiler carve-out) out of the
+  per-run fable prompt into `CLAUDE.md`. Built the **`spec-reviewer`** subagent
+  (`.claude/agents/spec-reviewer.md` — read-only, `model: opus`, four-category rubric +
+  APPROVE/`BLOCKING ISSUES:` verdict) and the **`/spec`** command (`.claude/commands/spec.md`,
+  `disable-model-invocation`, seven-step loop: resolve → read → clarify-gate → draft → cold
+  review → revise one round → present, stop before implementation). Chose one review round over
+  multi-round convergence (no natural stopping point). First live run (Phase 14) caught 3 real
+  blocking issues. Optional Step 8 (opus writes the features doc itself) still open — see BACKLOG.
+
 - **Workflow — update BACKLOG in the same commit as the work.** After repeated "do work →
   commit → separately update BACKLOG → commit again" cycles, added a `CLAUDE.md` *Tracking
   work* rule to stage the BACKLOG edit in the same commit. Folded the redundant
