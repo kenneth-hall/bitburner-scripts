@@ -40,6 +40,7 @@ export async function main(ns) {
       continue;
     }
 
+    ns.print("-> = top-ranked by score (the daemon's active set can differ under hysteresis)");
     targets.forEach((t, i) => {
       const currentSecurity = ns.getServerSecurityLevel(t.server);
       const currentMoney = ns.getServerMoneyAvailable(t.server);
@@ -49,12 +50,12 @@ export async function main(ns) {
         currentMoney,
         maxMoney: t.maxMoney,
       });
-      const marker = i === 0 ? "-> " : "   "; // top-ranked entry is daemon.js's current batch target
+      const marker = i === 0 ? "-> " : "   "; // top-ranked by score, not necessarily the daemon's actual member set (see legend)
       ns.print(
         `${marker}${t.server.padEnd(16)} ${prepped ? "PREPPED" : "DRIFTED"} | ` +
           `sec ${currentSecurity.toFixed(2).padStart(7)}/${String(t.minSecurityLevel).padStart(3)} | ` +
           `money ${ns.format.number(currentMoney).padStart(10)}/${ns.format.number(t.maxMoney).padStart(10)} | ` +
-          `ratio ${ns.format.number(t.ratio)}`
+          `priority ${t.score.toExponential(2)}`
       );
     });
 
