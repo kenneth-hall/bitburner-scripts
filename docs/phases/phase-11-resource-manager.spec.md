@@ -2,9 +2,9 @@
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 10 (`finance-cloud-phase10.md`) built a budget authority (`financemanager.js`) that *reserves* cash for upcoming hand-purchases and one discretionary customer (`cloudupgrader.js`) that spends leftover *available* cash on cloud-server upgrades. The reserved purchases — TOR router, port openers, the first cloud server — are still bought by hand; the reservations only protect their money.
+Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 10 (`phase-10-finance-cloud.md`) built a budget authority (`financemanager.js`) that *reserves* cash for upcoming hand-purchases and one discretionary customer (`cloudupgrader.js`) that spends leftover *available* cash on cloud-server upgrades. The reserved purchases — TOR router, port openers, the first cloud server — are still bought by hand; the reservations only protect their money.
 
-Phase 11 closes that loop per `resource-manager-phase11-features.md`: **automate the purchases the reservations were protecting**, so a fresh reset bootstraps the fleet with no hand-buys, while keeping the Phase 10 budget-authority / discretionary-customer split intact. Three components (Decisions 1–7 in the features file, all confirmed with Kenneth 2026-07-05):
+Phase 11 closes that loop per `phase-11-resource-manager.features.md`: **automate the purchases the reservations were protecting**, so a fresh reset bootstraps the fleet with no hand-buys, while keeping the Phase 10 budget-authority / discretionary-customer split intact. Three components (Decisions 1–7 in the features file, all confirmed with Kenneth 2026-07-05):
 
 1. **`resourcemanager.js`** (rename of `financemanager.js`) — the budget authority, charter unchanged. Singularity-free, publishes `finance-state.json` / `finance-log.json` under their existing on-disk names (Decision 6: no artifact migration).
 2. **`procureprograms.js`** (rename + evolution of `purchasescripts.js`) — Singularity-heavy, **self-terminating** fulfiller for TOR + the five port openers. Launched by `daemon.js` at startup, exits when everything it owns-checks is owned, freeing its Singularity RAM until the next daemon restart.
@@ -189,7 +189,7 @@ RAM budgeting (the resource-manager name is the only concession to it); competin
 
 ## Peer review record (2026-07-05)
 
-A cold-context reviewer (given only this file, `resource-manager-phase11-features.md`, `CLAUDE.md`, and `BACKLOG.md`) verified requirements coverage and spot-checked the spec's factual claims against the codebase and `markdown/` docs. Verdict: **APPROVE, no blocking issues** — the first phase spec to pass review clean. Specifically confirmed:
+A cold-context reviewer (given only this file, `phase-11-resource-manager.features.md`, `CLAUDE.md`, and `BACKLOG.md`) verified requirements coverage and spot-checked the spec's factual claims against the codebase and `markdown/` docs. Verdict: **APPROVE, no blocking issues** — the first phase spec to pass review clean. Specifically confirmed:
 
 - Every cited RAM cost matches `markdown/` (`purchaseTor` 32, `purchaseProgram` 32, `purchaseServer` 2.25, `getServerCost` 0.25, `getServerLimit` 0.05, `hasTorRouter` 0.05, `fileExists` 0.1, `getPlayer` 0.5), and both predicted totals (6.25 / 66.25) compute correctly.
 - Return-value semantics (`purchaseTor` true-if-owned, `purchaseProgram` requires-TOR, `purchaseServer` empty-string-on-failure) match the spec's race handling in work item 2 steps 4–5.

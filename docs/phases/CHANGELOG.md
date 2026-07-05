@@ -22,27 +22,27 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   clause; consolidated auto-memory 13→10 files.
 
 - **Phase 14 — cold-start bootstrap (8GB home → daemon.js handoff)** →
-  `bootstrap-phase14-features.md`, `bootstrap-phase14-spec.md`. New `bootstrap.js` deployer +
+  `phase-14-bootstrap.features.md`, `phase-14-bootstrap.spec.md`. New `bootstrap.js` deployer +
   `bootloop.js` worker to rebootstrap the fleet after the hard reset took `daemon.js` (16.3GB)
   offline; auto-hands off to `daemon.js` at the 32GB home tier. First real `/spec` run (3
   blockers fixed at review). `npm test` 231/231; RAM gate closed (`bootstrap.js` 6.20GB after a
   live `ns.ps` fix); all 6 live steps observed. Merged to `master`.
 
 - **Phase 12 — targeting root-access eligibility fix (+ ratio→priority fold-in)** →
-  `targeting-phase12-features.md`, `targeting-phase12-spec.md` (branch `phase12-targeting`).
+  `phase-12-targeting.features.md`, `phase-12-targeting.spec.md` (branch `phase12-targeting`).
   Unplanned hotfix for a live `weaken/grow … no root access` error flood: new pure
   `isEligibleTarget` predicate adds a rooted check in `src/targets.js`. Also swapped the
   misleading `ratio` display for `priority`. `npm test` 190/190; RAM gate closed; live-clean.
 
-- **Phase 11 — resource manager: active procurement** → `resource-manager-phase11-features.md`,
-  `resource-manager-phase11-spec.md` (branch `worktree-phase11-procurement`). Three renames +
+- **Phase 11 — resource manager: active procurement** → `phase-11-resource-manager.features.md`,
+  `phase-11-resource-manager.spec.md` (branch `worktree-phase11-procurement`). Three renames +
   behavior evolution: `financemanager→resourcemanager`, `cloudupgrader→cloudmanager` (adds
   bootstrap/growth buys), `purchasescripts→procureprograms` (self-terminating TOR + port-opener
   loop). `npm test` 184/184. Found a real bug: `purchaseTor()` throws without Singularity SF —
   guarded with an `ownedSF` check + try/catch. TOR/port-opener ladder unverifiable until the SF
   is owned (follow-up filed).
 
-- **Phase 10 — finance manager + cloud server auto-upgrader** → `finance-cloud-phase10.md`
+- **Phase 10 — finance manager + cloud server auto-upgrader** → `phase-10-finance-cloud.md`
   (branch `worktree-phase10-finance`, `5e5f74d`). Two daemon companions: `financemanager.js`
   (reservation-based available-cash service) and `cloudupgrader.js` (its first customer,
   upgrade-only). `npm test` 162/162; RAM gate closed; validated live across a reset. Spun off
@@ -51,7 +51,7 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-04
 
-- **Phase 9 — Phase 8 close-out** → `batcher-refactor-phase9.md` (branch
+- **Phase 9 — Phase 8 close-out** → `phase-09-batcher-refactor.md` (branch
   `worktree-phase9-closeout`, PR #3). Fixed `pickBatchSet`'s pass-3/pass-4 both-lists bug
   (`justEvicted` set). Confirmed the Phase 8 RAM anomaly via the `share→sharePool` rename —
   recovered the full 2.4GB phantom charge (`daemon.js` 18.7→16.3GB), proving import RAM-charging
@@ -62,28 +62,28 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 - **Remote API auto-reconnect enabled.** In-game Remote API set to auto-reconnect (5s retry,
   infinite) so a `npm run dev` restart no longer needs a manual in-game reconnect.
 
-- **Phase 8 — faction share allocation** → `batcher-refactor-phase8.md` (branch
+- **Phase 8 — faction share allocation** → `phase-08-batcher-refactor.md` (branch
   `worktree-phase8-share`, draft PR #1). Hard-carves `SHARE_FRACTION = 0.25` of allocatable RAM
   for `share.js`, topped up smallest-free-first; added `sharecurve.js` tuning script. `npm test`
   120/120. Live A/B/A': share ~45% rep boost (matches sharePower 1.417); income inconclusive.
   RAM gate: `share.js` 4.00GB exact; `daemon.js` +2.6GB anomaly waived (resolved in Phase 9).
 
-- **Phase 7 — multi-target batching with natural exit** → `batcher-refactor-phase7.md`.
+- **Phase 7 — multi-target batching with natural exit** → `phase-07-batcher-refactor.md`.
   Replaced the single hysteresis incumbent with a RAM-bounded, score-greedy member set
   (`pickBatchSet`, `inFlightByTarget`, daemon rewrite; zero `ns.kill`). `npm test` 88/88. Live:
   up to 10 concurrent targets (was 1), utilization avg 20.3% (was ~6.3%), 7 clean natural exits.
   Pushed to `origin/master`.
 
-- **Phase 5 — daily transactions log** → `batcher-refactor-phase5.md`. Retired `moneymonitor.js`
+- **Phase 5 — daily transactions log** → `phase-05-batcher-refactor.md`. Retired `moneymonitor.js`
   for `src/translog.js` + `transactionsmonitor.js`; instrumented all four purchase call sites.
   `npm test` 78/78; `verify:log` now runs transactions checks too. `fleetupgrade.js` now checks
   the upgrade return value (silent-failure fix). RAM gate closed. Pushed to `origin/master`.
 
-- **Phase 4 — Formulas.exe math with legacy fallback** → `batcher-refactor-phase4.md`. Churn
+- **Phase 4 — Formulas.exe math with legacy fallback** → `phase-04-batcher-refactor.md`. Churn
   fix (0 flips/16min formulas vs 9 legacy) and reserve-ballooning fix confirmed same-session.
   Waived: fleetupgrade-while-running live test (cash constraint).
 
 ## Earlier
 
-- **Phases 1–3 — batcher refactor** → `batcher-refactor-phase1.md`–`phase3.md`: pipeline
-  reservation waterfall, efficiency-score ranking, shrink gating.
+- **Phases 1–3 — batcher refactor** → `phase-01-batcher-refactor.md` … `phase-03-batcher-refactor.md`:
+  pipeline reservation waterfall, efficiency-score ranking, shrink gating.

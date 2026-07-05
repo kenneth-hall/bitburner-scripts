@@ -2,7 +2,7 @@
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 7 (see `batcher-refactor-phase7.md`) is complete, live-verified, and pushed; `npm test` was last green at 88/88. Phase 6 was implemented and fully reverted — historical only.
+Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 7 (see `phase-07-batcher-refactor.md`) is complete, live-verified, and pushed; `npm test` was last green at 88/88. Phase 6 was implemented and fully reverted — historical only.
 
 This phase builds BACKLOG's "`ns.share()` script + dedicated RAM allocation" item: dedicate a slice of fleet RAM to `ns.share()`, which boosts reputation-gain rate for **all faction work** while running. Today no share script exists at all; the daemon's budget math assumes batching owns 100% of allocatable capacity.
 

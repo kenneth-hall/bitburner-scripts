@@ -1,4 +1,4 @@
-// Codified acceptance criteria (finance-cloud-phase10.md: "Log verification").
+// Codified acceptance criteria (docs/phases/phase-10-finance-cloud.md: "Log verification").
 // Reads a REAL exported logs/finance-log.json -- run via `npm run
 // verify:log`, not `npm test` (see vitest.config.ts's exclude and this
 // project's own vitest.verify.config.ts). Path overridable via

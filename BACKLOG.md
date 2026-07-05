@@ -45,7 +45,7 @@ instead of deleting it — don't let history pile up here.
   likely also applies to `WORKER_SCRIPTS`' keys — `hack`/`grow`/`weaken` (`scheduler.js`) match
   `ns.hack`/`ns.grow`/`ns.weaken`'s names exactly, which would mean every importer of
   `WORKER_SCRIPTS` has been paying a phantom 0.1 + 0.15 + 0.15 = 0.4 GB since Phase 2. Verifiable
-  with the same E-matrix technique (`batcher-refactor-phase9.md`'s fallback diagnostic plan) —
+  with the same E-matrix technique (`docs/phases/phase-09-batcher-refactor.md`'s fallback diagnostic plan) —
   object keys, not standalone identifiers, so worth confirming object-literal-key charging
   specifically before assuming it applies. Renaming `WORKER_SCRIPTS`' keys is a wider refactor
   than this phase's scope (touches every `WORKER_SCRIPTS[...]` call site across `scheduler.js`,
@@ -129,7 +129,7 @@ instead of deleting it — don't let history pile up here.
     tracking only, not implementation. Design above reflects what was decided/built before the
     revert, kept here so a future implementation doesn't have to re-derive it.
   - **Implemented and reverted again, 2026-07-04**: a full implementation shipped as
-    `batcher-refactor-phase6.md` (`common.js`, `eventlog.js`, `factionwatcher.js`,
+    `docs/phases/phase-06-batcher-refactor.md` (`common.js`, `eventlog.js`, `factionwatcher.js`,
     `backdoorfactions.js`, plus the `hosts.js`/`connect.js`/`daemon.js` wiring described
     below), then fully reverted the same day at the user's request — they judged it not
     worth further development right now after realizing they'd misunderstood some of the
@@ -137,7 +137,7 @@ instead of deleting it — don't let history pile up here.
     unlocked, and had assumed some factions could be safely auto-joined with no downside).
     None of this is implemented; treat every item on this backlog entry as still to do.
     Reverted via `git revert` (history preserved, not rewritten) — see
-    `batcher-refactor-phase6.md`'s status note for the full file/commit list before
+    `docs/phases/phase-06-batcher-refactor.md`'s status note for the full file/commit list before
     resuming, and re-confirm the settled decisions below still hold given the
     Singularity-access correction.
   - Existing scaffolding to reuse: `connect.js` already BFS-pathfinds to a target (its
@@ -181,7 +181,7 @@ instead of deleting it — don't let history pile up here.
   worth a deliberate check the first time it's possible, since the code path is untested in reality.
   Pairs with the lightweight watcher-script idea in Next Up.
 
-- **Phase 10 follow-ups** (2026-07-05, filed per `finance-cloud-phase10.md`'s Files section;
+- **Phase 10 follow-ups** (2026-07-05, filed per `docs/phases/phase-10-finance-cloud.md`'s Files section;
   none of these block Phase 10 sign-off):
   - **Augment reservation cost model**: `resourcemanager.js`'s (renamed from `financemanager.js`
     in Phase 11) `manual-extra` rule (`finance-reserve-extra.txt`) is an explicit stopgap for
@@ -338,7 +338,7 @@ instead of deleting it — don't let history pile up here.
     `CLAUDE.md` engineering conventions (blocking if violated). The `/agents` wizard is retired
     in the current CLI; the file placed in `.claude/agents/` is the whole setup.
   - ~~**Level 2 — `/spec` command**: encode the whole loop so the per-run prompt collapses to
-    `/spec phase-n-features.md` (a slash command at `.claude/commands/spec.md` with `$ARGUMENTS`,
+    `/spec phase-NN-slug.features.md` (a slash command at `.claude/commands/spec.md` with `$ARGUMENTS`,
     chosen over a skill — lighter, args substitute directly).~~ **Done (2026-07-05):** built as
     `.claude/commands/spec.md` (`disable-model-invocation: true`; no `model` field, so it inherits
     the session model per Kenneth's call; `argument-hint` set). Seven-step body: resolve inputs →
@@ -349,13 +349,13 @@ instead of deleting it — don't let history pile up here.
     optional:** `/spec` alone globs `*phase<N>-features.md`, picks the highest `N`, and announces
     the pick; `/spec <file>` targets a named one. Placed via the shell mount because this session
     guards writes to `.claude/`; verified on the Windows side. **First real live run confirmed (2026-07-05,
-    Phase 14 — see Done below):** `/spec` drafted `bootstrap-phase14-spec.md`, and the
+    Phase 14 — see Done below):** `/spec` drafted `docs/phases/phase-14-bootstrap.spec.md`, and the
     `spec-reviewer` subagent caught 3 real blocking issues (per-opener nudge dedup key, a
     required-hacking-level read scoped to only one candidate instead of all, inconsistent
     null-target poll behavior) — all fixed before implementation began. The loop worked
     end-to-end as designed, not just statically verified.
   - **Step 8 — brainstorm brief (optional):** have the opus brainstorm end by writing
-    `phase-n-features.md` itself (decisions, rejected alternatives, open questions) so even the
+    `phase-NN-slug.features.md` itself (decisions, rejected alternatives, open questions) so even the
     opus→fable handoff is a file, not a re-paste.
   - Deliberately rejected: multi-round author↔reviewer convergence (no natural stopping point;
     rubber-stamp and invented-nitpick failure modes). One review round; a manually requested

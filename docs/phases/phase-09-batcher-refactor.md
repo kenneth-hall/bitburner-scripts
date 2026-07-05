@@ -2,7 +2,7 @@
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 8 (see `batcher-refactor-phase8.md`) is merged to `master` and live-verified, `npm test` last green at 120/120 — but it closed with two acceptance items explicitly waived or degraded, plus one bug it discovered outside its own scope:
+Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 8 (see `phase-08-batcher-refactor.md`) is merged to `master` and live-verified, `npm test` last green at 120/120 — but it closed with two acceptance items explicitly waived or degraded, plus one bug it discovered outside its own scope:
 
 1. **The RAM anomaly, waived.** `daemon.js` measures 18.7 GB in-game vs. an expected ~16.3 GB (16.10 Phase-7 baseline + 0.2 for `getSharePower`) — a +2.4 GB unexplained delta that survived an extensive live bisection.
 2. **The income comparison, not clean.** Window A ran ~5 min (spec wants ≥10), and A′'s income rate was 4–5x everything else — dominated by natural hacking-level growth, not share. The rep-side result (share ≈ +45% rep/sec, consistent with measured sharePower 1.417) is solid and is **not** re-measured here.

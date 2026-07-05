@@ -3,7 +3,7 @@
 ## Context
 
 Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner
-watcher that syncs into the game). Requirements: `targeting-phase12-features.md`.
+watcher that syncs into the game). Requirements: `phase-12-targeting.features.md`.
 
 **The bug this phase fixes (live on the current save, 2026-07-05):** after a fresh
 augmentation install (no TOR router, no augments purchased, only the port-opener programs that
@@ -189,7 +189,7 @@ check after a restart, no manual reconnect expected).
 ## Files touched
 
 `src/targets.js`, `src/targetsmonitor.js`, `test/targets.test.js` (new), `BACKLOG.md`,
-plus this spec and `targeting-phase12-features.md` at repo root.
+plus this spec and `phase-12-targeting.features.md` at repo root.
 
 **Deliberately untouched:** `daemon.js` (inherits the fix via `getTargets` with zero code
 change — the RAM gate proves it), `hosts.js` (rooting behavior is correct and stays the sole

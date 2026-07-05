@@ -3,7 +3,7 @@
 **Stage:** requirements handoff for the spec stage, per `CLAUDE.md`'s Development workflow.
 This phase is an unplanned hotfix (it jumps the agreed post-Phase-11 priority queue) driven by
 a live error flood on the current save; the fold-in item rides along per BACKLOG's own guidance.
-The spec stage turns this into `targeting-phase12-spec.md`.
+The spec stage turns this into `phase-12-targeting.spec.md`.
 
 ## Goal
 

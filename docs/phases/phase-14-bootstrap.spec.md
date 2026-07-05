@@ -3,7 +3,7 @@
 ## Context
 
 Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner
-watcher that syncs into the game). Requirements: `bootstrap-phase14-features.md`.
+watcher that syncs into the game). Requirements: `phase-14-bootstrap.features.md`.
 
 **Why now (live on the current save, 2026-07-05):** the hard reset left an 8GB home, hacking
 level ~1, no TOR/port openers, no purchased servers. `daemon.js` measures 16.30GB and cannot
@@ -339,7 +339,7 @@ restart).
 `src/bootstrap.js` (new), `src/bootloop.js` (new), `vite.config.ts` (one filter line),
 `test/bootstrap.test.js` (new), `test/bootloop.test.js` (new),
 `test/verify-bootstrap.test.js` (new), `test/checker-fixtures.test.js` (new fixtures),
-`BACKLOG.md`, plus this spec and `bootstrap-phase14-features.md` at repo root.
+`BACKLOG.md`, plus this spec and `phase-14-bootstrap.features.md` at repo root.
 
 **Deliberately untouched:** `daemon.js`, `hosts.js`, `targets.js`, `scheduler.js`,
 `sampling.js`, all workers, `killscripts.js`, `resourcemanager.js` /

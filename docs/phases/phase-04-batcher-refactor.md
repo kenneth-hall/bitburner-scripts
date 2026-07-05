@@ -2,7 +2,7 @@
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 3 (see `batcher-refactor-phase3.md`) added the pipeline reservation waterfall, efficiency-score ranking, and shrink gating. The exported log confirms it works: over a 12.7-minute window, all 408 launched batches ran at full `HACK_FRACTION` with zero shrinks and zero failed launches, utilization averaged 88%, and skips behaved as saturation rather than fraction decay.
+Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 3 (see `phase-03-batcher-refactor.md`) added the pipeline reservation waterfall, efficiency-score ranking, and shrink gating. The exported log confirms it works: over a 12.7-minute window, all 408 launched batches ran at full `HACK_FRACTION` with zero shrinks and zero failed launches, utilization averaged 88%, and skips behaved as saturation rather than fraction decay.
 
 The same log surfaced the problem Phase 4 attacks alongside the Formulas upgrade: **the batch target flipped 14 times in 12.7 minutes** despite `RANK_HYSTERESIS`. Root cause is the known Phase 3 distortion — scores are sampled at *current* security, so a target's score jumps as prep completes and craters when it drifts. During fast early-run leveling, challengers routinely clear the 1.25× bar on sampling noise alone, and every flip abandons the incumbent pipeline's commitment.
 

@@ -2,7 +2,7 @@
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 5 (see `batcher-refactor-phase5.md`) is complete and live-verified; Phase 6 was implemented and fully reverted (see its status note — treat it as historical only). `npm test` was last green at 78/78.
+Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 5 (see `phase-05-batcher-refactor.md`) is complete and live-verified; Phase 6 was implemented and fully reverted (see its status note — treat it as historical only). `npm test` was last green at 78/78.
 
 Today the daemon batches exactly **one** target (the hysteresis-protected incumbent) and spends leftover RAM prepping the others. The most recent exported session (2026-07-04, ~11:30–11:39 AM, forced-legacy mode) shows why that now wastes most of the fleet: 397 batches across a 9-minute window, but **RAM utilization averaged ~6.3%** with ~957TB free in the waterfall, while the single-target slot churned through 6 different servers via 8 flips. The fleet can fund many full pipelines at once; the daemon can only drive one.
 

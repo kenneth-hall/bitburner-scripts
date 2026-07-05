@@ -1,4 +1,4 @@
-// Codified acceptance criteria (bootstrap-phase14-spec.md's work item 5).
+// Codified acceptance criteria (docs/phases/phase-14-bootstrap.spec.md's work item 5).
 // Reads a REAL exported logs/bootstrap-log.json -- run via `npm run
 // verify:log`, not `npm test` (see vitest.config.ts's exclude and this
 // project's own vitest.verify.config.ts). Path overridable via

@@ -382,7 +382,7 @@ describe('pickBatchSet', () => {
   });
 
   it('Phase 9 BACKLOG repro: pass-4 refill must not re-admit a server pass 3 just evicted', () => {
-    // Exact repro from batcher-refactor-phase9.md: displacing both incumbents
+    // Exact repro from docs/phases/phase-09-batcher-refactor.md: displacing both incumbents
     // frees 35 GB against a 12 GB entrant, leaving 23 GB of slack -- enough
     // for pass 4 to re-seat n00dles (cost 5) if it weren't excluded as
     // just-evicted. Before the fix this put n00dles in both `exits`

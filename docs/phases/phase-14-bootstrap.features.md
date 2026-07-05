@@ -4,7 +4,7 @@
 Like Phase 12, this jumps the agreed priority queue (Phase 13 consolidation has a features file
 but no spec/implementation yet): after the 2026-07-05 hard reset the entire automated income
 pipeline is offline, so nothing else in the backlog matters until it restarts. The spec stage
-turns this into `bootstrap-phase14-spec.md` (note `/spec` with no argument globs the highest
+turns this into `phase-14-bootstrap.spec.md` (note `/spec` with no argument globs the highest
 phase number — it will correctly pick this file).
 
 ## Goal

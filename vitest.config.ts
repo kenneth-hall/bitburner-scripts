@@ -1,6 +1,6 @@
 import { defineConfig, configDefaults } from 'vitest/config';
 
-// This file exists for three reasons (see batcher-refactor-phase4.md):
+// This file exists for three reasons (see docs/phases/phase-04-batcher-refactor.md):
 // 1. Without it, vitest auto-loads vite.config.ts -- which boots the
 //    viteburner plugin and its stdin-keypress export timer. A dedicated
 //    vitest config keeps `npm test` fully game-independent.

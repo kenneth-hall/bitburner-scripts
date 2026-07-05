@@ -9,12 +9,12 @@
 // only ever reserves, never spends. Named "resource manager" (not "finance
 // manager") because it budgets the money dimension now, shaped so a future
 // RAM dimension could slot in alongside it later (not built -- see
-// resource-manager-phase11-spec.md's Out of scope).
+// docs/phases/phase-11-resource-manager.spec.md's Out of scope).
 //
 // Zero Singularity calls (Kenneth's hard constraint -- without SF4 those
 // carry a 16x RAM multiplier): ownership is read via ns.fileExists/
 // ns.hasTorRouter, and prices are a static table verified once in-game (see
-// finance-cloud-phase10.md's Cost table / Live validation A1). If a live
+// docs/phases/phase-10-finance-cloud.md's Cost table / Live validation A1). If a live
 // price differs, fix the constant below -- that's the one allowed edit to a
 // "just a config fix", not a design change.
 //
@@ -75,7 +75,7 @@ export function parseManualExtra(raw) {
 
 /**
  * Pure. Builds the active reservation list from cheap ownership/state facts.
- * Each rule is independent and additive -- see finance-cloud-phase10.md's
+ * Each rule is independent and additive -- see docs/phases/phase-10-finance-cloud.md's
  * "Reservation rules" for the full rationale per rule.
  *
  * formulasDisabled is a manual kill switch (presence of FORMULAS_DISABLE_FILE)
