@@ -5,47 +5,7 @@ move finished items to Done with a date instead of deleting them.
 
 ## In Progress
 
-- **Phase 14 — cold-start bootstrap (8GB home → daemon.js handoff)** (2026-07-05, implementation
-  done, pending live validation): `bootstrap-phase14-features.md` → `bootstrap-phase14-spec.md`
-  (peer-reviewed via the `spec-reviewer` subagent — first real `/spec` live run; 3 blocking issues
-  found and fixed: per-opener nudge dedup key, requiredHackingLevel read for all candidates not
-  just the pick, null-target poll behavior unified). Jumps the post-Phase-11 priority queue (same
-  precedent as Phase 12) because the 2026-07-05 hard reset took the whole income pipeline
-  offline — `daemon.js` (16.3GB) can't load on the 8GB home. Design: two new scripts
-  (`bootstrap.js` deployer + `bootloop.js` remote worker; names confirmed by Kenneth at spec
-  review), single-best-target loops on rooted servers' RAM, control-file retargeting, auto-handoff
-  to `daemon.js` on a dynamic fit check (~19.3GB free, i.e. the 32GB home tier). Existing pipeline
-  untouched. Built on `worktree-phase14-bootstrap`.
-  - **`npm test` green at 231/231** (190 pre-phase + 12 `test/bootloop.test.js` +
-    21 `test/bootstrap.test.js` + 8 new `test/checker-fixtures.test.js` cases for the new
-    `test/verify-bootstrap-checks.js` checker). `test/verify-bootstrap.test.js` wired into
-    `npm run verify:log` via the existing glob, skip-clean confirmed before a real log exists.
-  - **RAM gate: closed (2026-07-05), via `ramcheck.js` → `logs/ramcheck-result.json`.**
-    Initial pass: `bootstrap.js` **6.00 GB** (predicted 6.00, hard ceiling <8.00), `bootloop.js`
-    **2.20 GB** (predicted 2.20, gate ≤2.2), `daemon.js` **16.30 GB** (flat, zero delta),
-    `killscripts.js` **3.00 GB** (first recorded baseline, matches predicted ~3.0) — every
-    number landed exactly on the spec's prediction, no identifier-hygiene hunt needed.
-  - **Live-validation bug found and fixed (2026-07-05): tail-popup thread count read 0 once
-    saturated.** `bootstrap.js`'s status print originally reported only *this poll's newly
-    launched* threads/hosts, which is legitimately 0 once every host already has a bootloop
-    resident — misleadingly implied nothing was running. First fix attempt (an in-memory
-    per-host accumulator) was itself wrong: it resets to 0 on every `bootstrap.js` restart even
-    though previously-launched `bootloop.js` workers keep running untouched, confirmed live when
-    Kenneth restarted `bootstrap.js` without killing anything and the display still read 0/0.
-    Real fix: a live `ns.ps()` sweep per poll (`countRunningBootloopThreads`), self-correcting
-    across restarts/manual kills since it asks the game for actual process state instead of
-    remembering what this instance launched. Cost `bootstrap.js` +0.20 GB (`ns.ps`, per
-    `markdown/bitburner.ns.ps.md`) — re-measured **6.20 GB**, still well under the 8.00 hard
-    ceiling. `npm test` stayed 231/231 through both fixes (display logic isn't unit-tested,
-    only the pure helpers are).
-  - **Live validation in progress (2026-07-05):** darkweb pre-check confirmed nothing survived
-    the hard reset. First `run bootstrap.js`: rooted all 10 zero-port servers plus CSEC on the
-    first poll, picked harakiri-sushi (fallback tier at hacking level ~1, later flipped to
-    primary as level climbed), deployed 88 bootloop threads across 11 hosts — `startup`,
-    `new-hosts`, `deploy` events all landed as designed. Remaining steps: purchase nudges,
-    `npm run verify:log` against the real log, and the handoff milestone the day home hits
-    32GB (recorded as a standing waived check until then, same convention as the fleetupgrade
-    waiver). Not merged to `master` yet — pending live validation completion.
+(none)
 
 ## Next Up
 
@@ -460,6 +420,50 @@ move finished items to Done with a date instead of deleting them.
     while browsing.
 
 ## Done (recent)
+
+- **Phase 14 — cold-start bootstrap (8GB home → daemon.js handoff)** (2026-07-05, done): `bootstrap-phase14-features.md` → `bootstrap-phase14-spec.md`
+  (peer-reviewed via the `spec-reviewer` subagent — first real `/spec` live run; 3 blocking issues
+  found and fixed: per-opener nudge dedup key, requiredHackingLevel read for all candidates not
+  just the pick, null-target poll behavior unified). Jumps the post-Phase-11 priority queue (same
+  precedent as Phase 12) because the 2026-07-05 hard reset took the whole income pipeline
+  offline — `daemon.js` (16.3GB) can't load on the 8GB home. Design: two new scripts
+  (`bootstrap.js` deployer + `bootloop.js` remote worker; names confirmed by Kenneth at spec
+  review), single-best-target loops on rooted servers' RAM, control-file retargeting, auto-handoff
+  to `daemon.js` on a dynamic fit check (~19.3GB free, i.e. the 32GB home tier). Existing pipeline
+  untouched. Built on `worktree-phase14-bootstrap`.
+  - **`npm test` green at 231/231** (190 pre-phase + 12 `test/bootloop.test.js` +
+    21 `test/bootstrap.test.js` + 8 new `test/checker-fixtures.test.js` cases for the new
+    `test/verify-bootstrap-checks.js` checker). `test/verify-bootstrap.test.js` wired into
+    `npm run verify:log` via the existing glob, skip-clean confirmed before a real log exists.
+  - **RAM gate: closed (2026-07-05), via `ramcheck.js` → `logs/ramcheck-result.json`.**
+    Initial pass: `bootstrap.js` **6.00 GB** (predicted 6.00, hard ceiling <8.00), `bootloop.js`
+    **2.20 GB** (predicted 2.20, gate ≤2.2), `daemon.js` **16.30 GB** (flat, zero delta),
+    `killscripts.js` **3.00 GB** (first recorded baseline, matches predicted ~3.0) — every
+    number landed exactly on the spec's prediction, no identifier-hygiene hunt needed.
+  - **Live-validation bug found and fixed (2026-07-05): tail-popup thread count read 0 once
+    saturated.** `bootstrap.js`'s status print originally reported only *this poll's newly
+    launched* threads/hosts, which is legitimately 0 once every host already has a bootloop
+    resident — misleadingly implied nothing was running. First fix attempt (an in-memory
+    per-host accumulator) was itself wrong: it resets to 0 on every `bootstrap.js` restart even
+    though previously-launched `bootloop.js` workers keep running untouched, confirmed live when
+    Kenneth restarted `bootstrap.js` without killing anything and the display still read 0/0.
+    Real fix: a live `ns.ps()` sweep per poll (`countRunningBootloopThreads`), self-correcting
+    across restarts/manual kills since it asks the game for actual process state instead of
+    remembering what this instance launched. Cost `bootstrap.js` +0.20 GB (`ns.ps`, per
+    `markdown/bitburner.ns.ps.md`) — re-measured **6.20 GB**, still well under the 8.00 hard
+    ceiling. `npm test` stayed 231/231 through both fixes (display logic isn't unit-tested,
+    only the pure helpers are).
+  - **Live validation: complete (2026-07-05), all 6 spec steps observed.** Darkweb pre-check
+    confirmed nothing survived the hard reset. `run bootstrap.js` rooted all 10 zero-port
+    servers plus CSEC on the first poll, picked harakiri-sushi (fallback tier at hacking level
+    ~1, later flipped to primary as level climbed, then neo-net), deployed up to 102 bootloop
+    threads across 12 hosts. Both nudges fired and were acted on: `tor-router` ($200k) then
+    `relaySMTP.exe` ($5M), Kenneth bought the TOR router live off the first nudge. Handoff fired
+    cleanly once home crossed the 32GB threshold (bought 64GB): `homeFreeRam: 57.8`, `daemonPid:
+    19`, `handoff` landed as the log's sole/terminal entry as designed — `bootstrap.js` exited,
+    `daemon.js` took over. `npm run verify:log` green (35/35) throughout, including against the
+    final log with every event kind (`startup`/`new-hosts`/`nudge`/`deploy`/`handoff`)
+    represented. Merged to `master`.
 
 - **Phase 12 — targeting: root-access eligibility fix (+ ratio→priority fold-in)**
   (2026-07-05, done; merged to `master` and pushed, branch `phase12-targeting`):
