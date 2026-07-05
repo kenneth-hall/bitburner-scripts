@@ -8,6 +8,26 @@ This directory is a learning exercise, not a normal software project. The goal i
 - **Give feedback proactively.** Periodically (and whenever it's relevant) comment on the user's Claude Code usage and prompting — what worked well, what could be clearer or more effective, better ways they could have asked for something, useful features/skills/commands they didn't use but could have. Treat this as an ongoing coaching relationship, not a one-time note.
 - **Don't cheat via other players' solutions.** Do not look up, reference, or adapt other users' direct implementations/solutions/scripts for Bitburner (e.g. GitHub repos of someone's personal Bitburner scripts, forum "here's my code" posts). Work from the game's own mechanics and API instead.
 
+## Development workflow
+
+Feature work moves through three stages, each handing off a durable **file** rather than
+re-pasted conversation:
+
+1. **Brainstorm (opus).** Work out the design interactively, then capture the decisions,
+   rejected alternatives, and open questions into a `phase-n-features.md` file — that file
+   is the handoff, not the chat.
+2. **Spec + review (fable).** Draft the phase spec to `phase-n-spec.md` from
+   `phase-n-features.md`, then delegate a cold-context peer review to the `spec-reviewer`
+   subagent (`.claude/agents/spec-reviewer.md`, opus by default). Address blocking issues;
+   record any disagreement with the reviewer as an open question in the spec rather than
+   forcing it. Present the final draft, a changelog of what the review changed, and open
+   questions before implementation begins.
+3. **Implement (sonnet).** Build from the approved spec on a feature branch/worktree, with
+   the tests / RAM gate / `npm run verify:log` / live validation the spec calls for.
+
+The engineering conventions below apply at every stage; the `spec-reviewer` checks the spec
+against them, so they don't need restating in each prompt.
+
 ## Tracking work
 
 - **Check `BACKLOG.md` for current priorities before starting work**, and keep it up to date — move items between In Progress / Next Up / Ideas / Done as status changes, with a date when something finishes.

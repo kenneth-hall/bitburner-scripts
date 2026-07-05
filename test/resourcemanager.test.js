@@ -1,4 +1,5 @@
-// Unit tests for src/financemanager.js's pure logic: parseManualExtra,
+// Unit tests for src/resourcemanager.js's pure logic (renamed from
+// financemanager.js in Phase 11, behavior unchanged): parseManualExtra,
 // computeReservations, computeAvailable, diffReservations.
 import { describe, it, expect } from 'vitest';
 import {
@@ -11,7 +12,7 @@ import {
   computeReservations,
   computeAvailable,
   diffReservations,
-} from '../src/financemanager.js';
+} from '../src/resourcemanager.js';
 
 const BASE_STATE = {
   serverCount: 1,

@@ -114,9 +114,9 @@ function launchDetached(ns, script, ...args) {
 }
 
 async function runAndWait(ns, script, ...args) {
-  // Singularity scripts (purchasescripts.js, upgradehomeram.js) carry a RAM
+  // Singularity scripts (procureprograms.js, upgradehomeram.js) carry a RAM
   // multiplier without SF4 and commonly just don't fit on home yet -- that's
-  // an expected, non-fatal outcome (see purchasescripts.js's own comment),
+  // an expected, non-fatal outcome (see procureprograms.js's own comment),
   // not a bug, so check for it up front and say so plainly instead of
   // surfacing a generic "failed to start" that reads like one.
   const scriptRam = ns.getScriptRam(script, "home");
@@ -328,11 +328,16 @@ export async function main(ns) {
   // itself via ns.ui.openTail().
   launchDetached(ns, "targetsmonitor.js");
   launchDetached(ns, "transactionsmonitor.js");
-  // Phase 10: finance manager first, so its state file usually exists by the
-  // upgrader's first poll -- a nicety, not a correctness requirement, since
-  // the upgrader's own stale/missing guard treats "no state yet" safely.
-  launchDetached(ns, "financemanager.js");
-  launchDetached(ns, "cloudupgrader.js");
+  // Phase 11: resource manager first, so its state file usually exists by
+  // its consumers' first polls -- a nicety, not a correctness requirement,
+  // since both consumers' stale/missing guards treat "no state yet" safely.
+  // cloudmanager.js is always-on cheap ns.cloud; procureprograms.js is the
+  // Singularity-heavy self-terminating TOR/port-opener fulfiller -- it exits
+  // on its own once everything it owns-checks is owned, freeing its RAM
+  // until the next daemon restart.
+  launchDetached(ns, "resourcemanager.js");
+  launchDetached(ns, "cloudmanager.js");
+  launchDetached(ns, "procureprograms.js");
 
   let hosts = [];
   let targets = [];

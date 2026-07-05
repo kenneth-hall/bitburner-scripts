@@ -1,8 +1,15 @@
-// Phase 10: reservation-based available-cash service. Decides how much cash
-// is *available* for other scripts to spend by holding reservations for
-// known upcoming hand-purchases (first cloud server, TOR, port openers,
+// Resource manager (Phase 11 rename of financemanager.js, charter unchanged
+// from Phase 10): reservation-based available-cash service. Decides how much
+// cash is *available* for other scripts to spend by holding reservations for
+// known upcoming purchases (first cloud server, TOR, port openers,
 // Formulas.exe) plus a manual override -- cash is either earmarked for a
-// known upcoming purchase or actively deployed, never idle by accident.
+// known upcoming purchase or actively deployed, never idle by accident. As
+// of Phase 11, most of those reservations are fulfilled automatically by
+// procureprograms.js/cloudmanager.js rather than hand-bought -- this script
+// only ever reserves, never spends. Named "resource manager" (not "finance
+// manager") because it budgets the money dimension now, shaped so a future
+// RAM dimension could slot in alongside it later (not built -- see
+// resource-manager-phase11-spec.md's Out of scope).
 //
 // Zero Singularity calls (Kenneth's hard constraint -- without SF4 those
 // carry a 16x RAM multiplier): ownership is read via ns.fileExists/
@@ -81,7 +88,7 @@ export function computeReservations({ serverCount, hasTor, ownedPrograms, hackin
   const reservations = [];
 
   if (serverCount === 0) {
-    reservations.push({ key: "bootstrap-server", label: "first cloud server (hand-buy)", amount: BOOTSTRAP_SERVER_COST });
+    reservations.push({ key: "bootstrap-server", label: "first cloud server (cloudmanager auto-buy)", amount: BOOTSTRAP_SERVER_COST });
   }
 
   if (!hasTor) {
