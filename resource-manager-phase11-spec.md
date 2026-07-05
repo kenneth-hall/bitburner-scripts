@@ -201,3 +201,25 @@ One non-blocking wording fix folded in above (the `test/finance.test.js` label-a
 ## Open questions
 
 None. S1–S7 record the spec-stage decisions with rationale; the features file's Decisions 1–7 were confirmed with Kenneth 2026-07-05; S1 (port-openers-only scope) and S2 (static price table) were re-confirmed with Kenneth at spec time (2026-07-05); the review raised no disputes to record.
+
+## Live implementation note (2026-07-05, discovered during Round B)
+
+This spec (and Phase 9/10 before it) assumed "Singularity RAM multiplier without SF4" meant the
+calls were usable without that Source-File, just at a higher RAM cost. That assumption was wrong:
+`purchaseTor`/`purchaseProgram` **throw a runtime error** (killing the whole script) when the
+account lacks the Source-File that Singularity purchasing requires — there is no graceful `false`
+return for that case, only for the ordinary failure modes (not enough money, already owned) this
+spec anticipated. Discovered live when `procureprograms.js` crashed on the first post-reset run.
+
+Fixed in `procureprograms.js` with two layers: (1) a proactive check via `ns.getResetInfo()`
+(1 GB, not itself Singularity-gated) that reads `ownedSF` and exits cleanly before ever attempting
+a purchase if the required Source-File isn't active; (2) a `try/catch` around both purchase calls
+as a backstop, in case the proactive check ever misses a case. Either path prints one message and
+exits (freeing the ~67 GB Singularity surface) rather than crashing — `resourcemanager.js`'s
+reservations are untouched, so hand-buying stays available exactly as it did before this phase.
+RAM gate updated: `procureprograms.js` is **67.25 GB** (66.25 + `getResetInfo`'s 1 GB), not 66.25.
+
+Round B (the one reset) validated the cloud-server side fully hands-off (bootstrap buy + upgrades,
+zero hand-buys) but could not validate the TOR/port-opener ladder at all — Kenneth's account
+doesn't have the required Source-File yet, so that half of this phase's headline acceptance
+criterion is unverifiable until it does. Not a code defect; filed as a BACKLOG follow-up.

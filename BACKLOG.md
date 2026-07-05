@@ -5,45 +5,20 @@ move finished items to Done with a date instead of deleting them.
 
 ## In Progress
 
-- **Phase 11 — resource manager: active procurement** (2026-07-05, code complete on
-  `worktree-phase11-procurement`, awaiting the RAM gate + live validation rounds):
-  `resource-manager-phase11-spec.md` (peer-reviewed, APPROVE with no blocking issues). Closes
-  the loop Phase 10 left open — automates the purchases `financemanager.js`'s reservations were
-  only protecting, so a fresh reset can bootstrap the fleet with zero hand-buys.
-  - **Three renames + one behavior evolution each:** `src/financemanager.js` → `resourcemanager.js`
-    (charter/behavior unchanged, label text updated); `src/cloudupgrader.js` → `cloudmanager.js`
-    (adds bootstrap-buy + growth-buy on top of the Phase 10 upgrade loop, via new pure
-    `shouldBuyGrowthServer`/`nextCloudName`); `src/purchasescripts.js` → `procureprograms.js`
-    (evolved from a single-pass darkweb-program sweep into a self-terminating TOR + port-opener
-    poll loop scoped to those two program types only, via new pure `planProgramPurchase`/
-    `bootstrapHoldbackFrom`; prices come from `resourcemanager.js`'s static cost table, not
-    darkweb reads). All three `git mv`'d with history preserved.
-  - `daemon.js` startup now launches all three under their new names (`procureprograms.js` is
-    the one net-new `launchDetached` call); `test/verify-transactions.test.js`'s
-    `VALID_EXPENSE_SOURCES` gained `auto-tor`/`auto-port-opener`/`auto-cloud-purchase` (old
-    `darkweb-program` kept for historical logs); `vite.config.ts` and `renamecloudservers.js`
-    comments updated; grep-confirmed zero remaining functional references to the three old
-    filenames (only intentional rename-provenance comments remain).
-  - **`npm test` green at 184/184** (up from Phase 10's 162/162): renamed suites
-    (`test/resourcemanager.test.js`, `test/cloudmanager.test.js`, both `git mv`'d) plus 12 new
-    `test/procureprograms.test.js` cases and 10 new `shouldBuyGrowthServer`/`nextCloudName`
-    cases in `test/cloudmanager.test.js`.
-  - **Synthetic-fixture confirmation done (2026-07-05):** a temporary `TRANSACTIONS_LOG_DIR`
-    fixture confirmed `verify-transactions` accepts all three new sources (`auto-tor`,
-    `auto-port-opener`, `auto-cloud-purchase`) and still fails clean on an unknown source
-    (`unknown expense source not-a-real-source`); fixture removed after, nothing committed.
-    `npm run verify:log` also re-run clean against the real `logs/` (28/28) — unaffected by the
-    rename since no new writer has landed a real record yet.
-  - Every RAM cost the spec cites (`purchaseServer` 2.25, `getServerCost` 0.25, `getServerLimit`
-    0.05, `purchaseTor`/`purchaseProgram` 32 each, `hasTorRouter` 0.05, `fileExists` 0.1,
-    `getPlayer` 0.5) re-confirmed directly against `markdown/` during implementation, not just
-    trusted from the spec.
-  - **Not yet done:** the RAM gate (`daemon.js`/`resourcemanager.js`/`cloudmanager.js`/
-    `procureprograms.js`, predicted 16.30/3.35/6.25/66.25) and both live validation rounds
-    (Round A on the current save, Round B piggybacked on the next augment-install reset) are
-    Kenneth's steps per the spec — nothing here has been run in-game yet.
-
 ## Next Up
+
+- **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
+  Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
+  "no matter what." Recommended against running the full ~67GB script resident indefinitely — the
+  RAM cost is fixed for as long as it's alive regardless of activity, and the wait for the
+  Source-File it needs could be long, so that RAM is better spent on the hacking/growing/weakening
+  worker pool in the meantime. Proposed instead: a tiny (~1GB) always-on watcher that polls
+  `ns.getResetInfo().ownedSF` cheaply and only `exec`s `procureprograms.js` once that Source-File is
+  actually active, instead of holding the full footprint the whole time. Not yet built — Kenneth
+  hadn't decided between this and just remembering to manually re-run it. Revisit alongside the
+  "re-validate TOR/port-opener automation" Ideas item below, since they're the same follow-up.
+
+
 
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
   same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
@@ -55,6 +30,14 @@ move finished items to Done with a date instead of deleting them.
   specifically before assuming it applies. Renaming `WORKER_SCRIPTS`' keys is a wider refactor
   than this phase's scope (touches every `WORKER_SCRIPTS[...]` call site across `scheduler.js`,
   `daemon.js`, `sampling.js`) — not started.
+  - **Live-confirmed the mechanism again, a different flavor, in Phase 11 (2026-07-05):**
+    `cloudmanager.js`'s `nextCloudName` called `CLOUD_NAME_PATTERN.exec(name)` — plain
+    `RegExp.prototype.exec`, nothing to do with `ns.exec` — and got charged the full 1.30 GB
+    `ns.exec` cost anyway (`mem cloudmanager.js` showed it plainly: `1.30GB | exec (fn)`). Fixed
+    there via `name.match(...)` instead. This is the same textual-collision theory as the
+    `WORKER_SCRIPTS` suspicion above, now confirmed for a *method name* collision (not just a
+    standalone identifier or object key) — raises confidence that the `WORKER_SCRIPTS` phantom
+    charge is real and worth the E-matrix confirmation pass.
 
 - **targetsmonitor "ratio" column → actual priority metric**: Investigated a suspected bug
   (2026-07-04) — "ratio" numbers looked suspiciously round/inconsistent, hypothesis was that
@@ -203,6 +186,14 @@ move finished items to Done with a date instead of deleting them.
     live-validation follow-up when built, same as the waived fleetupgrade test.
 
 ## Ideas / Backlog
+
+- **Re-validate `procureprograms.js`'s TOR/port-opener ladder live** (2026-07-05, filed from Phase
+  11's Round B): Kenneth's account doesn't yet have the Source-File `ns.singularity.purchaseTor`/
+  `purchaseProgram` require, so the auto-buy ladder has never actually been observed working live —
+  only its "can't run yet, exit cleanly" path has. Once that Source-File is available, `run
+  procureprograms.js` (or a `daemon.js` restart) should walk TOR then the port openers automatically;
+  worth a deliberate check the first time it's possible, since the code path is untested in reality.
+  Pairs with the lightweight watcher-script idea in Next Up.
 
 - **Phase 10 follow-ups** (2026-07-05, filed per `finance-cloud-phase10.md`'s Files section;
   none of these block Phase 10 sign-off):
@@ -414,6 +405,60 @@ move finished items to Done with a date instead of deleting them.
     while browsing.
 
 ## Done (recent)
+
+- **Phase 11 — resource manager: active procurement** (2026-07-05, done; branch
+  `worktree-phase11-procurement`, not yet merged/pushed): `resource-manager-phase11-spec.md`
+  (peer-reviewed, APPROVE with no blocking issues; postscript added after Round B — see below).
+  Closes the loop Phase 10 left open — automates the purchases `financemanager.js`'s reservations
+  were only protecting, so a fresh reset can bootstrap the fleet with minimal hand-buys.
+  - **Three renames + one behavior evolution each:** `src/financemanager.js` → `resourcemanager.js`
+    (charter/behavior unchanged, label text updated); `src/cloudupgrader.js` → `cloudmanager.js`
+    (adds bootstrap-buy + growth-buy on top of the Phase 10 upgrade loop, via new pure
+    `shouldBuyGrowthServer`/`nextCloudName`); `src/purchasescripts.js` → `procureprograms.js`
+    (evolved from a single-pass darkweb-program sweep into a self-terminating TOR + port-opener
+    poll loop scoped to those two program types only, via new pure `planProgramPurchase`/
+    `bootstrapHoldbackFrom`; prices come from `resourcemanager.js`'s static cost table, not
+    darkweb reads). All three `git mv`'d with history preserved.
+  - `daemon.js` startup now launches all three under their new names; `test/verify-transactions.test.js`'s
+    `VALID_EXPENSE_SOURCES` gained `auto-tor`/`auto-port-opener`/`auto-cloud-purchase` (old
+    `darkweb-program` kept for historical logs); `vite.config.ts` and `renamecloudservers.js`
+    comments updated; grep-confirmed zero remaining functional references to the three old
+    filenames (only intentional rename-provenance comments remain).
+  - **`npm test` green at 184/184** (up from Phase 10's 162/162).
+  - **RAM gate: closed.** `daemon.js` 16.30, `resourcemanager.js` 3.35, `cloudmanager.js` 6.25,
+    `procureprograms.js` **67.25** (see fixes below) — all matching prediction or explained.
+    `cloudmanager.js` first measured 7.55 (1.30 GB over); `mem cloudmanager.js` traced it to
+    `ns.exec`, caused by `nextCloudName`'s `CLOUD_NAME_PATTERN.exec(name)` — the RAM analyzer
+    charges the full `ns.exec` cost for any literal `.exec(` in a script regardless of what it's
+    called on (same identifier-hygiene mechanism as the `WORKER_SCRIPTS` suspicion below, confirmed
+    live here for the first time). Fixed via `name.match(CLOUD_NAME_PATTERN)`, re-measured clean
+    at 6.25.
+  - **Round A: complete and green** — rename smoke test, manual-override gate, staleness fail-safe,
+    off switch, `npm run verify:log` (28/28 against real logs) all passed live.
+  - **Round B (the one reset): partial pass, and a real bug found.** `cloudmanager.js`'s side
+    validated fully hands-off — `bootstrap-server` reservation released within 2s of `daemon.js`
+    restarting, `cloud-0` auto-bought and auto-upgraded through several tiers, zero hand-buys.
+    But `procureprograms.js` **crashed** on its first post-reset pass:
+    `ns.singularity.purchaseTor()` **throws** (doesn't return `false`) when the account lacks the
+    Source-File Singularity purchasing requires — an assumption error going back to Phase 9/10's
+    "RAM multiplier without SF4" language, which read as "usable, just pricier," not "hard-gated."
+    Kenneth doesn't have that Source-File yet, so the TOR/port-opener half of this phase's
+    zero-hand-buy goal is unverifiable for now — not a code defect, just unreachable at this stage
+    of the save. Fixed with two layers: a proactive `ns.getResetInfo().ownedSF` check (1 GB, not
+    itself Singularity-gated) that exits cleanly before ever attempting a purchase, plus a
+    `try/catch` backstop around both purchase calls in case the proactive check ever misses a
+    case. Either path prints one message and exits, freeing the ~67GB surface, same as the
+    "everything owned" exit; `resourcemanager.js`'s reservations are untouched, so hand-buying TOR
+    and the port openers is still available exactly as before this phase. Verified live: re-running
+    `procureprograms.js` now exits cleanly with `"can't auto-buy yet (Source-File 4 not active)"`
+    instead of crashing. `npm test` stayed 184/184 through both fixes. Full writeup in the spec's
+    "Live implementation note" postscript.
+  - **Not pushed yet** — local branch only, pending Kenneth's final go-ahead.
+  - **Follow-ups filed:** re-validate the TOR/port-opener ladder live once the required Source-File
+    is available (Ideas/Backlog); the lightweight watcher-script idea (Next Up) as an alternative
+    to a manual re-run at that point; decide whether to hand-buy TOR + FTPCrack.exe now to relieve
+    their reservation in the meantime, or leave them reserved (Kenneth's call, undecided as of
+    2026-07-05).
 
 - **Phase 10 — finance manager + cloud server auto-upgrader** (2026-07-05, done; branch
   `worktree-phase10-finance` merged to `master` at `5e5f74d`): `finance-cloud-phase10.md`. Two new

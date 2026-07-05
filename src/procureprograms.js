@@ -30,6 +30,14 @@
 // own tor-router/next-port-opener reservations) is deliberately ignored --
 // this script is their fulfiller, so gating on them would be circular;
 // beyond the one foothold guard, purchases race cheapest-first by design.
+//
+// Missing-Source-File fail-safe (discovered live, not in the original spec):
+// purchaseTor/purchaseProgram throw a runtime error -- they don't return
+// false -- when the account lacks the Source-File that Singularity API
+// requires. Both calls are wrapped in try/catch; a throw prints one WARN and
+// exits immediately (exitSingularityUnavailable), same as the "everything
+// owned" exit. resourcemanager.js's reservations are untouched by this, so
+// the cash stays protected for a hand-buy exactly like before this phase.
 
 import { recordTransaction } from "./translog.js";
 import { PORT_OPENER_COSTS, TOR_ROUTER_COST } from "./resourcemanager.js";
@@ -86,6 +94,32 @@ function readFinanceState(ns) {
   }
 }
 
+/**
+ * purchaseTor/purchaseProgram throw (not return false) when the account
+ * lacks the Source-File this Singularity API requires -- discovered live,
+ * not documented in the spec, which assumed a graceful `false`. Nothing
+ * about that will change mid-session, so treat it as permanent for this
+ * run: print once and let the caller return, exiting and freeing the ~66GB
+ * surface. resourcemanager.js's reservations are untouched by this, so the
+ * cash stays protected for a hand-buy exactly like before this phase existed.
+ */
+function exitSingularityUnavailable(ns, callLabel, error) {
+  tprintTs(ns, `WARN: ${callLabel} threw -- Singularity purchases unavailable right now (${error?.message ?? error})`);
+  ns.tprint("===== procureprograms summary =====");
+  ns.tprint("  can't auto-buy yet -- exiting. resourcemanager.js's reservations still protect the cash for a hand-buy.");
+}
+
+/**
+ * getResetInfo (1 GB, not itself Singularity-gated) reports which
+ * Source-Files are currently active -- checked up front so the common case
+ * (SF4 missing) never touches purchaseTor/purchaseProgram at all, instead of
+ * relying solely on catching their throw. The try/catch stays as a backstop
+ * for any case this check doesn't cover.
+ */
+function hasSourceFile4(ns) {
+  return (ns.getResetInfo().ownedSF.get(4) ?? 0) > 0;
+}
+
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
@@ -111,6 +145,12 @@ export async function main(ns) {
       return;
     }
 
+    if (!hasSourceFile4(ns)) {
+      ns.tprint("===== procureprograms summary =====");
+      ns.tprint("  can't auto-buy yet (Source-File 4 not active) -- exiting. Reservations still protect the cash for a hand-buy.");
+      return;
+    }
+
     const timeLabel = new Date().toLocaleTimeString();
     const state = readFinanceState(ns);
     const stale = isStateStale(state?.timestamp ?? null, Date.now(), STALE_MS);
@@ -133,7 +173,14 @@ export async function main(ns) {
 
     let statusLine;
     if (plan.action === "buy-tor") {
-      if (ns.singularity.purchaseTor()) {
+      let bought_;
+      try {
+        bought_ = ns.singularity.purchaseTor();
+      } catch (e) {
+        exitSingularityUnavailable(ns, "purchaseTor", e);
+        return;
+      }
+      if (bought_) {
         const nowMs = Date.now();
         recordTransaction(ns, {
           type: "expense",
@@ -150,7 +197,14 @@ export async function main(ns) {
         statusLine = "purchaseTor() failed, retrying";
       }
     } else if (plan.action === "buy-program") {
-      if (ns.singularity.purchaseProgram(plan.file)) {
+      let bought_;
+      try {
+        bought_ = ns.singularity.purchaseProgram(plan.file);
+      } catch (e) {
+        exitSingularityUnavailable(ns, `purchaseProgram(${plan.file})`, e);
+        return;
+      }
+      if (bought_) {
         const nowMs = Date.now();
         recordTransaction(ns, {
           type: "expense",

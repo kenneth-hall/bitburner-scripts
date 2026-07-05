@@ -75,11 +75,15 @@ export function shouldBuyGrowthServer(fleet, ramLimit, serverLimit) {
  * the pattern (e.g. legacy pserv-*) claim nothing. Mirrors
  * renamecloudservers.js's nextIndex exactly, so a later manual rename run
  * stays idempotent alongside auto-bought servers.
+ *
+ * Uses String.match, not RegExp.exec -- the RAM analyzer charges the full
+ * ns.exec (1.30 GB) for any literal ".exec(" in the script, regardless of
+ * what it's actually called on (Phase 9's identifier-hygiene lesson).
  */
 export function nextCloudName(ownedNames) {
   const usedIndices = new Set();
   for (const name of ownedNames) {
-    const match = CLOUD_NAME_PATTERN.exec(name);
+    const match = name.match(CLOUD_NAME_PATTERN);
     if (match) usedIndices.add(Number(match[1]));
   }
   let index = 0;
