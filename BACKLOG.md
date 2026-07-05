@@ -424,6 +424,18 @@ move finished items to Done with a date instead of deleting them.
 
 ## Done (recent)
 
+- **Docs/memory cleanup — strip git rules to version-control basics** (2026-07-05, done; merged to
+  `master` via `docs/slim-git-rules`, branch deleted): Kenneth wanted the git *implementation* rules
+  gone — he cares that version control exists and is used, not how it's run. `CLAUDE.md`: slimmed the
+  `## Git` section to "branch/commit/merge in interactive sessions, no need to ask" **plus** the kept
+  background-job merge safety rail; dropped the "commit phase docs alongside code" workflow mechanic —
+  committed as `c74548a`. Memory (user-scoped, nothing to commit): 10 files → 7 — deleted the
+  pure-git-mechanics memories `one_branch_at_a_time`, `push_phase_docs`, and
+  `no_background_jobs_for_git_merge_workflows` (its safety-rail substance now lives only in
+  `CLAUDE.md`, still harness-enforced); reframed `verification_loop_is_live_game` around the
+  test-in-the-live-game discipline with the git plumbing stripped out; repointed/removed dead
+  `[[links]]` and updated `MEMORY.md`'s index.
+
 - **Docs/memory cleanup — CLAUDE.md dedupe + memory consolidation** (2026-07-05, done; merged to
   `master` via `docs/claudemd-dedupe`, branch deleted): audit of `CLAUDE.md` and the `~/.claude`
   auto-memory for redundancy. `CLAUDE.md`: folded the duplicate "verify against the log files"
