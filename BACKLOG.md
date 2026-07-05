@@ -21,16 +21,31 @@ move finished items to Done with a date instead of deleting them.
     `test/verify-bootstrap-checks.js` checker). `test/verify-bootstrap.test.js` wired into
     `npm run verify:log` via the existing glob, skip-clean confirmed before a real log exists.
   - **RAM gate: closed (2026-07-05), via `ramcheck.js` → `logs/ramcheck-result.json`.**
-    `bootstrap.js` **6.00 GB** (predicted 6.00, hard ceiling <8.00), `bootloop.js` **2.20 GB**
-    (predicted 2.20, gate ≤2.2), `daemon.js` **16.30 GB** (flat, zero delta), `killscripts.js`
-    **3.00 GB** (first recorded baseline, matches predicted ~3.0) — every number landed exactly
-    on the spec's prediction, no identifier-hygiene hunt needed.
-  - **Live validation: not yet run.** Next: Kenneth runs `run bootstrap.js` on the actual
-    reset save per the spec's live-validation steps 1–6 (pre-check darkweb survivors, deploy
-    loops root the 0-port set, `bootstrap-log.json` events, purchase nudges, `npm run
-    verify:log` against the real log, and the handoff milestone the day home hits 32GB —
-    recorded as a standing waived check until then, same convention as the fleetupgrade
-    waiver). Not merged to `master` yet — pending live validation.
+    Initial pass: `bootstrap.js` **6.00 GB** (predicted 6.00, hard ceiling <8.00), `bootloop.js`
+    **2.20 GB** (predicted 2.20, gate ≤2.2), `daemon.js` **16.30 GB** (flat, zero delta),
+    `killscripts.js` **3.00 GB** (first recorded baseline, matches predicted ~3.0) — every
+    number landed exactly on the spec's prediction, no identifier-hygiene hunt needed.
+  - **Live-validation bug found and fixed (2026-07-05): tail-popup thread count read 0 once
+    saturated.** `bootstrap.js`'s status print originally reported only *this poll's newly
+    launched* threads/hosts, which is legitimately 0 once every host already has a bootloop
+    resident — misleadingly implied nothing was running. First fix attempt (an in-memory
+    per-host accumulator) was itself wrong: it resets to 0 on every `bootstrap.js` restart even
+    though previously-launched `bootloop.js` workers keep running untouched, confirmed live when
+    Kenneth restarted `bootstrap.js` without killing anything and the display still read 0/0.
+    Real fix: a live `ns.ps()` sweep per poll (`countRunningBootloopThreads`), self-correcting
+    across restarts/manual kills since it asks the game for actual process state instead of
+    remembering what this instance launched. Cost `bootstrap.js` +0.20 GB (`ns.ps`, per
+    `markdown/bitburner.ns.ps.md`) — re-measured **6.20 GB**, still well under the 8.00 hard
+    ceiling. `npm test` stayed 231/231 through both fixes (display logic isn't unit-tested,
+    only the pure helpers are).
+  - **Live validation in progress (2026-07-05):** darkweb pre-check confirmed nothing survived
+    the hard reset. First `run bootstrap.js`: rooted all 10 zero-port servers plus CSEC on the
+    first poll, picked harakiri-sushi (fallback tier at hacking level ~1, later flipped to
+    primary as level climbed), deployed 88 bootloop threads across 11 hosts — `startup`,
+    `new-hosts`, `deploy` events all landed as designed. Remaining steps: purchase nudges,
+    `npm run verify:log` against the real log, and the handoff milestone the day home hits
+    32GB (recorded as a standing waived check until then, same convention as the fleetupgrade
+    waiver). Not merged to `master` yet — pending live validation completion.
 
 ## Next Up
 

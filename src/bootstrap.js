@@ -108,6 +108,31 @@ function flushBootLog(ns, entries) {
   ns.write(LOG_FILE, JSON.stringify(entries, null, 2), "w");
 }
 
+/**
+ * Live ns.ps() sweep for the display's "total threads" line -- deliberately
+ * NOT a running total kept in this instance's own memory, since that would
+ * go stale (reset to 0) every time bootstrap.js itself restarts even though
+ * previously-launched bootloop.js workers keep running untouched. Reading
+ * real process state instead is self-correcting across restarts, manual
+ * kills, or crashes.
+ */
+function countRunningBootloopThreads(ns, hosts) {
+  let totalThreads = 0;
+  let hostCount = 0;
+  for (const host of hosts) {
+    if (host.hostname === "home") continue;
+    let hostThreads = 0;
+    for (const proc of ns.ps(host.hostname)) {
+      if (proc.filename === BOOTLOOP_SCRIPT) hostThreads += proc.threads;
+    }
+    if (hostThreads > 0) {
+      totalThreads += hostThreads;
+      hostCount++;
+    }
+  }
+  return { totalThreads, hostCount };
+}
+
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
@@ -197,10 +222,12 @@ export async function main(ns) {
     const pick = pickBootstrapTarget(candidates, myHackLevel);
 
     if (pick === null) {
-      lastStatus = { target: null, tier: "-", totalThreads: 0, hostCount: 0 };
+      const running = countRunningBootloopThreads(ns, hosts);
+      lastStatus = { target: null, tier: "-", totalThreads: running.totalThreads, hostCount: running.hostCount };
       ns.clearLog();
       ns.print(`===== bootstrap @ ${new Date().toLocaleTimeString()} =====`);
       ns.print("no eligible targets yet");
+      ns.print(`threads still running: ${lastStatus.totalThreads} on ${lastStatus.hostCount} host(s)`);
       await ns.sleep(POLL_MS);
       continue;
     }
@@ -264,12 +291,8 @@ export async function main(ns) {
       lastNudgeLabel = nudge.key;
     }
 
-    lastStatus = {
-      target: pick.hostname,
-      tier,
-      totalThreads: deployed.reduce((sum, d) => sum + d.threads, 0),
-      hostCount: deployed.length,
-    };
+    const running = countRunningBootloopThreads(ns, hosts);
+    lastStatus = { target: pick.hostname, tier, totalThreads: running.totalThreads, hostCount: running.hostCount };
 
     ns.clearLog();
     ns.print(`===== bootstrap @ ${new Date().toLocaleTimeString()} =====`);
