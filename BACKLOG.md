@@ -424,6 +424,17 @@ move finished items to Done with a date instead of deleting them.
 
 ## Done (recent)
 
+- **Docs/memory cleanup — CLAUDE.md dedupe + memory consolidation** (2026-07-05, done; merged to
+  `master` via `docs/claudemd-dedupe`, branch deleted): audit of `CLAUDE.md` and the `~/.claude`
+  auto-memory for redundancy. `CLAUDE.md`: folded the duplicate "verify against the log files"
+  clause out of *Communication* into the *Prefer exported logs* engineering bullet (they said the
+  same thing) — the only repo change, committed as `ef72433`. Memory (user-scoped, nothing to
+  commit): 13 files → 10 — merged the two Phase-5 stranded-branch memories into one
+  `verification_loop_is_live_game`; folded `debug_observability_first` into `own_npm_run_dev`;
+  merged `dev_server_auto_reconnect` + `viteburner_stale_connection_workaround` into
+  `dev_server_connection_health`; repointed all `[[links]]`, removed the dangling
+  `[[bitburner-scripts-branching]]` references, and rewrote `MEMORY.md`'s index to match.
+
 - **Phase 14 — cold-start bootstrap (8GB home → daemon.js handoff)** (2026-07-05, done): `bootstrap-phase14-features.md` → `bootstrap-phase14-spec.md`
   (peer-reviewed via the `spec-reviewer` subagent — first real `/spec` live run; 3 blocking issues
   found and fixed: per-opener nudge dedup key, requiredHackingLevel read for all candidates not
