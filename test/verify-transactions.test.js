@@ -23,6 +23,7 @@ const VALID_EXPENSE_SOURCES = new Set([
   'darkweb-program',
   'home-ram-upgrade',
   'single-server-upgrade', // upgradecloudserver.js -- missing from this whitelist since that script's own phase; found via a real 2026-07-04 session log
+  'auto-cloud-upgrade', // cloudupgrader.js (Phase 10)
 ]);
 const VALID_INCOME_SOURCES = new Set(['hacking']);
 

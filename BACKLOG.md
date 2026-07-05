@@ -5,6 +5,85 @@ move finished items to Done with a date instead of deleting them.
 
 ## Next Up
 
+- **Phase 10 — finance manager + cloud server auto-upgrader** (2026-07-05, spec approved by
+  Kenneth; **[code] work implemented, branch `worktree-phase10-finance`, awaiting Kenneth's
+  [live] validation below before merge**): `finance-cloud-phase10.md`. Two new daemon-launched
+  companions: `financemanager.js` (reservation-based available-cash service — 110k first-server
+  bootstrap, TOR, cheapest unowned port opener, Formulas.exe above hacking 300, plus a
+  `finance-reserve-extra.txt` manual override as the augment stopgap; zero Singularity calls,
+  static price table verified in-game; publishes `finance-state.json`, tprints reservation
+  changes, exports `finance-log.json`) and `cloudupgrader.js` (its first customer — upgrades the
+  lowest-RAM cloud server one tier at a time from available cash only; upgrade-only, no
+  purchases, no renames; `cloud-upgrade-off.txt` pause marker; stale-state fail-safe;
+  `auto-cloud-upgrade` transactions records). Peer-reviewed 2026-07-05 (two blocking issues
+  fixed: `upgradeServer(false)` loop-termination path, startup-event kind in the finance log).
+  Live validation is reset-budgeted: Round A needs no reset (manual-override gate test proves
+  the reserve→gate chain today); Round B piggybacks on the next natural augment install (≤2
+  resets, aim 1); upper ladder rungs deferred past sign-off as follow-ups.
+  - **Runnable acceptance closed (2026-07-05): `npm test` green at 159/159** (128 pre-existing +
+    21 new `test/finance.test.js` + 10 new `test/cloudupgrader.test.js`). New
+    `test/verify-finance.test.js` wired into the existing `verify-*` glob (`npm run verify:log`)
+    — confirmed skip-clean against no real `finance-log.json` yet, and confirmed
+    fail-clean/pass-clean against synthetic malformed/well-formed fixtures (placed at a temp
+    path via `FINANCE_LOG_PATH`, then removed).
+  - **RAM predictions (from markdown-verified per-call costs, to check against `ramcheck.js`
+    live):** `financemanager.js` ≈ **3.35 GB** (1.6 base + `getPlayer` 0.5 + `cloud.getServerNames`
+    1.05 + `hasTorRouter` 0.05 + `getHackingLevel` 0.05 + `fileExists` 0.1, one charge shared
+    across all six ownership checks) — lands exactly on the spec's own estimate.
+    `cloudupgrader.js` ≈ **3.70 GB** (1.6 base + `getPlayer` 0.5 + `cloud.getServerNames` 1.05 +
+    `cloud.getRamLimit` 0.05 + `getServerMaxRam` 0.05 + `cloud.getServerUpgradeCost` 0.1 +
+    `cloud.upgradeServer` 0.25 + `fileExists` 0.1; `translog.js`'s `recordTransaction` adds 0 via
+    `ns.read`/`ns.write`). `daemon.js` itself: **+0.00 expected** (exec-by-filename only, no new
+    `ns` surface).
+  - **RAM gate: closed (2026-07-05).** `run ramcheck.js daemon.js financemanager.js
+    cloudupgrader.js` in-game: `daemon.js` **16.3 GB** (exact match to the Phase 9 baseline,
+    zero growth as expected), `financemanager.js` **3.35 GB**, `cloudupgrader.js` **3.7 GB** —
+    both exact matches to the predicted numbers above. No identifier-hygiene hunt needed.
+    (Hit the known "viteburner dev-server silently stops auto-exporting" bug again getting this
+    reading — `npm run dev` was up but `logs/ramcheck-result.json` wasn't updating; killed and
+    restarted it, which fixed it immediately, same workaround as prior occurrences.)
+  - **Round A, in progress (2026-07-05), on the current save:**
+    - **Item 2 (startup wiring): passed.** Daemon restart opened both new tails; on this save
+      (everything owned already) `finance-log.json`'s startup entry showed exactly the expected
+      `reservations: []`, `available === money`.
+    - **Item 4 (upgrader spending run): passed, validated live unprompted** the moment the
+      daemon restarted (nothing was reserved on this save, so `cloudupgrader.js` started
+      spending immediately). 7 correctly-priced `auto-cloud-upgrade` records upgraded a single
+      server 4096GB → 524288GB (each cost exactly 2x the previous, matching the doubling-tier
+      math); no renames; daemon batching undisturbed (the one logged "exit" was ordinary
+      RAM-budget churn from the fleet's capacity jump, not a defect).
+    - **Item 3 (the manual-override gate — the phase's core safety property): passed, both
+      directions.** `write finance-reserve-extra.txt 999999999999` → `manual-extra` reservation
+      appeared within one poll, `available` clamped to $0, zero upgrades landed while it was
+      active. `rm finance-reserve-extra.txt` → reservation released within one poll, `changed:
+      ["manual-extra"]`; the very next upgrade is currently blocked only by real unaffordability
+      (the next tier, 524288GB → the 1,048,576GB ceiling, costs ~$28.8B against ~$26.3B
+      available at release time — expected loop behavior, not a stall).
+    - **Item 7 (`npm run verify:log` green): passed** across daemon/transactions/finance logs
+      at every checkpoint above (28/28).
+    - **Item 5 (off switch): passed, both directions** — `write cloud-upgrade-off.txt` flipped
+      the tail to `PAUSED` (visually confirmed), no `auto-cloud-upgrade` records landed while
+      paused despite money climbing toward the next tier's cost; `rm cloud-upgrade-off.txt`
+      brought it back out of PAUSED (visually confirmed) within one poll.
+    - **Item 6 (kill/restart resilience): passed.** `kill financemanager.js` alone (leaving
+      `cloudupgrader.js`/`daemon.js` running) → within `STALE_MS` the upgrader's tail showed
+      "state stale" and printed exactly one WARN (not spam), confirmed visually. No spending
+      during the stale window (last `auto-cloud-upgrade` record — #8, `cloud-0` 524288GB →
+      1,048,576GB, the absolute RAM ceiling, using the last-known-good state right before
+      staleness engaged — landed *before* the kill, nothing after). `run financemanager.js` →
+      re-announced cleanly (`finance-log.json` gained a fresh `startup` entry, correctly showing
+      "no active reservations" against the post-spend ~$3.84B balance); `cloudupgrader.js`
+      dropped the stale flag and correctly reported "fleet maxed" (confirmed visually) — the
+      single owned server is now at the documented 1,048,576GB ceiling, so there's nothing left
+      to spend on regardless of finance state.
+    - **Round A: complete**, except item 1 (price table cross-check against live `buy -l`,
+      explicitly soft/deferred — everything's already owned on this save; Round B's fresh-reset
+      state is the real test for that). **Next: Round B on Kenneth's next natural augment
+      install.**
+    - **Aside, unblocked mid-session:** Kenneth asked for a rename-only utility (see the Ideas
+      section's Phase 10 follow-ups) after seeing `pserv-4096gb-0`'s name go stale live during
+      item 4 above — shipped as `src/renamecloudservers.js`, already run once successfully.
+
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
   same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
   likely also applies to `WORKER_SCRIPTS`' keys — `hack`/`grow`/`weaken` (`scheduler.js`) match
@@ -161,6 +240,23 @@ move finished items to Done with a date instead of deleting them.
 
 ## Ideas / Backlog
 
+- **Phase 10 follow-ups** (2026-07-05, filed per `finance-cloud-phase10.md`'s Files section;
+  none of these block Phase 10 sign-off):
+  - **Augment reservation cost model**: `financemanager.js`'s `manual-extra` rule
+    (`finance-reserve-extra.txt`) is an explicit stopgap for augments, back-burnered this phase
+    per Kenneth. A real design would need an augment cost/priority model (which augments, in
+    what order, at what price) to turn into its own reservation rule.
+  - **Rename-only cosmetic utility — done (2026-07-05):** proved annoying in practice almost
+    immediately (`pserv-4096gb-0` grew to 524288GB live during Round A). `src/renamecloudservers.js`
+    — manual, not wired into `daemon.js`, renames every owned server to `cloud-<n>` (no capacity
+    in the name), idempotent (a server already matching `cloud-<n>` is left alone and its index
+    reserved, so a re-run after buying more servers only touches the new ones). Never
+    purchases/upgrades anything; doesn't touch `upgradecloudserver.js`/`fleetupgrade.js`'s
+    existing rename-and-recreate behavior.
+  - **Future finance-manager customers**: `cloudupgrader.js` is deliberately the only customer
+    this phase. `upgradehomeram.js` is the obvious next one (same available-cash gating,
+    currently unconditional).
+
 - **Stock market — no design yet, mechanics straightened out for future design pass**
   (2026-07-04): No architecture decided; this is a mechanics reference to design against
   later, not a spec. Current save state: TIX API access purchased, no WSE account, no 4S
@@ -306,6 +402,47 @@ move finished items to Done with a date instead of deleting them.
     score against real outcomes.
   - **Prep-cycle duration log**: how long each drift→prepped transition actually takes;
     currently only visible live in the popup's prep-dispatched lines and lost once prepped.
+
+- **Repo organization / decluttering — investigate, no plan committed yet** (2026-07-05):
+  raised the "everything's lumped together, hard to tell what's what" pain; reviewed the tree
+  read-only (no files moved). Finding: the clutter is mostly the **repo root**, not `src/`, and
+  the two carry very different risk.
+  - **Root is the low-risk win (nothing here is code viteburner touches).** `vite.config.ts`
+    only watches `src/**`, so the ~25 loose root items are neither synced to the game nor
+    imported — moving them into folders breaks nothing. Inventory to sort: build/test config
+    (`package*.json`, `tsconfig.json`, `vite.config.ts`, three `vitest*.config.ts`); reference
+    reading (`AI Code Review Do and Dont.pdf`, `Calibrated Trust in Agentic Coding.pdf`,
+    `instructions_hierarchy.pdf`, `Capture.JPG`, `NetscriptDefinitions.d.ts`); the nine
+    `batcher-refactor-phaseN.md` writeups; two `bitburnerSave_*.json.gz` snapshots;
+    `augments_owned.csv`. Candidate folders: `docs/` (phase writeups — BACKLOG.md likely stays
+    at root as the live index), `reference/` (PDFs + screenshot), `saves/` (`.gz`). Only fallout
+    is cosmetic: BACKLOG references the phase docs by bare filename, so those go path-stale.
+    **Caveat:** `NetscriptDefinitions.d.ts` is referenced by `tsconfig.json` (`paths.@ns` +
+    `include`) — it stays at root or moves *with* a tsconfig edit, not a blind move. (The two
+    dead files — root `cloud-server-costs.js` dup, `src/cleanup-old-daemon-log-temp.js` — are
+    already covered by the "Consistency consolidation" Next Up item; don't double-file.)
+  - **`src/` subfolders are NOT light — the part to think hard about before doing.** 24 flat
+    files; splitting them chains through three things: (1) the relative imports (`./hosts.js`
+    etc.) all rewrite; (2) `WORKER_SCRIPTS` (`{hack:"hack.js", grow, weaken}`) and `SHARE_SCRIPT`
+    (`"share.js"`) are bare in-game filenames `daemon.js` `exec`s by name, so moving the workers
+    changes those constants; (3) viteburner mirrors the `src/` tree into the game filesystem, so
+    subfolders change every script's *in-game* path — which drags in the daemon's exec targets,
+    any manual `run` commands, and a required re-push + daemon restart. Earns the RAM gate + a
+    before/after daemon session, not a casual tidy.
+  - **Zero-risk alternative that still fixes "tell what is what":** don't move anything, add a
+    role-map (`src/README.md` or a CLAUDE.md block). Grouping observed this session — core loop
+    (daemon/scheduler/sampling/targets), workers (hack/grow/weaken/share), monitors
+    (launchmonitor/targetsmonitor/transactionsmonitor), fleet+infra
+    (fleetupgrade/purchase\*/upgrade\*/cloudcosts), shared libs (hosts/translog, + the planned
+    `common.js`), one-shots (connect/killscripts/ramcheck/sharecurve).
+  - **If a physical `src/` split happens later**, the natural seam isn't topic, it's
+    library-vs-entrypoint (scheduler/sampling/targets/hosts/translog are imported; the rest are
+    run directly) — and that lines up with the `common.js` "Consistency consolidation" item, so
+    fold a move into that refactor rather than doing it standalone.
+  - **Aside (not a reorg target):** `dist/` holds ~70 stale build artifacts (≈30 `ramtest-*`,
+    plus reverted-Phase-6 `common.js`/`eventlog.js`/`factionwatcher.js` and retired
+    `moneymonitor.js`) — gitignored, regenerated on `vite build`, safe `rm -rf` if it adds noise
+    while browsing.
 
 ## Done (recent)
 
