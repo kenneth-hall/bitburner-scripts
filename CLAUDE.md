@@ -47,8 +47,14 @@ the same commit as the change it describes, so it doesn't become a separate git 
 
 ## Git
 Use version control: branch off `master`, commit, and merge your own work in interactive
-sessions — no need to ask. **Safety rail:** background/autonomous job sessions can't push or
-merge to `master` (enforced by execution mode) — prep the branch/PR and let Kenneth merge.
+sessions — no need to ask.
+- **Ship gate:** a change with nothing to validate (docs, comments, text) can be
+  committed/pushed/merged freely. A change whose spec/request carries a testable requirement
+  (`npm test`, a RAM gate, `npm run verify:log`, a live run) ships only after that validation
+  passes — then no further sign-off is needed. RAM/log/live checks depend on Kenneth's in-game
+  run, so those changes wait on his validation; `npm test` I can run and clear myself.
+- **Safety rail:** background/autonomous job sessions can't push or merge to `master` (enforced by
+  execution mode) — prep the branch/PR and let Kenneth merge.
 
 ## Off-limits & sources
 - Allowed sources: local game files, API docs in `markdown/` (**check first**), the
