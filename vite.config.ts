@@ -60,6 +60,9 @@ export default defineConfig({
       // a ring-buffered history like daemon-batch-log.json -- finance-state.json
       // is deliberately NOT exported here, since it's a heartbeat snapshot
       // already visible live in the tail; the log is the offline evidence.
+      // bootstrap-log.json (src/bootstrap.js, Phase 14) is another
+      // ring-buffered history in the same family, event-driven like
+      // finance-log.json rather than a fixed-cadence write.
       location: (file) => {
         if (file === 'daemon-batch-log.json') return 'logs/daemon-batch-log.json';
         if (/^targets-summary-\d+\.json$/.test(file)) return `logs/${file}`;
@@ -67,6 +70,7 @@ export default defineConfig({
         if (file === 'ramcheck-result.json') return 'logs/ramcheck-result.json';
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
+        if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';
         return null;
       },
     },

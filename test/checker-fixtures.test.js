@@ -7,6 +7,13 @@
 // real exported game log.
 import { describe, it, expect } from 'vitest';
 import { checkShareCap, checkBudgetInvariant, checkFractionConsistency, checkNaturalExit, dropPreConfigStragglers } from './verify-log-checks.js';
+import {
+  checkKnownEventsAndTimestamps,
+  checkTimestampsNonDecreasing,
+  checkHandoffTerminal,
+  checkDeployShape,
+  checkTargetSwitchDistinct,
+} from './verify-bootstrap-checks.js';
 
 function baseEntries({ shareFraction = 0.25, shareOff = false } = {}) {
   return [
@@ -173,5 +180,73 @@ describe('dropPreConfigStragglers', () => {
 
   it('passes an empty array through unchanged', () => {
     expect(dropPreConfigStragglers([])).toEqual([]);
+  });
+});
+
+describe('bootstrap-log checker fixtures (Phase 14)', () => {
+  function cleanBootstrapLog() {
+    return [
+      { event: 'startup', time: 't0', timestamp: 1000, securityEpsilon: 1, moneyFraction: 0.9, bootloopRam: 2.2 },
+      { event: 'new-hosts', time: 't1', timestamp: 1100, added: ['n00dles'], removed: [] },
+      { event: 'deploy', time: 't2', timestamp: 1200, target: 'n00dles', hosts: [{ host: 'n00dles', threads: 4 }], totalThreads: 4 },
+      { event: 'target-switch', time: 't3', timestamp: 1300, from: 'n00dles', to: 'foodnstuff', hackingLevel: 5 },
+      { event: 'nudge', time: 't4', timestamp: 1400, key: 'tor-router', cost: 200_000 },
+      { event: 'handoff', time: 't5', timestamp: 1500, homeFreeRam: 26, daemonPid: 42 },
+    ];
+  }
+
+  it('a clean log passes all five checks', () => {
+    const entries = cleanBootstrapLog();
+    expect(checkKnownEventsAndTimestamps(entries)).toEqual([]);
+    expect(checkTimestampsNonDecreasing(entries)).toEqual([]);
+    expect(checkHandoffTerminal(entries)).toEqual([]);
+    expect(checkDeployShape(entries)).toEqual([]);
+    expect(checkTargetSwitchDistinct(entries)).toEqual([]);
+  });
+
+  it('flags an unknown event kind or a missing timestamp', () => {
+    expect(checkKnownEventsAndTimestamps([{ event: 'mystery', timestamp: 1000 }]).length).toBeGreaterThan(0);
+    expect(checkKnownEventsAndTimestamps([{ event: 'startup' }]).length).toBeGreaterThan(0);
+  });
+
+  it('flags out-of-order timestamps', () => {
+    const entries = [
+      { event: 'startup', timestamp: 2000 },
+      { event: 'new-hosts', timestamp: 1000, added: [], removed: [] },
+    ];
+    expect(checkTimestampsNonDecreasing(entries).length).toBeGreaterThan(0);
+  });
+
+  it('flags more than one handoff event', () => {
+    const entries = [
+      { event: 'handoff', timestamp: 1000 },
+      { event: 'handoff', timestamp: 2000 },
+    ];
+    expect(checkHandoffTerminal(entries).length).toBeGreaterThan(0);
+  });
+
+  it('flags any entry appearing after a handoff event', () => {
+    const entries = [
+      { event: 'handoff', timestamp: 1000 },
+      { event: 'new-hosts', timestamp: 2000, added: [], removed: [] },
+    ];
+    expect(checkHandoffTerminal(entries).length).toBeGreaterThan(0);
+  });
+
+  it('flags a deploy entry with an empty host list', () => {
+    const entries = [{ event: 'deploy', timestamp: 1000, target: 'n00dles', hosts: [], totalThreads: 0 }];
+    expect(checkDeployShape(entries).length).toBeGreaterThan(0);
+  });
+
+  it('flags a deploy entry with a non-positive-integer thread count', () => {
+    const entries = [{ event: 'deploy', timestamp: 1000, target: 'n00dles', hosts: [{ host: 'n00dles', threads: 0 }], totalThreads: 0 }];
+    expect(checkDeployShape(entries).length).toBeGreaterThan(0);
+    const fractional = [{ event: 'deploy', timestamp: 1000, target: 'n00dles', hosts: [{ host: 'n00dles', threads: 1.5 }], totalThreads: 1.5 }];
+    expect(checkDeployShape(fractional).length).toBeGreaterThan(0);
+  });
+
+  it('flags a target-switch entry with identical from/to', () => {
+    const entries = [{ event: 'target-switch', timestamp: 1000, from: 'n00dles', to: 'n00dles', hackingLevel: 5 }];
+    expect(checkTargetSwitchDistinct(entries).length).toBeGreaterThan(0);
   });
 });
