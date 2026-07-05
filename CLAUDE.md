@@ -12,6 +12,23 @@ This directory is a learning exercise, not a normal software project. The goal i
 
 - **Check `BACKLOG.md` for current priorities before starting work**, and keep it up to date — move items between In Progress / Next Up / Ideas / Done as status changes, with a date when something finishes.
 
+## Engineering conventions
+
+- **Minimize the RAM cost of Singularity calls.** Singularity functions carry a heavy RAM
+  multiplier, so keep them out of hot/always-on paths. Isolate them in dedicated
+  daemon-launched companion scripts and `exec` by filename (the pattern already used for
+  `purchasescripts.js`/`upgradehomeram.js`) rather than importing them into `daemon.js` or
+  other long-running code, so the caller doesn't pay the multiplier.
+- **Record every purchase in the transaction logger.** Any new script that spends money must
+  write an expense record via `src/translog.js` (`recordTransaction`) on success, following the
+  existing purchase call sites (`purchasescripts.js`, `purchasecloudservers.js`,
+  `fleetupgrade.js`, `financemanager.js`/`cloudupgrader.js`). A failed spend records nothing.
+- **Add tests and validate against logs when adding a feature.** Where practical, add automated
+  tests (vitest, following `test/`'s patterns) and validate behavior against the exported log
+  files, wiring log checks into `npm run verify:log` when it fits. Live-only game behavior isn't
+  always unit-testable — for those, fall back to a live validation run and say so explicitly
+  rather than claiming coverage you don't have.
+
 ## Git permissions
 
 - **Full git ownership authorized (2026-07-04, Kenneth).** Branch off `master` for new feature
@@ -45,3 +62,4 @@ This directory is a learning exercise, not a normal software project. The goal i
 
 - **Don't read the game's own source files to shortcut the experiment** — no peeking at the actual game source to see how something is implemented or to extract solutions/answers directly from source. Docs and public API are fine; reading the source to skip the puzzle is not.
 - **Don't skip ahead or spoil upcoming game progression.** Help with what's currently unlocked/available given the user's current save progress. Don't reveal or build toward mechanics, servers, augmentations, factions, or endgame content the user hasn't reached yet, even if asked in passing — let the game's natural unlock order drive what we work on next.
+  - **Carve-out — static values are fine.** Looking up a specific numeric cost, price, or a static data table (item/program costs, RAM costs, and similar) is allowed, since these values don't change and are already visible to Kenneth in-game. This exception covers concrete numbers/tables only — it is not license to reveal or build toward mechanics, content, or progression not yet reached.

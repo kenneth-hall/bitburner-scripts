@@ -406,6 +406,13 @@ move finished items to Done with a date instead of deleting them.
     reservation cost model (still back-burnered), future finance-manager customers
     (`upgradehomeram.js` next), and the deferred upper-ladder rungs (relaySMTP → SQLInject,
     formulas releasing on purchase) as live-validation-when-convenient, not sign-off blockers.
+  - **Follow-up feature (2026-07-05): manual kill switch for the formulas reservation.**
+    Presence of `finance-disable-formulas.txt` suppresses the `formulas` reservation regardless of
+    hacking level, until the file is removed (manual-only, no auto re-enable) — same
+    "you're in control" pattern as `finance-reserve-extra.txt`, just a flag file instead of a
+    number file. `computeReservations` now returns `formulasSuppressed` so the manager can
+    tprint/log/print a distinct "disabled by flag" message instead of conflating it with a real
+    release. 3 new unit tests (162/162 total). Not yet live-validated in-game.
 
 - **Batcher refactor Phase 9 — Phase 8 close-out** (2026-07-04): `batcher-refactor-phase9.md`.
   Closes all three items Phase 8 left waived/degraded, plus the `pickBatchSet` bug Phase 8

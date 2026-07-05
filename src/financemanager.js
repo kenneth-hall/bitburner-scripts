@@ -15,6 +15,12 @@
 // here may exactly match an ns API function name unless it's a real ns call
 // -- checked against NetscriptDefinitions.d.ts at implementation time.
 //
+// Formulas.exe reservation has a manual kill switch: presence of
+// finance-disable-formulas.txt suppresses it regardless of hacking level,
+// until the file is removed (no auto re-enable) -- same "you're in control"
+// philosophy as finance-reserve-extra.txt, just a flag file instead of a
+// number file.
+//
 // Publishes finance-state.json (overwritten every poll, 0 GB ns.write --
 // customers recompute availability against their own live money read, only
 // totalReserved/timestamp are load-bearing) and finance-log.json (a FIFO
@@ -26,6 +32,7 @@ const POLL_MS = 2000;
 const STATE_FILE = "finance-state.json";
 const LOG_FILE = "finance-log.json";
 const MANUAL_EXTRA_FILE = "finance-reserve-extra.txt";
+const FORMULAS_DISABLE_FILE = "finance-disable-formulas.txt";
 const LOG_MAX_ENTRIES = 500;
 
 export const BOOTSTRAP_SERVER_COST = 110_000; // 2GB cloud-server price -- Kenneth hand-buys the first foothold in the UI, not purchasecloudservers.js's 16GB floor
@@ -63,8 +70,14 @@ export function parseManualExtra(raw) {
  * Pure. Builds the active reservation list from cheap ownership/state facts.
  * Each rule is independent and additive -- see finance-cloud-phase10.md's
  * "Reservation rules" for the full rationale per rule.
+ *
+ * formulasDisabled is a manual kill switch (presence of FORMULAS_DISABLE_FILE)
+ * for the formulas reservation specifically -- it only has an effect while
+ * the reservation would otherwise apply, which is reported back as
+ * formulasSuppressed so the caller can distinguish "disabled and would have
+ * fired" from "disabled but moot" (already owned / level too low).
  */
-export function computeReservations({ serverCount, hasTor, ownedPrograms, hackingLevel, hasFormulas, manualExtraAmount }) {
+export function computeReservations({ serverCount, hasTor, ownedPrograms, hackingLevel, hasFormulas, manualExtraAmount, formulasDisabled }) {
   const reservations = [];
 
   if (serverCount === 0) {
@@ -81,8 +94,14 @@ export function computeReservations({ serverCount, hasTor, ownedPrograms, hackin
     reservations.push({ key: "next-port-opener", label: cheapest.label, amount: cheapest.cost });
   }
 
-  if (hackingLevel > FORMULAS_HACKING_LEVEL_THRESHOLD && !hasFormulas) {
-    reservations.push({ key: "formulas", label: "Formulas.exe", amount: FORMULAS_COST });
+  const formulasWouldApply = hackingLevel > FORMULAS_HACKING_LEVEL_THRESHOLD && !hasFormulas;
+  let formulasSuppressed = false;
+  if (formulasWouldApply) {
+    if (formulasDisabled) {
+      formulasSuppressed = true;
+    } else {
+      reservations.push({ key: "formulas", label: "Formulas.exe", amount: FORMULAS_COST });
+    }
   }
 
   if (manualExtraAmount > 0) {
@@ -90,7 +109,7 @@ export function computeReservations({ serverCount, hasTor, ownedPrograms, hackin
   }
 
   const totalReserved = reservations.reduce((sum, r) => sum + r.amount, 0);
-  return { reservations, totalReserved };
+  return { reservations, totalReserved, formulasSuppressed };
 }
 
 /** Pure. Reservations may legitimately exceed money (e.g. formulas at $5b) -- that's the design working, not an error state. */
@@ -165,6 +184,7 @@ export async function main(ns) {
 
   let logEntries = [];
   let previousReservations = null; // null only until the startup poll runs
+  let previousFormulasSuppressed = null; // null only until the startup poll runs
   let lastBadManualExtraRaw = null; // tracks the last WARNed-about bad value, so re-warning only happens on a NEW bad value
   let lastChangeTime = null;
 
@@ -179,6 +199,7 @@ export async function main(ns) {
       if (ns.fileExists(p.file, "home")) ownedPrograms.add(p.file);
     }
     const hasFormulasExe = ns.fileExists("Formulas.exe", "home");
+    const formulasDisabled = ns.fileExists(FORMULAS_DISABLE_FILE, "home");
 
     const manualExtraRaw = ns.read(MANUAL_EXTRA_FILE);
     const parsedManualExtra = parseManualExtra(manualExtraRaw);
@@ -191,19 +212,20 @@ export async function main(ns) {
       lastBadManualExtraRaw = null;
     }
 
-    const { reservations, totalReserved } = computeReservations({
+    const { reservations, totalReserved, formulasSuppressed } = computeReservations({
       serverCount,
       hasTor,
       ownedPrograms,
       hackingLevel,
       hasFormulas: hasFormulasExe,
       manualExtraAmount: parsedManualExtra.amount,
+      formulasDisabled,
     });
     const available = computeAvailable(money, totalReserved);
 
     const now = Date.now();
     const timeLabel = new Date(now).toLocaleTimeString();
-    const stateRecord = { timestamp: now, time: timeLabel, money, totalReserved, available, reservations };
+    const stateRecord = { timestamp: now, time: timeLabel, money, totalReserved, available, reservations, formulasSuppressed };
     ns.write(STATE_FILE, JSON.stringify(stateRecord), "w");
 
     if (previousReservations === null) {
@@ -215,19 +237,32 @@ export async function main(ns) {
           tprintTs(ns, `  ${r.key}: $${ns.format.number(r.amount)} (${r.label})`);
         }
       }
+      if (formulasSuppressed) {
+        tprintTs(ns, `FINANCE: formulas reservation disabled by flag (${FORMULAS_DISABLE_FILE}) -- $${ns.format.number(FORMULAS_COST)} suppressed`);
+      }
       logEntries = appendFinanceLog(logEntries, { event: "startup", ...stateRecord, changed: [] });
       flushFinanceLog(ns, logEntries);
       lastChangeTime = timeLabel;
     } else {
       const diff = diffReservations(previousReservations, reservations);
-      if (!diff.isEmpty) {
-        announceDiff(ns, diff);
+      const formulasFlagChanged = formulasSuppressed !== previousFormulasSuppressed;
+      if (!diff.isEmpty || formulasFlagChanged) {
+        if (!diff.isEmpty) announceDiff(ns, diff);
+        if (formulasFlagChanged) {
+          tprintTs(
+            ns,
+            formulasSuppressed
+              ? `FINANCE: formulas reservation disabled by flag (${FORMULAS_DISABLE_FILE}) -- $${ns.format.number(FORMULAS_COST)} suppressed`
+              : `FINANCE: formulas reservation flag cleared (${FORMULAS_DISABLE_FILE} removed) -- normal rules resume`
+          );
+        }
         logEntries = appendFinanceLog(logEntries, { event: "reservations", ...stateRecord, changed: diff.changedKeys });
         flushFinanceLog(ns, logEntries);
         lastChangeTime = timeLabel;
       }
     }
     previousReservations = reservations;
+    previousFormulasSuppressed = formulasSuppressed;
 
     ns.clearLog();
     ns.print(`===== finance manager @ ${timeLabel} =====`);
@@ -240,6 +275,9 @@ export async function main(ns) {
       }
     }
     ns.print(`totalReserved: $${ns.format.number(totalReserved)} | available: $${ns.format.number(available)}`);
+    if (formulasSuppressed) {
+      ns.print(`formulas reservation: DISABLED by flag (${FORMULAS_DISABLE_FILE}) -- would reserve $${ns.format.number(FORMULAS_COST)}`);
+    }
     if (lastChangeTime) ns.print(`last change: ${lastChangeTime}`);
 
     await ns.sleep(POLL_MS);

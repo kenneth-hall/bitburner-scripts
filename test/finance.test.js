@@ -124,6 +124,24 @@ describe('computeReservations', () => {
     ).not.toContain('formulas');
   });
 
+  it('formulasDisabled suppresses the reservation and reports formulasSuppressed: true', () => {
+    const result = computeReservations({ ...BASE_STATE, hackingLevel: 401, hasFormulas: false, formulasDisabled: true });
+    expect(result.reservations.map((r) => r.key)).not.toContain('formulas');
+    expect(result.formulasSuppressed).toBe(true);
+  });
+
+  it('formulasDisabled has no effect (and reports formulasSuppressed: false) when the reservation would not have applied anyway', () => {
+    const belowThreshold = computeReservations({ ...BASE_STATE, hackingLevel: 1, hasFormulas: false, formulasDisabled: true });
+    expect(belowThreshold.formulasSuppressed).toBe(false);
+
+    const alreadyOwned = computeReservations({ ...BASE_STATE, hackingLevel: 9999, hasFormulas: true, formulasDisabled: true });
+    expect(alreadyOwned.formulasSuppressed).toBe(false);
+  });
+
+  it('formulasSuppressed is false by default when formulasDisabled is not set', () => {
+    expect(computeReservations({ ...BASE_STATE, hackingLevel: 401, hasFormulas: false }).formulasSuppressed).toBe(false);
+  });
+
   it('manual-extra adds a reservation only when the amount is positive', () => {
     expect(computeReservations({ ...BASE_STATE, manualExtraAmount: 0 }).reservations.map((r) => r.key)).not.toContain('manual-extra');
     const { reservations } = computeReservations({ ...BASE_STATE, manualExtraAmount: 2_500_000_000 });
