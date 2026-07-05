@@ -42,8 +42,32 @@ move finished items to Done with a date instead of deleting them.
     (Hit the known "viteburner dev-server silently stops auto-exporting" bug again getting this
     reading — `npm run dev` was up but `logs/ramcheck-result.json` wasn't updating; killed and
     restarted it, which fixed it immediately, same workaround as prior occurrences.)
-  - **Next: Kenneth runs Round A (items 1–7) and, on the next natural augment install, Round B**;
-    this entry moves to Done once both are confirmed, per the spec's acceptance criteria.
+  - **Round A, in progress (2026-07-05), on the current save:**
+    - **Item 2 (startup wiring): passed.** Daemon restart opened both new tails; on this save
+      (everything owned already) `finance-log.json`'s startup entry showed exactly the expected
+      `reservations: []`, `available === money`.
+    - **Item 4 (upgrader spending run): passed, validated live unprompted** the moment the
+      daemon restarted (nothing was reserved on this save, so `cloudupgrader.js` started
+      spending immediately). 7 correctly-priced `auto-cloud-upgrade` records upgraded a single
+      server 4096GB → 524288GB (each cost exactly 2x the previous, matching the doubling-tier
+      math); no renames; daemon batching undisturbed (the one logged "exit" was ordinary
+      RAM-budget churn from the fleet's capacity jump, not a defect).
+    - **Item 3 (the manual-override gate — the phase's core safety property): passed, both
+      directions.** `write finance-reserve-extra.txt 999999999999` → `manual-extra` reservation
+      appeared within one poll, `available` clamped to $0, zero upgrades landed while it was
+      active. `rm finance-reserve-extra.txt` → reservation released within one poll, `changed:
+      ["manual-extra"]`; the very next upgrade is currently blocked only by real unaffordability
+      (the next tier, 524288GB → the 1,048,576GB ceiling, costs ~$28.8B against ~$26.3B
+      available at release time — expected loop behavior, not a stall).
+    - **Item 7 (`npm run verify:log` green): passed** across daemon/transactions/finance logs
+      at every checkpoint above (28/28).
+    - **Still open: item 1** (price table cross-check against live `buy -l` — soft, since
+      everything's already owned on this save; Round B's fresh-reset state is the real test),
+      **item 5** (off switch), **item 6** (kill/restart resilience), **Round B** (next augment
+      reset).
+    - **Aside, unblocked mid-session:** Kenneth asked for a rename-only utility (see the Ideas
+      section's Phase 10 follow-ups) after seeing `pserv-4096gb-0`'s name go stale live during
+      item 4 above — shipped as `src/renamecloudservers.js`, already run once successfully.
 
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
   same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
