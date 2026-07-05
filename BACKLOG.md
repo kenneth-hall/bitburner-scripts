@@ -3,78 +3,7 @@
 Tracks feature work and goals across sessions. Update when starting/finishing something;
 move finished items to Done with a date instead of deleting them.
 
-## In Progress
-
-- **Batcher refactor Phase 9 — Phase 8 close-out** (2026-07-04): `batcher-refactor-phase9.md`.
-  All three `[code]` work items shipped and verified locally; the two `[live]` steps (RAM gate,
-  clean A/B/A' income session) still need Kenneth in-game — see Next Up for those.
-  - **`pickBatchSet`'s pass-3/pass-4 both-lists bug — fixed.** Added a `justEvicted` set
-    (`scheduler.js`) filled inside pass 3's displacement commit; pass 4's refill loop now skips
-    any candidate in it, so a server evicted this tick can't be re-admitted in the same call (it
-    becomes eligible again next tick as an ordinary non-incumbent). BACKLOG's exact repro
-    (challenger/mid/n00dles, budget 35, hysteresis 1.25) now returns `members == ['challenger']`
-    with both `mid` and `n00dles` in `exits` as `displaced` and zero overlap — confirmed via a
-    plain-node import, not just the test suite. 3 new `test/scheduler.test.js` cases (the repro,
-    an explicit never-evicted-candidate refill case, and an `expectNoOverlap` helper applied to
-    the repro plus all 5 pre-existing displacement-path cases); all 15 pre-fix `pickBatchSet`
-    cases still pass unchanged.
-  - **RAM rename `share` → `sharePool`, shipped in code; live gate still pending.** Renamed the
-    identifier/property in `sampling.js`'s `inFlightByTarget` (`{byTarget, share}` →
-    `{byTarget, sharePool}`), `daemon.js` (`preTickInFlight.sharePool.*`, snapshot key `share:` →
-    `sharePool:`), and `sharecurve.js` (`sweep.sharePool.threads`) — the only construct in the
-    import graph that exactly matched `ns.share`'s name (2.4 GB, `markdown/bitburner.ns.share.md`).
-    `sharePool` re-verified absent from `NetscriptDefinitions.d.ts`. `share.js` itself (the real
-    `ns.share()` call), `SHARE_SCRIPT`, `SHARE_FRACTION`, and `sharePower` (a different identifier,
-    doesn't collide) are untouched by design. **This is a deliberate log-schema change** — noted
-    in `daemon.js`'s log header comment; old exported logs need a checker version from before this
-    commit to validate (git history), the current checker validates only the `sharePool` schema.
-    Still needs Kenneth's before/after `ramcheck.js` gate to confirm the hypothesis
-    (`daemon.js` expected ≈16.30 GB after, down from 18.70) — see Next Up.
-  - **`hackingLevel` added to snapshots, `dropPreConfigStragglers` and `checkNaturalExit`
-    extracted.** `daemon.js`'s snapshot record gains `hackingLevel: ns.getHackingLevel()` (+0.00
-    measured RAM expected — already charged once via `hosts.js`/`targets.js`'s existing calls,
-    per the once-per-name import-charging model); checker validates it and a soft report prints
-    first/last/min/max/delta. New pure helper `dropPreConfigStragglers(entries)` in
-    `test/verify-log-checks.js` slices a log to its first retained `mode` event, wired into
-    `verify-log.test.js`'s `beforeAll` behind `VERIFY_SLICE_STRAGGLERS=1` (opt-in, so a normal
-    single-window log validates in full by default). The natural-exit invariant, previously
-    inline `expect` calls in `verify-log.test.js`, is now `checkNaturalExit(entries)` in
-    `verify-log-checks.js`, matching the style of the other three extracted checks, with new
-    fixture tests in `test/checker-fixtures.test.js` modeled on the real Phase 8 failure.
-  - **`npm test` green at 128/128** (up from Phase 8's 120/120: +6 scheduler, +2 sampling
-    (`sharePool` shape), +6 checker-fixtures (`checkNaturalExit` x3, `dropPreConfigStragglers`
-    x3)).
-  - **Implementation-time validation against the real `logs/phase8-ab/` copies (one-off script,
-    not committed): exact match to the spec's expected table.** `checkNaturalExit` violations:
-    0/0/31/114/114 across the five copies, in order — identical to the numbers that motivated
-    this phase. `Aprime-end`'s fraction-consistency: 15 violations unsliced (stragglers, no
-    preceding `mode` event) → 0 sliced via `dropPreConfigStragglers`, which kept exactly 1757 of
-    2000 entries (first `mode` event at index 243) — matches the spec's prediction exactly. (Old
-    logs use the pre-rename `share` key; the one-off script translated it to `sharePool` before
-    calling the checker, since a real post-rename session log wouldn't need this — see the
-    schema-change note above.)
-  - Branch `worktree-phase9-closeout`.
-
 ## Next Up
-
-- **Phase 9 RAM gate — live measurement needed** (2026-07-04): the `share`→`sharePool` rename
-  above is shipped in code; closing the RAM-anomaly item for real needs Kenneth's before/after
-  `ramcheck.js daemon.js share.js targets.js` per `batcher-refactor-phase9.md`'s RAM gate
-  section — before syncing Phase 9 (expect daemon 18.70, share 4.00), then after (expect daemon
-  ≈16.30 if the collision hypothesis is confirmed, unchanged 18.70 if falsified — see the spec's
-  decision tree and fallback diagnostic plan for the `ramtest-e*.js` matrix if it doesn't land
-  cleanly on either number). Also record `targets.js`'s before/after for the bundle-vs-
-  reachability import-charging question.
-
-- **Phase 8/9 tuning follow-up: get a clean A/B/A' session** (2026-07-04, carried from Phase 8,
-  now unblocked). This needs the pass-4 fix above (done) and the RAM gate above (run first, per
-  spec ordering) before Kenneth runs the live session: three ≥10-minute windows (share
-  off/on/off), fleet frozen, one calendar day, `VERIFY_WINDOWS`/`npm run verify:log` on each
-  boundary copy (with `VERIFY_SLICE_STRAGGLERS=1` if a copy hard-fails on a missing preceding
-  `mode` event). Required output: windowed $/min for A/B/A' with each window's `hackingLevel`
-  drift (now auto-reported per the snapshot addition above) next to it, and a keep/raise/lower
-  recommendation for `SHARE_FRACTION`. Phase 8's rep-side result (2.78 vs 1.92 rep/sec,
-  ~45% boost) already stands and isn't re-measured.
 
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
   same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
@@ -379,6 +308,102 @@ move finished items to Done with a date instead of deleting them.
     currently only visible live in the popup's prep-dispatched lines and lost once prepped.
 
 ## Done (recent)
+
+- **Batcher refactor Phase 9 — Phase 8 close-out** (2026-07-04): `batcher-refactor-phase9.md`.
+  Closes all three items Phase 8 left waived/degraded, plus the `pickBatchSet` bug Phase 8
+  discovered outside its own scope. Branch `worktree-phase9-closeout`, PR #3 merged to `master`.
+  - **`pickBatchSet`'s pass-3/pass-4 both-lists bug — fixed.** Added a `justEvicted` set
+    (`scheduler.js`) filled inside pass 3's displacement commit; pass 4's refill loop now skips
+    any candidate in it, so a server evicted this tick can't be re-admitted in the same call (it
+    becomes eligible again next tick as an ordinary non-incumbent). BACKLOG's exact repro
+    (challenger/mid/n00dles, budget 35, hysteresis 1.25) now returns `members == ['challenger']`
+    with both `mid` and `n00dles` in `exits` as `displaced` and zero overlap — confirmed via a
+    plain-node import, not just the test suite. 3 new `test/scheduler.test.js` cases (the repro,
+    an explicit never-evicted-candidate refill case, and an `expectNoOverlap` helper applied to
+    the repro plus all 5 pre-existing displacement-path cases); all 15 pre-fix `pickBatchSet`
+    cases still pass unchanged.
+  - **RAM anomaly — root cause confirmed via the `share`→`sharePool` rename.** Renamed the
+    identifier/property in `sampling.js`'s `inFlightByTarget` (`{byTarget, share}` →
+    `{byTarget, sharePool}`), `daemon.js` (`preTickInFlight.sharePool.*`, snapshot key `share:` →
+    `sharePool:`), and `sharecurve.js` (`sweep.sharePool.threads`) — the only construct in the
+    import graph that exactly matched `ns.share`'s name (2.4 GB, `markdown/bitburner.ns.share.md`).
+    `sharePool` verified absent from `NetscriptDefinitions.d.ts`. `share.js` itself (the real
+    `ns.share()` call), `SHARE_SCRIPT`, `SHARE_FRACTION`, and `sharePower` (a different identifier,
+    doesn't collide) untouched by design. **This is a deliberate log-schema change**, noted in
+    `daemon.js`'s log header comment — old exported logs need a pre-Phase-9 checker version to
+    validate (git history); the current checker validates only the `sharePool` schema.
+    **RAM gate, live (2026-07-04): before `daemon.js: 18.7 GB | share.js: 4 GB | targets.js:
+    12.65 GB`, after `daemon.js: 16.3 GB | share.js: 4 GB | targets.js: 12.65 GB`.** `daemon.js`
+    landed exactly on the predicted ≈16.30 GB — collision hypothesis confirmed, the full 2.4 GB
+    phantom charge recovered with nothing left unexplained. `targets.js` unchanged across the
+    gate (it imports `sampling.js` but never touches the `share`/`sharePool` construct itself),
+    answering the spec's bundle-vs-reachability question: **import RAM-charging is
+    reachability-based, not whole-file/bundle.**
+  - **`hackingLevel` added to snapshots, `dropPreConfigStragglers` and `checkNaturalExit`
+    extracted.** `daemon.js`'s snapshot record gains `hackingLevel: ns.getHackingLevel()` (+0.00
+    measured RAM — already charged once via `hosts.js`/`targets.js`'s existing calls, per the
+    once-per-name import-charging model, confirmed live by the RAM gate above); checker validates
+    it and a soft report prints first/last/min/max/delta. New pure helper
+    `dropPreConfigStragglers(entries)` in `test/verify-log-checks.js` slices a log to its first
+    retained `mode` event, wired into `verify-log.test.js`'s `beforeAll` behind
+    `VERIFY_SLICE_STRAGGLERS=1` (opt-in, so a normal single-window log validates in full by
+    default). The natural-exit invariant, previously inline `expect` calls in
+    `verify-log.test.js`, is now `checkNaturalExit(entries)` in `verify-log-checks.js`, matching
+    the style of the other three extracted checks, with new fixture tests in
+    `test/checker-fixtures.test.js` modeled on the real Phase 8 failure.
+  - **`npm test` green at 128/128** (up from Phase 8's 120/120: +6 scheduler, +2 sampling
+    (`sharePool` shape), +6 checker-fixtures (`checkNaturalExit` x3, `dropPreConfigStragglers`
+    x3)).
+  - **Implementation-time validation against the real `logs/phase8-ab/` copies (one-off script,
+    not committed): exact match to the spec's expected table.** `checkNaturalExit` violations:
+    0/0/31/114/114 across the five copies, in order — identical to the numbers that motivated
+    this phase. `Aprime-end`'s fraction-consistency: 15 violations unsliced (stragglers, no
+    preceding `mode` event) → 0 sliced via `dropPreConfigStragglers`, which kept exactly 1757 of
+    2000 entries (first `mode` event at index 243) — matches the spec's prediction exactly. (Old
+    logs use the pre-rename `share` key; the one-off script translated it to `sharePool` before
+    calling the checker, since a real post-rename session log wouldn't need this.)
+  - **Live A/B/A' income session (2026-07-04), fleet frozen throughout (confirmed via the
+    transactions log: zero expense records between the session's start and end timestamps),
+    all three windows ≥10 minutes, one calendar day:**
+    - **A (share off), 6:35:25–6:47:09 PM, 11.7 min**: hackingLevel 458→466 (Δ8). Income $3.84B
+      (~$327.7M/min).
+    - **B (share on), 6:47:38–6:59:11 PM, 11.6 min**: hackingLevel 466→475 (Δ9). Income $5.05B
+      (~$437.1M/min).
+    - **A' (share off), 6:59:49–7:11:29 PM, 11.7 min**: hackingLevel 475→482 (Δ7). Income $5.22B
+      (~$447.8M/min).
+    - **`npm run verify:log` green (20/20) on all 5 boundary copies** (`A-end`, `B-mid`, `B-end`,
+      `Aprime-mid`, `Aprime-end`) — `B-end` and `Aprime-end` needed `VERIFY_SLICE_STRAGGLERS=1`
+      (their own window's preceding `mode` event had aged out of the 2000-entry ring by capture
+      time); the other three passed unsliced. Natural-exit invariant held clean at every toggle
+      across all five copies — the pickBatchSet fix confirmed live, not just in the test suite.
+    - **Income cost of share: still not cleanly quotable, and this time it's a real confound, not
+      a protocol defect.** Unlike Phase 8 (short A window, A' inflated by ~30min of uninterrupted
+      compounding), this session's three windows are all properly ≥10min and adjacent, and
+      hackingLevel drift is small and comparable across all three (Δ8/Δ9/Δ7) — the protocol
+      itself was executed correctly. But the two **identically-configured** share-off windows (A
+      and A') disagree with each other by **+36.7%** ($327.7M/min → $447.8M/min) despite similar
+      level growth and a flat member count (3 throughout, briefly 4 in A') ruling out target-mix
+      churn as the cause. Since A and A' share the same config, that gap cannot be share's doing
+      — some other factor (most likely non-linear hack-money scaling with hacking level at this
+      stage of the game) still dominates the session's income trend and swamps any signal from
+      the toggle. Per the spec's own instruction ("if A and A' still disagree wildly while level
+      drift is small, say so rather than forcing a conclusion") — that's exactly this case.
+    - **Recommendation: keep `SHARE_FRACTION` at 25%.** This is unchanged from Phase 8, for the
+      same reason: the rep-side result (2.78 vs 1.92 rep/sec, ~45% boost, matching measured
+      sharePower ~1.417) and the sharecurve's steep diminishing returns (25% already captures
+      ~89% of the achievable power at 100% RAM commitment) both stand and aren't re-measured
+      here. The income side remains genuinely unmeasured at this game stage with this method —
+      that's inconclusive, not evidence against share. A future attempt would need either a much
+      longer session (to average out the per-level income-formula jumps) or a different
+      methodology (e.g. tracking $/hack-thread rather than $/wall-clock-minute, to normalize out
+      the level-driven scaling directly).
+  - **Aside, unblocked mid-session**: found and fixed a stale viteburner Remote API connection
+    (socket showed `ESTABLISHED` on port 12525 but was actually dead — a fresh dev-server
+    restart immediately logged `disconnected`). Also found the main checkout 2 commits behind
+    `origin/master` with a stale uncommitted `BACKLOG.md` diff left over from before this phase's
+    implementation (discarded, then pulled clean) — not a Phase 9 code issue, just session/dev-
+    loop bookkeeping, matches the pattern already flagged in the two viteburner items further
+    down this file.
 
 - **Batcher refactor Phase 8 — faction share allocation** (2026-07-04): `batcher-refactor-phase8.md`.
   Builds the "`ns.share()` script + dedicated RAM allocation" item into a hard carve:
