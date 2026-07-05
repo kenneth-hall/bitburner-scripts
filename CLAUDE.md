@@ -7,9 +7,13 @@ as an ongoing relationship. Don't cheat by reading/adapting other players' Bitbu
 solutions — work from game mechanics and the API.
 
 ## Development workflow
-Feature work runs in three stages, each handing off a **file**, not chat:
-1. **Brainstorm (opus)** → `phase-n-features.md` (decisions, rejected alternatives, open questions).
-2. **Spec + review (fable)** → `phase-n-spec.md`, then a cold-context review by the
+Feature work runs in three stages, each handing off a **file**, not chat. Name phase docs
+`phase-NN-slug.<stage>.md` — zero-padded number first so they sort chronologically (e.g.
+`phase-15-homeram.features.md`, `phase-15-homeram.spec.md`). The active phase's docs live in
+the repo root during the work; when it ships, they graduate to `docs/phases/` and a condensed,
+dated entry goes in `docs/phases/CHANGELOG.md`.
+1. **Brainstorm (opus)** → `phase-NN-slug.features.md` (decisions, rejected alternatives, open questions).
+2. **Spec + review (fable)** → `phase-NN-slug.spec.md`, then a cold-context review by the
    `spec-reviewer` subagent; address blockers, log disagreements as open questions.
    Present final draft + changelog + open questions before implementing.
 3. **Implement (sonnet)** on a branch/worktree, with the tests / RAM gate /
@@ -31,10 +35,10 @@ Conventions below apply at every stage (spec-reviewer enforces them).
   it. → `docs/logging.md` for the file-naming patterns.
 
 ## Tracking work
-Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas /
-Done, dated on completion). **Update it as part of the work, not after** — stage the
-BACKLOG edit in the same commit as the change it describes, so it doesn't become a
-separate git cycle.
+Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas). On
+completion, move a dated, condensed entry to `docs/phases/CHANGELOG.md` — keep history out
+of BACKLOG. **Update as part of the work, not after** — stage the BACKLOG/CHANGELOG edit in
+the same commit as the change it describes, so it doesn't become a separate git cycle.
 
 ## Communication
 - **Summarize after acting.**
