@@ -413,8 +413,8 @@ move finished items to Done with a date instead of deleting them.
 ## Done (recent)
 
 - **Phase 12 — targeting: root-access eligibility fix (+ ratio→priority fold-in)**
-  (2026-07-05, code complete on branch `phase12-targeting`; RAM gate + live validation pending
-  Kenneth): `targeting-phase12-features.md`, `targeting-phase12-spec.md`. Unplanned hotfix —
+  (2026-07-05, done; merged to `master` and pushed, branch `phase12-targeting`):
+  `targeting-phase12-features.md`, `targeting-phase12-spec.md`. Unplanned hotfix —
   jumped the agreed post-Phase-11 priority queue — for a live error flood on the current
   post-augment-install save: `weaken.js`/`grow.js` crashed continuously (`Cannot
   weaken/grow <server> because you do not have root access`) against seven unrooted servers
@@ -445,11 +445,19 @@ move finished items to Done with a date instead of deleting them.
     `targetsmonitor.js` specifically, but the number is fully explained (same
     `hasRootAccess`-via-`getTargets` reachability as `targets.js`) with no unexplained delta, so
     no identifier-hygiene hunt needed.
-  - **Live validation: still needs Kenneth** — restart the daemon and confirm the Recent Errors
-    tab stays clean over a ≥10-minute window (root-access error flood stops), eyeball
-    `targetsmonitor.js`'s new `priority` column and marker legend, and run `targets.js` once to
-    confirm the exported summary drops `ratio`. See the spec's "Live validation" section for the
-    full steps.
+  - **Live validation: complete (2026-07-05).** Daemon restarted; Recent Errors tab stayed
+    clean over a 10-minute window (no new root-access errors). `targetsmonitor.js` confirmed
+    showing the `priority` column and marker legend. `run targets.js` exported
+    `targets-summary-1783270612596.json` — 11 rooted-only targets, no `ratio` field anywhere,
+    none of the seven previously-erroring servers present. `npm run verify:log` green (28/28)
+    against the live session log: 7 natural exits, all ordinary `unaffordable` reasons (nothing
+    error-related), 11 members batched, zero skips, zero xcheck mismatches.
+  - **Aside (2026-07-05): viteburner's export bridge went silently stale mid-session** — two
+    `ramcheck.js` runs produced byte-identical stale output before the dev server was
+    killed+restarted, confirming the connection had gone dead despite `ESTABLISHED` looking
+    fine. Not a Phase 12 code issue; see the `feedback_viteburner_stale_connection_workaround`
+    memory (updated this session to preempt this at the start of future phases' RAM-gate steps
+    rather than diagnosing it reactively each time).
 
 - **Phase 11 — resource manager: active procurement** (2026-07-05, done; merged to master and
   pushed as of 2026-07-05, branch `worktree-phase11-procurement` deleted post-merge):
