@@ -424,6 +424,13 @@ move finished items to Done with a date instead of deleting them.
 
 ## Done (recent)
 
+- **Workflow — update BACKLOG in the same commit as the work** (2026-07-05, done): after three
+  back-to-back "do work → commit → *separately* update BACKLOG → commit again" cycles, Kenneth
+  flagged the double git work. Added a rule to `CLAUDE.md`'s *Tracking work* section: stage the
+  BACKLOG edit in the same commit as the change it describes. Folded and deleted the now-redundant
+  `backlog_bookkeeping` auto-memory (memory 7→6). This very entry ships in the same commit as that
+  CLAUDE.md edit, practicing the rule.
+
 - **Docs/memory cleanup — strip git rules to version-control basics** (2026-07-05, done; merged to
   `master` via `docs/slim-git-rules`, branch deleted): Kenneth wanted the git *implementation* rules
   gone — he cares that version control exists and is used, not how it's run. `CLAUDE.md`: slimmed the

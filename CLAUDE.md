@@ -32,7 +32,9 @@ Conventions below apply at every stage (spec-reviewer enforces them).
 
 ## Tracking work
 Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas /
-Done, dated on completion).
+Done, dated on completion). **Update it as part of the work, not after** — stage the
+BACKLOG edit in the same commit as the change it describes, so it doesn't become a
+separate git cycle.
 
 ## Communication
 - **Summarize after acting.**
