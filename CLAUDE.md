@@ -59,3 +59,7 @@ merge to `master` (enforced by execution mode) — prep the branch/PR and let Ke
 
 ## Task-specific detail
 See `docs/INDEX.md` for on-demand references (logging patterns, dev-server / Remote API).
+
+**Docs layout:** `docs/` — Bitburner project/task references · `docs/metareference/` —
+non-Bitburner learning material (Claude Code / AI-workflow docs) · `docs/phases/` — archived
+shipped phase docs (index: `CHANGELOG.md`).
