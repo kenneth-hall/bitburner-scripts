@@ -5,13 +5,40 @@ move finished items to Done with a date instead of deleting them.
 
 ## In Progress
 
+- **Phase 14 — cold-start bootstrap (8GB home → daemon.js handoff)** (2026-07-05, implementation
+  done, pending live validation): `bootstrap-phase14-features.md` → `bootstrap-phase14-spec.md`
+  (peer-reviewed via the `spec-reviewer` subagent — first real `/spec` live run; 3 blocking issues
+  found and fixed: per-opener nudge dedup key, requiredHackingLevel read for all candidates not
+  just the pick, null-target poll behavior unified). Jumps the post-Phase-11 priority queue (same
+  precedent as Phase 12) because the 2026-07-05 hard reset took the whole income pipeline
+  offline — `daemon.js` (16.3GB) can't load on the 8GB home. Design: two new scripts
+  (`bootstrap.js` deployer + `bootloop.js` remote worker; names confirmed by Kenneth at spec
+  review), single-best-target loops on rooted servers' RAM, control-file retargeting, auto-handoff
+  to `daemon.js` on a dynamic fit check (~19.3GB free, i.e. the 32GB home tier). Existing pipeline
+  untouched. Built on `worktree-phase14-bootstrap`.
+  - **`npm test` green at 231/231** (190 pre-phase + 12 `test/bootloop.test.js` +
+    21 `test/bootstrap.test.js` + 8 new `test/checker-fixtures.test.js` cases for the new
+    `test/verify-bootstrap-checks.js` checker). `test/verify-bootstrap.test.js` wired into
+    `npm run verify:log` via the existing glob, skip-clean confirmed before a real log exists.
+  - **RAM gate: closed (2026-07-05), via `ramcheck.js` → `logs/ramcheck-result.json`.**
+    `bootstrap.js` **6.00 GB** (predicted 6.00, hard ceiling <8.00), `bootloop.js` **2.20 GB**
+    (predicted 2.20, gate ≤2.2), `daemon.js` **16.30 GB** (flat, zero delta), `killscripts.js`
+    **3.00 GB** (first recorded baseline, matches predicted ~3.0) — every number landed exactly
+    on the spec's prediction, no identifier-hygiene hunt needed.
+  - **Live validation: not yet run.** Next: Kenneth runs `run bootstrap.js` on the actual
+    reset save per the spec's live-validation steps 1–6 (pre-check darkweb survivors, deploy
+    loops root the 0-port set, `bootstrap-log.json` events, purchase nudges, `npm run
+    verify:log` against the real log, and the handoff milestone the day home hits 32GB —
+    recorded as a standing waived check until then, same convention as the fleetupgrade
+    waiver). Not merged to `master` yet — pending live validation.
+
 ## Next Up
 
 - **Priority order — next three phases (agreed with Kenneth 2026-07-05, post-Phase-11):** work them
   in this sequence, chosen for compounding benefit (Kenneth's call: 3 → 1 → 2):
-  1. **`/spec` command** — the "Level 2 — `/spec` command" sub-item of "automating the spec-review
-     loop" (Ideas). First, because it's the meta-tool: once built, it can spec out phases 1 and 2
-     below, so the workflow investment pays off immediately on the very next two phases.
+  1. ~~**`/spec` command**~~ — **DONE 2026-07-05** (`.claude/commands/spec.md`; full details under
+     the "automating the spec-review loop" Ideas item). Was the meta-tool; now available to spec
+     out the remaining two phases below. Still needs a first real live run to shake out.
   2. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
      sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
      architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
@@ -334,13 +361,20 @@ move finished items to Done with a date instead of deleting them.
     rubric + APPROVE/`BLOCKING ISSUES:` verdict, plus an added check that the spec honors the
     `CLAUDE.md` engineering conventions (blocking if violated). The `/agents` wizard is retired
     in the current CLI; the file placed in `.claude/agents/` is the whole setup.
-  - **Level 2 — `/spec` command** (still to do): encode the whole loop so the per-run prompt
-    collapses to `/spec phase-n-features.md`. **Reconsidered the format:** a slash command
-    (`.claude/commands/spec.md` with `$ARGUMENTS`) fits a fixed procedure better than a skill —
-    lighter, and args substitute directly; the original "Level 2 — skill" framing is superseded.
-    The command body holds the orchestration back-half currently living in the fable prompt
-    (write spec → delegate to spec-reviewer → revise blocking issues, disputes become open
-    questions → present draft/changelog/open questions → wait for approval).
+  - ~~**Level 2 — `/spec` command**: encode the whole loop so the per-run prompt collapses to
+    `/spec phase-n-features.md` (a slash command at `.claude/commands/spec.md` with `$ARGUMENTS`,
+    chosen over a skill — lighter, args substitute directly).~~ **Done (2026-07-05):** built as
+    `.claude/commands/spec.md` (`disable-model-invocation: true`; no `model` field, so it inherits
+    the session model per Kenneth's call; `argument-hint` set). Seven-step body: resolve inputs →
+    read features + `CLAUDE.md` + latest `*-spec.md` template + skim `BACKLOG.md` → clarify-or-
+    proceed gate (ask/suggest before drafting, skip if fully aligned) → draft spec → delegate cold
+    review to the `spec-reviewer` subagent → revise one round (disputes become open questions) →
+    present draft/changelog/open questions and stop before implementation. **Argument is
+    optional:** `/spec` alone globs `*phase<N>-features.md`, picks the highest `N`, and announces
+    the pick; `/spec <file>` targets a named one. Placed via the shell mount because this session
+    guards writes to `.claude/`; verified on the Windows side. Not yet live-run in a real Claude
+    Code session (built + statically verified only) — first real invocation is the remaining
+    check.
   - **Step 8 — brainstorm brief (optional):** have the opus brainstorm end by writing
     `phase-n-features.md` itself (decisions, rejected alternatives, open questions) so even the
     opus→fable handoff is a file, not a re-paste.
