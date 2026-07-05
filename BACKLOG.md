@@ -438,11 +438,18 @@ move finished items to Done with a date instead of deleting them.
   - **`npm test` green at 190/190** (184 pre-phase + 6 new `test/targets.test.js` cases for
     `isEligibleTarget`, including the not-rooted regression case and the exact-half-level
     boundary).
-  - **RAM gate and live validation: not yet run** — needs Kenneth to `mem targets.js` /
-    `mem targetsmonitor.js` / `mem daemon.js` in-game (expected: `targets.js` +0.05 GB,
-    `targetsmonitor.js` +0.05 GB vs. its own baseline, `daemon.js` flat at 16.30 GB) and to
-    restart the daemon and confirm the Recent Errors tab stays clean over a ≥10-minute window.
-    See the spec's "Live validation" section for the full steps.
+  - **RAM gate: closed (2026-07-05), via `ramcheck.js` → `logs/ramcheck-result.json`** (not
+    `mem`/terminal — see `feedback_oneoff_scripts_need_logged_output` memory). `daemon.js`
+    **16.3 GB (exact match, flat)**, `targets.js` **12.7 GB (+0.05, as predicted)**,
+    `targetsmonitor.js` **12.7 GB** — no historical baseline was ever recorded for
+    `targetsmonitor.js` specifically, but the number is fully explained (same
+    `hasRootAccess`-via-`getTargets` reachability as `targets.js`) with no unexplained delta, so
+    no identifier-hygiene hunt needed.
+  - **Live validation: still needs Kenneth** — restart the daemon and confirm the Recent Errors
+    tab stays clean over a ≥10-minute window (root-access error flood stops), eyeball
+    `targetsmonitor.js`'s new `priority` column and marker legend, and run `targets.js` once to
+    confirm the exported summary drops `ratio`. See the spec's "Live validation" section for the
+    full steps.
 
 - **Phase 11 — resource manager: active procurement** (2026-07-05, done; merged to master and
   pushed as of 2026-07-05, branch `worktree-phase11-procurement` deleted post-merge):
