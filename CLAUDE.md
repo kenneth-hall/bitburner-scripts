@@ -15,8 +15,7 @@ Feature work runs in three stages, each handing off a **file**, not chat:
 3. **Implement (sonnet)** on a branch/worktree, with the tests / RAM gate /
    `npm run verify:log` / live validation the spec calls for.
 
-Conventions below apply at every stage (spec-reviewer enforces them). Commit phase
-`*.md` docs alongside their code.
+Conventions below apply at every stage (spec-reviewer enforces them).
 
 ## Engineering conventions
 - **Keep Singularity calls out of hot paths** — heavy RAM multiplier. Isolate in
@@ -41,10 +40,9 @@ Done, dated on completion).
   different approach) — don't fold them in silently.
 
 ## Git
-Full git ownership authorized (2026-07-04, Kenneth): branch off `master`, commit, push,
-manage PRs, merge back — no need to ask in interactive sessions. **Exception:**
-background/autonomous job sessions are blocked from pushing/merging to `master` by their
-execution mode regardless of this file — prep the branch/PR and let Kenneth merge.
+Use version control: branch off `master`, commit, and merge your own work in interactive
+sessions — no need to ask. **Safety rail:** background/autonomous job sessions can't push or
+merge to `master` (enforced by execution mode) — prep the branch/PR and let Kenneth merge.
 
 ## Off-limits & sources
 - Allowed sources: local game files, API docs in `markdown/` (**check first**), the
