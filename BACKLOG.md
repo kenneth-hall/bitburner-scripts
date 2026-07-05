@@ -5,85 +5,6 @@ move finished items to Done with a date instead of deleting them.
 
 ## Next Up
 
-- **Phase 10 — finance manager + cloud server auto-upgrader** (2026-07-05, spec approved by
-  Kenneth; **[code] work implemented, branch `worktree-phase10-finance`, awaiting Kenneth's
-  [live] validation below before merge**): `finance-cloud-phase10.md`. Two new daemon-launched
-  companions: `financemanager.js` (reservation-based available-cash service — 110k first-server
-  bootstrap, TOR, cheapest unowned port opener, Formulas.exe above hacking 300, plus a
-  `finance-reserve-extra.txt` manual override as the augment stopgap; zero Singularity calls,
-  static price table verified in-game; publishes `finance-state.json`, tprints reservation
-  changes, exports `finance-log.json`) and `cloudupgrader.js` (its first customer — upgrades the
-  lowest-RAM cloud server one tier at a time from available cash only; upgrade-only, no
-  purchases, no renames; `cloud-upgrade-off.txt` pause marker; stale-state fail-safe;
-  `auto-cloud-upgrade` transactions records). Peer-reviewed 2026-07-05 (two blocking issues
-  fixed: `upgradeServer(false)` loop-termination path, startup-event kind in the finance log).
-  Live validation is reset-budgeted: Round A needs no reset (manual-override gate test proves
-  the reserve→gate chain today); Round B piggybacks on the next natural augment install (≤2
-  resets, aim 1); upper ladder rungs deferred past sign-off as follow-ups.
-  - **Runnable acceptance closed (2026-07-05): `npm test` green at 159/159** (128 pre-existing +
-    21 new `test/finance.test.js` + 10 new `test/cloudupgrader.test.js`). New
-    `test/verify-finance.test.js` wired into the existing `verify-*` glob (`npm run verify:log`)
-    — confirmed skip-clean against no real `finance-log.json` yet, and confirmed
-    fail-clean/pass-clean against synthetic malformed/well-formed fixtures (placed at a temp
-    path via `FINANCE_LOG_PATH`, then removed).
-  - **RAM predictions (from markdown-verified per-call costs, to check against `ramcheck.js`
-    live):** `financemanager.js` ≈ **3.35 GB** (1.6 base + `getPlayer` 0.5 + `cloud.getServerNames`
-    1.05 + `hasTorRouter` 0.05 + `getHackingLevel` 0.05 + `fileExists` 0.1, one charge shared
-    across all six ownership checks) — lands exactly on the spec's own estimate.
-    `cloudupgrader.js` ≈ **3.70 GB** (1.6 base + `getPlayer` 0.5 + `cloud.getServerNames` 1.05 +
-    `cloud.getRamLimit` 0.05 + `getServerMaxRam` 0.05 + `cloud.getServerUpgradeCost` 0.1 +
-    `cloud.upgradeServer` 0.25 + `fileExists` 0.1; `translog.js`'s `recordTransaction` adds 0 via
-    `ns.read`/`ns.write`). `daemon.js` itself: **+0.00 expected** (exec-by-filename only, no new
-    `ns` surface).
-  - **RAM gate: closed (2026-07-05).** `run ramcheck.js daemon.js financemanager.js
-    cloudupgrader.js` in-game: `daemon.js` **16.3 GB** (exact match to the Phase 9 baseline,
-    zero growth as expected), `financemanager.js` **3.35 GB**, `cloudupgrader.js` **3.7 GB** —
-    both exact matches to the predicted numbers above. No identifier-hygiene hunt needed.
-    (Hit the known "viteburner dev-server silently stops auto-exporting" bug again getting this
-    reading — `npm run dev` was up but `logs/ramcheck-result.json` wasn't updating; killed and
-    restarted it, which fixed it immediately, same workaround as prior occurrences.)
-  - **Round A, in progress (2026-07-05), on the current save:**
-    - **Item 2 (startup wiring): passed.** Daemon restart opened both new tails; on this save
-      (everything owned already) `finance-log.json`'s startup entry showed exactly the expected
-      `reservations: []`, `available === money`.
-    - **Item 4 (upgrader spending run): passed, validated live unprompted** the moment the
-      daemon restarted (nothing was reserved on this save, so `cloudupgrader.js` started
-      spending immediately). 7 correctly-priced `auto-cloud-upgrade` records upgraded a single
-      server 4096GB → 524288GB (each cost exactly 2x the previous, matching the doubling-tier
-      math); no renames; daemon batching undisturbed (the one logged "exit" was ordinary
-      RAM-budget churn from the fleet's capacity jump, not a defect).
-    - **Item 3 (the manual-override gate — the phase's core safety property): passed, both
-      directions.** `write finance-reserve-extra.txt 999999999999` → `manual-extra` reservation
-      appeared within one poll, `available` clamped to $0, zero upgrades landed while it was
-      active. `rm finance-reserve-extra.txt` → reservation released within one poll, `changed:
-      ["manual-extra"]`; the very next upgrade is currently blocked only by real unaffordability
-      (the next tier, 524288GB → the 1,048,576GB ceiling, costs ~$28.8B against ~$26.3B
-      available at release time — expected loop behavior, not a stall).
-    - **Item 7 (`npm run verify:log` green): passed** across daemon/transactions/finance logs
-      at every checkpoint above (28/28).
-    - **Item 5 (off switch): passed, both directions** — `write cloud-upgrade-off.txt` flipped
-      the tail to `PAUSED` (visually confirmed), no `auto-cloud-upgrade` records landed while
-      paused despite money climbing toward the next tier's cost; `rm cloud-upgrade-off.txt`
-      brought it back out of PAUSED (visually confirmed) within one poll.
-    - **Item 6 (kill/restart resilience): passed.** `kill financemanager.js` alone (leaving
-      `cloudupgrader.js`/`daemon.js` running) → within `STALE_MS` the upgrader's tail showed
-      "state stale" and printed exactly one WARN (not spam), confirmed visually. No spending
-      during the stale window (last `auto-cloud-upgrade` record — #8, `cloud-0` 524288GB →
-      1,048,576GB, the absolute RAM ceiling, using the last-known-good state right before
-      staleness engaged — landed *before* the kill, nothing after). `run financemanager.js` →
-      re-announced cleanly (`finance-log.json` gained a fresh `startup` entry, correctly showing
-      "no active reservations" against the post-spend ~$3.84B balance); `cloudupgrader.js`
-      dropped the stale flag and correctly reported "fleet maxed" (confirmed visually) — the
-      single owned server is now at the documented 1,048,576GB ceiling, so there's nothing left
-      to spend on regardless of finance state.
-    - **Round A: complete**, except item 1 (price table cross-check against live `buy -l`,
-      explicitly soft/deferred — everything's already owned on this save; Round B's fresh-reset
-      state is the real test for that). **Next: Round B on Kenneth's next natural augment
-      install.**
-    - **Aside, unblocked mid-session:** Kenneth asked for a rename-only utility (see the Ideas
-      section's Phase 10 follow-ups) after seeing `pserv-4096gb-0`'s name go stale live during
-      item 4 above — shipped as `src/renamecloudservers.js`, already run once successfully.
-
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
   same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
   likely also applies to `WORKER_SCRIPTS`' keys — `hack`/`grow`/`weaken` (`scheduler.js`) match
@@ -435,6 +356,56 @@ move finished items to Done with a date instead of deleting them.
     while browsing.
 
 ## Done (recent)
+
+- **Phase 10 — finance manager + cloud server auto-upgrader** (2026-07-05, done; branch
+  `worktree-phase10-finance` merged to `master` at `5e5f74d`): `finance-cloud-phase10.md`. Two new
+  daemon-launched companions: `financemanager.js` (reservation-based available-cash service — 110k
+  first-server bootstrap, TOR, cheapest unowned port opener, Formulas.exe above hacking-level
+  threshold, plus a `finance-reserve-extra.txt` manual override as the augment stopgap; zero
+  Singularity calls, static price table verified in-game; publishes `finance-state.json`, tprints
+  reservation changes, exports `finance-log.json`) and `cloudupgrader.js` (its first customer —
+  upgrades the lowest-RAM cloud server one tier at a time from available cash only; upgrade-only,
+  no purchases, no renames; `cloud-upgrade-off.txt` pause marker; stale-state fail-safe;
+  `auto-cloud-upgrade` transactions records). Peer-reviewed 2026-07-05 (two blocking issues fixed:
+  `upgradeServer(false)` loop-termination path, startup-event kind in the finance log).
+  - **Runnable acceptance: `npm test` green at 159/159** (128 pre-existing + 21
+    `test/finance.test.js` + 10 `test/cloudupgrader.test.js`). `test/verify-finance.test.js` wired
+    into `npm run verify:log`, confirmed skip-clean/fail-clean/pass-clean against synthetic
+    fixtures before any real log existed.
+  - **RAM gate: closed.** `daemon.js` **16.3 GB** (exact Phase 9 baseline, zero growth),
+    `financemanager.js` **3.35 GB**, `cloudupgrader.js` **3.7 GB** — both exact matches to the
+    predicted numbers. No identifier-hygiene hunt needed.
+  - **Round A (current save, no reset): complete.** Startup wiring, the manual-override
+    reserve→gate chain (both directions — the phase's core safety property), a full unprompted
+    upgrade run (4096GB → 524288GB across 7 doubling-cost tiers), the off switch (both
+    directions), and kill/restart staleness resilience (single WARN, not spam) all passed live.
+    `npm run verify:log` green throughout.
+  - **Aside, unblocked mid-Round-A:** Kenneth asked for a rename-only utility after seeing
+    `pserv-4096gb-0`'s name go stale live — shipped as `src/renamecloudservers.js` (manual,
+    idempotent, upgrade-only scripts untouched); already run successfully, survived a live rename
+    with the very next `auto-cloud-upgrade` record correctly tracking the renamed server by
+    identity.
+  - **Round B (2026-07-05, the augment-install reset): complete.** Confirmed live that this
+    reset wipes purchased/cloud servers and TOR ownership but *not* darkweb program files
+    (BruteSSH.exe survived) — a real-mechanics observation the spec didn't assume either way.
+    Fresh ladder appeared correctly (`bootstrap-server` $110k + `tor-router` $200k +
+    `next-port-opener` BruteSSH/FTPCrack per current ownership); all three price constants
+    matched Kenneth's live `buy -l`/purchase-UI check exactly, no fixes needed.
+    `bootstrap-server` and `tor-router` each released within one poll of the matching purchase;
+    `next-port-opener` walked BruteSSH → FTPCrack → relaySMTP live as programs were bought.
+    Confirmed via the transactions log that the upgrader stayed correctly frozen (`available`
+    pinned at $0, zero `auto-cloud-upgrade` records) while the `formulas` reservation ($5B)
+    dwarfed cash. `npm run verify:log` green (28/28) on the real post-reset logs.
+  - **Change request mid-Round-B: `FORMULAS_HACKING_LEVEL_THRESHOLD` bumped 300 → 400**
+    (`src/financemanager.js`, plus the two boundary-dependent `test/finance.test.js` cases).
+    Live-observed that hacking level climbed 36 → 411 in the same session (fast leveling from
+    high hacking income), so the reservation stayed active even after the bump — a real
+    moving-target case, not a bug; Kenneth chose to accept it and move on rather than raise the
+    threshold further or drop the rule (low risk, revisit if it becomes annoying).
+  - **Acceptance criteria met in full** — see follow-ups filed under Ideas / Backlog: augment
+    reservation cost model (still back-burnered), future finance-manager customers
+    (`upgradehomeram.js` next), and the deferred upper-ladder rungs (relaySMTP → SQLInject,
+    formulas releasing on purchase) as live-validation-when-convenient, not sign-off blockers.
 
 - **Batcher refactor Phase 9 — Phase 8 close-out** (2026-07-04): `batcher-refactor-phase9.md`.
   Closes all three items Phase 8 left waived/degraded, plus the `pickBatchSet` bug Phase 8

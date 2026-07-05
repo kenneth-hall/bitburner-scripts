@@ -105,14 +105,14 @@ describe('computeReservations', () => {
     expect(reservations.map((x) => x.key)).not.toContain('next-port-opener');
   });
 
-  it('formulas reservation respects the strict > 300 boundary', () => {
+  it('formulas reservation respects the strict > 400 boundary', () => {
     expect(
-      computeReservations({ ...BASE_STATE, hackingLevel: 300, hasFormulas: false }).reservations.map((r) => r.key)
+      computeReservations({ ...BASE_STATE, hackingLevel: 400, hasFormulas: false }).reservations.map((r) => r.key)
     ).not.toContain('formulas');
     expect(
-      computeReservations({ ...BASE_STATE, hackingLevel: 301, hasFormulas: false }).reservations.map((r) => r.key)
+      computeReservations({ ...BASE_STATE, hackingLevel: 401, hasFormulas: false }).reservations.map((r) => r.key)
     ).toContain('formulas');
-    const formulasReservation = computeReservations({ ...BASE_STATE, hackingLevel: 301, hasFormulas: false }).reservations.find(
+    const formulasReservation = computeReservations({ ...BASE_STATE, hackingLevel: 401, hasFormulas: false }).reservations.find(
       (r) => r.key === 'formulas'
     );
     expect(formulasReservation.amount).toBe(FORMULAS_COST);
@@ -136,7 +136,7 @@ describe('computeReservations', () => {
       serverCount: 0,
       hasTor: false,
       ownedPrograms: new Set(),
-      hackingLevel: 301,
+      hackingLevel: 401,
       hasFormulas: false,
       manualExtraAmount: 1_000_000,
     });

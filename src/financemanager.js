@@ -31,7 +31,7 @@ const LOG_MAX_ENTRIES = 500;
 export const BOOTSTRAP_SERVER_COST = 110_000; // 2GB cloud-server price -- Kenneth hand-buys the first foothold in the UI, not purchasecloudservers.js's 16GB floor
 export const TOR_ROUTER_COST = 200_000;
 export const FORMULAS_COST = 5_000_000_000;
-export const FORMULAS_HACKING_LEVEL_THRESHOLD = 300; // strictly greater, per Kenneth's wording
+export const FORMULAS_HACKING_LEVEL_THRESHOLD = 400; // strictly greater, per Kenneth's wording (bumped from 300 during Round B live validation, 2026-07-05)
 
 // Order matches hosts.js's PORT_OPENERS exactly (not imported -- importing
 // hosts.js would pull in its rooting/nuke ns surface, which this
