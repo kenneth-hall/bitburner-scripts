@@ -26,9 +26,10 @@ Conventions below apply at every stage (spec-reviewer enforces them). Commit pha
   existing call sites. A failed spend records nothing.
 - **Test + validate against logs** — vitest where practical, check exported logs, wire
   into `npm run verify:log`. For live-only behavior, do a live run and say so.
-- **Prefer exported logs over pasted terminal output** (game copy/paste is lossy). If a
-  result isn't logged, add an `ns.write(...)` export (+ `vite.config.ts` filter) instead
-  of asking for a paste. → `docs/logging.md` for the file-naming patterns.
+- **Prefer exported logs over pasted terminal output** (game copy/paste is lossy). Verify
+  against the log files, not assumption. If a result isn't logged, add an `ns.write(...)`
+  export (+ `vite.config.ts` filter) instead of asking for a paste — or ask whether to log
+  it. → `docs/logging.md` for the file-naming patterns.
 
 ## Tracking work
 Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas /
@@ -38,8 +39,6 @@ Done, dated on completion).
 - **Summarize after acting.**
 - **Flag unplanned deviations** (extra changes, moved/deleted files, scope creep, a
   different approach) — don't fold them in silently.
-- **Verify against the log files, not assumption**; if something needed isn't logged,
-  ask whether to log it.
 
 ## Git
 Full git ownership authorized (2026-07-04, Kenneth): branch off `master`, commit, push,
