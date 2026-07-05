@@ -65,10 +65,21 @@ move finished items to Done with a date instead of deleting them.
       the tail to `PAUSED` (visually confirmed), no `auto-cloud-upgrade` records landed while
       paused despite money climbing toward the next tier's cost; `rm cloud-upgrade-off.txt`
       brought it back out of PAUSED (visually confirmed) within one poll.
-    - **Still open: item 1** (price table cross-check against live `buy -l` — soft, since
-      everything's already owned on this save; Round B's fresh-reset state is the real test),
-      **item 6** (kill/restart resilience — financemanager.js killed alone, staleness fail-safe,
-      relaunch), **Round B** (next augment reset).
+    - **Item 6 (kill/restart resilience): passed.** `kill financemanager.js` alone (leaving
+      `cloudupgrader.js`/`daemon.js` running) → within `STALE_MS` the upgrader's tail showed
+      "state stale" and printed exactly one WARN (not spam), confirmed visually. No spending
+      during the stale window (last `auto-cloud-upgrade` record — #8, `cloud-0` 524288GB →
+      1,048,576GB, the absolute RAM ceiling, using the last-known-good state right before
+      staleness engaged — landed *before* the kill, nothing after). `run financemanager.js` →
+      re-announced cleanly (`finance-log.json` gained a fresh `startup` entry, correctly showing
+      "no active reservations" against the post-spend ~$3.84B balance); `cloudupgrader.js`
+      dropped the stale flag and correctly reported "fleet maxed" (confirmed visually) — the
+      single owned server is now at the documented 1,048,576GB ceiling, so there's nothing left
+      to spend on regardless of finance state.
+    - **Round A: complete**, except item 1 (price table cross-check against live `buy -l`,
+      explicitly soft/deferred — everything's already owned on this save; Round B's fresh-reset
+      state is the real test for that). **Next: Round B on Kenneth's next natural augment
+      install.**
     - **Aside, unblocked mid-session:** Kenneth asked for a rename-only utility (see the Ideas
       section's Phase 10 follow-ups) after seeing `pserv-4096gb-0`'s name go stale live during
       item 4 above — shipped as `src/renamecloudservers.js`, already run once successfully.
