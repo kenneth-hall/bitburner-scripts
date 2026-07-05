@@ -2,7 +2,7 @@
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 2 (see `batcher-refactor-phase2.md`) built the timed HWGW batcher: `daemon.js` launches a batch against the top-ranked target every `BATCH_INTERVAL_MS`, preps it when drifted, then spends leftover RAM prepping lower-ranked targets.
+Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 2 (see `phase-02-batcher-refactor.md`) built the timed HWGW batcher: `daemon.js` launches a batch against the top-ranked target every `BATCH_INTERVAL_MS`, preps it when drifted, then spends leftover RAM prepping lower-ranked targets.
 
 It works, but batches skip constantly. Two causes, confirmed by audit:
 

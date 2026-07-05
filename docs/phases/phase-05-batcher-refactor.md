@@ -2,7 +2,7 @@
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 4 (see `batcher-refactor-phase4.md`) is complete: formulas math with legacy fallback, verified live — 0 flips and constant pipeline depth in formulas mode vs. 9 flips and 31→209 depth swings in the same-session legacy segment. `npm test` was last green at 65/65.
+Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 4 (see `phase-04-batcher-refactor.md`) is complete: formulas math with legacy fallback, verified live — 0 flips and constant pipeline depth in formulas mode vs. 9 flips and 31→209 depth swings in the same-session legacy segment. `npm test` was last green at 65/65.
 
 **Re-scoped 2026-07-04 (post-review):** this spec originally bundled four items from the 2026-07-04 code audit. After review it was trimmed to one — the daily transactions log — so the phase has a single live-acceptance gate and fits one session. The other three items (ratio → priority display, consistency consolidation, `backdoorfactions.js`) moved back to `BACKLOG.md`'s Next Up with all their settled decisions preserved; BACKLOG is their single source of truth again. The build-first rationale survives the re-scope: every future phase gets to use the transactions log as a debugging/verification resource for anything money-related. Once it exists, prefer reading it over asking for terminal pastes — same principle as `CLAUDE.md`'s existing log rules.
 

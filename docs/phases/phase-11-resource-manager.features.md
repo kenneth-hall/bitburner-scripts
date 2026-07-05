@@ -3,11 +3,11 @@
 **Stage:** Brainstorm (opus). This is the design-decisions handoff for the spec stage, not a
 spec. It captures what's decided, what was rejected and why, and what's still open — per
 `CLAUDE.md`'s Development workflow. The fable spec stage turns this into
-`resource-manager-phase11-spec.md`.
+`phase-11-resource-manager.spec.md`.
 
 ## Goal
 
-Continue the Phase 10 money-management workstream (`finance-cloud-phase10.md`). Phase 10 built a
+Continue the Phase 10 money-management workstream (`phase-10-finance-cloud.md`). Phase 10 built a
 budget authority (`financemanager.js`) that *reserves* cash for upcoming hand-purchases, and one
 discretionary customer (`cloudupgrader.js`) that spends the leftover *available* cash upgrading
 cloud servers. The reserved purchases — TOR router, port openers, the first cloud server — are

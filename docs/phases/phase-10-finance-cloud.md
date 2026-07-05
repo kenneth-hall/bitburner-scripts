@@ -2,7 +2,7 @@
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phases 1–9 (`batcher-refactor-phase1.md` … `phase9.md`) built the batching daemon and its logging/verification infrastructure; this phase starts a new workstream on top of it: **automated money management**. Two new long-running companion scripts:
+Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phases 1–9 (`phase-01-batcher-refactor.md` … `phase9.md`) built the batching daemon and its logging/verification infrastructure; this phase starts a new workstream on top of it: **automated money management**. Two new long-running companion scripts:
 
 1. **`financemanager.js`** — decides how much cash is *available* for scripts to spend, by holding reservations for upcoming player purchases (first cloud server, TOR router, port openers, Formulas.exe, and a manual override). Intent: cash is either earmarked for a known upcoming hand-purchase or actively deployed — never idle by accident.
 2. **`cloudupgrader.js`** — the finance manager's first (and for now only) customer. Spends *available* cash upgrading owned cloud servers, one power-of-2 tier at a time. **Upgrade only — it never purchases new servers.**

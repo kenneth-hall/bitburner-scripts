@@ -174,7 +174,7 @@ export function countInFlightThreads(ns, hosts, server, script) {
  * `sharePool` is always present, defaulting to `{threads: 0, ramGb: 0}`.
  * (Named `sharePool`, not `share` -- Phase 9: `share` collides with
  * `ns.share`'s exact name and gets charged its 2.4 GB RAM cost even though
- * nothing here calls it; see batcher-refactor-phase9.md.)
+ * nothing here calls it; see docs/phases/phase-09-batcher-refactor.md.)
  * @param {NS} ns
  * @param {{hostname: string}[]} hosts
  * @param {Record<string, number>} ramCosts

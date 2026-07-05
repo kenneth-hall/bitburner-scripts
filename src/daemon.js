@@ -59,7 +59,7 @@ const CYCLE_MS = 10000;
 // trimLog's comment) -- everything else ages out in arrival order.
 // Phase 9 schema change: `snapshot` events carry `sharePool` (was `share` --
 // renamed to stop colliding with ns.share's RAM-cost name, see
-// batcher-refactor-phase9.md) and a new `hackingLevel` field. Old logs stay
+// docs/phases/phase-09-batcher-refactor.md) and a new `hackingLevel` field. Old logs stay
 // readable by old checker versions via git; the current checker validates
 // only the current schema.
 const DAEMON_LOG_FILE = "daemon-batch-log.json";

@@ -135,7 +135,7 @@ describe('checkNaturalExit', () => {
     expect(checkNaturalExit(entries)).toEqual([]);
   });
 
-  // Modeled on the real Phase 8 failure (batcher-refactor-phase9.md): a
+  // Modeled on the real Phase 8 failure (docs/phases/phase-09-batcher-refactor.md): a
   // `displaced` exit followed by `batch` events against the same server with
   // no intervening `enter` -- the pass-3/pass-4 both-lists bug's fingerprint.
   it('flags a batch event against a server with an open exit and no intervening enter', () => {

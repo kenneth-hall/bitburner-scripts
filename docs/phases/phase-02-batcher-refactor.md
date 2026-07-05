@@ -2,7 +2,7 @@
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts`. Phase 1 (see `batcher-refactor-phase1.md`) built a central-allocation daemon: `daemon.js` + `hosts.js` + `targets.js` + `allocator.js`, with looping single-action workers (`hackloop.js`, `growloop.js`, `weakenloop.js`). It works, but loop workers waste effect: hacks land against elevated security, grows land against partial money, and the three actions constantly disturb each other.
+Work in `C:\Users\admin\bitburner-scripts`. Phase 1 (see `phase-01-batcher-refactor.md`) built a central-allocation daemon: `daemon.js` + `hosts.js` + `targets.js` + `allocator.js`, with looping single-action workers (`hackloop.js`, `growloop.js`, `weakenloop.js`). It works, but loop workers waste effect: hacks land against elevated security, grows land against partial money, and the three actions constantly disturb each other.
 
 **Phase 2 replaces the loops with precisely timed one-shot batches.** A batch is four one-shot jobs fired at a *prepped* target (min security, max money), timed so they land milliseconds apart in a fixed order:
 

@@ -1,4 +1,4 @@
-// Codified acceptance criteria (batcher-refactor-phase5.md: "Verification"
+// Codified acceptance criteria (docs/phases/phase-05-batcher-refactor.md: "Verification"
 // -> "Log checker"). Reads REAL exported day-files -- run via `npm run
 // verify:log`, not `npm test` (see vitest.config.ts's exclude and this
 // project's own vitest.verify.config.ts). Directory overridable via

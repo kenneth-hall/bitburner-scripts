@@ -9,7 +9,7 @@
 // than throwing/asserting -- callers decide whether that's a vitest
 // assertion (verify-log.test.js) or a fixture expectation (checker-fixtures).
 
-const SHARE_CAP_GRACE_MS = 30_000; // one 10s worker cycle + two 10s snapshot cadences of slack (see batcher-refactor-phase8.md)
+const SHARE_CAP_GRACE_MS = 30_000; // one 10s worker cycle + two 10s snapshot cadences of slack (see docs/phases/phase-08-batcher-refactor.md)
 const FRACTION_TOLERANCE = 0.02; // 2% relative, deliberately loose -- host list refreshes on CYCLE_MS, one refresh can separate target and budget
 
 /**

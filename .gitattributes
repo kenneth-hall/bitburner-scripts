@@ -1,0 +1,8 @@
+# Binary assets — never apply EOL/text conversion (autocrlf would corrupt them).
+*.pdf  binary
+*.gz   binary
+*.jpg  binary
+*.jpeg binary
+*.png  binary
+*.ico  binary
+*.gif  binary

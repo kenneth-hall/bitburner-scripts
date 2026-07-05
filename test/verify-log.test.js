@@ -269,7 +269,7 @@ describe('hard assertions', () => {
   it('natural-exit invariant: no batch events and no rising draining counts between an exit and its next enter', () => {
     // "No new batches after exit, drain only" (Phase 9: extracted into
     // checkNaturalExit so the validation table in
-    // batcher-refactor-phase9.md is mechanically countable against
+    // docs/phases/phase-09-batcher-refactor.md is mechanically countable against
     // logs/phase8-ab/, not hand-derived).
     const violations = checkNaturalExit(entries);
     expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);

@@ -14,7 +14,7 @@ do not resume from it without re-confirming the settled decisions still hold.
 
 ## Context
 
-Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 5 (see `batcher-refactor-phase5.md`) is complete and live-verified; `npm test` was last green at 78/78.
+Work in `C:\Users\admin\bitburner-scripts` (edit `src/`; `npm run dev` runs the viteburner watcher that syncs into the game). Phase 5 (see `phase-05-batcher-refactor.md`) is complete and live-verified; `npm test` was last green at 78/78.
 
 This phase implements BACKLOG's **post-reset auto-backdoor** item plus one new piece of infrastructure it feeds: a **persistent events log** spanning the whole playthrough. A `backdoorfactions.js` was previously implemented and then deliberately reverted (2026-07-04, mid-testing); the design decisions from that attempt are preserved in BACKLOG and restated here as binding. Implement fresh from this spec — do not resurrect the reverted code from git history; where history and this spec differ, this spec wins.
 
