@@ -61,10 +61,14 @@ move finished items to Done with a date instead of deleting them.
       available at release time — expected loop behavior, not a stall).
     - **Item 7 (`npm run verify:log` green): passed** across daemon/transactions/finance logs
       at every checkpoint above (28/28).
+    - **Item 5 (off switch): passed, both directions** — `write cloud-upgrade-off.txt` flipped
+      the tail to `PAUSED` (visually confirmed), no `auto-cloud-upgrade` records landed while
+      paused despite money climbing toward the next tier's cost; `rm cloud-upgrade-off.txt`
+      brought it back out of PAUSED (visually confirmed) within one poll.
     - **Still open: item 1** (price table cross-check against live `buy -l` — soft, since
       everything's already owned on this save; Round B's fresh-reset state is the real test),
-      **item 5** (off switch), **item 6** (kill/restart resilience), **Round B** (next augment
-      reset).
+      **item 6** (kill/restart resilience — financemanager.js killed alone, staleness fail-safe,
+      relaunch), **Round B** (next augment reset).
     - **Aside, unblocked mid-session:** Kenneth asked for a rename-only utility (see the Ideas
       section's Phase 10 follow-ups) after seeing `pserv-4096gb-0`'s name go stale live during
       item 4 above — shipped as `src/renamecloudservers.js`, already run once successfully.
