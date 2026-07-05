@@ -328,6 +328,11 @@ export async function main(ns) {
   // itself via ns.ui.openTail().
   launchDetached(ns, "targetsmonitor.js");
   launchDetached(ns, "transactionsmonitor.js");
+  // Phase 10: finance manager first, so its state file usually exists by the
+  // upgrader's first poll -- a nicety, not a correctness requirement, since
+  // the upgrader's own stale/missing guard treats "no state yet" safely.
+  launchDetached(ns, "financemanager.js");
+  launchDetached(ns, "cloudupgrader.js");
 
   let hosts = [];
   let targets = [];
