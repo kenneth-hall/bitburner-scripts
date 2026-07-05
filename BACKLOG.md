@@ -10,19 +10,17 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
-- **Priority order — next three phases (agreed with Kenneth 2026-07-05, post-Phase-11):** work them
-  in this sequence, chosen for compounding benefit (Kenneth's call: 3 → 1 → 2):
-  1. ~~**`/spec` command**~~ — **DONE 2026-07-05** (`.claude/commands/spec.md`; full details under
-     the "automating the spec-review loop" Ideas item). Was the meta-tool; now available to spec
-     out the remaining two phases below. Still needs a first real live run to shake out.
+- **Priority order — remaining phases (agreed with Kenneth 2026-07-05, post-Phase-11):** work in
+  this sequence, chosen for compounding benefit. (The `/spec` command that was first in this list
+  shipped 2026-07-05 — see CHANGELOG — leaving these two.)
+  1. **Consistency consolidation (`src/common.js`)** — behavior-preserving; mints the
+     `tryRoot`/`findPath`/`scanNetwork` helpers the auto-backdoor and darknet phases both depend
+     on, so it must precede both. Brainstorm done: `phase-13-consolidation.features.md` (root),
+     ready for `/spec`.
   2. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
      sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
      architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
      and closes the money→RAM→income flywheel: more home RAM feeds the whole batcher.
-  3. **Consistency consolidation (`src/common.js`)** — the Next Up item below. Behavior-preserving,
-     and it mints the `tryRoot`/`findPath`/`scanNetwork` helpers that the auto-backdoor and darknet
-     phases both depend on, so it must land before either of those (its only hard ordering
-     constraint — nothing in this batch conflicts with it going third).
   - The remaining Next Up items (Source-File watcher, RAM-analyzer hygiene) are quick wins to
     fold into whichever phase is already touching those files, not standalone phases. (The
     targetsmonitor priority-column item folded into Phase 12 — see Done.)
@@ -322,45 +320,13 @@ instead of deleting it — don't let history pile up here.
   then hand Claude the exact path so it reads it directly) and write the steps down so future
   sessions aren't rediscovering this each time.
 
-- **Claude Code workflow to learn: automating the spec-review loop** (2026-07-04; progress
-  2026-07-05): the brainstorm→spec→implement workflow is now documented in `CLAUDE.md`
-  (`## Development workflow`), and the four recurring standing rules that used to be re-pasted
-  into every fable prompt (Singularity RAM, transaction logging, tests+log validation, the
-  static-value spoiler carve-out) moved into `CLAUDE.md` (`## Engineering conventions` + the
-  Off-limits carve-out) so they drop out of the per-run prompt. Remaining build-out:
-  - ~~**Level 1 — reviewer subagent**: `.claude/agents/spec-reviewer.md` (YAML frontmatter +
-    markdown body that becomes its system prompt). Fixed rubric: review against the stated
-    requirements; flag ambiguity, missing edge cases, untestable acceptance criteria, hidden
-    assumptions. Read-only tools (`tools: Read, Glob, Grep`). Required verdict format: APPROVE
-    or a numbered list of blocking issues only.~~ **Done (2026-07-05):** built as
-    `.claude/agents/spec-reviewer.md` — read-only tools, `model: opus`, the four-category
-    rubric + APPROVE/`BLOCKING ISSUES:` verdict, plus an added check that the spec honors the
-    `CLAUDE.md` engineering conventions (blocking if violated). The `/agents` wizard is retired
-    in the current CLI; the file placed in `.claude/agents/` is the whole setup.
-  - ~~**Level 2 — `/spec` command**: encode the whole loop so the per-run prompt collapses to
-    `/spec phase-NN-slug.features.md` (a slash command at `.claude/commands/spec.md` with `$ARGUMENTS`,
-    chosen over a skill — lighter, args substitute directly).~~ **Done (2026-07-05):** built as
-    `.claude/commands/spec.md` (`disable-model-invocation: true`; no `model` field, so it inherits
-    the session model per Kenneth's call; `argument-hint` set). Seven-step body: resolve inputs →
-    read features + `CLAUDE.md` + latest `*-spec.md` template + skim `BACKLOG.md` → clarify-or-
-    proceed gate (ask/suggest before drafting, skip if fully aligned) → draft spec → delegate cold
-    review to the `spec-reviewer` subagent → revise one round (disputes become open questions) →
-    present draft/changelog/open questions and stop before implementation. **Argument is
-    optional:** `/spec` alone globs `*phase<N>-features.md`, picks the highest `N`, and announces
-    the pick; `/spec <file>` targets a named one. Placed via the shell mount because this session
-    guards writes to `.claude/`; verified on the Windows side. **First real live run confirmed (2026-07-05,
-    Phase 14 — see Done below):** `/spec` drafted `docs/phases/phase-14-bootstrap.spec.md`, and the
-    `spec-reviewer` subagent caught 3 real blocking issues (per-opener nudge dedup key, a
-    required-hacking-level read scoped to only one candidate instead of all, inconsistent
-    null-target poll behavior) — all fixed before implementation began. The loop worked
-    end-to-end as designed, not just statically verified.
+- **Claude Code workflow — spec-review loop (mostly shipped 2026-07-05; see CHANGELOG).** The
+  brainstorm→spec→implement workflow, the four standing rules moved into `CLAUDE.md`, the
+  `spec-reviewer` subagent, and the `/spec` command are all built and live-proven (Phase 14). One
+  optional enhancement remains:
   - **Step 8 — brainstorm brief (optional):** have the opus brainstorm end by writing
     `phase-NN-slug.features.md` itself (decisions, rejected alternatives, open questions) so even the
     opus→fable handoff is a file, not a re-paste.
-  - Deliberately rejected: multi-round author↔reviewer convergence (no natural stopping point;
-    rubber-stamp and invented-nitpick failure modes). One review round; a manually requested
-    second pass is the escalation valve, and unresolved disagreements go to Kenneth as open
-    questions rather than forced consensus.
 
 - **Monitor cleanup + more meaningful logging**: `daemon.js`'s tail popup is very verbose
   and some numbers look stale or reset next cycle — concretely: the `durations:` line reads
