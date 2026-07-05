@@ -20,10 +20,13 @@ const FILENAME_PATTERN = /^transactions-\d{4}-\d{2}-\d{2}\.json$/;
 const VALID_EXPENSE_SOURCES = new Set([
   'cloud-purchase',
   'fleet-upgrade',
-  'darkweb-program',
+  'darkweb-program', // purchasescripts.js -- retired in Phase 11, kept for historical day-files
   'home-ram-upgrade',
   'single-server-upgrade', // upgradecloudserver.js -- missing from this whitelist since that script's own phase; found via a real 2026-07-04 session log
-  'auto-cloud-upgrade', // cloudupgrader.js (Phase 10)
+  'auto-cloud-upgrade', // cloudupgrader.js (Phase 10) / cloudmanager.js (Phase 11 rename)
+  'auto-tor', // procureprograms.js (Phase 11)
+  'auto-port-opener', // procureprograms.js (Phase 11)
+  'auto-cloud-purchase', // cloudmanager.js (Phase 11)
 ]);
 const VALID_INCOME_SOURCES = new Set(['hacking']);
 

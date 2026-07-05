@@ -3,6 +3,46 @@
 Tracks feature work and goals across sessions. Update when starting/finishing something;
 move finished items to Done with a date instead of deleting them.
 
+## In Progress
+
+- **Phase 11 — resource manager: active procurement** (2026-07-05, code complete on
+  `worktree-phase11-procurement`, awaiting the RAM gate + live validation rounds):
+  `resource-manager-phase11-spec.md` (peer-reviewed, APPROVE with no blocking issues). Closes
+  the loop Phase 10 left open — automates the purchases `financemanager.js`'s reservations were
+  only protecting, so a fresh reset can bootstrap the fleet with zero hand-buys.
+  - **Three renames + one behavior evolution each:** `src/financemanager.js` → `resourcemanager.js`
+    (charter/behavior unchanged, label text updated); `src/cloudupgrader.js` → `cloudmanager.js`
+    (adds bootstrap-buy + growth-buy on top of the Phase 10 upgrade loop, via new pure
+    `shouldBuyGrowthServer`/`nextCloudName`); `src/purchasescripts.js` → `procureprograms.js`
+    (evolved from a single-pass darkweb-program sweep into a self-terminating TOR + port-opener
+    poll loop scoped to those two program types only, via new pure `planProgramPurchase`/
+    `bootstrapHoldbackFrom`; prices come from `resourcemanager.js`'s static cost table, not
+    darkweb reads). All three `git mv`'d with history preserved.
+  - `daemon.js` startup now launches all three under their new names (`procureprograms.js` is
+    the one net-new `launchDetached` call); `test/verify-transactions.test.js`'s
+    `VALID_EXPENSE_SOURCES` gained `auto-tor`/`auto-port-opener`/`auto-cloud-purchase` (old
+    `darkweb-program` kept for historical logs); `vite.config.ts` and `renamecloudservers.js`
+    comments updated; grep-confirmed zero remaining functional references to the three old
+    filenames (only intentional rename-provenance comments remain).
+  - **`npm test` green at 184/184** (up from Phase 10's 162/162): renamed suites
+    (`test/resourcemanager.test.js`, `test/cloudmanager.test.js`, both `git mv`'d) plus 12 new
+    `test/procureprograms.test.js` cases and 10 new `shouldBuyGrowthServer`/`nextCloudName`
+    cases in `test/cloudmanager.test.js`.
+  - **Synthetic-fixture confirmation done (2026-07-05):** a temporary `TRANSACTIONS_LOG_DIR`
+    fixture confirmed `verify-transactions` accepts all three new sources (`auto-tor`,
+    `auto-port-opener`, `auto-cloud-purchase`) and still fails clean on an unknown source
+    (`unknown expense source not-a-real-source`); fixture removed after, nothing committed.
+    `npm run verify:log` also re-run clean against the real `logs/` (28/28) — unaffected by the
+    rename since no new writer has landed a real record yet.
+  - Every RAM cost the spec cites (`purchaseServer` 2.25, `getServerCost` 0.25, `getServerLimit`
+    0.05, `purchaseTor`/`purchaseProgram` 32 each, `hasTorRouter` 0.05, `fileExists` 0.1,
+    `getPlayer` 0.5) re-confirmed directly against `markdown/` during implementation, not just
+    trusted from the spec.
+  - **Not yet done:** the RAM gate (`daemon.js`/`resourcemanager.js`/`cloudmanager.js`/
+    `procureprograms.js`, predicted 16.30/3.35/6.25/66.25) and both live validation rounds
+    (Round A on the current save, Round B piggybacked on the next augment-install reset) are
+    Kenneth's steps per the spec — nothing here has been run in-game yet.
+
 ## Next Up
 
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
@@ -85,7 +125,10 @@ move finished items to Done with a date instead of deleting them.
   - **Small consolidations and comment fixes**: `cloudcosts.js` exports the power-of-2
     `standardSizes` builder, `purchasecloudservers.js` imports it (lives in cloudcosts, not
     common.js, to keep `ns.cloud.*` out of common importers' bundles). Header fixes:
-    `purchasescripts.js` (drop the false "daemon runs this at startup" claim),
+    ~~`purchasescripts.js` (drop the false "daemon runs this at startup" claim)~~ **superseded
+    by Phase 11 (2026-07-05)**: `purchasescripts.js` was renamed + rewritten to
+    `procureprograms.js`, whose header now correctly documents daemon.js launching it at
+    startup (the claim is true now, not just corrected) — don't redo this sub-item.
     `killscripts.js` (daemon doesn't kill in steady state — one-shot workers exit on their
     own). (`fleetupgrade.js`'s header reclassification shipped early with Phase 5, since that
     phase made it a permanent transactions-log call site — see Done below.)
@@ -163,20 +206,24 @@ move finished items to Done with a date instead of deleting them.
 
 - **Phase 10 follow-ups** (2026-07-05, filed per `finance-cloud-phase10.md`'s Files section;
   none of these block Phase 10 sign-off):
-  - **Augment reservation cost model**: `financemanager.js`'s `manual-extra` rule
-    (`finance-reserve-extra.txt`) is an explicit stopgap for augments, back-burnered this phase
-    per Kenneth. A real design would need an augment cost/priority model (which augments, in
-    what order, at what price) to turn into its own reservation rule.
+  - **Augment reservation cost model**: `resourcemanager.js`'s (renamed from `financemanager.js`
+    in Phase 11) `manual-extra` rule (`finance-reserve-extra.txt`) is an explicit stopgap for
+    augments, back-burnered this phase per Kenneth. A real design would need an augment
+    cost/priority model (which augments, in what order, at what price) to turn into its own
+    reservation rule. Still not done as of Phase 11.
   - **Rename-only cosmetic utility — done (2026-07-05):** proved annoying in practice almost
     immediately (`pserv-4096gb-0` grew to 524288GB live during Round A). `src/renamecloudservers.js`
     — manual, not wired into `daemon.js`, renames every owned server to `cloud-<n>` (no capacity
     in the name), idempotent (a server already matching `cloud-<n>` is left alone and its index
     reserved, so a re-run after buying more servers only touches the new ones). Never
     purchases/upgrades anything; doesn't touch `upgradecloudserver.js`/`fleetupgrade.js`'s
-    existing rename-and-recreate behavior.
-  - **Future finance-manager customers**: `cloudupgrader.js` is deliberately the only customer
-    this phase. `upgradehomeram.js` is the obvious next one (same available-cash gating,
-    currently unconditional).
+    existing rename-and-recreate behavior. **Superseded for auto-bought servers by Phase 11**:
+    `cloudmanager.js` now names its own purchases `cloud-<n>` directly (`nextCloudName`), so this
+    utility is only needed for legacy `pserv-*` names going forward.
+  - **Future finance-manager customers — done (2026-07-05, partially):** `cloudupgrader.js`
+    (renamed `cloudmanager.js`) was deliberately the only customer in Phase 10; Phase 11 kept it
+    the only customer but widened its own scope to cloud *purchasing* too. `upgradehomeram.js`
+    remains unconditional (same available-cash gating opportunity, still not done).
 
 - **Stock market — no design yet, mechanics straightened out for future design pass**
   (2026-07-04): No architecture decided; this is a mechanics reference to design against
@@ -275,20 +322,31 @@ move finished items to Done with a date instead of deleting them.
   then hand Claude the exact path so it reads it directly) and write the steps down so future
   sessions aren't rediscovering this each time.
 
-- **Claude Code workflow to learn: automating the spec-review loop** (2026-07-04): designed in
-  chat; using the prompt-only version for now (main session writes the spec since it holds the
-  requirements context, a cold-context subagent peer-reviews it, main session addresses blocking
-  issues and presents final draft + changelog + open questions for approval). Two automation
-  levels to build/learn when ready:
-  - **Level 1 — reviewer subagent**: `.claude/agents/spec-reviewer.md` (YAML frontmatter +
+- **Claude Code workflow to learn: automating the spec-review loop** (2026-07-04; progress
+  2026-07-05): the brainstorm→spec→implement workflow is now documented in `CLAUDE.md`
+  (`## Development workflow`), and the four recurring standing rules that used to be re-pasted
+  into every fable prompt (Singularity RAM, transaction logging, tests+log validation, the
+  static-value spoiler carve-out) moved into `CLAUDE.md` (`## Engineering conventions` + the
+  Off-limits carve-out) so they drop out of the per-run prompt. Remaining build-out:
+  - ~~**Level 1 — reviewer subagent**: `.claude/agents/spec-reviewer.md` (YAML frontmatter +
     markdown body that becomes its system prompt). Fixed rubric: review against the stated
     requirements; flag ambiguity, missing edge cases, untestable acceptance criteria, hidden
     assumptions. Read-only tools (`tools: Read, Glob, Grep`). Required verdict format: APPROVE
-    or a numbered list of blocking issues only.
-  - **Level 2 — `/spec` skill**: `.claude/skills/spec/SKILL.md` encoding the whole loop (write
-    spec to `specs/<name>.md` → delegate review to spec-reviewer → address blocking issues,
-    anything disputed becomes an open question → present draft/changelog/open questions → wait
-    for approval before implementing).
+    or a numbered list of blocking issues only.~~ **Done (2026-07-05):** built as
+    `.claude/agents/spec-reviewer.md` — read-only tools, `model: opus`, the four-category
+    rubric + APPROVE/`BLOCKING ISSUES:` verdict, plus an added check that the spec honors the
+    `CLAUDE.md` engineering conventions (blocking if violated). The `/agents` wizard is retired
+    in the current CLI; the file placed in `.claude/agents/` is the whole setup.
+  - **Level 2 — `/spec` command** (still to do): encode the whole loop so the per-run prompt
+    collapses to `/spec phase-n-features.md`. **Reconsidered the format:** a slash command
+    (`.claude/commands/spec.md` with `$ARGUMENTS`) fits a fixed procedure better than a skill —
+    lighter, and args substitute directly; the original "Level 2 — skill" framing is superseded.
+    The command body holds the orchestration back-half currently living in the fable prompt
+    (write spec → delegate to spec-reviewer → revise blocking issues, disputes become open
+    questions → present draft/changelog/open questions → wait for approval).
+  - **Step 8 — brainstorm brief (optional):** have the opus brainstorm end by writing
+    `phase-n-features.md` itself (decisions, rejected alternatives, open questions) so even the
+    opus→fable handoff is a file, not a re-paste.
   - Deliberately rejected: multi-round author↔reviewer convergence (no natural stopping point;
     rubber-stamp and invented-nitpick failure modes). One review round; a manually requested
     second pass is the escalation valve, and unresolved disagreements go to Kenneth as open

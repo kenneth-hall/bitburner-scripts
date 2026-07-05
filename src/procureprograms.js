@@ -1,0 +1,183 @@
+// Program procurement (Phase 11 rename + evolution of purchasescripts.js).
+// Self-terminating Singularity fulfiller for TOR + the five port openers
+// only (S1's narrowing -- today's purchasescripts.js bought every affordable
+// darkweb program; utility programs like ServerProfiler/DeepscanV1-V2/
+// AutoLink become hand-buys, Formulas.exe stays reservation-only).
+//
+// Launched by daemon.js at startup via launchDetached (exec-by-filename,
+// same isolation pattern as upgradehomeram.js) -- it's expensive to launch
+// (Singularity RAM multiplier without SF4), so an exec failure here usually
+// means a home-RAM problem, not a bug. Persists on a slow poll
+// (POLL_MS = 30_000) until TOR + all five openers are owned, then tprints a
+// summary and exits, freeing its ~66GB Singularity surface until the next
+// daemon restart. Also runnable by hand (same acquisition loop).
+//
+// Prices come from resourcemanager.js's static PORT_OPENER_COSTS/
+// TOR_ROUTER_COST table, not darkweb reads (S2) -- 0GB pure-constant
+// imports instead of getDarkwebPrograms/getDarkwebProgramCost's 8GB each.
+// A wrong constant is benign: purchaseProgram/purchaseTor just returns
+// false, nothing is recorded, the next pass retries.
+//
+// Fail-safe: no finance state (missing, unparseable, or stale) means buy
+// nothing this pass (S3, same rule as cloudmanager.js) -- without fresh
+// state this script can't see the bootstrap-server reservation it's
+// required to respect.
+//
+// Bootstrap holdback: the only reservation this script respects is
+// bootstrap-server's amount (bootstrapHoldbackFrom) -- it won't spend below
+// the $110k first-cloud-server foothold while that reservation is active.
+// Every other reservation (manual-extra, formulas, and even this script's
+// own tor-router/next-port-opener reservations) is deliberately ignored --
+// this script is their fulfiller, so gating on them would be circular;
+// beyond the one foothold guard, purchases race cheapest-first by design.
+
+import { recordTransaction } from "./translog.js";
+import { PORT_OPENER_COSTS, TOR_ROUTER_COST } from "./resourcemanager.js";
+import { isStateStale } from "./cloudmanager.js";
+
+const POLL_MS = 30_000;
+const STALE_MS = 15_000; // same value as cloudmanager.js's guard
+const FINANCE_STATE_FILE = "finance-state.json";
+
+/** Pure. The bootstrap-server reservation's amount, or 0 if absent/malformed. */
+export function bootstrapHoldbackFrom(state) {
+  if (!state || !Array.isArray(state.reservations)) return 0;
+  const r = state.reservations.find((x) => x.key === "bootstrap-server");
+  return r ? r.amount : 0;
+}
+
+/** Pure. Cheapest unowned port opener, or null if every opener is owned. */
+function cheapestUnownedOpener(ownedFiles) {
+  const unowned = PORT_OPENER_COSTS.filter((p) => !ownedFiles.has(p.file));
+  if (unowned.length === 0) return null;
+  return unowned.reduce((min, p) => (p.cost < min.cost ? p : min));
+}
+
+/**
+ * Pure. The whole per-pass decision: buy TOR first (unblocks
+ * purchaseProgram), then the cheapest unowned opener, one action at a time,
+ * never spending below holdback. Returns {action: "done"} once TOR + every
+ * opener is owned.
+ */
+export function planProgramPurchase({ hasTor, ownedFiles, money, holdback }) {
+  if (hasTor) {
+    const cheapest = cheapestUnownedOpener(ownedFiles);
+    if (cheapest === null) return { action: "done" };
+    if (money - cheapest.cost >= holdback) {
+      return { action: "buy-program", file: cheapest.file, cost: cheapest.cost };
+    }
+    return { action: "wait" };
+  }
+  if (money - TOR_ROUTER_COST >= holdback) return { action: "buy-tor" };
+  return { action: "wait" };
+}
+
+function tprintTs(ns, message) {
+  ns.tprint(`[${new Date().toLocaleTimeString()}] ${message}`);
+}
+
+function readFinanceState(ns) {
+  const raw = ns.read(FINANCE_STATE_FILE);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** @param {NS} ns */
+export async function main(ns) {
+  ns.disableLog("ALL");
+  ns.ui.openTail();
+
+  const bought = [];
+  let wasStale = true; // starts "stale" so the very first real state clears it without a spurious WARN
+
+  while (true) {
+    const ownedFiles = new Set();
+    for (const p of PORT_OPENER_COSTS) {
+      if (ns.fileExists(p.file, "home")) ownedFiles.add(p.file);
+    }
+    const hasTor = ns.hasTorRouter();
+
+    if (hasTor && ownedFiles.size === PORT_OPENER_COSTS.length) {
+      ns.tprint("===== procureprograms summary =====");
+      if (bought.length === 0) {
+        ns.tprint("  nothing needed -- TOR + all port openers already owned");
+      } else {
+        for (const line of bought) ns.tprint(`  ${line}`);
+      }
+      return;
+    }
+
+    const timeLabel = new Date().toLocaleTimeString();
+    const state = readFinanceState(ns);
+    const stale = isStateStale(state?.timestamp ?? null, Date.now(), STALE_MS);
+
+    if (stale) {
+      if (!wasStale) tprintTs(ns, "WARN: finance state stale/missing -- buying nothing until it recovers");
+      wasStale = true;
+      ns.clearLog();
+      ns.print(`===== procure programs @ ${timeLabel} =====`);
+      ns.print(`finance state ${state ? "stale" : "missing"} -- buying nothing`);
+      await ns.sleep(POLL_MS);
+      continue;
+    }
+    if (wasStale) tprintTs(ns, "INFO: finance state recovered -- resuming");
+    wasStale = false;
+
+    const holdback = bootstrapHoldbackFrom(state);
+    const money = ns.getPlayer().money;
+    const plan = planProgramPurchase({ hasTor, ownedFiles, money, holdback });
+
+    let statusLine;
+    if (plan.action === "buy-tor") {
+      if (ns.singularity.purchaseTor()) {
+        const nowMs = Date.now();
+        recordTransaction(ns, {
+          type: "expense",
+          source: "auto-tor",
+          amount: TOR_ROUTER_COST,
+          timestamp: nowMs,
+          time: new Date(nowMs).toLocaleTimeString(),
+        });
+        tprintTs(ns, `PROCURE: TOR router for $${ns.format.number(TOR_ROUTER_COST)}`);
+        bought.push(`TOR router: $${ns.format.number(TOR_ROUTER_COST)}`);
+        statusLine = "bought TOR router this pass";
+      } else {
+        tprintTs(ns, "WARN: purchaseTor() returned false -- retrying next pass");
+        statusLine = "purchaseTor() failed, retrying";
+      }
+    } else if (plan.action === "buy-program") {
+      if (ns.singularity.purchaseProgram(plan.file)) {
+        const nowMs = Date.now();
+        recordTransaction(ns, {
+          type: "expense",
+          source: "auto-port-opener",
+          program: plan.file,
+          amount: plan.cost,
+          timestamp: nowMs,
+          time: new Date(nowMs).toLocaleTimeString(),
+        });
+        tprintTs(ns, `PROCURE: ${plan.file} for $${ns.format.number(plan.cost)}`);
+        bought.push(`${plan.file}: $${ns.format.number(plan.cost)}`);
+        statusLine = `bought ${plan.file} this pass`;
+      } else {
+        tprintTs(ns, `WARN: purchaseProgram(${plan.file}) returned false -- retrying next pass`);
+        statusLine = `purchaseProgram(${plan.file}) failed, retrying`;
+      }
+    } else {
+      statusLine = `waiting for cash (holdback $${ns.format.number(holdback)})`;
+    }
+
+    ns.clearLog();
+    ns.print(`===== procure programs @ ${timeLabel} =====`);
+    ns.print(`money: $${ns.format.number(money)} | holdback: $${ns.format.number(holdback)}`);
+    ns.print(`TOR: ${hasTor ? "owned" : "not owned"}`);
+    ns.print(`openers owned: ${ownedFiles.size}/${PORT_OPENER_COSTS.length}`);
+    ns.print(statusLine);
+
+    await ns.sleep(POLL_MS);
+  }
+}

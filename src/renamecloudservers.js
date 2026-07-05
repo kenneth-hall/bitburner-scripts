@@ -1,12 +1,15 @@
 // Manual utility, run by hand -- not wired into daemon.js. Renames every
 // owned cloud server to the cloud-<n> pattern (no capacity in the name), so
-// the hostname stops going stale every time cloudupgrader.js/
+// the hostname stops going stale every time cloudmanager.js/
 // upgradecloudserver.js/fleetupgrade.js grows a server's RAM. Purely a
 // rename -- never purchases or upgrades anything (that stays
-// purchasecloudservers.js's / upgradecloudserver.js's / fleetupgrade.js's
-// job). Idempotent: a server already named cloud-<n> is left alone (and its
-// index reserved), so a re-run after buying more servers only touches the
-// new ones and never collides with an already-renamed server.
+// purchasecloudservers.js's / cloudmanager.js's / upgradecloudserver.js's /
+// fleetupgrade.js's job). Idempotent: a server already named cloud-<n> is
+// left alone (and its index reserved), so a re-run after buying more
+// servers only touches the new ones and never collides with an
+// already-renamed server -- and since Phase 11's cloudmanager.js already
+// names auto-bought servers cloud-<n> itself (nextCloudName), this utility
+// is now only needed for legacy pserv-* names.
 // Usage: run renamecloudservers.js
 
 const CLOUD_NAME_PATTERN = /^cloud-(\d+)$/;

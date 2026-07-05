@@ -55,11 +55,11 @@ export default defineConfig({
       // as their own file in logs/ instead of overwriting each other;
       // transactions-YYYY-MM-DD.json (src/translog.js) is daily-rotating --
       // one file per calendar day, written live as income/expenses happen,
-      // rotating at the day boundary. finance-log.json (src/financemanager.js,
-      // Phase 10) is a ring-buffered history like daemon-batch-log.json --
-      // finance-state.json is deliberately NOT exported here, since it's a
-      // heartbeat snapshot already visible live in the tail; the log is the
-      // offline evidence.
+      // rotating at the day boundary. finance-log.json (src/resourcemanager.js,
+      // renamed from financemanager.js in Phase 11; file name kept as-is) is
+      // a ring-buffered history like daemon-batch-log.json -- finance-state.json
+      // is deliberately NOT exported here, since it's a heartbeat snapshot
+      // already visible live in the tail; the log is the offline evidence.
       location: (file) => {
         if (file === 'daemon-batch-log.json') return 'logs/daemon-batch-log.json';
         if (/^targets-summary-\d+\.json$/.test(file)) return `logs/${file}`;
