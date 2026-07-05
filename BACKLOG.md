@@ -207,10 +207,12 @@ move finished items to Done with a date instead of deleting them.
     (`finance-reserve-extra.txt`) is an explicit stopgap for augments, back-burnered this phase
     per Kenneth. A real design would need an augment cost/priority model (which augments, in
     what order, at what price) to turn into its own reservation rule.
-  - **Rename-only cosmetic utility**: `cloudupgrader.js` deliberately never renames a server, so
-    hostnames like `pserv-16gb-0` go cosmetically stale as the auto-upgrader grows them. If that
-    proves annoying in practice, a small manual utility that only renames (no purchase/upgrade
-    logic) could clean names up without touching `upgradecloudserver.js`/`fleetupgrade.js`'s
+  - **Rename-only cosmetic utility — done (2026-07-05):** proved annoying in practice almost
+    immediately (`pserv-4096gb-0` grew to 524288GB live during Round A). `src/renamecloudservers.js`
+    — manual, not wired into `daemon.js`, renames every owned server to `cloud-<n>` (no capacity
+    in the name), idempotent (a server already matching `cloud-<n>` is left alone and its index
+    reserved, so a re-run after buying more servers only touches the new ones). Never
+    purchases/upgrades anything; doesn't touch `upgradecloudserver.js`/`fleetupgrade.js`'s
     existing rename-and-recreate behavior.
   - **Future finance-manager customers**: `cloudupgrader.js` is deliberately the only customer
     this phase. `upgradehomeram.js` is the obvious next one (same available-cash gating,
