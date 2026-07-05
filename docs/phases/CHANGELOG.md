@@ -8,6 +8,14 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-05
 
+- **Docs reorganization — archive phases, trim BACKLOG, add metareference** (branch
+  `docs/trim-backlog-naming`). Moved the 16 shipped phase docs into `docs/phases/` under a new
+  `phase-NN-slug.<stage>.md` convention (history preserved via rename), trimming BACKLOG
+  944→~420 lines by relocating completed history to this changelog. Added `docs/metareference/`
+  (tracked AI-workflow reference PDFs) + a thin `docs/phases/README.md`; set the docs-layout and
+  phase-naming conventions in `CLAUDE.md`; added `.gitattributes` (binary-safe PDFs); started
+  tracking shared `.claude/` config; deleted/ignored root clutter.
+
 - **Workflow — update BACKLOG in the same commit as the work.** After repeated "do work →
   commit → separately update BACKLOG → commit again" cycles, added a `CLAUDE.md` *Tracking
   work* rule to stage the BACKLOG edit in the same commit. Folded the redundant
