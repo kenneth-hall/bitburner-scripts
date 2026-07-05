@@ -248,16 +248,6 @@ move finished items to Done with a date instead of deleting them.
   worth digging into if it recurs, since a restart is an easy workaround but an unnoticed
   stall could look like "no income landing" when it's actually "not exporting."
 
-- **Investigate auto-reconnecting the Remote API after a dev-server restart** (2026-07-04):
-  confirmed live during Phase 8 verification — recovering from the auto-export stall above
-  requires killing and restarting `npm run dev`, which always drops the game's Remote API
-  connection; nothing re-syncs (and `daemon.js` can't be picked up with new code) until it's
-  manually reconnected in-game (Options → Remote API). Worth checking whether viteburner or
-  the underlying Remote API protocol supports a reconnect-on-restart or keep-alive mode, so a
-  dev-server restart doesn't cost a manual in-game step every time. Distinct from the item
-  above: that one is the export-polling mechanism silently dying while the connection stays
-  up; this one is the connection itself needing a human to re-establish it after any restart.
-
 - **Claude Code workflow blocker: getting a screenshot into a terminal session** (2026-07-04):
   when debugging a live in-game error, copy/pasting the terminal text came through garbled/
   incomplete (same lossiness `CLAUDE.md`'s log-export rule already calls out for terminal
@@ -404,6 +394,13 @@ move finished items to Done with a date instead of deleting them.
     implementation (discarded, then pulled clean) — not a Phase 9 code issue, just session/dev-
     loop bookkeeping, matches the pattern already flagged in the two viteburner items further
     down this file.
+
+- **Remote API auto-reconnect enabled** (2026-07-04): closes the "Investigate auto-reconnecting
+  the Remote API after a dev-server restart" item filed during Phase 8 verification. In-game
+  Remote API options (Options → Remote API), enabled auto-reconnect with a 5s retry delay and
+  infinite retries. A `npm run dev` restart should no longer require a manual in-game reconnect
+  step — worth confirming on the next dev-server restart that the connection comes back on its
+  own rather than assuming.
 
 - **Batcher refactor Phase 8 — faction share allocation** (2026-07-04): `batcher-refactor-phase8.md`.
   Builds the "`ns.share()` script + dedicated RAM allocation" item into a hard carve:
