@@ -347,9 +347,12 @@ move finished items to Done with a date instead of deleting them.
     present draft/changelog/open questions and stop before implementation. **Argument is
     optional:** `/spec` alone globs `*phase<N>-features.md`, picks the highest `N`, and announces
     the pick; `/spec <file>` targets a named one. Placed via the shell mount because this session
-    guards writes to `.claude/`; verified on the Windows side. Not yet live-run in a real Claude
-    Code session (built + statically verified only) — first real invocation is the remaining
-    check.
+    guards writes to `.claude/`; verified on the Windows side. **First real live run confirmed (2026-07-05,
+    Phase 14 — see Done below):** `/spec` drafted `bootstrap-phase14-spec.md`, and the
+    `spec-reviewer` subagent caught 3 real blocking issues (per-opener nudge dedup key, a
+    required-hacking-level read scoped to only one candidate instead of all, inconsistent
+    null-target poll behavior) — all fixed before implementation began. The loop worked
+    end-to-end as designed, not just statically verified.
   - **Step 8 — brainstorm brief (optional):** have the opus brainstorm end by writing
     `phase-n-features.md` itself (decisions, rejected alternatives, open questions) so even the
     opus→fable handoff is a file, not a re-paste.
