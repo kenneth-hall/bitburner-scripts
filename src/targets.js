@@ -4,25 +4,7 @@
 
 import { HACK_FRACTION, WORKER_SCRIPTS, batchRamCost } from "./scheduler.js";
 import { steadyStatePlan, hasFormulas, isForcedLegacy } from "./sampling.js";
-
-function scanNetwork(ns) {
-  const visited = new Set(["home"]);
-  const queue = ["home"];
-  const found = [];
-
-  while (queue.length > 0) {
-    const host = queue.shift();
-    for (const neighbor of ns.scan(host)) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        found.push(neighbor);
-        queue.push(neighbor);
-      }
-    }
-  }
-
-  return found;
-}
+import { scanNetwork, workerRamCosts } from "./common.js";
 
 /**
  * Eligibility predicate: root access, positive max money, and
@@ -67,11 +49,7 @@ export function getTargets(ns) {
 
   // Read once per call, not per server -- these don't change between
   // servers, only between game restarts (script file edits).
-  const workerRamCosts = {
-    [WORKER_SCRIPTS.hack]: ns.getScriptRam(WORKER_SCRIPTS.hack, "home"),
-    [WORKER_SCRIPTS.grow]: ns.getScriptRam(WORKER_SCRIPTS.grow, "home"),
-    [WORKER_SCRIPTS.weaken]: ns.getScriptRam(WORKER_SCRIPTS.weaken, "home"),
-  };
+  const ramCosts = workerRamCosts(ns);
 
   const targets = [];
 
@@ -98,7 +76,7 @@ export function getTargets(ns) {
         { script: WORKER_SCRIPTS.grow, threads: growThreads },
         { script: WORKER_SCRIPTS.weaken, threads: weakenThreads },
       ],
-      workerRamCosts
+      ramCosts
     );
 
     const score = (maxMoney * HACK_FRACTION * hackChance) / (ramCost * (weakenTime / 1000));

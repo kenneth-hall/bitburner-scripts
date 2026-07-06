@@ -10,15 +10,48 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
+- **Investigate `git worktree` for parallel multi-agent sessions** (2026-07-05, high priority):
+  Kenneth runs multiple Claude Code instances against this repo at once and suspects they're
+  giving each other false signals by sharing one working directory (uncommitted changes,
+  git status/index collisions). Investigate how `git worktree` actually works — isolated
+  working directory + branch per instance, sharing one `.git` object store — and whether
+  adopting it resolves the collision problem without the overhead of a full clone per
+  instance. Known wrinkle to fold in: there's only one live Bitburner game instance and one
+  `npm run dev` connection to it, so separate worktrees help with parallel editing/`npm test`
+  but RAM-gate/live-validation steps still serialize to whichever worktree currently holds the
+  dev-server connection. No code changes expected — scope is understanding the mechanic and
+  deciding whether/how to adopt it for this project's workflow.
+
 - **Priority order — remaining phases (agreed with Kenneth 2026-07-05, post-Phase-11):** work in
   this sequence, chosen for compounding benefit. (The `/spec` command that was first in this list
   shipped 2026-07-05 — see CHANGELOG — leaving these two.)
   1. **Consistency consolidation (`src/common.js`)** — behavior-preserving; mints the
-     `tryRoot`/`findPath`/`scanNetwork` helpers the auto-backdoor and darknet phases both depend
-     on, so it must precede both. Brainstorm + spec done (2026-07-05):
-     `phase-13-consolidation.features.md` + `phase-13-consolidation.spec.md` (root; one
-     spec-review round, 3 blockers fixed — notably `sharecurve.js`'s fourth `scanNetwork`
-     copy folded into scope). Ready to implement.
+     `scanNetwork`/`findPath` (`common.js`) and `tryRoot` (`hosts.js`) helpers the auto-backdoor
+     and darknet phases both depend on, so it must precede both. Brainstorm + spec done
+     (2026-07-05): `phase-13-consolidation.features.md` + `phase-13-consolidation.spec.md` (root;
+     one spec-review round, 3 blockers fixed — notably `sharecurve.js`'s fourth `scanNetwork`
+     copy folded into scope).
+     **Implementation done (2026-07-05), on branch `worktree-phase13-consolidation`, awaiting
+     Kenneth's live validation:** `npm test` green (250/250 — 231 pre-existing +
+     19 new in `test/common.test.js`/`test/hosts.test.js`). Still needed before close-out/merge
+     (spec's Live validation section, `phase-13-consolidation.spec.md`):
+     1. Kill+restart `npm run dev`, then on `master` (before syncing the branch) run
+        `run ramcheck.js hosts.js targets.js killscripts.js connect.js launchmonitor.js daemon.js cloudcosts.js purchasecloudservers.js targetsmonitor.js bootstrap.js sharecurve.js`
+        for baseline `logs/ramcheck-result.json`.
+     2. Switch the synced checkout to this branch (or merge-to-local), kill+restart the dev
+        server again, confirm `common.js` + the changed files sync in.
+     3. Re-run the same `ramcheck.js` command plus `ramprobe-workerkeys.js` appended; compare
+        against step 1 per the spec's RAM-gate table (flat rows exactly flat, `launchmonitor.js`
+        down 0.65GB, `sharecurve.js` up 0.05GB, `bootstrap.js` < 8.00GB).
+     4. Restart `daemon.js`, run it ≥15 minutes, confirm `npm run verify:log` green and the
+        transactions log shows income unchanged in character.
+     5. Smoke-run `launchmonitor.js`/`connect.js`/`cloudcosts.js`/`sharecurve.js` (the last only
+        if Formulas.exe is owned) per the spec's live step 6; do **not** standalone-run
+        `killscripts.js` mid-session (kills the daemon by design).
+     6. In-game `rm cleanup-old-daemon-log-temp.js` (confirm `ls home` first) and
+        `rm ramprobe-workerkeys.js` after recording its 1.60/2.00GB reading below.
+     Once validated: delete `src/ramprobe-workerkeys.js` from the branch, graduate both phase
+     docs to `docs/phases/`, move this item to a dated CHANGELOG entry, and merge.
   2. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
      sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
      architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
@@ -50,6 +83,11 @@ instead of deleting it — don't let history pile up here.
   specifically before assuming it applies. Renaming `WORKER_SCRIPTS`' keys is a wider refactor
   than this phase's scope (touches every `WORKER_SCRIPTS[...]` call site across `scheduler.js`,
   `daemon.js`, `sampling.js`) — not started.
+  - **Confirmation probe added, reading pending (2026-07-05, Phase 13):** throwaway
+    `src/ramprobe-workerkeys.js` rides Phase 13's RAM gate (`phase-13-consolidation.spec.md`
+    work item 8/S3) — **1.60GB** reading means object-literal keys aren't charged (phantom
+    theory dead for keys); **2.00GB** confirms the `hack`/`grow`/`weaken` key phantom. Record
+    the actual reading here once Kenneth's live ramcheck run reports it, then delete the probe.
   - **Live-confirmed the mechanism again, a different flavor, in Phase 11 (2026-07-05):**
     `cloudmanager.js`'s `nextCloudName` called `CLOUD_NAME_PATTERN.exec(name)` — plain
     `RegExp.prototype.exec`, nothing to do with `ns.exec` — and got charged the full 1.30 GB

@@ -2,24 +2,7 @@
 // slate, never per cycle -- the daemon's own kill/launch diffing handles
 // steady-state churn.
 
-function scanNetwork(ns) {
-  const visited = new Set(["home"]);
-  const queue = ["home"];
-  const found = [];
-
-  while (queue.length > 0) {
-    const host = queue.shift();
-    for (const neighbor of ns.scan(host)) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        found.push(neighbor);
-        queue.push(neighbor);
-      }
-    }
-  }
-
-  return found;
-}
+import { scanNetwork } from "./common.js";
 
 /**
  * args[0], if provided, is the pid of the script that invoked this one --
