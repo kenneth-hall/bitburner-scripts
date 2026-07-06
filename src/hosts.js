@@ -6,14 +6,6 @@ import { scanNetwork, tprintTs } from "./common.js";
 
 export const HOME_RESERVE_GB = 32;
 
-const PORT_OPENERS = [
-  { file: "BruteSSH.exe", open: (ns, host) => ns.brutessh(host) },
-  { file: "FTPCrack.exe", open: (ns, host) => ns.ftpcrack(host) },
-  { file: "relaySMTP.exe", open: (ns, host) => ns.relaysmtp(host) },
-  { file: "HTTPWorm.exe", open: (ns, host) => ns.httpworm(host) },
-  { file: "SQLInject.exe", open: (ns, host) => ns.sqlinject(host) },
-];
-
 /**
  * Roots `server` if it isn't already, returning true iff it ends the call
  * rooted. Reads owned openers and hacking level fresh every call (rather than
@@ -21,11 +13,28 @@ const PORT_OPENERS = [
  * future backdoor phase's call signature trivial (tryRoot(ns, "CSEC")), and
  * once-per-name RAM charging plus the small candidate count make the repeated
  * reads free in both GB and time.
+ *
+ * PORT_OPENERS is declared inside this function, not at module scope: a
+ * module-top-level const's closures are statically reachable to every
+ * importer of this file regardless of which export they actually call
+ * (confirmed live, Phase 13 RAM gate -- launchmonitor.js's listHosts-only
+ * import still carried the five openers' 0.25GB until this move, and
+ * sharecurve.js picked up that same unwanted 0.25GB the instant it started
+ * importing anything from hosts.js). Scoping it here means the five opener
+ * closures are only reachable from a script that actually calls tryRoot.
  * @param {NS} ns
  * @param {string} server
  */
 export function tryRoot(ns, server) {
   if (ns.hasRootAccess(server)) return true;
+
+  const PORT_OPENERS = [
+    { file: "BruteSSH.exe", open: (ns, host) => ns.brutessh(host) },
+    { file: "FTPCrack.exe", open: (ns, host) => ns.ftpcrack(host) },
+    { file: "relaySMTP.exe", open: (ns, host) => ns.relaysmtp(host) },
+    { file: "HTTPWorm.exe", open: (ns, host) => ns.httpworm(host) },
+    { file: "SQLInject.exe", open: (ns, host) => ns.sqlinject(host) },
+  ];
 
   const owned = PORT_OPENERS.filter((p) => ns.fileExists(p.file, "home"));
   const reqLevel = ns.getServerRequiredHackingLevel(server);
