@@ -31,27 +31,16 @@ instead of deleting it — don't let history pile up here.
      (2026-07-05): `phase-13-consolidation.features.md` + `phase-13-consolidation.spec.md` (root;
      one spec-review round, 3 blockers fixed — notably `sharecurve.js`'s fourth `scanNetwork`
      copy folded into scope).
-     **Implementation done (2026-07-05), on branch `worktree-phase13-consolidation`, awaiting
-     Kenneth's live validation:** `npm test` green (250/250 — 231 pre-existing +
-     19 new in `test/common.test.js`/`test/hosts.test.js`). Still needed before close-out/merge
-     (spec's Live validation section, `phase-13-consolidation.spec.md`):
-     1. Kill+restart `npm run dev`, then on `master` (before syncing the branch) run
-        `run ramcheck.js hosts.js targets.js killscripts.js connect.js launchmonitor.js daemon.js cloudcosts.js purchasecloudservers.js targetsmonitor.js bootstrap.js sharecurve.js`
-        for baseline `logs/ramcheck-result.json`.
-     2. Switch the synced checkout to this branch (or merge-to-local), kill+restart the dev
-        server again, confirm `common.js` + the changed files sync in.
-     3. Re-run the same `ramcheck.js` command plus `ramprobe-workerkeys.js` appended; compare
-        against step 1 per the spec's RAM-gate table (flat rows exactly flat, `launchmonitor.js`
-        down 0.65GB, `sharecurve.js` up 0.05GB, `bootstrap.js` < 8.00GB).
-     4. Restart `daemon.js`, run it ≥15 minutes, confirm `npm run verify:log` green and the
-        transactions log shows income unchanged in character.
-     5. Smoke-run `launchmonitor.js`/`connect.js`/`cloudcosts.js`/`sharecurve.js` (the last only
-        if Formulas.exe is owned) per the spec's live step 6; do **not** standalone-run
-        `killscripts.js` mid-session (kills the daemon by design).
-     6. In-game `rm cleanup-old-daemon-log-temp.js` (confirm `ls home` first) and
-        `rm ramprobe-workerkeys.js` after recording its 1.60/2.00GB reading below.
-     Once validated: delete `src/ramprobe-workerkeys.js` from the branch, graduate both phase
-     docs to `docs/phases/`, move this item to a dated CHANGELOG entry, and merge.
+     **Implementation done (2026-07-05), merged to `master` as a deliberate exception (see
+     `HANDOFF.md`), live validation still owed:** `npm test` green (250/250 — 231 pre-existing +
+     19 new in `test/common.test.js`/`test/hosts.test.js`).
+     **Update (2026-07-05, post-handoff): the RAM-gate discrepancy was diagnosed** — the gate's
+     after-runs measured stale pre-phase-13 code (a `git checkout` under the live viteburner
+     watcher pushed old files in-game at 20:46; dump forensics in
+     `phase-13-consolidation.closeout.md`). **That doc supersedes the checklist that used to
+     live here and HANDOFF.md's "What's left"** — execute its Parts 2–6: self-verifying
+     ramcheck, one verified gate run (expect `launchmonitor.js` −0.65, `sharecurve.js` +0.05
+     after all), the ≥15-min daemon session + smoke runs, then cleanup/graduation/CHANGELOG.
   2. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
      sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
      architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
