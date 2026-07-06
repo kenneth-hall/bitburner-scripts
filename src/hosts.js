@@ -6,6 +6,24 @@ import { scanNetwork, tprintTs } from "./common.js";
 
 export const HOME_RESERVE_GB = 32;
 
+const PORT_OPENERS = ["BruteSSH.exe", "FTPCrack.exe", "relaySMTP.exe", "HTTPWorm.exe", "SQLInject.exe"];
+
+/** Runs the port-opener program matching `file` against `host`. See tryRoot's doc comment for why this is a switch, not a lookup table of closures. */
+function openPort(ns, file, host) {
+  switch (file) {
+    case "BruteSSH.exe":
+      return ns.brutessh(host);
+    case "FTPCrack.exe":
+      return ns.ftpcrack(host);
+    case "relaySMTP.exe":
+      return ns.relaysmtp(host);
+    case "HTTPWorm.exe":
+      return ns.httpworm(host);
+    case "SQLInject.exe":
+      return ns.sqlinject(host);
+  }
+}
+
 /**
  * Roots `server` if it isn't already, returning true iff it ends the call
  * rooted. Reads owned openers and hacking level fresh every call (rather than
@@ -14,35 +32,29 @@ export const HOME_RESERVE_GB = 32;
  * once-per-name RAM charging plus the small candidate count make the repeated
  * reads free in both GB and time.
  *
- * PORT_OPENERS is declared inside this function, not at module scope: a
- * module-top-level const's closures are statically reachable to every
- * importer of this file regardless of which export they actually call
- * (confirmed live, Phase 13 RAM gate -- launchmonitor.js's listHosts-only
- * import still carried the five openers' 0.25GB until this move, and
- * sharecurve.js picked up that same unwanted 0.25GB the instant it started
- * importing anything from hosts.js). Scoping it here means the five opener
- * closures are only reachable from a script that actually calls tryRoot.
+ * PORT_OPENERS and openPort are scoped to this function/module deliberately,
+ * and openPort calls each opener inline (a switch, not a lookup table of
+ * closures) rather than storing `(ns, host) => ns.brutessh(host)`-style
+ * function values in an object/array -- live RAM gating (Phase 13) showed
+ * Bitburner's static analyzer cannot call-graph-prune ns calls that live
+ * inside closures stored as data (object/array literal values): those
+ * leaked their full 0.25GB (5 openers) into every importer of this file
+ * regardless of whether tryRoot was ever reached, even after moving the
+ * literal inside this function. Direct ns calls inline in a named,
+ * ordinarily-called function are pruned correctly; closures-as-data are not.
  * @param {NS} ns
  * @param {string} server
  */
 export function tryRoot(ns, server) {
   if (ns.hasRootAccess(server)) return true;
 
-  const PORT_OPENERS = [
-    { file: "BruteSSH.exe", open: (ns, host) => ns.brutessh(host) },
-    { file: "FTPCrack.exe", open: (ns, host) => ns.ftpcrack(host) },
-    { file: "relaySMTP.exe", open: (ns, host) => ns.relaysmtp(host) },
-    { file: "HTTPWorm.exe", open: (ns, host) => ns.httpworm(host) },
-    { file: "SQLInject.exe", open: (ns, host) => ns.sqlinject(host) },
-  ];
-
-  const owned = PORT_OPENERS.filter((p) => ns.fileExists(p.file, "home"));
+  const owned = PORT_OPENERS.filter((file) => ns.fileExists(file, "home"));
   const reqLevel = ns.getServerRequiredHackingLevel(server);
   const reqPorts = ns.getServerNumPortsRequired(server);
   const myHackLevel = ns.getHackingLevel();
   if (reqLevel > myHackLevel || reqPorts > owned.length) return false;
 
-  for (const program of owned) program.open(ns, server);
+  for (const file of owned) openPort(ns, file, server);
   ns.nuke(server);
   tprintTs(ns, `INFO: rooted new host ${server}`);
   return true;
