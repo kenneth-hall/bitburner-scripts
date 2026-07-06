@@ -2,31 +2,9 @@
 // faction server) via BFS and lists the files sitting on it. Read-only --
 // does not actually connect the terminal, so it's free to run.
 
+import { findPath } from "./common.js";
+
 const DEFAULT_TARGET = "CSEC";
-
-function findPath(ns, target) {
-  const visited = new Map([["home", null]]);
-  const queue = ["home"];
-
-  while (queue.length > 0) {
-    const host = queue.shift();
-    if (host === target) break;
-    for (const neighbor of ns.scan(host)) {
-      if (!visited.has(neighbor)) {
-        visited.set(neighbor, host);
-        queue.push(neighbor);
-      }
-    }
-  }
-
-  if (!visited.has(target)) return null;
-
-  const path = [];
-  for (let node = target; node !== null; node = visited.get(node)) {
-    path.unshift(node);
-  }
-  return path;
-}
 
 /** @param {NS} ns */
 export async function main(ns) {

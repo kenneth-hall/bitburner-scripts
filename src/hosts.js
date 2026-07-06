@@ -2,7 +2,9 @@
 // decides *what to attack*. Called fresh every daemon cycle so newly rooted
 // servers and newly purchased servers show up automatically.
 
-const HOME_RESERVE_GB = 32;
+import { scanNetwork, tprintTs } from "./common.js";
+
+export const HOME_RESERVE_GB = 32;
 
 const PORT_OPENERS = [
   { file: "BruteSSH.exe", open: (ns, host) => ns.brutessh(host) },
@@ -12,52 +14,49 @@ const PORT_OPENERS = [
   { file: "SQLInject.exe", open: (ns, host) => ns.sqlinject(host) },
 ];
 
-function scanNetwork(ns) {
-  const visited = new Set(["home"]);
-  const queue = ["home"];
-  const found = [];
+/**
+ * Roots `server` if it isn't already, returning true iff it ends the call
+ * rooted. Reads owned openers and hacking level fresh every call (rather than
+ * hoisting them to a caller-supplied argument) -- deliberate: it keeps the
+ * future backdoor phase's call signature trivial (tryRoot(ns, "CSEC")), and
+ * once-per-name RAM charging plus the small candidate count make the repeated
+ * reads free in both GB and time.
+ * @param {NS} ns
+ * @param {string} server
+ */
+export function tryRoot(ns, server) {
+  if (ns.hasRootAccess(server)) return true;
 
-  while (queue.length > 0) {
-    const host = queue.shift();
-    for (const neighbor of ns.scan(host)) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        found.push(neighbor);
-        queue.push(neighbor);
-      }
-    }
-  }
+  const owned = PORT_OPENERS.filter((p) => ns.fileExists(p.file, "home"));
+  const reqLevel = ns.getServerRequiredHackingLevel(server);
+  const reqPorts = ns.getServerNumPortsRequired(server);
+  const myHackLevel = ns.getHackingLevel();
+  if (reqLevel > myHackLevel || reqPorts > owned.length) return false;
 
-  return found;
+  for (const program of owned) program.open(ns, server);
+  ns.nuke(server);
+  tprintTs(ns, `INFO: rooted new host ${server}`);
+  return true;
 }
 
 /**
- * Scans the network, nukes anything newly rootable (regardless of whether it
- * holds money), and returns every host we can run workers on: rooted network
- * servers, purchased servers, and home. Home's free RAM is reported with
- * HOME_RESERVE_GB held back so the daemon and manual scripts always have
- * room to run.
+ * Pure listing, no rooting side effects: every host we can currently run
+ * workers on -- rooted network servers, purchased servers, and home. Home's
+ * free RAM is reported with HOME_RESERVE_GB held back so the daemon and
+ * manual scripts always have room to run. Purchased servers are skipped in
+ * the network pass and appended once, unconditionally -- they also appear in
+ * ns.scan's results and always have root, so skipping them there and
+ * appending them separately avoids double-counting every purchased server.
  * @param {NS} ns
  */
-export function getHosts(ns) {
-  const owned = PORT_OPENERS.filter((p) => ns.fileExists(p.file, "home"));
+export function listHosts(ns) {
   const purchased = new Set(ns.cloud.getServerNames());
-  const myHackLevel = ns.getHackingLevel();
 
   const hosts = [];
 
   for (const server of scanNetwork(ns)) {
     if (purchased.has(server)) continue;
-
-    if (!ns.hasRootAccess(server)) {
-      const reqLevel = ns.getServerRequiredHackingLevel(server);
-      const reqPorts = ns.getServerNumPortsRequired(server);
-      if (reqLevel > myHackLevel || reqPorts > owned.length) continue;
-
-      for (const program of owned) program.open(ns, server);
-      ns.nuke(server);
-      ns.tprint(`INFO: rooted new host ${server}`);
-    }
+    if (!ns.hasRootAccess(server)) continue;
 
     hosts.push({
       hostname: server,
@@ -83,6 +82,24 @@ export function getHosts(ns) {
   });
 
   return hosts;
+}
+
+/**
+ * Scans the network, nukes anything newly rootable (regardless of whether it
+ * holds money), and returns listHosts(ns)'s full host list. Composition:
+ * rooting pass (tryRoot per non-purchased network host, result unused --
+ * rooting is the point), then listHosts.
+ * @param {NS} ns
+ */
+export function getHosts(ns) {
+  const purchased = new Set(ns.cloud.getServerNames());
+
+  for (const server of scanNetwork(ns)) {
+    if (purchased.has(server)) continue;
+    tryRoot(ns, server);
+  }
+
+  return listHosts(ns);
 }
 
 /** @param {NS} ns */

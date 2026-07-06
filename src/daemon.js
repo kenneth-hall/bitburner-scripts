@@ -8,8 +8,9 @@
 // scheduler.js does all the pure thread/timing/selection math; this file
 // does all the `ns` calls and exec/scp plumbing, same split Phase 1 had.
 
-import { getHosts } from "./hosts.js";
+import { getHosts, HOME_RESERVE_GB } from "./hosts.js";
 import { getTargets } from "./targets.js";
+import { tprintTs, workerRamCosts } from "./common.js";
 import {
   WORKER_SCRIPTS,
   SHARE_FRACTION,
@@ -72,62 +73,51 @@ const LOG_FLUSH_INTERVAL_MS = 10000; // lazy-flush cadence for batch/skip/snapsh
 // they're gone, so repeating it forever would be pointless.
 const OLD_WORKER_FILES = ["hackloop.js", "growloop.js", "weakenloop.js"];
 
-// hosts.js stays unchanged per spec (its HOME_RESERVE_GB is private to it);
-// this is duplicated here only for the cheap per-tick RAM re-read below,
-// which intentionally skips hosts.js's rooting/nuke scan -- that stays on
-// the CYCLE_MS cadence. The codebase already duplicates small helpers this
-// way (e.g. scanNetwork appears in hosts.js/targets.js/killscripts.js).
-const HOME_RESERVE_GB = 32;
-
 // Phase 8: a 0-byte marker file on home forces the effective share fraction
 // to 0 for same-session A/B measurement, without a build swap -- checked
 // every tick (ns.fileExists is 0 GB), same pattern as sampling.js's
 // legacy-mode.txt.
 const SHARE_OFF_MARKER = "share-off.txt";
 
-// daemon.js runs unattended for a long time, so unlike a one-shot manual
-// utility's output (already implicitly timestamped by "you just ran it"),
-// its terminal notifications fire at unpredictable moments during that run
-// -- knowing *when* matters, so every one of them gets a timestamp prefix.
-function tprintTs(ns, message) {
-  ns.tprint(`[${new Date().toLocaleTimeString()}] ${message}`);
+/**
+ * Shared free-RAM-check preamble for launchDetached/runAndWait: true iff
+ * script fits in home's current free RAM, printing the INFO skip itself when
+ * it doesn't (call-site-neutral message -- no "at startup" claim, since
+ * runAndWait's only customer runs mid-startup-sequence, not launchDetached's
+ * companions).
+ */
+function fitsOnHome(ns, script) {
+  const scriptRam = ns.getScriptRam(script, "home");
+  const freeRam = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
+  if (scriptRam > freeRam) {
+    tprintTs(ns, `INFO: skipped ${script} -- needs ${ns.format.ram(scriptRam)} but only ${ns.format.ram(freeRam)} free on home`);
+    return false;
+  }
+  return true;
 }
 
 /**
  * Fire-and-forget launch for a long-running companion script that opens its
- * own tail window and never exits (targetsmonitor.js) -- unlike
- * runAndWait's one-shot utilities, there's nothing to wait for here.
+ * own tail window and never exits (targetsmonitor.js), or a Singularity-heavy
+ * self-terminating one (procureprograms.js) -- unlike runAndWait's one-shot
+ * utilities, there's nothing to wait for here. Singularity scripts carry a
+ * RAM multiplier without SF4 and commonly just don't fit on home yet -- an
+ * expected, non-fatal outcome, not a bug.
  */
 function launchDetached(ns, script, ...args) {
-  const scriptRam = ns.getScriptRam(script, "home");
-  const freeRam = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
-  if (scriptRam > freeRam) {
-    tprintTs(
-      ns,
-      `INFO: skipped ${script} at startup -- needs ${ns.format.ram(scriptRam)} but only ${ns.format.ram(freeRam)} free on home`
-    );
-    return;
-  }
+  if (!fitsOnHome(ns, script)) return;
 
   const pid = ns.exec(script, "home", 1, ...args);
   if (pid === 0) tprintTs(ns, `ERROR: failed to start ${script}`);
 }
 
+/**
+ * Runs a cheap non-Singularity one-shot utility and waits for it to exit
+ * before returning -- its real sole customer is killscripts.js, which the
+ * daemon must wait out before launching workers.
+ */
 async function runAndWait(ns, script, ...args) {
-  // Singularity scripts (procureprograms.js, upgradehomeram.js) carry a RAM
-  // multiplier without SF4 and commonly just don't fit on home yet -- that's
-  // an expected, non-fatal outcome (see procureprograms.js's own comment),
-  // not a bug, so check for it up front and say so plainly instead of
-  // surfacing a generic "failed to start" that reads like one.
-  const scriptRam = ns.getScriptRam(script, "home");
-  const freeRam = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
-  if (scriptRam > freeRam) {
-    tprintTs(
-      ns,
-      `INFO: skipped ${script} at startup -- needs ${ns.format.ram(scriptRam)} but only ${ns.format.ram(freeRam)} free on home`
-    );
-    return;
-  }
+  if (!fitsOnHome(ns, script)) return;
 
   const pid = ns.exec(script, "home", 1, ...args);
   if (pid === 0) {
@@ -419,12 +409,7 @@ export async function main(ns) {
       ns.scp([WORKER_SCRIPTS.hack, WORKER_SCRIPTS.grow, WORKER_SCRIPTS.weaken, SHARE_SCRIPT], host.hostname);
     }
 
-    ramCosts = {
-      [WORKER_SCRIPTS.hack]: ns.getScriptRam(WORKER_SCRIPTS.hack, "home"),
-      [WORKER_SCRIPTS.grow]: ns.getScriptRam(WORKER_SCRIPTS.grow, "home"),
-      [WORKER_SCRIPTS.weaken]: ns.getScriptRam(WORKER_SCRIPTS.weaken, "home"),
-      [SHARE_SCRIPT]: ns.getScriptRam(SHARE_SCRIPT, "home"),
-    };
+    ramCosts = { ...workerRamCosts(ns), [SHARE_SCRIPT]: ns.getScriptRam(SHARE_SCRIPT, "home") };
 
     const currentTargetNames = new Set(targets.map((t) => t.server));
     for (const name of currentTargetNames) {

@@ -11,8 +11,14 @@
 // Target and additionalMsec are recovered from the worker scripts' own
 // launch args, so the reconstructed line carries the same detail daemon.js
 // used to log directly.
+//
+// Deliberately uses hosts.js's non-rooting listHosts, not getHosts: this
+// monitor is read-only, so it must not nuke newly-rootable servers itself --
+// doing so would race the daemon's own CYCLE_MS refresh. Consequence: newly
+// rooted hosts appear here on this monitor's next HOST_REFRESH_MS refresh
+// after the daemon roots them, not the instant they become rootable.
 
-import { getHosts } from "./hosts.js";
+import { listHosts } from "./hosts.js";
 import { WORKER_SCRIPTS } from "./scheduler.js";
 
 const HOST_REFRESH_MS = 10_000;
@@ -26,7 +32,7 @@ export async function main(ns) {
   ns.disableLog("ALL");
   ns.ui.openTail();
 
-  let hosts = getHosts(ns);
+  let hosts = listHosts(ns);
   let lastHostRefresh = Date.now();
   const entries = [];
   let seenPids = new Set();
@@ -39,7 +45,7 @@ export async function main(ns) {
 
   while (true) {
     if (Date.now() - lastHostRefresh >= HOST_REFRESH_MS) {
-      hosts = getHosts(ns);
+      hosts = listHosts(ns);
       lastHostRefresh = Date.now();
     }
 

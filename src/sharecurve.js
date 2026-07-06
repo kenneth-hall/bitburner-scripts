@@ -7,40 +7,9 @@
 
 import { SHARE_SCRIPT } from "./scheduler.js";
 import { hasFormulas, inFlightByTarget } from "./sampling.js";
+import { listHosts, HOME_RESERVE_GB } from "./hosts.js";
 
 const CANDIDATE_FRACTIONS = [0.05, 0.1, 0.15, 0.25, 0.4, 0.5, 0.75, 1.0];
-
-// hosts.js's HOME_RESERVE_GB is private to it; duplicated here only for this
-// one-shot capacity total, same pattern daemon.js already uses for the same
-// reason (scanNetwork also appears independently in hosts.js/targets.js/
-// killscripts.js).
-const HOME_RESERVE_GB = 32;
-
-function scanNetwork(ns) {
-  const visited = new Set(["home"]);
-  const queue = ["home"];
-  const found = [];
-
-  while (queue.length > 0) {
-    const host = queue.shift();
-    for (const neighbor of ns.scan(host)) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        found.push(neighbor);
-        queue.push(neighbor);
-      }
-    }
-  }
-
-  return found;
-}
-
-/** Mirrors getHosts(ns)'s host list (hostname + maxRam) without hosts.js's rooting/nuke side effects -- this is a read-only report. */
-function listHosts(ns) {
-  const purchased = ns.cloud.getServerNames();
-  const hostnames = [...scanNetwork(ns).filter((s) => ns.hasRootAccess(s)), ...purchased, "home"];
-  return hostnames.map((hostname) => ({ hostname, maxRam: ns.getServerMaxRam(hostname) }));
-}
 
 function totalAllocatableRam(hosts) {
   return hosts.reduce((sum, h) => {

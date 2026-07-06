@@ -8,17 +8,17 @@
 // on daemon.js's next refresh -- no extra wiring needed here.
 
 import { recordTransaction } from "./translog.js";
+import { standardSizes } from "./cloudcosts.js";
 
 /** @param {NS} ns */
 export async function main(ns) {
   const ramLimit = ns.cloud.getRamLimit();
-  const standardSizes = [];
-  for (let size = 16; size <= ramLimit; size *= 2) standardSizes.push(size);
+  const sizes = standardSizes(ramLimit);
 
   const requestedSize = Number(ns.args[0]);
-  if (!standardSizes.includes(requestedSize)) {
+  if (!sizes.includes(requestedSize)) {
     ns.tprint(`ERROR: usage: run purchasecloudservers.js <sizeGB> [count]`);
-    ns.tprint(`ERROR: <sizeGB> must be one of: ${standardSizes.join(", ")}`);
+    ns.tprint(`ERROR: <sizeGB> must be one of: ${sizes.join(", ")}`);
     return;
   }
 
