@@ -15,8 +15,10 @@ instead of deleting it — don't let history pile up here.
   shipped 2026-07-05 — see CHANGELOG — leaving these two.)
   1. **Consistency consolidation (`src/common.js`)** — behavior-preserving; mints the
      `tryRoot`/`findPath`/`scanNetwork` helpers the auto-backdoor and darknet phases both depend
-     on, so it must precede both. Brainstorm done: `phase-13-consolidation.features.md` (root),
-     ready for `/spec`.
+     on, so it must precede both. Brainstorm + spec done (2026-07-05):
+     `phase-13-consolidation.features.md` + `phase-13-consolidation.spec.md` (root; one
+     spec-review round, 3 blockers fixed — notably `sharecurve.js`'s fourth `scanNetwork`
+     copy folded into scope). Ready to implement.
   2. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
      sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
      architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
@@ -388,6 +390,41 @@ instead of deleting it — don't let history pile up here.
     plus reverted-Phase-6 `common.js`/`eventlog.js`/`factionwatcher.js` and retired
     `moneymonitor.js`) — gitignored, regenerated on `vite build`, safe `rm -rf` if it adds noise
     while browsing.
+
+- **Comment sweep — narrow, `daemon.js`/`scheduler.js` only (2026-07-05, filed from a comment-quality
+  discussion, not started):** project-wide comment density tracks actual complexity well (simple
+  one-shot scripts stay lean, the batcher core is dense because it has genuinely non-obvious
+  invariants) — no broad sweep warranted. The one recurring pattern worth trimming: inline
+  `Phase N` attribution mixed into otherwise load-bearing comments. Most of the substance earns its
+  keep; the phase numbers specifically are archive metadata that belongs in
+  `docs/phases/CHANGELOG.md`, not living permanently in the hot files. Concrete candidates found by
+  grepping both files for `Phase \d+`:
+  - **Easy, no-loss trims** (phase number adds nothing once removed): `daemon.js:9` ("same split
+    Phase 1 had"), `daemon.js:355`/`:361` (section-divider labels "Phase 8 share-allocation state"
+    / "Phase 7 multi-member state" — keep `:361`'s "(replaces the old single incumbentServer)"
+    clause, drop the phase-number label), `daemon.js:82`/`:331` (drop the "Phase 8:"/"Phase 11:"
+    prefix, keep the rest of each comment as-is), `scheduler.js:34` (drop "Phase 8:" prefix).
+  - **Stale references, worth fixing (not just trimming):** `scheduler.js:1-3` says this module "is
+    exactly the module Phase 1's allocator.js was designed to be swapped for" — `src/allocator.js`
+    no longer exists in the repo, confirmed via `test -f`. `scheduler.js:254` says it's "replacing
+    pickBatchTarget's single incumbent" — `pickBatchTarget` doesn't exist anywhere else in `src/`
+    either. Both read fine today but would send a future reader grepping for a file/function that's
+    gone; reword to describe the current shape without naming the vanished predecessor (the
+    predecessor's story already lives in the phase docs if anyone needs it).
+  - **Separate, higher-value fix (not a comment at all):** `daemon.js:471`'s user-facing
+    `tprintTs` message literally prints `` leftover Phase 1 worker file(s) `` to the in-game
+    terminal at runtime — internal phase numbering leaking into player-visible output. Reword to
+    something like "leftover legacy worker file(s)" regardless of what happens with the comment
+    sweep.
+  - **Leave alone** (phase number is incidental to a comment whose real value is the invariant/race
+    it documents, not worth reworking the sentence just to drop one parenthetical):
+    `daemon.js:60-64` (Phase 9 schema/`sharePool` rename rationale), `daemon.js:66`
+    (`DAEMON_LOG_MAX_ENTRIES` sizing), `daemon.js:69-73` (`OLD_WORKER_FILES` rationale),
+    `daemon.js:504` (fleetupgrade race guard), `daemon.js:558-559` (two-sweeps-per-tick
+    load-bearing note), `daemon.js:589` (legacy-mode gate convention), `daemon.js:608-609`
+    (`budgetGb` vs `totalMaxRam` correctness note).
+  - Scope check before starting: behavior-preserving, comment/string text only — no RAM gate or
+    live validation needed, `npm test` (if it touches any string a test asserts on) is enough.
 
 ## Done
 
