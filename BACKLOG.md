@@ -15,8 +15,10 @@ instead of deleting it — don't let history pile up here.
   shipped 2026-07-05 — see CHANGELOG — leaving these two.)
   1. **Consistency consolidation (`src/common.js`)** — behavior-preserving; mints the
      `tryRoot`/`findPath`/`scanNetwork` helpers the auto-backdoor and darknet phases both depend
-     on, so it must precede both. Brainstorm done: `phase-13-consolidation.features.md` (root),
-     ready for `/spec`.
+     on, so it must precede both. Brainstorm + spec done (2026-07-05):
+     `phase-13-consolidation.features.md` + `phase-13-consolidation.spec.md` (root; one
+     spec-review round, 3 blockers fixed — notably `sharecurve.js`'s fourth `scanNetwork`
+     copy folded into scope). Ready to implement.
   2. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
      sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
      architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
