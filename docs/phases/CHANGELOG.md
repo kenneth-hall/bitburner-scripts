@@ -31,6 +31,14 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   amended budget rules. Filed two follow-up Ideas (BACKLOG): the `sharePower: 1.00`-with-
   live-threads oddity, and auto-suppressing share on small fleets.
 
+- **`git worktree` investigation — closed out.** Adopted: `bitburner-scripts2` (this repo,
+  branch `worktree-docs`) runs as a second worktree for docs/BACKLOG/brainstorming work,
+  isolated from the live `bitburner-scripts` checkout's working directory and index. Documented
+  in `CLAUDE.md` — `bitburner-scripts2` has no dev server of its own and must never start/stop
+  `npm run dev`; only the `bitburner-scripts` session may do that, since it's the one actually
+  connected to the live game. Resolves the original worry (parallel Claude Code sessions
+  colliding over shared `git status`/index state) without a full second clone.
+
 - **Phase 13 — consistency consolidation, closed out** → `phase-13-consolidation.features.md`,
   `phase-13-consolidation.spec.md`, `phase-13-consolidation.closeout.md` (implemented
   2026-07-05, merged to `master` as a deliberate exception pending live validation; live
