@@ -6,7 +6,11 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
-(none)
+- **Phase 15: small-fleet batching floor** (2026-07-06): fix the zero-member income stall —
+  `pickBatchSet` seats nobody when no target's *full* pipeline fits the post-reset 940GB
+  fleet's budget, so the daemon has launched zero workers (and earned $0) since the Jul 5
+  handoff. Diagnosis + fix decisions in `phase-15-small-fleet.features.md` (repo root);
+  spec stage next.
 
 ## Next Up
 
