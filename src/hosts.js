@@ -35,13 +35,22 @@ function openPort(ns, file, host) {
  * PORT_OPENERS and openPort are scoped to this function/module deliberately,
  * and openPort calls each opener inline (a switch, not a lookup table of
  * closures) rather than storing `(ns, host) => ns.brutessh(host)`-style
- * function values in an object/array -- live RAM gating (Phase 13) showed
- * Bitburner's static analyzer cannot call-graph-prune ns calls that live
- * inside closures stored as data (object/array literal values): those
- * leaked their full 0.25GB (5 openers) into every importer of this file
- * regardless of whether tryRoot was ever reached, even after moving the
- * literal inside this function. Direct ns calls inline in a named,
- * ordinarily-called function are pruned correctly; closures-as-data are not.
+ * function values in an object/array -- Phase 13's original implementation
+ * used that closures-as-data shape and measured +0.25GB (5 openers) leaking
+ * into every importer regardless of whether tryRoot was ever reached. A
+ * mid-phase live re-run of the gate after switching to this inline-switch
+ * shape still measured the same +0.25GB, which briefly looked like proof the
+ * analyzer can't prune closures-as-data at all -- but a forensic pass found
+ * the game had been serving stale pre-refactor code for that entire re-run (a
+ * `git checkout` for an unrelated merge, done in this checkout while
+ * viteburner's watcher was live, pushed the reverted files; see
+ * docs/phases/phase-13-consolidation.closeout.md for the full timeline). A
+ * verified re-run (byte-checked against dist/src/* so staleness can't repeat)
+ * confirmed this inline-switch shape prunes correctly: exactly flat,
+ * launchmonitor.js's -0.65 hit target. Lesson kept for the next RAM
+ * puzzle: never trust a gate reading without a staleness check, and never
+ * `git checkout`/switch branches in a dev-server-watched checkout while the
+ * game is connected unless the push is intended.
  * @param {NS} ns
  * @param {string} server
  */

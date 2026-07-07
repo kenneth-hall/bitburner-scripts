@@ -22,32 +22,29 @@ instead of deleting it — don't let history pile up here.
   dev-server connection. No code changes expected — scope is understanding the mechanic and
   deciding whether/how to adopt it for this project's workflow.
 
-- **Priority order — remaining phases (agreed with Kenneth 2026-07-05, post-Phase-11):** work in
-  this sequence, chosen for compounding benefit. (The `/spec` command that was first in this list
-  shipped 2026-07-05 — see CHANGELOG — leaving these two.)
-  1. **Consistency consolidation (`src/common.js`)** — behavior-preserving; mints the
-     `scanNetwork`/`findPath` (`common.js`) and `tryRoot` (`hosts.js`) helpers the auto-backdoor
-     and darknet phases both depend on, so it must precede both. Brainstorm + spec done
-     (2026-07-05): `phase-13-consolidation.features.md` + `phase-13-consolidation.spec.md` (root;
-     one spec-review round, 3 blockers fixed — notably `sharecurve.js`'s fourth `scanNetwork`
-     copy folded into scope).
-     **Implementation done (2026-07-05), merged to `master` as a deliberate exception (see
-     `HANDOFF.md`), live validation still owed:** `npm test` green (250/250 — 231 pre-existing +
-     19 new in `test/common.test.js`/`test/hosts.test.js`).
-     **Update (2026-07-05, post-handoff): the RAM-gate discrepancy was diagnosed** — the gate's
-     after-runs measured stale pre-phase-13 code (a `git checkout` under the live viteburner
-     watcher pushed old files in-game at 20:46; dump forensics in
-     `phase-13-consolidation.closeout.md`). **That doc supersedes the checklist that used to
-     live here and HANDOFF.md's "What's left"** — execute its Parts 2–6: self-verifying
-     ramcheck, one verified gate run (expect `launchmonitor.js` −0.65, `sharecurve.js` +0.05
-     after all), the ≥15-min daemon session + smoke runs, then cleanup/graduation/CHANGELOG.
-  2. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
+- **Priority order — remaining phases (agreed with Kenneth 2026-07-05, post-Phase-11):**
+  (The `/spec` command and Phase 13 consistency-consolidation, both first in this list, are
+  done — see CHANGELOG — leaving one.)
+  1. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
      sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
      architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
      and closes the money→RAM→income flywheel: more home RAM feeds the whole batcher.
   - The remaining Next Up items (Source-File watcher, RAM-analyzer hygiene) are quick wins to
     fold into whichever phase is already touching those files, not standalone phases. (The
     targetsmonitor priority-column item folded into Phase 12 — see Done.)
+
+- **Batcher stuck at zero hacking income since 2026-07-05 (found during Phase 13's live
+  validation, 2026-07-06):** a ≥15-minute `daemon.js` session showed `memberCount: 0` in
+  every one of 214 snapshots — no hack/grow/weaken batches ran at all, only the share pool
+  (58 threads, 98.7% attained). Corroborating: `hackingLevel` flat the whole session (no
+  hacking XP), `enters: 0 / exits: 0 / skips: 0` (the daemon isn't even attempting targets,
+  not failing them), and `transactions-2026-07-05.json` shows zero income entries for the
+  entire day. Kenneth confirmed this predates Phase 13 ("bugged since yesterday"), and the
+  diff evidence agrees: `targets.js`'s Phase 13 changes are a verbatim move of
+  `workerRamCosts`'s construction (confirmed by `test/common.test.js`), not a logic change.
+  Not investigated yet — next step is `run targets.js` in-game for its
+  `targets-summary-<timestamp>.json` eligibility/ranking export, to tell "no eligible
+  targets" apart from "eligible targets exist but aren't being picked."
 
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
@@ -72,11 +69,13 @@ instead of deleting it — don't let history pile up here.
   specifically before assuming it applies. Renaming `WORKER_SCRIPTS`' keys is a wider refactor
   than this phase's scope (touches every `WORKER_SCRIPTS[...]` call site across `scheduler.js`,
   `daemon.js`, `sampling.js`) — not started.
-  - **Confirmation probe added, reading pending (2026-07-05, Phase 13):** throwaway
-    `src/ramprobe-workerkeys.js` rides Phase 13's RAM gate (`phase-13-consolidation.spec.md`
-    work item 8/S3) — **1.60GB** reading means object-literal keys aren't charged (phantom
-    theory dead for keys); **2.00GB** confirms the `hack`/`grow`/`weaken` key phantom. Record
-    the actual reading here once Kenneth's live ramcheck run reports it, then delete the probe.
+  - **Confirmed live (2026-07-05, Phase 13): 1.60GB.** Throwaway `src/ramprobe-workerkeys.js`
+    (`phase-13-consolidation.spec.md` work item 8/S3) read 1.60GB — object-literal keys are
+    **not** phantom-charged (the theory is dead for keys specifically; Phase 9/11's confirmed
+    mechanism is standalone-identifier/method-name collisions, not object-literal keys).
+    `WORKER_SCRIPTS`' `hack`/`grow`/`weaken` keys are safe as-is; the rename refactor this
+    item once proposed is unnecessary and won't be done. Probe deleted from the repo
+    (`git rm`, Phase 13 close-out) — its job is done.
   - **Live-confirmed the mechanism again, a different flavor, in Phase 11 (2026-07-05):**
     `cloudmanager.js`'s `nextCloudName` called `CLOUD_NAME_PATTERN.exec(name)` — plain
     `RegExp.prototype.exec`, nothing to do with `ns.exec` — and got charged the full 1.30 GB
@@ -338,6 +337,19 @@ instead of deleting it — don't let history pile up here.
   websocket reconnect cleanly in a non-TTY process. Not investigated further this session —
   worth digging into if it recurs, since a restart is an easy workaround but an unnoticed
   stall could look like "no income landing" when it's actually "not exporting."
+  - **A related-but-distinct failure confirmed live, 2026-07-05 20:46:02 (Phase 13):** not a
+    silent stop, but a silent *wrong* push — a `git checkout master` (prep for merging the
+    Phase 13 branch) run in this checkout while `npm run dev` was still watching it caused
+    viteburner to instantly push the pre-Phase-13 (reverted) file contents into the game.
+    The merge commit right after restored the correct content in the working tree, but
+    nothing re-triggered a push, so the game silently held stale code for the rest of the
+    session — three RAM-gate re-runs that session all measured that stale code, initially
+    misread as an analyzer limitation (full forensic timeline, from `dist/`'s byte-faithful
+    dump vs. commit times, in `docs/phases/phase-13-consolidation.closeout.md`). New standing
+    rule from this (`CLAUDE.md`): never `git checkout`/switch branches in a dev-server-watched
+    checkout while the game is connected unless the push is intended — stop the dev server
+    first. `ramcheck.js` also now records each script's in-game byte length so any future gate
+    reading can be checked against the `dist/` dump before being trusted.
 
 - **Claude Code workflow blocker: getting a screenshot into a terminal session** (2026-07-04):
   when debugging a live in-game error, copy/pasting the terminal text came through garbled/

@@ -6,6 +6,35 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-06
+
+- **Phase 13 — consistency consolidation, closed out** → `phase-13-consolidation.features.md`,
+  `phase-13-consolidation.spec.md`, `phase-13-consolidation.closeout.md` (implemented
+  2026-07-05, merged to `master` as a deliberate exception pending live validation; live
+  validation completed 2026-07-06). New `src/common.js` (`scanNetwork`, `findPath`,
+  `tprintTs`, `workerRamCosts`); `hosts.js`'s `getHosts` split into `tryRoot`/`listHosts`;
+  `launchmonitor.js` switched to the non-rooting `listHosts` (real correctness fix — it was
+  racing the daemon's rooting from inside a monitor); `sharecurve.js` picked up a real
+  double-count fix in its capacity report along the way. `npm test` 250/250.
+  **Most reusable lesson of the phase:** the RAM gate initially measured a spurious +0.25GB
+  on `launchmonitor.js`/`sharecurve.js` that looked like an analyzer limitation (can't
+  call-graph-prune closures-as-data) — two code-shape fix commits produced bit-identical
+  readings across three runs, which briefly looked like confirmation. Forensic replay of
+  `dist/src/*` (viteburner's byte-faithful dump of what it last actually pushed) found the
+  real cause: a `git checkout` for the merge, done in this checkout while the dev-server
+  watcher was live, pushed stale pre-refactor files into the game at 20:46:02 — all three
+  "identical" after-runs had measured the *same stale file*, not three different code
+  shapes. A verified re-run (`ramcheck.js` extended to also record each script's in-game
+  source length, byte-checked against the `dist/` dump before trusting any reading) hit the
+  originally-predicted numbers exactly: `launchmonitor.js` 3.20 (−0.65), `sharecurve.js` 5.70
+  (+0.05), both tripwires (`daemon.js`/`bootstrap.js`) flat. New standing rule (`CLAUDE.md`):
+  never `git checkout`/switch branches in a dev-server-watched checkout while the game is
+  connected unless the push is intended — stop the dev server first. Live daemon session
+  (~35 min) confirmed clean; separately surfaced (not a Phase-13 regression — confirmed
+  pre-existing, `targets.js`'s diff across the merge is a verbatim move) a live batcher bug:
+  `daemon.js` has run with zero batch members / zero hacking income since 2026-07-05, share
+  pool only — filed as its own BACKLOG item for investigation.
+
 ## 2026-07-05
 
 - **Docs reorganization — archive phases, trim BACKLOG, add metareference** (branch

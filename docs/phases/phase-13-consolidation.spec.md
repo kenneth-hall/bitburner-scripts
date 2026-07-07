@@ -354,6 +354,17 @@ the phase record.
 Any unexplained delta anywhere → identifier-hygiene hunt (Phase 9/11's `mem`-trace method)
 before sign-off.
 
+**Verified actuals (2026-07-06, byte-checked against `dist/src/*` for staleness — every row
+`OK`):** `launchmonitor.js` **3.20** (baseline 3.85, hit the predicted −0.65 exactly);
+`sharecurve.js` **5.70** (baseline 5.65, hit the predicted +0.05 exactly); `daemon.js` 16.30
+and `bootstrap.js` 6.20, both exactly flat (tripwire held); `hosts.js` 3.65, `targets.js`
+12.7, `killscripts.js` 3.00, `connect.js` 2.00, `cloudcosts.js` 3.65,
+`purchasecloudservers.js` 5.75, `targetsmonitor.js` 12.7 — all flat. Two earlier same-day
+re-runs (recorded in `logs/ramcheck-result-phase13-first-attempt.json` /
+`-second-attempt.json`) showed a spurious +0.25GB on `launchmonitor.js`/`sharecurve.js`
+that looked like an analyzer limitation but was a stale-sync artifact — full diagnosis and
+the self-verifying gate fix in `docs/phases/phase-13-consolidation.closeout.md`.
+
 ## Live validation [live]
 
 `npm run dev` running; auto-reconnect enabled.

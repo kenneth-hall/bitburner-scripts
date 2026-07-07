@@ -33,6 +33,14 @@ Conventions below apply at every stage (spec-reviewer enforces them).
   against the log files, not assumption. If a result isn't logged, add an `ns.write(...)`
   export (+ `vite.config.ts` filter) instead of asking for a paste — or ask whether to log
   it. → `docs/logging.md` for the file-naming patterns.
+- **Never `git checkout`/switch branches in the dev-server-watched checkout while the game
+  is connected**, unless the push is intended — viteburner pushes on every working-tree
+  change, so a checkout mid-merge silently overwrites the in-game code with whatever the old
+  branch held (caused Phase 13's phantom RAM bug: three "confirmed" gate re-runs all measured
+  stale reverted files). Stop `npm run dev` first for merge choreography. Any RAM-gate reading
+  is only trustworthy if it's checked against `dist/src/*`'s byte-faithful record of what was
+  actually last pushed (`ramcheck.js` records each script's in-game byte length for exactly
+  this).
 
 ## Tracking work
 Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas). On
