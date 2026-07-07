@@ -29,7 +29,7 @@ import {
   assignBatchHosts,
   planPrep,
   pickBatchSet,
-  pipelineDepth,
+  cappedPipelineDepth,
   batchRamCost,
   carveReservation,
   planShareTopUp,
@@ -63,6 +63,11 @@ const CYCLE_MS = 10000;
 // docs/phases/phase-09-batcher-refactor.md) and a new `hackingLevel` field. Old logs stay
 // readable by old checker versions via git; the current checker validates
 // only the current schema.
+// Phase 15 schema change: `snapshot` events gain a top-level `candidateCount`
+// (candidates.length that tick) and each `members[]` entry gains a `floor`
+// boolean (pipelineCostGb > batchBudgetGb -- true iff pickBatchSet's floor
+// rule seated it over-budget). Both additive; the daemon rewrites the whole
+// file on flush, so a restarted session's log is uniformly new-schema.
 const DAEMON_LOG_FILE = "daemon-batch-log.json";
 const DAEMON_LOG_MAX_ENTRIES = 2000; // raised from 1000 (Phase 7): N members means N x the batch/skip events per tick
 const LOG_FLUSH_INTERVAL_MS = 10000; // lazy-flush cadence for batch/skip/snapshot events; mode/enter/exit flush immediately
@@ -565,7 +570,13 @@ export async function main(ns) {
 
       const jobs = planBatch(sample);
       const ramCost = batchRamCost(jobs, ramCosts);
-      const depth = pipelineDepth(sample.steadyWeakenTime);
+      // Phase 15: capped by batchBudgetGb, not the raw throughput ceiling --
+      // a fleet too small to ever afford one target's FULL pipeline should
+      // still admit a partial one (see scheduler.js's cappedPipelineDepth doc
+      // comment); the known approximation is that this caps against the
+      // full budget, not the remaining budget at seat time, same spirit as
+      // the fleet-total-vs-single-host approximation pickBatchSet documents.
+      const depth = cappedPipelineDepth(sample.steadyWeakenTime, ramCost, batchBudgetGb);
       candidates.push({
         server: target.server,
         score: target.score,
@@ -813,13 +824,27 @@ export async function main(ns) {
     );
     ns.print(`skipped(total): ${totalBatchesSkipped} | shrunk(total): ${totalBatchesShrunk}`);
 
+    // Phase 15: this state should be unreachable now that candidate
+    // construction caps depth by affordability and pickBatchSet's floor rule
+    // guarantees a seat whenever candidates is non-empty -- any sighting
+    // means both of those broke at once. Loud on purpose (every tick it
+    // holds), 0GB (ns.print).
+    if (result.members.length === 0 && candidates.length > 0) {
+      const cheapest = candidates.reduce((min, c) => (c.pipelineCostGb < min.pipelineCostGb ? c : min));
+      ns.print(
+        `WARN: zero-member stall -- ${candidates.length} candidate(s) but none seated ` +
+          `(cheapest: ${cheapest.server} @ ${ns.format.ram(cheapest.pipelineCostGb)} vs budget ${ns.format.ram(batchBudgetGb)})`
+      );
+    }
+
     for (const member of result.members) {
       const info = memberReserve.get(member.server);
       const liveState = liveStates.get(member.server);
       const target = targetsByServer.get(member.server);
       const commitPct = member.pipelineCostGb > 0 ? (info.inFlightRamGb / member.pipelineCostGb) * 100 : 0;
+      const isFloor = member.pipelineCostGb > batchBudgetGb;
       ns.print(
-        `  ${member.server.padEnd(15)} ${member.realPrepped ? "PREPPED" : "DRIFTED"} ` +
+        `  ${member.server.padEnd(15)} ${member.realPrepped ? "PREPPED" : "DRIFTED"}${isFloor ? " FLOOR" : ""} ` +
           `${String(info.batchesInFlight).padStart(3)}/${member.depth} in flight | ` +
           `commit ${commitPct.toFixed(0).padStart(3)}% | ` +
           `sec ${liveState.currentSecurity.toFixed(1)}/${target.minSecurityLevel} | ` +
@@ -953,6 +978,7 @@ export async function main(ns) {
         batchBudgetGb,
         waterfallFreeGb: waterfallAvailableGb,
         memberCount: result.members.length,
+        candidateCount: candidates.length, // Phase 15: candidateCount > 0 && memberCount === 0 is the stall signature verify:log now hard-fails on
         hackingLevel: ns.getHackingLevel(),
         members: result.members.map((m) => {
           const info = memberReserve.get(m.server);
@@ -966,6 +992,7 @@ export async function main(ns) {
             inFlightRamGb: info.inFlightRamGb,
             reserveGb: info.reserveGb,
             commitmentPct: m.pipelineCostGb > 0 ? (info.inFlightRamGb / m.pipelineCostGb) * 100 : 0,
+            floor: m.pipelineCostGb > batchBudgetGb, // Phase 15: floor-seated (pickBatchSet's floor rule), same predicate as the display's FLOOR tag
           };
         }),
         sharePool: {

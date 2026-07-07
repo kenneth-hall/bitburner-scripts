@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { checkShareCap, checkBudgetInvariant, checkFractionConsistency, checkNaturalExit, dropPreConfigStragglers } from './verify-log-checks.js';
+import { checkShareCap, checkBudgetInvariant, checkFractionConsistency, checkNaturalExit, checkNoStall, dropPreConfigStragglers } from './verify-log-checks.js';
 
 const LOG_PATH = process.env.DAEMON_LOG_PATH ?? path.join(process.cwd(), 'logs', 'daemon-batch-log.json');
 
@@ -149,6 +149,7 @@ describe('log format', () => {
             batchBudgetGb: expect.any(Number),
             waterfallFreeGb: expect.any(Number),
             memberCount: expect.any(Number),
+            candidateCount: expect.any(Number),
             members: expect.any(Array),
             hackingLevel: expect.any(Number),
           });
@@ -163,6 +164,7 @@ describe('log format', () => {
               inFlightRamGb: expect.any(Number),
               reserveGb: expect.any(Number),
               commitmentPct: expect.any(Number),
+              floor: expect.any(Boolean),
             });
           }
           for (const d of e.draining ?? []) {
@@ -275,13 +277,18 @@ describe('hard assertions', () => {
     expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
   });
 
-  it('budget invariant (Phase 8, updated): every snapshot keeps aggregate member cost within batchBudgetGb (not budgetGb -- share\'s carve reduces it), batchBudgetGb never exceeds budgetGb, and memberCount matches the members array', () => {
+  it('budget invariant (Phase 8, amended Phase 15): every snapshot keeps aggregate non-floor member cost within batchBudgetGb (not budgetGb -- share\'s carve reduces it), batchBudgetGb never exceeds budgetGb, a floor member never coexists with other members, and memberCount matches the members array', () => {
     const violations = checkBudgetInvariant(entries);
     expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
     for (const e of entries) {
       if (e.event !== 'snapshot') continue;
       expect(e.memberCount, `snapshot at ${e.time} has memberCount != members.length`).toBe(e.members.length);
     }
+  });
+
+  it('stall invariant (Phase 15): no snapshot has eligible candidates with zero members seated, and candidateCount is always >= memberCount', () => {
+    const violations = checkNoStall(entries);
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
   });
 
   it('share-cap invariant: in-flight share RAM never exceeds targetGb by more than one thread, with a 30s decay grace window after a toggle-off', () => {

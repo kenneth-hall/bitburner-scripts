@@ -6,7 +6,7 @@
 // exclude doesn't skip it) -- unlike verify-log.test.js, this never touches a
 // real exported game log.
 import { describe, it, expect } from 'vitest';
-import { checkShareCap, checkBudgetInvariant, checkFractionConsistency, checkNaturalExit, dropPreConfigStragglers } from './verify-log-checks.js';
+import { checkShareCap, checkBudgetInvariant, checkFractionConsistency, checkNaturalExit, checkNoStall, dropPreConfigStragglers } from './verify-log-checks.js';
 import {
   checkKnownEventsAndTimestamps,
   checkTimestampsNonDecreasing,
@@ -31,13 +31,16 @@ function baseEntries({ shareFraction = 0.25, shareOff = false } = {}) {
 }
 
 function cleanSnapshot(overrides = {}) {
+  const members = overrides.members ?? [{ server: 'a', pipelineCostGb: 700 }];
   return {
     event: 'snapshot',
     time: 't1',
     timestamp: 2000,
     budgetGb: 1000,
     batchBudgetGb: 750,
-    members: [{ server: 'a', pipelineCostGb: 700 }],
+    memberCount: members.length,
+    candidateCount: members.length, // Phase 15: defaults to "every seated member came from a candidate, no others" -- callers override for stall/mismatch fixtures
+    members,
     sharePool: { targetGb: 250, inFlightRamGb: 248, threads: 62, attainedPct: 99.2, sharePower: 1.8 },
     ...overrides,
   };
@@ -46,10 +49,11 @@ function cleanSnapshot(overrides = {}) {
 describe('checker fixtures: clean log', () => {
   const entries = [...baseEntries(), cleanSnapshot()];
 
-  it('passes all three Phase 8 hard assertions', () => {
+  it('passes all Phase 8 + Phase 15 hard assertions', () => {
     expect(checkShareCap(entries)).toEqual([]);
     expect(checkBudgetInvariant(entries)).toEqual([]);
     expect(checkFractionConsistency(entries)).toEqual([]);
+    expect(checkNoStall(entries)).toEqual([]);
   });
 });
 
@@ -62,6 +66,7 @@ describe('checker fixtures: share-cap violation', () => {
     expect(checkShareCap(entries).length).toBeGreaterThan(0);
     expect(checkBudgetInvariant(entries)).toEqual([]);
     expect(checkFractionConsistency(entries)).toEqual([]);
+    expect(checkNoStall(entries)).toEqual([]);
   });
 });
 
@@ -93,6 +98,71 @@ describe('checker fixtures: fraction consistency violation', () => {
 
   it('flags a snapshot with no preceding mode event at all', () => {
     expect(checkFractionConsistency([cleanSnapshot()]).length).toBeGreaterThan(0);
+  });
+});
+
+describe('checker fixtures: Phase 15 floor member reconciliation (proof the amended budget invariant accepts real floor behavior)', () => {
+  it('a lone floor member over batchBudgetGb passes cleanly -- the reconciled invariant\'s proof', () => {
+    const entries = [
+      ...baseEntries(),
+      cleanSnapshot({ members: [{ server: 'a', pipelineCostGb: 900, floor: true }] }), // 900 > batchBudgetGb 750
+    ];
+    expect(checkBudgetInvariant(entries)).toEqual([]);
+  });
+
+  it('flags a floor member coexisting with another member in the same snapshot', () => {
+    const entries = [
+      ...baseEntries(),
+      cleanSnapshot({
+        members: [
+          { server: 'a', pipelineCostGb: 900, floor: true },
+          { server: 'b', pipelineCostGb: 10 },
+        ],
+      }),
+    ];
+    const violations = checkBudgetInvariant(entries);
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations.some((v) => v.reason.includes('coexists'))).toBe(true);
+  });
+
+  it('flags a floor:true member whose pipelineCostGb does not actually exceed batchBudgetGb', () => {
+    const entries = [...baseEntries(), cleanSnapshot({ members: [{ server: 'a', pipelineCostGb: 500, floor: true }] })];
+    const violations = checkBudgetInvariant(entries);
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations.some((v) => v.reason.includes('flagged floor:true'))).toBe(true);
+  });
+});
+
+describe('checker fixtures: Phase 15 stall invariant', () => {
+  it('flags a snapshot with candidates but zero members seated (the bug this phase fixes)', () => {
+    const entries = [...baseEntries(), cleanSnapshot({ members: [], memberCount: 0, candidateCount: 3 })];
+    const violations = checkNoStall(entries);
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations[0].reason).toMatch(/zero-member stall/);
+    // Doesn't cross-contaminate the other checks.
+    expect(checkBudgetInvariant(entries)).toEqual([]);
+  });
+
+  it('flags candidateCount less than memberCount (members must be drawn from candidates)', () => {
+    const entries = [
+      ...baseEntries(),
+      cleanSnapshot({ members: [{ server: 'a', pipelineCostGb: 700 }], memberCount: 1, candidateCount: 0 }),
+    ];
+    const violations = checkNoStall(entries);
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations[0].reason).toMatch(/less than memberCount/);
+  });
+
+  it('flags a missing or non-numeric candidateCount', () => {
+    const entries = [...baseEntries(), cleanSnapshot({ candidateCount: undefined })];
+    const violations = checkNoStall(entries);
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations[0].reason).toMatch(/not a non-negative number/);
+  });
+
+  it('a genuinely empty tick (no candidates, no members) is not a stall', () => {
+    const entries = [...baseEntries(), cleanSnapshot({ members: [], memberCount: 0, candidateCount: 0 })];
+    expect(checkNoStall(entries)).toEqual([]);
   });
 });
 

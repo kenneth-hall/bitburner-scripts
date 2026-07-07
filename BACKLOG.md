@@ -9,8 +9,15 @@ instead of deleting it — don't let history pile up here.
 - **Phase 15: small-fleet batching floor** (2026-07-06): fix the zero-member income stall —
   `pickBatchSet` seats nobody when no target's *full* pipeline fits the post-reset 940GB
   fleet's budget, so the daemon has launched zero workers (and earned $0) since the Jul 5
-  handoff. Diagnosis + fix decisions in `phase-15-small-fleet.features.md` (repo root);
-  spec stage next.
+  handoff. This is the same bug as the "Batcher stuck at zero hacking income" Next Up entry
+  below — that entry is now superseded by this one and should be deleted once this phase
+  ships. Diagnosis + fix decisions in `phase-15-small-fleet.features.md`, spec (cold-reviewed,
+  1 blocker addressed) in `phase-15-small-fleet.spec.md` (both repo root). Spec stage done;
+  implementation in progress on branch `phase15-small-fleet`: `cappedPipelineDepth` +
+  `pickBatchSet`'s floor rule shipped in `scheduler.js`, wired into `daemon.js`
+  (`candidateCount`/`floor` snapshot fields, stall WARN, `FLOOR` display tag), amended
+  `checkBudgetInvariant` + new `checkNoStall` log-checker rules with fixtures, 268/268 `npm
+  test` green. Remaining: RAM gate + live validation (both need Kenneth's in-game session).
 
 ## Next Up
 
@@ -37,18 +44,11 @@ instead of deleting it — don't let history pile up here.
     fold into whichever phase is already touching those files, not standalone phases. (The
     targetsmonitor priority-column item folded into Phase 12 — see Done.)
 
-- **Batcher stuck at zero hacking income since 2026-07-05 (found during Phase 13's live
-  validation, 2026-07-06):** a ≥15-minute `daemon.js` session showed `memberCount: 0` in
-  every one of 214 snapshots — no hack/grow/weaken batches ran at all, only the share pool
-  (58 threads, 98.7% attained). Corroborating: `hackingLevel` flat the whole session (no
-  hacking XP), `enters: 0 / exits: 0 / skips: 0` (the daemon isn't even attempting targets,
-  not failing them), and `transactions-2026-07-05.json` shows zero income entries for the
-  entire day. Kenneth confirmed this predates Phase 13 ("bugged since yesterday"), and the
-  diff evidence agrees: `targets.js`'s Phase 13 changes are a verbatim move of
-  `workerRamCosts`'s construction (confirmed by `test/common.test.js`), not a logic change.
-  Not investigated yet — next step is `run targets.js` in-game for its
-  `targets-summary-<timestamp>.json` eligibility/ranking export, to tell "no eligible
-  targets" apart from "eligible targets exist but aren't being picked."
+- ~~**Batcher stuck at zero hacking income since 2026-07-05**~~ **Superseded by Phase 15
+  (2026-07-06, see In Progress above)** — root cause diagnosed: `pickBatchSet` admits a
+  target only if its full pipeline fits the batch budget, and no target's full pipeline
+  fits the post-reset fleet's budget, so nobody ever seats. Fix in progress; don't
+  re-investigate this from scratch.
 
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
@@ -202,6 +202,23 @@ instead of deleting it — don't let history pile up here.
     live-validation follow-up when built, same as the waived fleetupgrade test.
 
 ## Ideas / Backlog
+
+- **Investigate `sharePower` reading 1.00 with live share threads in flight** (2026-07-06,
+  filed from Phase 15's diagnosis, S3, out of scope for that phase): the exported
+  `daemon-batch-log.json` showed `sharePower: 1.00` for a full hour with 58 share threads
+  continuously in flight and `attainedPct` near 99% — expected `sharePower` to read above
+  1.00 given live threads. Possibly a game mechanic (e.g. the bonus only accrues while
+  actively doing faction work, not just running `share()`) rather than a bug — not
+  confirmed either way. Doesn't affect Phase 15's fix (the share carve is driven by
+  `SHARE_FRACTION`, not measured power).
+
+- **Auto-suppress share below a fleet-size/income floor** (2026-07-06, filed from Phase 15's
+  diagnosis, S4, resource-manager territory): today the only lever for the Phase 8 share
+  carve is the manual `share-off.txt` marker. On a small post-reset fleet, share's 25%
+  carve competes hard with getting the batcher's own pipeline started at all — worth a
+  resource-manager rule that suppresses share automatically below some fleet-size or
+  income threshold, rather than requiring Kenneth to remember the manual toggle. No design
+  done yet.
 
 - **Re-validate `procureprograms.js`'s TOR/port-opener ladder live** (2026-07-05, filed from Phase
   11's Round B): Kenneth's account doesn't yet have the Source-File `ns.singularity.purchaseTor`/

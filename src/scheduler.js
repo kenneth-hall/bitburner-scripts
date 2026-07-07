@@ -66,6 +66,24 @@ export function pipelineDepth(weakenTimeMs) {
 }
 
 /**
+ * Phase 15: affordability-capped admission depth. `pipelineDepth` is a
+ * throughput ceiling (how deep a pipeline COULD run); on a fleet too small to
+ * ever afford that ceiling for any target, admission gated on the full depth
+ * seats nobody, forever (the zero-member stall this phase fixes). A partial
+ * pipeline still earns proportionally -- so admission/reservation should use
+ * whichever is smaller, clamped to at least 1 (a single batch still prices
+ * honestly as unaffordable when even that doesn't fit `budgetGb`; seating it
+ * anyway is pickBatchSet's floor rule, not this function's job).
+ * Assumes `ramCostGb > 0` (every batch has >= 1 thread per job).
+ * @param {number} weakenTimeMs
+ * @param {number} ramCostGb per-batch RAM cost
+ * @param {number} budgetGb
+ */
+export function cappedPipelineDepth(weakenTimeMs, ramCostGb, budgetGb) {
+  return Math.max(1, Math.min(pipelineDepth(weakenTimeMs), Math.floor(budgetGb / ramCostGb)));
+}
+
+/**
  * Builds the four one-shot jobs for one batch: hack +0, weaken1 +1*SPACING_MS,
  * grow +2*SPACING_MS, weaken2 +3*SPACING_MS, each timed via additionalMsec so
  * all four land that many milliseconds apart despite launching together.
@@ -321,24 +339,86 @@ export function pickBatchSet(candidates, incumbentServers, budgetGb, hysteresis)
     }
   }
 
-  // Pass 3: displacement -- gated, at most one entrant per tick. Only seated
-  // incumbents are evictable here (never a pass-2 entrant). evictionOrder is
-  // ascending by score (lowest-scored seat first): once one incumbent fails
-  // the hysteresis gate in this ascending walk, every subsequent
-  // (higher-scored) incumbent needs an even bigger clearance, so all the
-  // rest necessarily fail too -- safe to stop early.
+  // Hoisted (Phase 15) so the floor pass below and pass 3 share one slot --
+  // both ASSIGN to these, neither redeclares. `justEvicted`: servers evicted
+  // this tick (by either pass) that pass 4's refill must not re-seat even if
+  // the freed budget and its own cost both fit -- otherwise a server ends up
+  // in both `exits` (reason "displaced") and `members` from the same call:
+  // daemon.js logs a real exit and sets a drainDeadline, but the server never
+  // actually left previousMemberSet, so no matching `enter` ever fires --
+  // corrupting the exit/enter pairing the natural-exit invariant depends on.
+  // A displaced server becomes eligible again next tick, competing as an
+  // ordinary non-incumbent (pass 2).
   let displacement = null;
+  const justEvicted = new Set();
+
+  // Pass 2.5 (Phase 15): floor -- a non-empty candidate list must always seat
+  // at least one member, even when NO candidate's pipelineCostGb fits
+  // budgetGb (every fleet-too-small-for-even-one-batch case; passes 1-2
+  // above only seat a candidate whose cost already fits, so reaching here
+  // with an empty `seated` means literally every candidate is unaffordable).
+  // The seated member's over-budget cost stays honest (unaffordable to the
+  // passes above and to any snapshot budget check); daemon.js's per-tick
+  // empty-pipeline shrink loop is what actually makes it launchable, down to
+  // MIN_HACK_FRACTION.
+  //
+  // incumbentFloor keeps the floor seat by default (stickiness): without
+  // this, legacy scoring's tick-to-tick jitter (score moves as a member's own
+  // batch drains money) would flip the floor member every tick, abandoning
+  // whatever pipeline it just started to shrink into. It's displaced only by
+  // a prepped challenger clearing the same two gates pass 3 uses (prepped +
+  // hysteresis) against the SAME single seat.
+  //
+  // Mutually exclusive with pass 3 by construction, not by a separate guard:
+  // pass 3 requires a seated incumbent to evict and this pass only runs from
+  // an empty seating, so pass 3 can't fire first; and once this pass seats
+  // someone, every OTHER candidate is still unaffordable by the same
+  // reaching-here argument (its cost > budgetGb), so no combination of
+  // evictions in pass 3 can ever free enough for a second seat -- `remaining`
+  // caps out at budgetGb even after evicting the floor seat back out, and
+  // every remaining challenger costs more than that.
+  if (seated.length === 0 && candidates.length > 0) {
+    const incumbentFloor = candidates.find((c) => incumbentSet.has(c.server)) ?? null;
+    const challenger = candidates[0]; // highest-scored overall; candidates is score-sorted
+
+    const displaces =
+      incumbentFloor !== null &&
+      challenger.server !== incumbentFloor.server &&
+      challenger.prepped &&
+      challenger.score >= incumbentFloor.score * hysteresis;
+
+    const pick = incumbentFloor === null || displaces ? challenger : incumbentFloor;
+
+    if (incumbentFloor !== null) {
+      // Pass 1 already pushed an "unaffordable" exit for incumbentFloor
+      // (every incumbent in `candidates` did, since reaching here means none
+      // fit) -- resolve it one way or the other, never leaving both an exit
+      // AND a seat for the same server.
+      const exitIndex = exits.findIndex((e) => e.server === incumbentFloor.server);
+      if (displaces) {
+        exits[exitIndex] = { server: incumbentFloor.server, reason: "displaced" };
+        displacement = { entrant: challenger.server, displaced: [incumbentFloor.server] };
+        justEvicted.add(incumbentFloor.server);
+      } else {
+        exits.splice(exitIndex, 1); // kept the seat -- it never actually exited
+      }
+    }
+
+    seated.push(pick);
+    seatedServers.add(pick.server);
+    remaining -= pick.pipelineCostGb;
+  }
+
+  // Pass 3: displacement -- gated, at most one entrant per tick. Only seated
+  // incumbents are evictable here (never a pass-2 entrant, and never the
+  // just-seated floor member for a SECOND displacement in the same tick --
+  // see the floor pass's doc comment on why that can't succeed anyway).
+  // evictionOrder is ascending by score (lowest-scored seat first): once one
+  // incumbent fails the hysteresis gate in this ascending walk, every
+  // subsequent (higher-scored) incumbent needs an even bigger clearance, so
+  // all the rest necessarily fail too -- safe to stop early.
   const seatedIncumbents = seated.filter((m) => incumbentSet.has(m.server));
   const evictionOrder = [...seatedIncumbents].sort((a, b) => a.score - b.score);
-  // Servers pass 3 evicted this tick -- pass 4's refill must not re-seat one
-  // of these even if the freed budget and its own cost both fit. Otherwise a
-  // server ends up in both `exits` (reason "displaced") and `members` from
-  // the same call: daemon.js logs a real exit and sets a drainDeadline, but
-  // the server never actually left previousMemberSet, so no matching `enter`
-  // ever fires -- corrupting the exit/enter pairing the natural-exit
-  // invariant depends on. A displaced server becomes eligible again next
-  // tick, competing as an ordinary non-incumbent (pass 2).
-  const justEvicted = new Set();
 
   for (const challenger of candidates) {
     if (seatedServers.has(challenger.server)) continue;

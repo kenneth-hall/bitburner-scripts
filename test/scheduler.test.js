@@ -13,6 +13,7 @@ import {
   DRIFT_MONEY_FRACTION,
   isPrepped,
   pipelineDepth,
+  cappedPipelineDepth,
   planBatch,
   batchRamCost,
   carveReservation,
@@ -51,6 +52,34 @@ describe('pipelineDepth', () => {
     expect(pipelineDepth(4 * BATCH_INTERVAL_MS)).toBe(4);
     expect(pipelineDepth(4 * BATCH_INTERVAL_MS + 1)).toBe(5);
     expect(pipelineDepth(1)).toBe(1);
+  });
+});
+
+describe('cappedPipelineDepth (Phase 15)', () => {
+  it('is uncapped (equals pipelineDepth) when the full pipeline already fits the budget', () => {
+    const weakenTimeMs = 4 * BATCH_INTERVAL_MS; // pipelineDepth = 4
+    const ramCostGb = 10;
+    expect(cappedPipelineDepth(weakenTimeMs, ramCostGb, 1000)).toBe(pipelineDepth(weakenTimeMs));
+    expect(cappedPipelineDepth(weakenTimeMs, ramCostGb, 1000)).toBe(4);
+  });
+
+  it('caps to floor(budget / ramCost) when the full pipeline does not fit', () => {
+    const weakenTimeMs = 20 * BATCH_INTERVAL_MS; // pipelineDepth = 20
+    const ramCostGb = 100;
+    // budget only affords 3 batches (300 / 100), far under the depth-20 ceiling.
+    expect(cappedPipelineDepth(weakenTimeMs, ramCostGb, 300)).toBe(3);
+  });
+
+  it('clamps to 1 when even a single batch costs more than the budget', () => {
+    const weakenTimeMs = 20 * BATCH_INTERVAL_MS;
+    const ramCostGb = 1000;
+    expect(cappedPipelineDepth(weakenTimeMs, ramCostGb, 300)).toBe(1);
+  });
+
+  it('exact-fit boundary: budget === depth x ramCost keeps the full depth', () => {
+    const weakenTimeMs = 5 * BATCH_INTERVAL_MS; // pipelineDepth = 5
+    const ramCostGb = 20;
+    expect(cappedPipelineDepth(weakenTimeMs, ramCostGb, 100)).toBe(5); // 100 / 20 = 5, exact
   });
 });
 
@@ -426,11 +455,16 @@ describe('pickBatchSet', () => {
     expect(result.exits).toEqual([{ server: 'gone', reason: 'ineligible' }]);
   });
 
-  it('a budget shrink below an incumbent\'s cost exits "unaffordable"', () => {
+  it('a budget shrink below an incumbent\'s sole cost floor-seats it instead of exiting (Phase 15)', () => {
+    // Before Phase 15 this exited "unaffordable" with nobody seated -- the
+    // exact zero-member-forever shape the floor rule exists to prevent.
+    // With only one candidate (itself the incumbent), the floor pass keeps
+    // it seated and its pass-1 "unaffordable" exit is retracted.
     const candidates = [{ server: 'inc', score: 100, pipelineCostGb: 80, prepped: true }];
     const result = pickBatchSet(candidates, ['inc'], 50, 1.25);
-    expect(memberServers(result)).toEqual([]);
-    expect(result.exits).toEqual([{ server: 'inc', reason: 'unaffordable' }]);
+    expect(memberServers(result)).toEqual(['inc']);
+    expect(result.exits).toEqual([]);
+    expect(result.displacement).toBeNull();
   });
 
   it('empty candidates returns empty members, with every incumbent exiting "ineligible"', () => {
@@ -443,6 +477,88 @@ describe('pickBatchSet', () => {
       ])
     );
     expect(result.exits).toHaveLength(2);
+  });
+
+  describe('floor rule (Phase 15): a non-empty candidate list always seats at least one member', () => {
+    it('nothing fits, no incumbents -- seats exactly the top-scored candidate, no exits, no displacement', () => {
+      const candidates = [
+        { server: 'top', score: 300, pipelineCostGb: 500, prepped: true },
+        { server: 'mid', score: 200, pipelineCostGb: 800, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, [], 100, 1.25);
+      expect(memberServers(result)).toEqual(['top']);
+      expect(result.exits).toEqual([]);
+      expect(result.displacement).toBeNull();
+      expectNoOverlap(result);
+    });
+
+    it('nothing fits, top candidate was the incumbent -- stays seated with no "unaffordable" exit; lower incumbents still exit', () => {
+      const candidates = [
+        { server: 'top', score: 300, pipelineCostGb: 500, prepped: true },
+        { server: 'mid', score: 200, pipelineCostGb: 800, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, ['top', 'mid'], 100, 1.25);
+      expect(memberServers(result)).toEqual(['top']);
+      expect(result.exits).toEqual([{ server: 'mid', reason: 'unaffordable' }]);
+      expect(result.displacement).toBeNull();
+      expectNoOverlap(result);
+    });
+
+    it('challenger above the incumbent but under hysteresis -- incumbent keeps the floor seat', () => {
+      // incumbent 100 * 1.25 = 125; challenger at 124.99 does not clear it.
+      const candidates = [
+        { server: 'top', score: 124.99, pipelineCostGb: 500, prepped: true },
+        { server: 'inc', score: 100, pipelineCostGb: 500, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, ['inc'], 100, 1.25);
+      expect(memberServers(result)).toEqual(['inc']);
+      expect(result.exits).toEqual([]);
+      expect(result.displacement).toBeNull();
+      expectNoOverlap(result);
+    });
+
+    it('prepped challenger at/over hysteresis displaces the incumbent floor seat -- displacement survives in the returned result, and pass 4 does not re-seat the displaced server', () => {
+      const candidates = [
+        { server: 'top', score: 125, pipelineCostGb: 500, prepped: true },
+        { server: 'inc', score: 100, pipelineCostGb: 500, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, ['inc'], 100, 1.25);
+      expect(memberServers(result)).toEqual(['top']);
+      expect(result.exits).toEqual([{ server: 'inc', reason: 'displaced' }]);
+      expect(result.displacement).toEqual({ entrant: 'top', displaced: ['inc'] });
+      expectNoOverlap(result);
+    });
+
+    it('unprepped challenger over hysteresis does not displace -- incumbent keeps the seat (prepped gate)', () => {
+      const candidates = [
+        { server: 'top', score: 200, pipelineCostGb: 500, prepped: false },
+        { server: 'inc', score: 100, pipelineCostGb: 500, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, ['inc'], 100, 1.25);
+      expect(memberServers(result)).toEqual(['inc']);
+      expect(result.exits).toEqual([]);
+      expect(result.displacement).toBeNull();
+      expectNoOverlap(result);
+    });
+
+    it('never fires when any candidate fits -- a fitting low-scored candidate seats via pass 2, the over-budget high-scorer is simply not seated', () => {
+      const candidates = [
+        { server: 'expensive', score: 300, pipelineCostGb: 500, prepped: true },
+        { server: 'cheap', score: 100, pipelineCostGb: 50, prepped: true },
+      ];
+      const result = pickBatchSet(candidates, [], 100, 1.25);
+      expect(memberServers(result)).toEqual(['cheap']);
+      expect(result.exits).toEqual([]);
+      expect(result.displacement).toBeNull();
+      expectNoOverlap(result);
+    });
+
+    it('empty candidates -- unchanged existing behavior (all incumbents exit, no floor seat)', () => {
+      const result = pickBatchSet([], ['a'], 100, 1.25);
+      expect(result.members).toEqual([]);
+      expect(result.exits).toEqual([{ server: 'a', reason: 'ineligible' }]);
+      expect(result.displacement).toBeNull();
+    });
   });
 
   it('does not mutate its input arrays', () => {

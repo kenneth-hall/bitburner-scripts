@@ -59,23 +59,71 @@ export function checkShareCap(entries) {
 }
 
 /**
- * Budget invariant (updated for Phase 8): every snapshot's aggregate member
- * cost must fit within batchBudgetGb (not budgetGb -- share's carve reduces
- * what batching is admitted against), and batchBudgetGb must never exceed
- * budgetGb (the two plus share's target should sum to budgetGb by
- * construction).
+ * Budget invariant (updated for Phase 8, amended for Phase 15): every
+ * snapshot's aggregate member cost must fit within batchBudgetGb (not
+ * budgetGb -- share's carve reduces what batching is admitted against), and
+ * batchBudgetGb must never exceed budgetGb (the two plus share's target
+ * should sum to budgetGb by construction).
+ *
+ * Phase 15: pickBatchSet's floor rule can seat exactly one member whose own
+ * pipelineCostGb legitimately exceeds batchBudgetGb (a fleet too small to
+ * afford even one full batch) -- that member is flagged `floor: true` and is
+ * excluded from the cost-total sum below, rather than blindly exempting
+ * every over-budget snapshot (which would silently hide a real regression).
+ * Two consistency checks replace the blind exemption: a `floor: true` member
+ * can only ever be alone (the floor rule only fires into an empty seating,
+ * and the resulting negative `remaining` blocks any other seat that tick --
+ * see pickBatchSet's floor-pass doc comment), and its flag must actually be
+ * warranted (pipelineCostGb > batchBudgetGb) -- otherwise it's an
+ * inconsistent flag, not real floor behavior.
  * @param {any[]} entries
  */
 export function checkBudgetInvariant(entries) {
   const violations = [];
   for (const e of entries) {
     if (e.event !== 'snapshot') continue;
-    const totalCost = e.members.reduce((sum, m) => sum + m.pipelineCostGb, 0);
+    const floorMembers = e.members.filter((m) => m.floor === true);
+    if (floorMembers.length > 0 && e.members.length > 1) {
+      violations.push({ time: e.time, reason: `floor member coexists with ${e.members.length - 1} other member(s) in the same snapshot -- floor rule only ever seats alone` });
+    }
+    for (const m of floorMembers) {
+      if (m.pipelineCostGb <= e.batchBudgetGb) {
+        violations.push({ time: e.time, reason: `${m.server} flagged floor:true but pipelineCostGb ${m.pipelineCostGb} does not exceed batchBudgetGb ${e.batchBudgetGb}` });
+      }
+    }
+    const totalCost = e.members.filter((m) => m.floor !== true).reduce((sum, m) => sum + m.pipelineCostGb, 0);
     if (totalCost > e.batchBudgetGb) {
       violations.push({ time: e.time, reason: `member cost total ${totalCost} exceeds batchBudgetGb ${e.batchBudgetGb}` });
     }
     if (e.batchBudgetGb > e.budgetGb) {
       violations.push({ time: e.time, reason: `batchBudgetGb ${e.batchBudgetGb} exceeds budgetGb ${e.budgetGb}` });
+    }
+  }
+  return violations;
+}
+
+/**
+ * Stall invariant (Phase 15): a snapshot with eligible candidates but zero
+ * seated members is the exact zero-member-forever bug this phase fixes --
+ * cappedPipelineDepth + pickBatchSet's floor rule together should make it
+ * unreachable, so any sighting is a regression, not a benign state. Also
+ * checks candidateCount's shape: a non-negative number, always >=
+ * memberCount (members are always drawn from candidates).
+ * @param {any[]} entries
+ */
+export function checkNoStall(entries) {
+  const violations = [];
+  for (const e of entries) {
+    if (e.event !== 'snapshot') continue;
+    if (typeof e.candidateCount !== 'number' || e.candidateCount < 0) {
+      violations.push({ time: e.time, reason: `candidateCount ${e.candidateCount} is not a non-negative number` });
+      continue;
+    }
+    if (e.candidateCount < e.memberCount) {
+      violations.push({ time: e.time, reason: `candidateCount ${e.candidateCount} is less than memberCount ${e.memberCount}` });
+    }
+    if (e.candidateCount > 0 && e.memberCount === 0) {
+      violations.push({ time: e.time, reason: `zero-member stall: ${e.candidateCount} candidate(s) but no members seated` });
     }
   }
   return violations;
