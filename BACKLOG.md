@@ -10,29 +10,6 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
-- **Investigate `git worktree` for parallel multi-agent sessions** (2026-07-05, high priority):
-  Kenneth runs multiple Claude Code instances against this repo at once and suspects they're
-  giving each other false signals by sharing one working directory (uncommitted changes,
-  git status/index collisions). Investigate how `git worktree` actually works — isolated
-  working directory + branch per instance, sharing one `.git` object store — and whether
-  adopting it resolves the collision problem without the overhead of a full clone per
-  instance. Known wrinkle to fold in: there's only one live Bitburner game instance and one
-  `npm run dev` connection to it, so separate worktrees help with parallel editing/`npm test`
-  but RAM-gate/live-validation steps still serialize to whichever worktree currently holds the
-  dev-server connection. No code changes expected — scope is understanding the mechanic and
-  deciding whether/how to adopt it for this project's workflow.
-
-- **Priority order — remaining phases (agreed with Kenneth 2026-07-05, post-Phase-11):**
-  (The `/spec` command and Phase 13 consistency-consolidation, both first in this list, are
-  done — see CHANGELOG — leaving one.)
-  1. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
-     sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
-     architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
-     and closes the money→RAM→income flywheel: more home RAM feeds the whole batcher.
-  - The remaining Next Up items (Source-File watcher, RAM-analyzer hygiene) are quick wins to
-    fold into whichever phase is already touching those files, not standalone phases. (The
-    targetsmonitor priority-column item folded into Phase 12 — see Done.)
-
 - **Batcher stuck at zero hacking income since 2026-07-05 (found during Phase 13's live
   validation, 2026-07-06):** a ≥15-minute `daemon.js` session showed `memberCount: 0` in
   every one of 214 snapshots — no hack/grow/weaken batches ran at all, only the share pool
@@ -85,59 +62,6 @@ instead of deleting it — don't let history pile up here.
     standalone identifier or object key) — raises confidence that the `WORKER_SCRIPTS` phantom
     charge is real and worth the E-matrix confirmation pass.
 
-- **Consistency consolidation** (from the 2026-07-04 code audit; was item 3 of the original
-  Phase 5 draft — full-consolidation depth chosen explicitly; behavior-preserving throughout,
-  with the RAM gate and a before/after daemon session as the safety net). Do this *before*
-  the backdoor item below — it extracts `tryRoot` and `findPath`, which the backdoor script
-  imports.
-  - **New shared module `src/common.js`** — charter (state it in the header): ns-dependent
-    helpers shared by multiple scripts; no policy decisions, no batching math; keep the ns
-    surface minimal and cheap (`scan`, `tprint`, `getScriptRam` — every importer's bundle
-    pays for all of it; nothing `ns.cloud.*` or Singularity). Contents: `scanNetwork(ns)`
-    (BFS copy-pasted identically in `hosts.js`/`targets.js`/`killscripts.js` — move verbatim,
-    rewire all three); `findPath(ns, target)` (BFS parent-chain walk from `connect.js`);
-    `tprintTs(ns, message)` (from `daemon.js`; also use it for `hosts.js`'s rooted-host
-    notification, which currently fires mid-daemon-run with no timestamp); `workerRamCosts(ns)`
-    (the three-script `getScriptRam` map built in both `daemon.js`'s `refreshCycle` and
-    `targets.js`'s `getTargets`; takes `WORKER_SCRIPTS` from `scheduler.js`).
-  - **`hosts.js` restructure**: export `HOME_RESERVE_GB` (`daemon.js` imports it, deletes its
-    private copy). Split `getHosts` into `tryRoot(ns, server)` (the PORT_OPENERS/nuke block,
-    returns whether the server ended up rooted) and `listHosts(ns)` (pure listing, no rooting
-    side effects); `getHosts` composes the two, exact current behavior. Switch
-    `launchmonitor.js` to `listHosts` — its "fully read-only" header is false today because
-    `getHosts` nukes newly-rootable servers from inside a monitor, racing the daemon's
-    refresh; after the switch, update the header to say it deliberately uses the non-rooting
-    variant. (Correctness fix, not a RAM fix — bundle charging means it already paid.)
-  - **`daemon.js` internal cleanup**: factor the identical 10-line free-RAM-check preamble
-    out of `launchDetached`/`runAndWait` into one local helper (make the skip message
-    call-site-neutral). Fix `runAndWait`'s docstring — it narrates
-    `purchasescripts.js`/`upgradehomeram.js` but its only call site is `killscripts.js`.
-    ~~Move `sumInFlightRam`/`countBatchesInFlight` into `sampling.js` next to their sibling
-    `countInFlightThreads`, with unit tests in `test/sampling.test.js` reusing the
-    `inFlightPs` fixture style.~~ **Superseded by Phase 7 (2026-07-04, see Done below)**:
-    shipped as `inFlightByTarget`, a single combined `ns.ps` sweep rather than a straight
-    move of the two separate functions — don't redo this sub-item.
-  - **Small consolidations and comment fixes**: `cloudcosts.js` exports the power-of-2
-    `standardSizes` builder, `purchasecloudservers.js` imports it (lives in cloudcosts, not
-    common.js, to keep `ns.cloud.*` out of common importers' bundles). Header fixes:
-    ~~`purchasescripts.js` (drop the false "daemon runs this at startup" claim)~~ **superseded
-    by Phase 11 (2026-07-05)**: `purchasescripts.js` was renamed + rewritten to
-    `procureprograms.js`, whose header now correctly documents daemon.js launching it at
-    startup (the claim is true now, not just corrected) — don't redo this sub-item.
-    `killscripts.js` (daemon doesn't kill in steady state — one-shot workers exit on their
-    own). (`fleetupgrade.js`'s header reclassification shipped early with Phase 5, since that
-    phase made it a permanent transactions-log call site — see Done below.)
-  - **Dead files (decided: delete both)**: `src/cleanup-old-daemon-log-temp.js` (run-once,
-    job done) and the root-level `cloud-server-costs.js` (older duplicate of
-    `src/cloudcosts.js`, never synced by viteburner). Also `rm` in-game copies where
-    applicable — viteburner won't delete them.
-  - Verification: `npm test` green including the new in-flight-scanner tests; RAM gate
-    (`getScriptRam` before/after) for `daemon.js`, `targets.js`, `hosts.js`,
-    `killscripts.js`, `connect.js`, `launchmonitor.js`, `targetsmonitor.js` — expect ~flat;
-    ≥15-minute daemon session after, `npm run verify:log` green, same character as Phase 4's
-    acceptance runs; the transactions log (Phase 5) should show income unchanged in
-    character too.
-
 - **Post-reset auto-backdoor for joinable factions**: after an augmentation install (which
   resets hacking level and, per the user, the eligibility state for these invites), auto-check
   which faction-invite backdoor targets we now qualify for (not yet joined that faction, and
@@ -169,8 +93,9 @@ instead of deleting it — don't let history pile up here.
   - Existing scaffolding to reuse: `connect.js` already BFS-pathfinds to a target (its
     `DEFAULT_TARGET` is already `"CSEC"`) but only prints the path — needs adapting to actually
     drive `ns.singularity.connect()` hop by hop. `hosts.js`'s `PORT_OPENERS`/nuke logic can be
-    reused to root the target first if it isn't already. **Depends on the consolidation item
-    above** for the `tryRoot` and `findPath` extractions.
+    reused to root the target first if it isn't already. The `tryRoot`/`findPath` extractions
+    this once depended on already shipped in Phase 13 (`src/hosts.js`, `src/common.js`) — no
+    longer a blocker.
   - **Behavior (from the withdrawn Phase 5 draft, settled)**: per target on a
     `POLL_MS = 60_000` loop — done conditions that skip permanently (backdoor already
     installed, check the server object's backdoor field, verify exact name in
@@ -227,6 +152,11 @@ instead of deleting it — don't let history pile up here.
     (renamed `cloudmanager.js`) was deliberately the only customer in Phase 10; Phase 11 kept it
     the only customer but widened its own scope to cloud *purchasing* too. `upgradehomeram.js`
     remains unconditional (same available-cash gating opportunity, still not done).
+    **Demoted to low priority (2026-07-06, Kenneth):** home RAM only has a handful of upgrade
+    tiers total (unlike cloud servers, which scale open-endedly) and the RAM persists across
+    augmentation installs, so this isn't a recurring per-reset task worth automating — running
+    `upgradehomeram.js` manually the few times it's ever needed is fine. No longer the agreed
+    "next phase"; revisit only if that changes.
 
 - **Stock market — no design yet, mechanics straightened out for future design pass**
   (2026-07-04): No architecture decided; this is a mechanics reference to design against
