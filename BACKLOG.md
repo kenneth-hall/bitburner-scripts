@@ -6,18 +6,7 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
-- **Phase 15: small-fleet batching floor** (2026-07-06): fix the zero-member income stall —
-  `pickBatchSet` seats nobody when no target's *full* pipeline fits the post-reset 940GB
-  fleet's budget, so the daemon has launched zero workers (and earned $0) since the Jul 5
-  handoff. This is the same bug as the "Batcher stuck at zero hacking income" Next Up entry
-  below — that entry is now superseded by this one and should be deleted once this phase
-  ships. Diagnosis + fix decisions in `phase-15-small-fleet.features.md`, spec (cold-reviewed,
-  1 blocker addressed) in `phase-15-small-fleet.spec.md` (both repo root). Spec stage done;
-  implementation in progress on branch `phase15-small-fleet`: `cappedPipelineDepth` +
-  `pickBatchSet`'s floor rule shipped in `scheduler.js`, wired into `daemon.js`
-  (`candidateCount`/`floor` snapshot fields, stall WARN, `FLOOR` display tag), amended
-  `checkBudgetInvariant` + new `checkNoStall` log-checker rules with fixtures, 268/268 `npm
-  test` green. Remaining: RAM gate + live validation (both need Kenneth's in-game session).
+(none)
 
 ## Next Up
 
@@ -43,12 +32,6 @@ instead of deleting it — don't let history pile up here.
   - The remaining Next Up items (Source-File watcher, RAM-analyzer hygiene) are quick wins to
     fold into whichever phase is already touching those files, not standalone phases. (The
     targetsmonitor priority-column item folded into Phase 12 — see Done.)
-
-- ~~**Batcher stuck at zero hacking income since 2026-07-05**~~ **Superseded by Phase 15
-  (2026-07-06, see In Progress above)** — root cause diagnosed: `pickBatchSet` admits a
-  target only if its full pipeline fits the batch budget, and no target's full pipeline
-  fits the post-reset fleet's budget, so nobody ever seats. Fix in progress; don't
-  re-investigate this from scratch.
 
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers

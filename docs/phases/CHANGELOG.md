@@ -8,6 +8,29 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-06
 
+- **Phase 15 — small-fleet batching floor** → `phase-15-small-fleet.features.md`,
+  `phase-15-small-fleet.spec.md`. Fixed the zero-member income stall live-confirmed the same
+  day (see Phase 13's entry below): `pickBatchSet` only ever admitted a target whose *full*
+  pipeline fit the batch budget, and on the post-reset 940GB fleet no target's full pipeline
+  fit (cheapest ~721GB vs. a 705GB budget), so every admission pass seated nobody, forever —
+  the daemon had launched zero workers and earned $0 since the Jul 5 handoff. Fix: a new
+  `cappedPipelineDepth` (`scheduler.js`) caps admission depth by affordability instead of
+  the raw throughput ceiling, and `pickBatchSet` gained a floor pass (incumbent-sticky under
+  the existing hysteresis) guaranteeing at least one seat whenever candidates exist — the
+  existing per-tick shrink loop does the actual fitting from there. `daemon.js` snapshots
+  gained `candidateCount` + a per-member `floor` flag; a stall WARN and `FLOOR` tail tag make
+  the (now-unreachable) old failure mode loud instead of silent. `verify-log-checks.js`'s
+  `checkBudgetInvariant` was reconciled with a legitimate floor-seated over-budget member
+  (own consistency checks added), plus a new `checkNoStall` rule hard-failing this exact bug
+  signature (`candidateCount > 0 && memberCount === 0`). `npm test` 268/268 (250 + 18 new).
+  **Live-confirmed same day**: RAM gate exactly flat (`daemon.js`/`targets.js`/
+  `targetsmonitor.js`/`bootstrap.js` all matched the 2026-07-06 baseline, byte-verified fresh
+  against `dist/src/*`); daemon restart immediately seated `phantasy` (`candidateCount: 12`,
+  `memberCount: 1` across every snapshot) and launched a batch within the first tick;
+  `npm run verify:log` 36/36 green against the fresh export, including the new stall and
+  amended budget rules. Filed two follow-up Ideas (BACKLOG): the `sharePower: 1.00`-with-
+  live-threads oddity, and auto-suppressing share on small fleets.
+
 - **Phase 13 — consistency consolidation, closed out** → `phase-13-consolidation.features.md`,
   `phase-13-consolidation.spec.md`, `phase-13-consolidation.closeout.md` (implemented
   2026-07-05, merged to `master` as a deliberate exception pending live validation; live
