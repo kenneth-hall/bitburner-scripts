@@ -41,6 +41,11 @@ Conventions below apply at every stage (spec-reviewer enforces them).
   is only trustworthy if it's checked against `dist/src/*`'s byte-faithful record of what was
   actually last pushed (`ramcheck.js` records each script's in-game byte length for exactly
   this).
+- **Only Claude working in `bitburner-scripts` (this checkout) may stop `npm run dev`.** It's
+  the one running the live dev server pushing to the game. A Claude session in a different
+  worktree (e.g. `bitburner-scripts2`) must never stop/restart it — that server isn't visible
+  or under that session's control, and killing another session's process out from under it
+  breaks the user's in-game sync without warning.
 
 ## Tracking work
 Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas). On
@@ -52,6 +57,13 @@ the same commit as the change it describes, so it doesn't become a separate git 
 - **Summarize after acting.**
 - **Flag unplanned deviations** (extra changes, moved/deleted files, scope creep, a
   different approach) — don't fold them in silently.
+
+## Worktrees
+`bitburner-scripts2` (sibling folder, branch `worktree-docs`) is a second worktree for
+brainstorming, `BACKLOG.md`/docs edits, and phase-doc drafting — work there when you want to
+touch documentation without risking the live checkout. It has no dev server of its own; it
+must never start or stop `npm run dev` (see the engineering-conventions rule above). Merge its
+branch back to `master` like any other worktree when the docs work is ready.
 
 ## Git
 Use version control: branch off `master`, commit, and merge your own work in interactive
