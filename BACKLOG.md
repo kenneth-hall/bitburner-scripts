@@ -10,17 +10,6 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
-- **Priority order — remaining phases (agreed with Kenneth 2026-07-05, post-Phase-11):**
-  (The `/spec` command and Phase 13 consistency-consolidation, both first in this list, are
-  done — see CHANGELOG — leaving one.)
-  1. **`upgradehomeram.js` → resource-manager customer** — the "Future finance-manager customers"
-     sub-item under "Phase 10 follow-ups" (Ideas). Rides the warm Phase 11 budget-authority
-     architecture (same reservation-gated `available`-cash customer pattern as `cloudmanager.js`)
-     and closes the money→RAM→income flywheel: more home RAM feeds the whole batcher.
-  - The remaining Next Up items (Source-File watcher, RAM-analyzer hygiene) are quick wins to
-    fold into whichever phase is already touching those files, not standalone phases. (The
-    targetsmonitor priority-column item folded into Phase 12 — see Done.)
-
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
   "no matter what." Recommended against running the full ~67GB script resident indefinitely — the
@@ -31,8 +20,6 @@ instead of deleting it — don't let history pile up here.
   actually active, instead of holding the full footprint the whole time. Not yet built — Kenneth
   hadn't decided between this and just remembering to manually re-run it. Revisit alongside the
   "re-validate TOR/port-opener automation" Ideas item below, since they're the same follow-up.
-
-
 
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
   same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
@@ -127,31 +114,9 @@ One-time audit of every `src/*.js`, config, and doc before Fable sub access ends
 cross-check any overlap before acting. Overall read: conventions are consistently applied
 (pure-logic/ns-plumbing split, identifier hygiene, fail-safe spending guards, log-export
 discipline), docs match reality, tests cover the pure seams well. Findings below are
-ordered by value, not severity — F1 is the only one touching live behavior.
+ordered by value, not severity. (F1, the only one touching live behavior, was resolved by
+Phase 15 — see CHANGELOG — and cleared from this list 2026-07-07.)
 
-- **F1 — Zero-income batcher: likely root cause is `pickBatchSet`'s full-pipeline
-  admission gate (hypothesis — verify before fixing).** `pickBatchSet` only seats a target
-  if its *entire* pipeline cost fits the batch budget: `pipelineCostGb = depth × per-batch
-  RAM`, where `depth = ceil(weakenTime / BATCH_INTERVAL_MS)` — i.e. one batch per second
-  for the full weaken duration. There is no partial-depth or single-batch fallback:
-  bootstrap-shrink (`MIN_HACK_FRACTION`) only applies to *already-seated* members, and the
-  waterfall only preps, never hacks. So on a small post-reset fleet, if every target's
-  full pipeline exceeds `batchBudgetGb`, the daemon seats zero members forever — which
-  matches the observed signature exactly: `memberCount: 0` in all 214 snapshots, zero
-  enters/exits/skips (all member-scoped events), share pool healthy, and flat hacking XP
-  if every target was already prepped (waterfall idle too). Scale check: 58 share threads
-  at ~98.7% of a 25% carve implies ~930GB total → ~700GB batch budget, while a typical
-  pipeline is depth 60–300 × 10–50GB/batch = 600GB–15TB. **Verify:** compare the exported
-  daemon log's `snapshot.budgetGb`/`batchBudgetGb` against per-target pipeline cost
-  estimated from a `targets-summary` run — or better, add a one-line diagnostic log event
-  when `candidates.length > 0` but `members.length === 0`, recording the cheapest
-  candidate's `pipelineCostGb` vs `batchBudgetGb` (turns this from inference into a
-  logged fact). **Fix direction if confirmed:** admit the best target at reduced depth
-  (`floor(budget / ramCost)`, min 1) — a shallower pipeline is just lower throughput, not
-  a correctness problem; the depth ideal is a target, not a precondition.
-  **Resolved 2026-07-06 (Phase 15, not visible to this audit):** hypothesis confirmed
-  exactly — see the CHANGELOG's Phase 15 entry for the actual fix (`cappedPipelineDepth` +
-  a floor pass in `scheduler.js`).
 - **F2 — `trimLog` off-by-one when the mode event is pinned** (`daemon.js`). The pinned
   path returns `[modeEvent, ...entries.slice(overflow)]` — length `MAX + 1`, and it stays
   at `MAX + 1` while the pinned mode event remains in the overflow region (each later call
