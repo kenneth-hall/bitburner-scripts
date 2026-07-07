@@ -22,6 +22,9 @@ instead of deleting it — don't let history pile up here.
   Not investigated yet — next step is `run targets.js` in-game for its
   `targets-summary-<timestamp>.json` eligibility/ranking export, to tell "no eligible
   targets" apart from "eligible targets exist but aren't being picked."
+  **2026-07-06 audit produced a concrete hypothesis** — see F1 under "Fable discoveries"
+  below (full-pipeline admission gate: on a small fleet, no target's entire pipeline fits
+  the batch budget, so `pickBatchSet` seats nobody, forever).
 
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
@@ -121,6 +124,76 @@ instead of deleting it — don't let history pile up here.
     `npm run verify:log` green). The real end-to-end (level up → root → connect-walk →
     backdoor → exit) is structurally deferred to the next reset — record as a
     live-validation follow-up when built, same as the waived fleetupgrade test.
+
+## Fable discoveries (2026-07-06 full-repo audit)
+
+One-time audit of every `src/*.js`, config, and doc before Fable sub access ends, at
+`master` baa7513 — Phase 15's in-flight branch was **not** visible to this audit, so
+cross-check any overlap before acting. Overall read: conventions are consistently applied
+(pure-logic/ns-plumbing split, identifier hygiene, fail-safe spending guards, log-export
+discipline), docs match reality, tests cover the pure seams well. Findings below are
+ordered by value, not severity — F1 is the only one touching live behavior.
+
+- **F1 — Zero-income batcher: likely root cause is `pickBatchSet`'s full-pipeline
+  admission gate (hypothesis — verify before fixing).** `pickBatchSet` only seats a target
+  if its *entire* pipeline cost fits the batch budget: `pipelineCostGb = depth × per-batch
+  RAM`, where `depth = ceil(weakenTime / BATCH_INTERVAL_MS)` — i.e. one batch per second
+  for the full weaken duration. There is no partial-depth or single-batch fallback:
+  bootstrap-shrink (`MIN_HACK_FRACTION`) only applies to *already-seated* members, and the
+  waterfall only preps, never hacks. So on a small post-reset fleet, if every target's
+  full pipeline exceeds `batchBudgetGb`, the daemon seats zero members forever — which
+  matches the observed signature exactly: `memberCount: 0` in all 214 snapshots, zero
+  enters/exits/skips (all member-scoped events), share pool healthy, and flat hacking XP
+  if every target was already prepped (waterfall idle too). Scale check: 58 share threads
+  at ~98.7% of a 25% carve implies ~930GB total → ~700GB batch budget, while a typical
+  pipeline is depth 60–300 × 10–50GB/batch = 600GB–15TB. **Verify:** compare the exported
+  daemon log's `snapshot.budgetGb`/`batchBudgetGb` against per-target pipeline cost
+  estimated from a `targets-summary` run — or better, add a one-line diagnostic log event
+  when `candidates.length > 0` but `members.length === 0`, recording the cheapest
+  candidate's `pipelineCostGb` vs `batchBudgetGb` (turns this from inference into a
+  logged fact). **Fix direction if confirmed:** admit the best target at reduced depth
+  (`floor(budget / ramCost)`, min 1) — a shallower pipeline is just lower throughput, not
+  a correctness problem; the depth ideal is a target, not a precondition.
+- **F2 — `trimLog` off-by-one when the mode event is pinned** (`daemon.js`). The pinned
+  path returns `[modeEvent, ...entries.slice(overflow)]` — length `MAX + 1`, and it stays
+  at `MAX + 1` while the pinned mode event remains in the overflow region (each later call
+  drops one fewer real entry than overflow; a fresh `mode` event landing later in the
+  buffer disengages pinning and resets to `MAX`).
+  Contract comment says it "trims the ring buffer to DAEMON_LOG_MAX_ENTRIES". Benign —
+  no checker asserts the cap, it's 2001 vs 2000 — so: one-line fix (trim one extra when
+  pinning) next time `daemon.js` is open for real work, not worth its own live cycle.
+- **F3 — `transactionsmonitor.js`'s "today's hacking income" never resets at the day
+  boundary.** `todayIncomeTotal`/`firstIncomeTimestamp` accumulate since monitor start;
+  the transactions *file* rotates at midnight but the total/rate display lines don't — a
+  session crossing midnight labels yesterday+today combined as "today". Display-only;
+  the log files themselves rotate correctly.
+- **F4 — Finance-state client code is triplicated.** The `finance-state.json` filename
+  literal appears in `resourcemanager.js`, `cloudmanager.js`, and `procureprograms.js`;
+  `STALE_MS = 15_000` in the latter two; `readFinanceState` verbatim ×2; and
+  `isStateStale` lives in `cloudmanager.js` with `procureprograms.js` importing it — one
+  consumer importing from another consumer rather than from a shared seam. Natural
+  Phase-13-flavor cleanup: a tiny `financestate.js` (filename constant + `isStateStale` +
+  `readFinanceState`; pure + `ns.read` 0GB) that all three import. Needs the standard
+  RAM gate when done.
+- **F5 — `tprintTs` duplicated in four daemon companions.** `common.js` exports it, but
+  `resourcemanager.js`/`cloudmanager.js`/`procureprograms.js`/`bootstrap.js` each carry a
+  local copy predating Phase 13. Phase 9/13 established RAM charging is
+  reachability-based, so importing from `common.js` should be free — verify with `mem` on
+  one converted script first, then fold the other three into F4's cleanup pass. Note
+  (review): `common.js`'s own header says "every importer's bundle pays for all of it",
+  which contradicts the reachability assumption — whichever way the `mem` check comes
+  out, correct one of the two texts in the same pass.
+- **F6 — `totalAllocatableRam` duplicated** (`daemon.js` + `sharecurve.js`, identical
+  including the `HOME_RESERVE_GB` handling). Belongs in `hosts.js` next to
+  `HOME_RESERVE_GB` itself; fold into the same cleanup pass.
+- **F7 — Untested small pure helpers** (low): `standardSizes` (`cloudcosts.js` — feeds
+  `purchasecloudservers.js`'s arg validation), `nextIndex` (`renamecloudservers.js`),
+  `nextInstanceNumber` (`upgradecloudserver.js`). Each is a cheap vitest add if any of
+  those files is touched again (`nextIndex`/`nextInstanceNumber` are module-private, so
+  testing them also means exporting them — trivial).
+- **F8 — Display nit:** `daemon.js`'s status line labels `totalMaxRam` as "budget" while
+  the share line separately shows "batch budget" (`batchBudgetGb`) — two different
+  numbers under one word. Fold into the existing "Monitor cleanup" idea below.
 
 ## Ideas / Backlog
 
@@ -223,9 +296,9 @@ instead of deleting it — don't let history pile up here.
     eligibility wants, i.e. no real tension between "open caches freely" and "keep karma low
     enough for some factions." **Not yet confirmed empirically** — cheap to verify with
     `ns.getPlayer().karma` before/after opening one cache.
-  - **Prerequisite work**: the "Consistency consolidation" item above (new `src/common.js` with
-    `scanNetwork`/`findPath`/`tryRoot`/etc.) should land first so darknet scripts can reuse
-    those helpers instead of re-deriving BFS/rooting logic a second time.
+  - **Prerequisite work — done (Phase 13, 2026-07-05):** the consistency consolidation
+    (`scanNetwork`/`findPath` in `src/common.js`, `tryRoot` in `src/hosts.js`) has shipped —
+    darknet scripts can reuse those helpers instead of re-deriving BFS/rooting logic.
   - **Not yet decided, needs a real design pass before any code**: scheduling model for
     volatile/moving targets (very different from the normal-network batcher's static-topology
     assumption), which of the three extraction paths to prioritize per server/situation, how to
@@ -335,8 +408,8 @@ instead of deleting it — don't let history pile up here.
     is cosmetic: BACKLOG references the phase docs by bare filename, so those go path-stale.
     **Caveat:** `NetscriptDefinitions.d.ts` is referenced by `tsconfig.json` (`paths.@ns` +
     `include`) — it stays at root or moves *with* a tsconfig edit, not a blind move. (The two
-    dead files — root `cloud-server-costs.js` dup, `src/cleanup-old-daemon-log-temp.js` — are
-    already covered by the "Consistency consolidation" Next Up item; don't double-file.)
+    dead files — root `cloud-server-costs.js` dup, `src/cleanup-old-daemon-log-temp.js` — were
+    deleted by Phase 13; confirmed gone 2026-07-06.)
   - **`src/` subfolders are NOT light — the part to think hard about before doing.** 24 flat
     files; splitting them chains through three things: (1) the relative imports (`./hosts.js`
     etc.) all rewrite; (2) `WORKER_SCRIPTS` (`{hack:"hack.js", grow, weaken}`) and `SHARE_SCRIPT`
@@ -349,8 +422,8 @@ instead of deleting it — don't let history pile up here.
     role-map (`src/README.md` or a CLAUDE.md block). Grouping observed this session — core loop
     (daemon/scheduler/sampling/targets), workers (hack/grow/weaken/share), monitors
     (launchmonitor/targetsmonitor/transactionsmonitor), fleet+infra
-    (fleetupgrade/purchase\*/upgrade\*/cloudcosts), shared libs (hosts/translog, + the planned
-    `common.js`), one-shots (connect/killscripts/ramcheck/sharecurve).
+    (fleetupgrade/purchase\*/upgrade\*/cloudcosts), shared libs (hosts/translog/`common.js` —
+    the latter shipped in Phase 13), one-shots (connect/killscripts/ramcheck/sharecurve).
   - **If a physical `src/` split happens later**, the natural seam isn't topic, it's
     library-vs-entrypoint (scheduler/sampling/targets/hosts/translog are imported; the rest are
     run directly) — and that lines up with the `common.js` "Consistency consolidation" item, so
