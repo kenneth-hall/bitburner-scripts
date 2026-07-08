@@ -6,6 +6,34 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-07
+
+- **Phase 16 — Fable audit cleanup (F2–F8)** → `phase-16-audit-cleanup.features.md`,
+  `phase-16-audit-cleanup.spec.md`. Closed the remaining findings from the 2026-07-06
+  full-repo audit (F1 shipped with Phase 15). Dedup: new `src/financestate.js` kills the
+  triplicated finance-state client code (`readFinanceState`/`isStateStale`/the filename
+  constant) across `resourcemanager.js`/`cloudmanager.js`/`procureprograms.js` and removes
+  the `procureprograms.js → cloudmanager.js` import; the four stray `tprintTs` copies
+  (`resourcemanager.js`/`cloudmanager.js`/`procureprograms.js`/`bootstrap.js`) now import the
+  Phase 13 shared one from `common.js`, whose header was also corrected — it had been
+  asserting the bundle-charging model Phase 9/13 already disproved; `totalAllocatableRam`
+  moved from `daemon.js`/`sharecurve.js`'s byte-identical copies into `hosts.js`. Fixes:
+  `daemon.js`'s `trimLog` had an off-by-one that left the ring buffer at `MAX + 1` entries
+  while a `mode` event was pinned (widened the drop slice by one); `transactionsmonitor.js`'s
+  running "today's hacking income" now resets at the day-rotation boundary via a new pure
+  `dayRolledOver` helper; the daemon's ambiguous "budget" status label (colliding with the
+  share line's distinct "batch budget") relabeled to "fleet". Backfilled tests for three
+  previously-untested pure helpers (`standardSizes`, `nextIndex`, `nextInstanceNumber`).
+  Behavior-preserving housekeeping — no batching/scheduling/finance math changes. `npm test`
+  293/293 (18 files, 6 new). **Live-confirmed same day**: RAM gate exactly flat on all 8
+  touched scripts (`daemon.js`/`sharecurve.js`/`hosts.js`/`bootstrap.js`/`cloudmanager.js`/
+  `procureprograms.js`/`resourcemanager.js`/`transactionsmonitor.js`, before/after against a
+  freshly captured `master` baseline, byte-verified against `dist/src/*`) — byte counts
+  shifted in both directions as expected from the extractions, but reachability-based RAM
+  cost held flat everywhere, confirming the `common.js` header fix. `npm run verify:log`
+  36/36 green against a fresh post-restart export (14 members, 0 skips, no stall); the tail
+  window showed `fleet 1.58PB` and `batch budget 1.18PB` as the intended two distinct labels.
+
 ## 2026-07-06
 
 - **Phase 15 — small-fleet batching floor** → `phase-15-small-fleet.features.md`,
