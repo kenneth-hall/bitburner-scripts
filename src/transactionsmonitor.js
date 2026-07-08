@@ -27,7 +27,7 @@
 import { transactionsFileName, shouldCoalesce } from "./translog.js";
 
 const POLL_MS = 1000;
-const DISPLAY_COUNT = 20;
+const DISPLAY_COUNT = 3; // Phase 18: status popup, not a scrolling list -- the full day is transactions-YYYY-MM-DD.json
 
 /**
  * Pure. True when the day-rotated transactions filename has changed since
@@ -98,24 +98,34 @@ export async function main(ns) {
     const recent = entries.slice(-DISPLAY_COUNT).reverse(); // newest first
 
     ns.clearLog();
-    ns.print(`===== transactions (${filename}) =====`);
+    ns.print(`===== transactions @ ${new Date().toLocaleTimeString()} =====`);
+
+    let todayLine = `today: $${ns.format.number(todayIncomeTotal)} hacking`;
+    if (firstIncomeTimestamp !== null) {
+      const elapsedMin = (Date.now() - firstIncomeTimestamp) / 60_000;
+      const perMinute = elapsedMin > 0 ? todayIncomeTotal / elapsedMin : 0;
+      todayLine += ` | rate: $${ns.format.number(perMinute)}/min`;
+    }
+    ns.print(todayLine);
+
     if (recent.length === 0) {
       ns.print("(none yet today)");
     } else {
       for (const r of recent) {
+        // Time-only for display -- some writers' r.time is a full locale
+        // string (date + time), the wrap culprit this phase fixes; the
+        // on-disk r.time is untouched. Income records carry lastTimestamp
+        // (see the coalescing block above); every recordTransaction expense
+        // writer carries timestamp instead -- not the same field name.
+        const displayTime = new Date(r.lastTimestamp ?? r.timestamp).toLocaleTimeString();
         if (r.type === "income") {
-          ns.print(`  [income]  +$${ns.format.number(r.amount)} hacking (${r.time})`);
+          ns.print(`  [income]  +$${ns.format.number(r.amount)} hacking @ ${displayTime}`);
         } else {
-          ns.print(`  [expense] -$${ns.format.number(r.amount)} ${r.source} (${r.time})`);
+          ns.print(`  [expense] -$${ns.format.number(r.amount)} ${r.source} @ ${displayTime}`);
         }
       }
     }
-    ns.print(`----- today's hacking income: $${ns.format.number(todayIncomeTotal)} -----`);
-    if (firstIncomeTimestamp !== null) {
-      const elapsedMin = (Date.now() - firstIncomeTimestamp) / 60_000;
-      const perMinute = elapsedMin > 0 ? todayIncomeTotal / elapsedMin : 0;
-      ns.print(`----- rate: $${ns.format.number(perMinute)}/min -----`);
-    }
+    ns.print(`(full log: ${filename})`);
 
     await ns.sleep(POLL_MS);
   }

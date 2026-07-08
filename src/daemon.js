@@ -84,6 +84,11 @@ const OLD_WORKER_FILES = ["hackloop.js", "growloop.js", "weakenloop.js"];
 // legacy-mode.txt.
 const SHARE_OFF_MARKER = "share-off.txt";
 
+// Phase 18: caps the tail's combined member+draining list so its height
+// stays bounded at any fleet size (the active set has reached 17) -- the
+// only way to guarantee the window's header never scrolls out of view.
+const MEMBER_LIST_CAP = 12;
+
 /**
  * Shared free-RAM-check preamble for launchDetached/runAndWait: true iff
  * script fits in home's current free RAM, printing the INFO skip itself when
@@ -326,6 +331,10 @@ export async function main(ns) {
   launchDetached(ns, "resourcemanager.js");
   launchDetached(ns, "cloudmanager.js");
   launchDetached(ns, "procureprograms.js");
+  // Phase 18: headless window manager -- restores/persists every dashboard
+  // tail's position/size/font so they don't need re-dragging after every
+  // restart. Owns no tail of its own.
+  launchDetached(ns, "tailmanager.js");
 
   let hosts = [];
   let targets = [];
@@ -811,11 +820,9 @@ export async function main(ns) {
     ns.clearLog();
     ns.print(`===== daemon @ ${new Date().toLocaleTimeString()} ===== math: ${useFormulas ? "formulas" : forcedLegacy ? "legacy (forced)" : "legacy"}`);
     ns.print(
-      `hosts: ${hosts.length} | targets: ${targets.length} | members: ${result.members.length}` +
-        `${drainingServers.length > 0 ? ` (+${drainingServers.length} draining)` : ""} | ` +
-        `util: ${utilization.toFixed(1)}% | fleet ${ns.format.ram(totalMaxRam)}`
+      `fleet ${ns.format.ram(totalMaxRam)} | budget ${ns.format.ram(batchBudgetGb)} | hosts ${hosts.length} | ` +
+        `targets ${targets.length} | util ${utilization.toFixed(1)}%`
     );
-    ns.print(`skipped(total): ${totalBatchesSkipped} | shrunk(total): ${totalBatchesShrunk}`);
 
     // Phase 15: this state should be unreachable now that candidate
     // construction caps depth by affordability and pickBatchSet's floor rule
@@ -830,25 +837,33 @@ export async function main(ns) {
       );
     }
 
-    for (const member of result.members) {
+    // Phase 18: members + draining share one capped list (MEMBER_LIST_CAP) so
+    // the tail's height stays bounded at any fleet size -- overflow collapses
+    // to a single "(+N more)" line instead of scrolling the header out of
+    // view (the active set has reached 17 members).
+    ns.print(`members ${result.members.length}${drainingServers.length > 0 ? ` (+${drainingServers.length} draining)` : ""}:`);
+    const memberLines = result.members.map((member) => {
       const info = memberReserve.get(member.server);
       const liveState = liveStates.get(member.server);
       const target = targetsByServer.get(member.server);
       const commitPct = member.pipelineCostGb > 0 ? (info.inFlightRamGb / member.pipelineCostGb) * 100 : 0;
       const isFloor = member.pipelineCostGb > batchBudgetGb;
-      ns.print(
+      return (
         `  ${member.server.padEnd(15)} ${member.realPrepped ? "PREPPED" : "DRIFTED"}${isFloor ? " FLOOR" : ""} ` +
-          `${String(info.batchesInFlight).padStart(3)}/${member.depth} in flight | ` +
-          `commit ${commitPct.toFixed(0).padStart(3)}% | ` +
-          `sec ${liveState.currentSecurity.toFixed(1)}/${target.minSecurityLevel} | ` +
-          `$${ns.format.number(liveState.currentMoney)}/${ns.format.number(target.maxMoney)}`
+        `${String(info.batchesInFlight).padStart(3)}/${member.depth} in flight | ` +
+        `commit ${commitPct.toFixed(0).padStart(3)}% | ` +
+        `sec ${liveState.currentSecurity.toFixed(1)}/${target.minSecurityLevel} | ` +
+        `$${ns.format.number(liveState.currentMoney)}/${ns.format.number(target.maxMoney)}`
       );
-    }
-    for (const server of drainingServers) {
+    });
+    const drainingLines = drainingServers.map((server) => {
       const deadline = drainDeadlines.get(server);
       const etaLabel = deadline ? `~${Math.max(0, (deadline - Date.now()) / 60000).toFixed(1)}m left` : "eta unknown";
-      ns.print(`  ${server.padEnd(15)} DRAINING ${postLaunchInFlight.byTarget[server].batches} batch(es) landing, ${etaLabel}`);
-    }
+      return `  ${server.padEnd(15)} DRAINING ${postLaunchInFlight.byTarget[server].batches} batch(es) landing, ${etaLabel}`;
+    });
+    const statusLines = [...memberLines, ...drainingLines];
+    for (const line of statusLines.slice(0, MEMBER_LIST_CAP)) ns.print(line);
+    if (statusLines.length > MEMBER_LIST_CAP) ns.print(`  (+${statusLines.length - MEMBER_LIST_CAP} more)`);
 
     const sharePower = ns.getSharePower();
     if (shareOff) {
@@ -858,8 +873,7 @@ export async function main(ns) {
       ns.print(
         `share: ${ns.format.ram(shareInFlightRamGb)}/${ns.format.ram(shareTargetGb)}` +
           `${shareAttainedPct !== null ? ` (${shareAttainedPct.toFixed(1)}%)` : ""} | ` +
-          `${shareInFlightThreads.toLocaleString()}t | power ${sharePower.toFixed(2)} | ` +
-          `batch budget ${ns.format.ram(batchBudgetGb)}`
+          `${shareInFlightThreads.toLocaleString()}t | power ${sharePower.toFixed(2)}`
       );
     }
 
@@ -867,36 +881,13 @@ export async function main(ns) {
       `waterfall: ${ns.format.ram(waterfallAvailableGb)} free | prepping: ${preppedThisTick.length > 0 ? preppedThisTick.join(", ") : "none"}`
     );
 
-    if (lastLaunchInfo) {
-      const remainingMs = lastLaunchInfo.lastLandsAt - Date.now();
-      const status = remainingMs <= 0 ? "LANDED" : `in ${(remainingMs / 1000).toFixed(1)}s`;
-      ns.print(
-        `last launch: #${lastLaunchInfo.id} ${lastLaunchInfo.server} @ ${new Date(lastLaunchInfo.launchedAt).toLocaleTimeString()} | ` +
-          `frac ${(lastLaunchInfo.hackFraction * 100).toFixed(1)}% | steal ~$${ns.format.number(lastLaunchInfo.expectedSteal)} | ` +
-          `lands ${new Date(lastLaunchInfo.lastLandsAt).toLocaleTimeString()} (${status})`
-      );
-    }
-
-    // Prep-dispatch detail: one line per DRIFTED member only, requested vs.
-    // launched threads (planPrep silently short-changes threads when RAM
-    // runs out -- "RAM-LIMITED" distinguishes that from genuinely far from
-    // prepped).
+    // Per-member skip WARNs only (empty-pipeline, the real signal to watch) --
+    // saturated skips (expected RAM-poor rhythm) and the last-launch/
+    // prep-dispatch detail lines are dropped from the tail: all already live
+    // in daemon-batch-log.json's skip/batch/snapshot events (Phase 18).
     for (const mr of memberResults) {
-      if (mr.kind !== "prep") continue;
-      const capped = mr.launchedThreads < mr.requestedThreads ? " -- RAM-LIMITED" : "";
-      ns.print(`  prep ${mr.server}: ${mr.launchedThreads}/${mr.requestedThreads}t dispatched${capped}`);
-    }
-
-    for (const mr of memberResults) {
-      if (mr.kind !== "skipped") continue;
-      // Saturated skip (batches already in flight, full-fraction just didn't
-      // fit) is the expected RAM-poor rhythm, not a failure. A skip with an
-      // EMPTY pipeline is the real signal to watch.
-      ns.print(
-        mr.saturated
-          ? `INFO: ${mr.server} skipped this tick -- pipeline saturated, waiting on a landing`
-          : `WARN: ${mr.server} skipped this tick -- insufficient RAM even at MIN_HACK_FRACTION (empty pipeline)`
-      );
+      if (mr.kind !== "skipped" || mr.saturated) continue;
+      ns.print(`WARN: ${mr.server} skipped this tick -- insufficient RAM even at MIN_HACK_FRACTION (empty pipeline)`);
     }
     if (failedLaunches > 0) ns.print(`WARN: ${failedLaunches} launch(es) failed (exec returned pid 0)`);
 

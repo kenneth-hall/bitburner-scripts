@@ -16,6 +16,7 @@ import { isPrepped } from "./scheduler.js";
 
 const TARGETS_CYCLE_MS = 10000;
 const LIVE_REFRESH_MS = 1000;
+const TOP_N = 5; // Phase 18: status-sized popup; the full ranking is a file (see footer), not a scrolling list
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -32,16 +33,17 @@ export async function main(ns) {
     }
 
     ns.clearLog();
-    ns.print(`===== targets monitor @ ${new Date().toLocaleTimeString()} =====`);
 
     if (targets.length === 0) {
+      ns.print(`===== targets @ ${new Date().toLocaleTimeString()} =====`);
       ns.print("No eligible targets.");
       await ns.sleep(LIVE_REFRESH_MS);
       continue;
     }
 
-    ns.print("-> = top-ranked by score (the daemon's active set can differ under hysteresis)");
-    targets.forEach((t, i) => {
+    const shown = targets.slice(0, TOP_N);
+    ns.print(`===== targets @ ${new Date().toLocaleTimeString()} ===== (top ${shown.length} of ${targets.length} by score)`);
+    shown.forEach((t, i) => {
       const currentSecurity = ns.getServerSecurityLevel(t.server);
       const currentMoney = ns.getServerMoneyAvailable(t.server);
       const prepped = isPrepped({
@@ -50,14 +52,15 @@ export async function main(ns) {
         currentMoney,
         maxMoney: t.maxMoney,
       });
-      const marker = i === 0 ? "-> " : "   "; // top-ranked by score, not necessarily the daemon's actual member set (see legend)
+      const marker = i === 0 ? "-> " : "   "; // top-ranked by score, not necessarily the daemon's actual member set under hysteresis
       ns.print(
         `${marker}${t.server.padEnd(16)} ${prepped ? "PREPPED" : "DRIFTED"} | ` +
           `sec ${currentSecurity.toFixed(2).padStart(7)}/${String(t.minSecurityLevel).padStart(3)} | ` +
-          `money ${ns.format.number(currentMoney).padStart(10)}/${ns.format.number(t.maxMoney).padStart(10)} | ` +
-          `priority ${t.score.toExponential(2)}`
+          `$${ns.format.number(currentMoney).padStart(10)}/${ns.format.number(t.maxMoney).padStart(10)} | ` +
+          `pri ${t.score.toExponential(2)}`
       );
     });
+    ns.print("(full ranking: run targets.js -> targets-summary-<ts>.json)");
 
     await ns.sleep(LIVE_REFRESH_MS);
   }
