@@ -20,6 +20,13 @@ export async function main(ns) {
 
   for (const proc of ns.ps("home")) {
     if (proc.pid === ns.pid || proc.pid === callerPid) continue;
+    // Phase 18: ns.kill() doesn't close the process's tail window -- it's a
+    // separate UI element that otherwise sits frozen/orphaned on screen
+    // (tailmanager.js can't reach it either; it only ever sees the current
+    // running instance via getRunningScript). Close it in the same breath as
+    // the kill so every restart starts with a clean screen. 0 GB (markdown/
+    // bitburner.userinterface.closetail.md).
+    ns.ui.closeTail(proc.pid);
     ns.kill(proc.pid);
     killed.push(`home: ${proc.filename} (pid ${proc.pid})`);
   }

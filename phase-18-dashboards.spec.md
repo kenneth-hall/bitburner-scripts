@@ -92,6 +92,22 @@ Resolving the features file's seven open questions:
   "does moveTail land before the window finishes opening" stops mattering. `renderTail` is not
   used. A live step confirms the loop converges in practice.
 
+## Addendum (post-implementation, folded in at Kenneth's request during live validation)
+
+Live validation surfaced a related gap: `ns.kill()` doesn't close a process's tail window --
+it's a separate UI element that persists showing frozen/orphaned content until explicitly
+closed. `tailmanager.js` can't reach it either (it only ever sees the *current* running
+instance via `getRunningScript`, never a dead pid's leftover window). Every daemon restart was
+therefore leaving the previous run's five dashboard windows on screen, frozen, alongside the
+new live ones. Fix folded into this phase rather than filed separately, since it's one line in
+the exact right place: `killscripts.js` already loops `ns.ps("home")` and calls
+`ns.kill(proc.pid)` for everything it kills, so it already has the pid `closeTail` needs --
+`ns.ui.closeTail(proc.pid)` added immediately before the existing `ns.kill(proc.pid)` call.
+0 GB (`markdown/bitburner.userinterface.closetail.md`). No new pure logic (nothing to unit-test
+beyond what's already untested `ns`-orchestration in that file); covered by a live check.
+**Caveat:** this only prevents *future* orphans -- windows already left over from restarts
+before this fix shipped need one manual close; add that to the live validation below.
+
 ## Design
 
 ### Work item 1 — `src/tailmanager.js`: the window manager companion (Layer 1) [code]
@@ -380,7 +396,8 @@ live/visual per the features file.
 
 **Edited (src):** `src/daemon.js` (companion launch line + Work item 3 print edits),
 `src/targetsmonitor.js`, `src/transactionsmonitor.js` (display block only),
-`src/cloudmanager.js`, `src/resourcemanager.js`.
+`src/cloudmanager.js`, `src/resourcemanager.js`, `src/killscripts.js` (addendum: closes each
+process's tail window in the same loop that kills it).
 
 **Edited (config):** `vite.config.ts` (one download-filter line).
 
