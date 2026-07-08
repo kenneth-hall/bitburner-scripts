@@ -109,6 +109,39 @@ instead of deleting it — don't let history pile up here.
 
 ## Ideas / Backlog
 
+- **Core-aware grow/weaken sizing (home cores are not 1)** (2026-07-08, filed from a mechanics
+  investigation, no design decided yet): every grow/weaken thread-count call in `sampling.js` —
+  legacy (`ns.growthAnalyze`, `ns.growthAnalyzeSecurity`, `ns.weakenAnalyze`) *and* formulas
+  (`ns.formulas.hacking.growThreads`, plus formulas-mode weaken sizing, which still calls plain
+  `ns.weakenAnalyze(1)`) — omits the `cores` argument, so it implicitly assumes 1 core for
+  whichever host actually runs the job. But `home` is a real worker host (`hosts.js`'s
+  `listHosts()` includes it like any other, minus `HOME_RESERVE_GB`), and it is not 1 core: the
+  last `sharecurve.js` export (`logs/sharecurve-1783196400697.json`) recorded `homeCpuCores: 2`
+  already, and `upgradeHomeCores()` can push it higher. `assignBatchHosts`/`planPrep` assign each
+  job (hack/weaken1/grow/weaken2) independently to whatever host has room, with no core-awareness.
+  - **Mechanic**: `cpuCores` affects grow and weaken magnitude only — `growthAnalyze`/
+    `formulas.hacking.growThreads`/`growPercent`/`growAmount`/`growthAnalyzeSecurity` and
+    `weakenAnalyze`/`formulas.hacking.weakenEffect` (`1 + (cores-1)/16`) all take an optional
+    `cores` param; `hackAnalyze`/`hackAnalyzeSecurity`/`hackPercent` have none — hack is
+    core-independent entirely.
+  - **Mostly safe, one exception**: a core bonus on weaken1 (counters hack's core-independent
+    security add) or on grow's money growth only makes the real effect stronger than sized —
+    always an overshoot, never a shortfall (matches `sampling.js:60-62`'s existing comment).
+    But grow's *security-add* is also core-sensitive, and its paired weaken2 is priced off the
+    same cores=1 assumption — if grow lands on `home` (stronger security bump than modeled) while
+    weaken2 lands on an ordinary 1-core host (removes only the modeled amount), the batch finishes
+    slightly above target min-security: real drift, not a safe overshoot. Small and
+    self-correcting today via `DRIFT_SEC_EPSILON` + waterfall re-prep, but scales linearly with
+    cores as more are purchased.
+  - **Same open question Phase 8 already flagged for share threads**, deferred there too
+    (`docs/phases/phase-08-batcher-refactor.md:164`, `sharecurve.js:33-35`: "core-weighted
+    placement... deliberately untuned this phase"). This entry is the hack/grow/weaken-batcher
+    sibling of that same gap.
+  - **Not yet decided, needs a real design pass before any code**: a real fix reorders things —
+    today thread sizing happens *before* host assignment, but core-aware sizing needs to know the
+    host first, so it's a sequencing change (which host gets which job, and when cores are read),
+    not a drive-by edit.
+
 - **Investigate `sharePower` reading 1.00 with live share threads in flight** (2026-07-06,
   filed from Phase 15's diagnosis, S3, out of scope for that phase): the exported
   `daemon-batch-log.json` showed `sharePower: 1.00` for a full hour with 58 share threads
