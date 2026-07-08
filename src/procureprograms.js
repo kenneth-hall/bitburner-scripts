@@ -92,6 +92,12 @@ function exitSingularityUnavailable(ns, callLabel, error) {
   tprintTs(ns, `WARN: ${callLabel} threw -- Singularity purchases unavailable right now (${error?.message ?? error})`);
   ns.tprint("===== procureprograms summary =====");
   ns.tprint("  can't auto-buy yet -- exiting. resourcemanager.js's reservations still protect the cash for a hand-buy.");
+  // Phase 18: this script isn't one of tailmanager.js's managed windows
+  // (transient, not a standing dashboard) and a script finishing on its own
+  // doesn't auto-close its tail either -- close it here so a clean exit
+  // doesn't leave a frozen window for Kenneth to close by hand. No args =
+  // closes the caller's own tail (0 GB).
+  ns.ui.closeTail();
 }
 
 /**
@@ -127,12 +133,14 @@ export async function main(ns) {
       } else {
         for (const line of bought) ns.tprint(`  ${line}`);
       }
+      ns.ui.closeTail(); // Phase 18: clean exit shouldn't leave a frozen window behind -- see exitSingularityUnavailable's comment
       return;
     }
 
     if (!hasSourceFile4(ns)) {
       ns.tprint("===== procureprograms summary =====");
       ns.tprint("  can't auto-buy yet (Source-File 4 not active) -- exiting. Reservations still protect the cash for a hand-buy.");
+      ns.ui.closeTail(); // Phase 18: see exitSingularityUnavailable's comment
       return;
     }
 

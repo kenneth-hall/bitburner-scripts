@@ -108,6 +108,19 @@ beyond what's already untested `ns`-orchestration in that file); covered by a li
 **Caveat:** this only prevents *future* orphans -- windows already left over from restarts
 before this fix shipped need one manual close; add that to the live validation below.
 
+**Second addendum (same session):** `procureprograms.js` is self-terminating (exits once TOR +
+all port openers are owned, or once it determines Singularity purchases are unavailable this
+session) and hits the identical gap from the other side -- a script finishing on its own
+doesn't auto-close its tail either, so every clean exit left a frozen window for Kenneth to
+close by hand. It isn't a `tailmanager.js`-managed window (transient, not a standing
+dashboard), so the only place to fix this is the script itself. `main()` has exactly four
+`return` points (everything owned; Source-File 4 not active; two Singularity-throw fallbacks
+routed through the shared `exitSingularityUnavailable` helper) -- each now calls
+`ns.ui.closeTail()` (no args, closes the caller's own tail, 0 GB) immediately before its
+summary `tprint`s and `return`. Noted trade-off: the window closes on every exit path,
+including the "can't buy yet" ones, so a session watching it to see *why* it stopped loses the
+window -- accepted, since the reason is already `tprint`ed to the main terminal on every exit.
+
 ## Design
 
 ### Work item 1 — `src/tailmanager.js`: the window manager companion (Layer 1) [code]
@@ -397,7 +410,8 @@ live/visual per the features file.
 **Edited (src):** `src/daemon.js` (companion launch line + Work item 3 print edits),
 `src/targetsmonitor.js`, `src/transactionsmonitor.js` (display block only),
 `src/cloudmanager.js`, `src/resourcemanager.js`, `src/killscripts.js` (addendum: closes each
-process's tail window in the same loop that kills it).
+process's tail window in the same loop that kills it), `src/procureprograms.js` (addendum:
+closes its own tail window at each of its four self-terminating exit points).
 
 **Edited (config):** `vite.config.ts` (one download-filter line).
 
