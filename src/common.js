@@ -1,7 +1,10 @@
 // Shared ns-dependent helpers used by 2+ scripts. Charter (Phase 13): no
 // policy decisions, no batching/finance math; keep the ns surface minimal and
-// cheap (ns.scan, ns.tprint, ns.getScriptRam) -- every importer's bundle pays
-// for all of it. Nothing ns.cloud.*, nothing Singularity, ever.
+// cheap (ns.scan, ns.tprint, ns.getScriptRam). Netscript RAM charging is
+// reachability-based, not whole-file/bundle (Phase 9/13, re-confirmed Phase
+// 16): an importer pays only for the helpers it actually calls, so
+// co-locating helpers here never cross-charges an importer for a helper it
+// never reaches. Nothing ns.cloud.*, nothing Singularity, ever.
 
 import { WORKER_SCRIPTS } from "./scheduler.js";
 

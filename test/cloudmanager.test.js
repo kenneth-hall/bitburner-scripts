@@ -1,10 +1,10 @@
 // Unit tests for src/cloudmanager.js's pure logic (renamed + extended from
-// cloudupgrader.js in Phase 11): planNextUpgrade and isStateStale
-// (unchanged), plus new shouldBuyGrowthServer and nextCloudName. The
-// affordability checks themselves stay in the ns glue (live comparisons) --
-// not tested here.
+// cloudupgrader.js in Phase 11): planNextUpgrade, shouldBuyGrowthServer, and
+// nextCloudName. isStateStale moved to src/financestate.js (Phase 16, F4) --
+// see test/financestate.test.js. The affordability checks themselves stay in
+// the ns glue (live comparisons) -- not tested here.
 import { describe, it, expect } from 'vitest';
-import { planNextUpgrade, isStateStale, shouldBuyGrowthServer, nextCloudName } from '../src/cloudmanager.js';
+import { planNextUpgrade, shouldBuyGrowthServer, nextCloudName } from '../src/cloudmanager.js';
 
 describe('planNextUpgrade', () => {
   it('picks the lowest-RAM server', () => {
@@ -47,28 +47,6 @@ describe('planNextUpgrade', () => {
   it('nextTier is exactly a doubling of current RAM', () => {
     const fleet = [{ hostname: 'pserv-a', ram: 256 }];
     expect(planNextUpgrade(fleet, 1_048_576)).toEqual({ hostname: 'pserv-a', nextTier: 512 });
-  });
-});
-
-describe('isStateStale', () => {
-  const NOW = 1_000_000_000;
-  const STALE_MS = 15_000;
-
-  it('is fresh well within the window', () => {
-    expect(isStateStale(NOW - 1000, NOW, STALE_MS)).toBe(false);
-  });
-
-  it('is fresh exactly at the boundary (checker uses strict >)', () => {
-    expect(isStateStale(NOW - STALE_MS, NOW, STALE_MS)).toBe(false);
-  });
-
-  it('is stale just past the boundary', () => {
-    expect(isStateStale(NOW - STALE_MS - 1, NOW, STALE_MS)).toBe(true);
-  });
-
-  it('is stale when the timestamp is missing', () => {
-    expect(isStateStale(null, NOW, STALE_MS)).toBe(true);
-    expect(isStateStale(undefined, NOW, STALE_MS)).toBe(true);
   });
 });
 

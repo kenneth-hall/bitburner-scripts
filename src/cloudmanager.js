@@ -24,11 +24,12 @@
 // every kind of spending here, not just upgrades.
 
 import { recordTransaction } from "./translog.js";
+import { tprintTs } from "./common.js";
+import { isStateStale, readFinanceState } from "./financestate.js";
 
 const POLL_MS = 10_000;
 const STALE_MS = 15_000; // >7 resource-manager polls (POLL_MS=2000 there)
 const OFF_MARKER = "cloud-upgrade-off.txt";
-const FINANCE_STATE_FILE = "finance-state.json";
 const BOOTSTRAP_RAM = 2;
 const GROWTH_RAM = 16;
 const CLOUD_NAME_PATTERN = /^cloud-(\d+)$/;
@@ -50,12 +51,6 @@ export function planNextUpgrade(fleet, ramLimit) {
     if (upgradable[i].ram < best.ram) best = upgradable[i];
   }
   return { hostname: best.hostname, nextTier: best.ram * 2 };
-}
-
-/** Pure. Missing/null timestamp is always stale -- no finance manager running yet counts as stale. */
-export function isStateStale(stateTimestamp, now, staleMs) {
-  if (stateTimestamp === null || stateTimestamp === undefined) return true;
-  return now - stateTimestamp > staleMs;
 }
 
 /**
@@ -89,20 +84,6 @@ export function nextCloudName(ownedNames) {
   let index = 0;
   while (usedIndices.has(index)) index++;
   return `cloud-${index}`;
-}
-
-function tprintTs(ns, message) {
-  ns.tprint(`[${new Date().toLocaleTimeString()}] ${message}`);
-}
-
-function readFinanceState(ns) {
-  const raw = ns.read(FINANCE_STATE_FILE);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
 }
 
 /** @param {NS} ns */

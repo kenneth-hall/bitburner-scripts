@@ -29,6 +29,18 @@ import { transactionsFileName, shouldCoalesce } from "./translog.js";
 const POLL_MS = 1000;
 const DISPLAY_COUNT = 20;
 
+/**
+ * Pure. True when the day-rotated transactions filename has changed since
+ * the last poll -- the boundary the running "today" totals (below) should
+ * reset on, since the file itself already rotates correctly and the display
+ * should track whichever file it's actually reading. The first poll
+ * (prevFilename === null) never rolls over, so startup doesn't spuriously
+ * zero a total that was never accumulated.
+ */
+export function dayRolledOver(prevFilename, curFilename) {
+  return prevFilename !== null && prevFilename !== curFilename;
+}
+
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
@@ -37,15 +49,23 @@ export async function main(ns) {
   let baselineHackingIncome = ns.getMoneySources().sinceStart.hacking;
   let todayIncomeTotal = 0;
   let firstIncomeTimestamp = null;
+  let currentDayFile = null;
 
   while (true) {
+    const now = Date.now();
+    const filename = transactionsFileName(new Date(now));
+
+    if (dayRolledOver(currentDayFile, filename)) {
+      todayIncomeTotal = 0;
+      firstIncomeTimestamp = null;
+    }
+    currentDayFile = filename;
+
     const currentHackingIncome = ns.getMoneySources().sinceStart.hacking;
     const delta = currentHackingIncome - baselineHackingIncome;
     baselineHackingIncome = currentHackingIncome;
 
     if (delta > 0) {
-      const now = Date.now();
-      const filename = transactionsFileName(new Date(now));
       const raw = ns.read(filename);
       const entries = raw ? JSON.parse(raw) : [];
       const last = entries[entries.length - 1];
@@ -73,7 +93,6 @@ export async function main(ns) {
     // Redraw every poll, not only on writes -- a write-tied redraw goes
     // stale during income lulls and never reflects expense records other
     // scripts append to the same file. This second read is free (0 GB).
-    const filename = transactionsFileName(new Date());
     const raw = ns.read(filename);
     const entries = raw ? JSON.parse(raw) : [];
     const recent = entries.slice(-DISPLAY_COUNT).reverse(); // newest first

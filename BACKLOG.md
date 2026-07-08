@@ -107,57 +107,6 @@ instead of deleting it — don't let history pile up here.
     backdoor → exit) is structurally deferred to the next reset — record as a
     live-validation follow-up when built, same as the waived fleetupgrade test.
 
-## Fable discoveries (2026-07-06 full-repo audit)
-
-One-time audit of every `src/*.js`, config, and doc before Fable sub access ends, at
-`master` baa7513 — Phase 15's in-flight branch was **not** visible to this audit, so
-cross-check any overlap before acting. Overall read: conventions are consistently applied
-(pure-logic/ns-plumbing split, identifier hygiene, fail-safe spending guards, log-export
-discipline), docs match reality, tests cover the pure seams well. Findings below are
-ordered by value, not severity. (F1, the only one touching live behavior, was resolved by
-Phase 15 — see CHANGELOG — and cleared from this list 2026-07-07.)
-
-- **F2 — `trimLog` off-by-one when the mode event is pinned** (`daemon.js`). The pinned
-  path returns `[modeEvent, ...entries.slice(overflow)]` — length `MAX + 1`, and it stays
-  at `MAX + 1` while the pinned mode event remains in the overflow region (each later call
-  drops one fewer real entry than overflow; a fresh `mode` event landing later in the
-  buffer disengages pinning and resets to `MAX`).
-  Contract comment says it "trims the ring buffer to DAEMON_LOG_MAX_ENTRIES". Benign —
-  no checker asserts the cap, it's 2001 vs 2000 — so: one-line fix (trim one extra when
-  pinning) next time `daemon.js` is open for real work, not worth its own live cycle.
-- **F3 — `transactionsmonitor.js`'s "today's hacking income" never resets at the day
-  boundary.** `todayIncomeTotal`/`firstIncomeTimestamp` accumulate since monitor start;
-  the transactions *file* rotates at midnight but the total/rate display lines don't — a
-  session crossing midnight labels yesterday+today combined as "today". Display-only;
-  the log files themselves rotate correctly.
-- **F4 — Finance-state client code is triplicated.** The `finance-state.json` filename
-  literal appears in `resourcemanager.js`, `cloudmanager.js`, and `procureprograms.js`;
-  `STALE_MS = 15_000` in the latter two; `readFinanceState` verbatim ×2; and
-  `isStateStale` lives in `cloudmanager.js` with `procureprograms.js` importing it — one
-  consumer importing from another consumer rather than from a shared seam. Natural
-  Phase-13-flavor cleanup: a tiny `financestate.js` (filename constant + `isStateStale` +
-  `readFinanceState`; pure + `ns.read` 0GB) that all three import. Needs the standard
-  RAM gate when done.
-- **F5 — `tprintTs` duplicated in four daemon companions.** `common.js` exports it, but
-  `resourcemanager.js`/`cloudmanager.js`/`procureprograms.js`/`bootstrap.js` each carry a
-  local copy predating Phase 13. Phase 9/13 established RAM charging is
-  reachability-based, so importing from `common.js` should be free — verify with `mem` on
-  one converted script first, then fold the other three into F4's cleanup pass. Note
-  (review): `common.js`'s own header says "every importer's bundle pays for all of it",
-  which contradicts the reachability assumption — whichever way the `mem` check comes
-  out, correct one of the two texts in the same pass.
-- **F6 — `totalAllocatableRam` duplicated** (`daemon.js` + `sharecurve.js`, identical
-  including the `HOME_RESERVE_GB` handling). Belongs in `hosts.js` next to
-  `HOME_RESERVE_GB` itself; fold into the same cleanup pass.
-- **F7 — Untested small pure helpers** (low): `standardSizes` (`cloudcosts.js` — feeds
-  `purchasecloudservers.js`'s arg validation), `nextIndex` (`renamecloudservers.js`),
-  `nextInstanceNumber` (`upgradecloudserver.js`). Each is a cheap vitest add if any of
-  those files is touched again (`nextIndex`/`nextInstanceNumber` are module-private, so
-  testing them also means exporting them — trivial).
-- **F8 — Display nit:** `daemon.js`'s status line labels `totalMaxRam` as "budget" while
-  the share line separately shows "batch budget" (`batchBudgetGb`) — two different
-  numbers under one word. Fold into the existing "Monitor cleanup" idea below.
-
 ## Ideas / Backlog
 
 - **Investigate `sharePower` reading 1.00 with live share threads in flight** (2026-07-06,

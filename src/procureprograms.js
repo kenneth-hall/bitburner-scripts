@@ -41,11 +41,10 @@
 
 import { recordTransaction } from "./translog.js";
 import { PORT_OPENER_COSTS, TOR_ROUTER_COST } from "./resourcemanager.js";
-import { isStateStale } from "./cloudmanager.js";
+import { tprintTs } from "./common.js";
+import { isStateStale, readFinanceState, STALE_MS } from "./financestate.js";
 
 const POLL_MS = 30_000;
-const STALE_MS = 15_000; // same value as cloudmanager.js's guard
-const FINANCE_STATE_FILE = "finance-state.json";
 
 /** Pure. The bootstrap-server reservation's amount, or 0 if absent/malformed. */
 export function bootstrapHoldbackFrom(state) {
@@ -78,20 +77,6 @@ export function planProgramPurchase({ hasTor, ownedFiles, money, holdback }) {
   }
   if (money - TOR_ROUTER_COST >= holdback) return { action: "buy-tor" };
   return { action: "wait" };
-}
-
-function tprintTs(ns, message) {
-  ns.tprint(`[${new Date().toLocaleTimeString()}] ${message}`);
-}
-
-function readFinanceState(ns) {
-  const raw = ns.read(FINANCE_STATE_FILE);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
 }
 
 /**

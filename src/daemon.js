@@ -8,7 +8,7 @@
 // scheduler.js does all the pure thread/timing/selection math; this file
 // does all the `ns` calls and exec/scp plumbing, same split Phase 1 had.
 
-import { getHosts, HOME_RESERVE_GB } from "./hosts.js";
+import { getHosts, HOME_RESERVE_GB, totalAllocatableRam } from "./hosts.js";
 import { getTargets } from "./targets.js";
 import { tprintTs, workerRamCosts } from "./common.js";
 import {
@@ -69,7 +69,7 @@ const CYCLE_MS = 10000;
 // rule seated it over-budget). Both additive; the daemon rewrites the whole
 // file on flush, so a restarted session's log is uniformly new-schema.
 const DAEMON_LOG_FILE = "daemon-batch-log.json";
-const DAEMON_LOG_MAX_ENTRIES = 2000; // raised from 1000 (Phase 7): N members means N x the batch/skip events per tick
+export const DAEMON_LOG_MAX_ENTRIES = 2000; // raised from 1000 (Phase 7): N members means N x the batch/skip events per tick; exported for trimLog's unit test
 const LOG_FLUSH_INTERVAL_MS = 10000; // lazy-flush cadence for batch/skip/snapshot events; mode/enter/exit flush immediately
 
 // Phase 1's daemon scp'd these to every rooted host over its runs; they're
@@ -144,20 +144,6 @@ function refreshFreeRam(ns, hosts) {
   });
 }
 
-/**
- * Fixed allocatable capacity (maxRam minus home's reserve), from the
- * CYCLE_MS-cached host list -- this barely changes tick to tick, unlike free
- * RAM, so it's the right denominator for "how full is the system" (and, as
- * of Phase 7, the budget pickBatchSet admits pipelines against), not "how
- * much did we spend this tick".
- */
-function totalAllocatableRam(hosts) {
-  return hosts.reduce((sum, h) => {
-    const reserve = h.hostname === "home" ? HOME_RESERVE_GB : 0;
-    return sum + Math.max(0, h.maxRam - reserve);
-  }, 0);
-}
-
 // launchmonitor.js watches ns.ps() across all hosts and reports new worker
 // processes independently, so this only needs to launch and count failures --
 // it doesn't build its own launch-event log anymore.
@@ -223,16 +209,22 @@ function flushDaemonLog(ns, entries) {
 }
 
 /**
- * Trims the ring buffer to DAEMON_LOG_MAX_ENTRIES, pinning the most recent
- * `mode` event at the head instead of letting ordinary FIFO trimming evict
- * it -- a session longer than the buffer window would otherwise lose the
- * config record every batch's hackFraction check depends on, making a long
- * acceptance session unpassable by the log checker. Also closes (deletes)
- * any `openSkipRecords` entry whose referenced object is being dropped here
- * -- otherwise a later skip for that server would coalesce into a spliced-out
- * ghost object that never reaches disk, silently losing skip data.
+ * Trims the ring buffer to exactly DAEMON_LOG_MAX_ENTRIES, pinning the most
+ * recent `mode` event at the head instead of letting ordinary FIFO trimming
+ * evict it -- a session longer than the buffer window would otherwise lose
+ * the config record every batch's hackFraction check depends on, making a
+ * long acceptance session unpassable by the log checker. Also closes
+ * (deletes) any `openSkipRecords` entry whose referenced object is being
+ * dropped here -- otherwise a later skip for that server would coalesce into
+ * a spliced-out ghost object that never reaches disk, silently losing skip
+ * data.
+ *
+ * Pinning costs one extra slot (the mode event prepended on top of a
+ * DAEMON_LOG_MAX_ENTRIES-length tail), so the pinned branch drops one extra
+ * real entry (`overflow + 1`, not `overflow`) to keep the result at exactly
+ * DAEMON_LOG_MAX_ENTRIES (Phase 16, F2 -- was MAX + 1 while pinned).
  */
-function trimLog(entries, openSkipRecords) {
+export function trimLog(entries, openSkipRecords) {
   if (entries.length <= DAEMON_LOG_MAX_ENTRIES) return entries;
   const overflow = entries.length - DAEMON_LOG_MAX_ENTRIES;
 
@@ -244,10 +236,11 @@ function trimLog(entries, openSkipRecords) {
     }
   }
   const pinned = latestModeIndex !== -1 && latestModeIndex < overflow;
+  const dropCount = pinned ? overflow + 1 : overflow;
 
   const dropped = pinned
-    ? entries.slice(0, overflow).filter((_, i) => i !== latestModeIndex)
-    : entries.slice(0, overflow);
+    ? entries.slice(0, dropCount).filter((_, i) => i !== latestModeIndex)
+    : entries.slice(0, dropCount);
 
   for (const droppedEntry of dropped) {
     if (droppedEntry.event === "skip" && openSkipRecords.get(droppedEntry.batchTarget) === droppedEntry) {
@@ -255,7 +248,7 @@ function trimLog(entries, openSkipRecords) {
     }
   }
 
-  const kept = entries.slice(overflow);
+  const kept = entries.slice(dropCount);
   return pinned ? [entries[latestModeIndex], ...kept] : kept;
 }
 
@@ -820,7 +813,7 @@ export async function main(ns) {
     ns.print(
       `hosts: ${hosts.length} | targets: ${targets.length} | members: ${result.members.length}` +
         `${drainingServers.length > 0 ? ` (+${drainingServers.length} draining)` : ""} | ` +
-        `util: ${utilization.toFixed(1)}% | budget ${ns.format.ram(totalMaxRam)}`
+        `util: ${utilization.toFixed(1)}% | fleet ${ns.format.ram(totalMaxRam)}`
     );
     ns.print(`skipped(total): ${totalBatchesSkipped} | shrunk(total): ${totalBatchesShrunk}`);
 
