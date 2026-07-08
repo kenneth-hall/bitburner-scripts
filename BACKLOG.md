@@ -109,38 +109,21 @@ instead of deleting it — don't let history pile up here.
 
 ## Ideas / Backlog
 
-- **Core-aware grow/weaken sizing (home cores are not 1)** (2026-07-08, filed from a mechanics
-  investigation, no design decided yet): every grow/weaken thread-count call in `sampling.js` —
-  legacy (`ns.growthAnalyze`, `ns.growthAnalyzeSecurity`, `ns.weakenAnalyze`) *and* formulas
-  (`ns.formulas.hacking.growThreads`, plus formulas-mode weaken sizing, which still calls plain
-  `ns.weakenAnalyze(1)`) — omits the `cores` argument, so it implicitly assumes 1 core for
-  whichever host actually runs the job. But `home` is a real worker host (`hosts.js`'s
-  `listHosts()` includes it like any other, minus `HOME_RESERVE_GB`), and it is not 1 core: the
-  last `sharecurve.js` export (`logs/sharecurve-1783196400697.json`) recorded `homeCpuCores: 2`
-  already, and `upgradeHomeCores()` can push it higher. `assignBatchHosts`/`planPrep` assign each
-  job (hack/weaken1/grow/weaken2) independently to whatever host has room, with no core-awareness.
-  - **Mechanic**: `cpuCores` affects grow and weaken magnitude only — `growthAnalyze`/
-    `formulas.hacking.growThreads`/`growPercent`/`growAmount`/`growthAnalyzeSecurity` and
-    `weakenAnalyze`/`formulas.hacking.weakenEffect` (`1 + (cores-1)/16`) all take an optional
-    `cores` param; `hackAnalyze`/`hackAnalyzeSecurity`/`hackPercent` have none — hack is
-    core-independent entirely.
-  - **Mostly safe, one exception**: a core bonus on weaken1 (counters hack's core-independent
-    security add) or on grow's money growth only makes the real effect stronger than sized —
-    always an overshoot, never a shortfall (matches `sampling.js:60-62`'s existing comment).
-    But grow's *security-add* is also core-sensitive, and its paired weaken2 is priced off the
-    same cores=1 assumption — if grow lands on `home` (stronger security bump than modeled) while
-    weaken2 lands on an ordinary 1-core host (removes only the modeled amount), the batch finishes
-    slightly above target min-security: real drift, not a safe overshoot. Small and
-    self-correcting today via `DRIFT_SEC_EPSILON` + waterfall re-prep, but scales linearly with
-    cores as more are purchased.
-  - **Same open question Phase 8 already flagged for share threads**, deferred there too
-    (`docs/phases/phase-08-batcher-refactor.md:164`, `sharecurve.js:33-35`: "core-weighted
-    placement... deliberately untuned this phase"). This entry is the hack/grow/weaken-batcher
-    sibling of that same gap.
-  - **Not yet decided, needs a real design pass before any code**: a real fix reorders things —
-    today thread sizing happens *before* host assignment, but core-aware sizing needs to know the
-    host first, so it's a sequencing change (which host gets which job, and when cores are read),
-    not a drive-by edit.
+- **Core-aware grow/weaken sizing (home cores are not 1)** — **investigated + SHELVED
+  2026-07-08** (full story: `docs/phases/phase-17-home-cores.features.md`, condensed in
+  `docs/phases/CHANGELOG.md`). `sampling.js` sizes every grow/weaken call at an implicit 1 core,
+  but `home` is a real worker host with >1 core. A throwaway in-game probe settled the two
+  gating questions: (1) grow's per-thread security increase is **core-independent** (measured
+  flat at 4 across cores 1–16), so the correctness-drift bug this entry originally claimed **does
+  not exist** — cores=1 sizing is a safe overshoot everywhere; this is pure efficiency. (2) home
+  was **19.4% of allocatable RAM** at probe time — but only because the fleet was in a small
+  post-reset state; that share decays as purchased servers are rebought. At home's current 2
+  cores the reclaim is **~1% of fleet RAM** (grow/weaken save 5.9%/thread at 2 cores per the
+  `1+(cores-1)/16` law), rising to ~5–8% only at 8–16 cores — which needs Singularity-gated
+  `upgradeHomeCores()` we can't yet automate. Not worth reordering the batcher hot path
+  (sizing runs before host assignment) for ~1% transient gain. **Revisit trigger:** home cores
+  get upgraded post-Singularity. Same deferred question as Phase 8's core-weighted *share*
+  placement (`sharecurve.js:33-35`) — co-scope the two if either is revived.
 
 - **Investigate `sharePower` reading 1.00 with live share threads in flight** (2026-07-06,
   filed from Phase 15's diagnosis, S3, out of scope for that phase): the exported

@@ -6,6 +6,25 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-08
+
+- **Phase 17 — home-core-aware grow/weaken sizing: investigated, measured, SHELVED** →
+  `phase-17-home-cores.features.md`. `sampling.js` sizes all grow/weaken thread math at an
+  implicit 1 core (both legacy and formulas branches), but `home` is a real worker host with
+  >1 core. A throwaway in-game probe (`src/coreprobe.js`, since removed; evidence
+  `logs/coreprobe-1783550870612.json`) answered both gating questions: **(Q1)** grow's
+  per-thread security increase is **core-independent** (flat at 4 across cores 1–16), so the
+  original "correctness drift bug" claim was **wrong** — cores=1 sizing is a safe overshoot,
+  making this pure efficiency; **(Q2)** home was 19.4% of allocatable RAM at probe time
+  (surprise — but only because the fleet was in a small post-reset state; the share decays as
+  purchased servers are rebought). Measured core factor: 5.9%/thread saved at home's current 2
+  cores (`1+(cores-1)/16`), so ~1% of fleet RAM reclaimed today, rising to ~5–8% only at 8–16
+  cores — which needs Singularity-gated `upgradeHomeCores()` not yet automatable. Verdict
+  (Kenneth): not worth reordering the batcher hot path (sizing runs before host assignment) for
+  a ~1% transient gain; **revisit when home cores get upgraded**. No code shipped; probe + its
+  `vite.config.ts` download filter removed. Co-scope with Phase 8's deferred core-weighted
+  *share* placement if either is revived.
+
 ## 2026-07-07
 
 - **Phase 16 — Fable audit cleanup (F2–F8)** → `phase-16-audit-cleanup.features.md`,
