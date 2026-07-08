@@ -12,6 +12,7 @@
 import { getHosts } from "./hosts.js";
 import { DRIFT_SEC_EPSILON, DRIFT_MONEY_FRACTION } from "./scheduler.js";
 import { TOR_ROUTER_COST, PORT_OPENER_COSTS } from "./resourcemanager.js";
+import { tprintTs } from "./common.js";
 
 const POLL_MS = 10_000;
 const CONTROL_FILE = "bootstrap-control.json";
@@ -98,10 +99,6 @@ export function appendBootLog(entries, record) {
   entries.push(record);
   if (entries.length > LOG_MAX_ENTRIES) entries.splice(0, entries.length - LOG_MAX_ENTRIES);
   return entries;
-}
-
-function tprintTs(ns, message) {
-  ns.tprint(`[${new Date().toLocaleTimeString()}] ${message}`);
 }
 
 function flushBootLog(ns, entries) {

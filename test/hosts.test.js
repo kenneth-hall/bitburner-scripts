@@ -1,8 +1,10 @@
 // Unit tests for src/hosts.js's tryRoot/listHosts/getHosts split (Phase 13
-// consolidation, S6/S7). Fake-ns style: plain objects exposing only the
-// methods each helper touches, no mocking framework.
+// consolidation, S6/S7) and totalAllocatableRam (Phase 16, F6 -- moved here
+// from daemon.js/sharecurve.js's byte-identical duplicates). Fake-ns style:
+// plain objects exposing only the methods each helper touches, no mocking
+// framework.
 import { describe, it, expect } from 'vitest';
-import { tryRoot, listHosts, getHosts, HOME_RESERVE_GB } from '../src/hosts.js';
+import { tryRoot, listHosts, getHosts, totalAllocatableRam, HOME_RESERVE_GB } from '../src/hosts.js';
 
 const OPENER_FILES = ['BruteSSH.exe', 'FTPCrack.exe', 'relaySMTP.exe', 'HTTPWorm.exe', 'SQLInject.exe'];
 
@@ -131,6 +133,33 @@ describe('listHosts', () => {
     const homeEntry = listHosts(ns).find((h) => h.hostname === 'home');
     expect(homeEntry.freeRam).toBe(0);
     expect(HOME_RESERVE_GB).toBe(32);
+  });
+});
+
+describe('totalAllocatableRam', () => {
+  it('sums maxRam across hosts with no reserve on non-home hosts', () => {
+    const hosts = [
+      { hostname: 'n00dles', maxRam: 16 },
+      { hostname: 'cloud-0', maxRam: 128 },
+    ];
+    expect(totalAllocatableRam(hosts)).toBe(144);
+  });
+
+  it('holds HOME_RESERVE_GB back for home only', () => {
+    const hosts = [
+      { hostname: 'home', maxRam: 64 },
+      { hostname: 'n00dles', maxRam: 16 },
+    ];
+    expect(totalAllocatableRam(hosts)).toBe(64 - HOME_RESERVE_GB + 16);
+  });
+
+  it('clamps home contribution at 0 when maxRam is below the reserve', () => {
+    const hosts = [{ hostname: 'home', maxRam: 8 }];
+    expect(totalAllocatableRam(hosts)).toBe(0);
+  });
+
+  it('returns 0 for an empty host list', () => {
+    expect(totalAllocatableRam([])).toBe(0);
   });
 });
 

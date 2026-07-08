@@ -132,6 +132,20 @@ export function getHosts(ns) {
   return listHosts(ns);
 }
 
+/**
+ * Pure. Fixed allocatable capacity across a host list (maxRam minus home's
+ * reserve) -- the denominator daemon.js uses for "how full is the system"
+ * and the budget pickBatchSet admits pipelines against, and sharecurve.js
+ * uses for its share-fraction sweep.
+ * @param {{hostname: string, maxRam: number}[]} hosts
+ */
+export function totalAllocatableRam(hosts) {
+  return hosts.reduce((sum, h) => {
+    const reserve = h.hostname === "home" ? HOME_RESERVE_GB : 0;
+    return sum + Math.max(0, h.maxRam - reserve);
+  }, 0);
+}
+
 /** @param {NS} ns */
 export async function main(ns) {
   const hosts = getHosts(ns);

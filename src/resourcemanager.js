@@ -34,9 +34,11 @@
 // ring buffer, appended only when the reservation set actually changes, plus
 // one startup entry -- see vite.config.ts for the auto-export wiring).
 
+import { tprintTs } from "./common.js";
+import { FINANCE_STATE_FILE } from "./financestate.js";
+
 const POLL_MS = 2000;
 
-const STATE_FILE = "finance-state.json";
 const LOG_FILE = "finance-log.json";
 const MANUAL_EXTRA_FILE = "finance-reserve-extra.txt";
 const FORMULAS_DISABLE_FILE = "finance-disable-formulas.txt";
@@ -154,10 +156,6 @@ export function diffReservations(prevList, nextList) {
   return { added, removed, changed, changedKeys, isEmpty: changedKeys.length === 0 };
 }
 
-function tprintTs(ns, message) {
-  ns.tprint(`[${new Date().toLocaleTimeString()}] ${message}`);
-}
-
 /** Pure push+trim -- plain FIFO, no pinning needed (unlike daemon.js's log, there's no config record to protect). */
 function appendFinanceLog(entries, record) {
   entries.push(record);
@@ -233,7 +231,7 @@ export async function main(ns) {
     const now = Date.now();
     const timeLabel = new Date(now).toLocaleTimeString();
     const stateRecord = { timestamp: now, time: timeLabel, money, totalReserved, available, reservations, formulasSuppressed };
-    ns.write(STATE_FILE, JSON.stringify(stateRecord), "w");
+    ns.write(FINANCE_STATE_FILE, JSON.stringify(stateRecord), "w");
 
     if (previousReservations === null) {
       if (reservations.length === 0) {

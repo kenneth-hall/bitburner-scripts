@@ -7,16 +7,9 @@
 
 import { SHARE_SCRIPT } from "./scheduler.js";
 import { hasFormulas, inFlightByTarget } from "./sampling.js";
-import { listHosts, HOME_RESERVE_GB } from "./hosts.js";
+import { listHosts, totalAllocatableRam } from "./hosts.js";
 
 const CANDIDATE_FRACTIONS = [0.05, 0.1, 0.15, 0.25, 0.4, 0.5, 0.75, 1.0];
-
-function totalAllocatableRam(hosts) {
-  return hosts.reduce((sum, h) => {
-    const reserve = h.hostname === "home" ? HOME_RESERVE_GB : 0;
-    return sum + Math.max(0, h.maxRam - reserve);
-  }, 0);
-}
 
 /** @param {NS} ns */
 export async function main(ns) {

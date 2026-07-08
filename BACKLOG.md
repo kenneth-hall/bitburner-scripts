@@ -6,7 +6,15 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
-(none)
+- **Phase 16: Fable audit cleanup (F2–F8)** (2026-07-07): code done on branch
+  `phase16-audit-cleanup` — `phase-16-audit-cleanup.features.md` /
+  `.spec.md` at repo root. `npm test` (293 tests) and `npm run verify:log` both green. Still
+  needed before merge: the RAM gate (fresh before/after baseline on `daemon.js`,
+  `sharecurve.js`, `hosts.js`, `bootstrap.js`, `cloudmanager.js`, `procureprograms.js`,
+  `resourcemanager.js`, `transactionsmonitor.js` — expect flat everywhere) and a live daemon
+  session, both waiting on Kenneth's in-game run per the ship gate. At close-out: move a
+  condensed entry to `docs/phases/CHANGELOG.md`, graduate both phase docs to `docs/phases/`,
+  and clear the "Fable discoveries" section below (F1 already cleared 2026-07-07).
 
 ## Next Up
 

@@ -15,7 +15,7 @@
 const CLOUD_NAME_PATTERN = /^cloud-(\d+)$/;
 
 /** Pure. Lowest non-negative integer not already in `usedIndices`. */
-function nextIndex(usedIndices) {
+export function nextIndex(usedIndices) {
   let n = 0;
   while (usedIndices.has(n)) n++;
   return n;

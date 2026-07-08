@@ -15,7 +15,7 @@ import { recordTransaction } from "./translog.js";
 const PSERV_NAME_PATTERN = /^pserv-(\d+)gb-(\d+)$/;
 
 /** Pure. Lowest non-negative integer not already used as an instance number by another owned server at `sizeGB`. */
-function nextInstanceNumber(otherOwnedNames, sizeGB) {
+export function nextInstanceNumber(otherOwnedNames, sizeGB) {
   const used = new Set();
   for (const name of otherOwnedNames) {
     const match = PSERV_NAME_PATTERN.exec(name);
