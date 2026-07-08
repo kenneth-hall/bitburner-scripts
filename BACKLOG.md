@@ -6,7 +6,18 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
-(none)
+- **Phase 18 — readable, self-placing dashboard windows** (2026-07-08, brainstorm done →
+  `phase-18-dashboards.features.md`, next: fable spec via `/spec`). Fixes the in-game tail
+  windows: line-wrap (windows too narrow), header scrolling out of view (content taller than
+  window), and re-dragging/resizing all five every aug install (nothing sets geometry). Three
+  layers, in order: (1) managed tail geometry — restore each window's last position/size/font
+  on launch and persist the user's tweaks (game's `ns.ui.moveTail/resizeTail/setTailTitle` are
+  0 GB; `getRunningScript().tailProperties` reads geometry back at 0.3 GB and is pid-addressable,
+  so a centralized manager can place every window for 0.3 GB once); (2) content pass applying
+  "status in popups, lists in logs" — shrink transactions to totals+~3, targets to top-5,
+  daemon's per-tick spam to its existing log; (3) single condensed window — **deferred "maybe"**,
+  after 1–2. Supersedes most of the "Monitor cleanup + more meaningful logging" Idea below
+  (the out-of-game dashboard half of that item stays open).
 
 ## Next Up
 
