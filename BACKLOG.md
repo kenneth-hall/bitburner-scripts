@@ -6,7 +6,13 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
-(none)
+- **Phase 19 — Coding contracts** (2026-07-09, brainstorm stage, **nothing decided**):
+  `phase-19-contracts.features.md` captures a mid-brainstorm state — mechanics reference, seven
+  findings, ten open questions, no agreed architecture. Blocking question is Q1 (who writes the
+  solvers: demand-driven / Kenneth-solves / bulk-delegated), which is Kenneth's call, not a
+  technical one. Four cheap live checks are listed and none are done; the RAM probe (does
+  `contract.submit()` dodge `attempt`'s 10 GB charge?) should run first because it can invalidate
+  the single-script architecture. No spec, no code. Resume the discussion, don't build from the doc.
 
 ## Next Up
 
@@ -151,6 +157,13 @@ instead of deleting it — don't let history pile up here.
   resource-manager rule that suppresses share automatically below some fleet-size or
   income threshold, rather than requiring Kenneth to remember the manual toggle. No design
   done yet.
+  - **Observed live for the first time, 2026-07-09 17:55** (previously filed on theory only):
+    `logs/daemon-batch-log.json`'s snapshot shows the share pool holding **1,156 GB of a
+    4,638 GB budget (25%)** while fleet utilization sat at 44%, `memberCount` was 1
+    (`phantasy`), and that single member had committed 7.5%. Same snapshot, `finance-log.json`
+    shows a `bootstrap-server` reservation for a *first* cloud server — i.e. a fresh post-reset
+    fleet. This is exactly the scenario the item predicts: the 25% carve competing with getting
+    the pipeline started at all. Evidence captured before the state passes.
 
 - **Re-validate `procureprograms.js`'s TOR/port-opener ladder live** (2026-07-05, filed from Phase
   11's Round B): Kenneth's account doesn't yet have the Source-File `ns.singularity.purchaseTor`/
