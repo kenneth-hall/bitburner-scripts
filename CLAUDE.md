@@ -65,13 +65,14 @@ touch documentation without risking the live checkout. It has no dev server of i
 must never start or stop `npm run dev` (see the engineering-conventions rule above). Merge its
 branch back to `master` like any other worktree when the docs work is ready.
 
-**Sync from `master` at the start of every session here.** Phase work (fixes, close-outs) lands
-directly on `master` in the main worktree — `worktree-docs` never sees it automatically, only via
-merge. Before reading or editing `BACKLOG.md` or any doc that phase work might touch, run
-`git merge master` in this worktree first. This worktree normally carries no commits of its own
-that `master` doesn't already have, so it's a clean fast-forward, not a real merge. Skipping this
-risks brainstorming/planning against stale state — e.g. re-flagging a bug that already shipped a
-fix.
+**Sync from `master` before touching anything phase work might have changed.** Phase work
+(fixes, close-outs) lands directly on `master` in the main worktree — `worktree-docs` never sees
+it automatically, only via merge. Before reading or editing `BACKLOG.md` or any doc that phase
+work might touch, run `git merge master` in this worktree first — not just once at session start,
+since phase work can land on `master` mid-session too. This worktree normally carries no commits
+of its own that `master` doesn't already have, so it's a clean fast-forward, not a real merge.
+Skipping this risks brainstorming/planning against stale state — e.g. re-flagging a bug that
+already shipped a fix.
 
 **This checkout (`bitburner-scripts`) needs the same check in reverse.** Worktrees share one
 `.git` object database and branch refs, but not working-tree state — a commit `worktree-docs`
