@@ -276,8 +276,8 @@ export async function main(ns) {
     if (nextPlan) {
       const affordable = nextCost !== null && nextCost <= availableCash;
       ns.print(
-        `next: ${nextPlan.hostname} -> ${ns.format.ram(nextPlan.nextTier)} for $${ns.format.number(nextCost)}` +
-          (affordable ? "" : " (can't afford yet)")
+        `next: ${nextPlan.hostname} -> ${ns.format.ram(nextPlan.nextTier)}, $${ns.format.number(nextCost)}` +
+          (affordable ? "" : " (can't afford)")
       );
     } else if (fleet.length > 0) {
       ns.print("fleet maxed -- all servers at the RAM limit");
@@ -297,15 +297,15 @@ export async function main(ns) {
     }
     if (lastUpgrade) {
       ns.print(
-        `last upgrade: ${lastUpgrade.hostname} ${ns.format.ram(lastUpgrade.fromRam)} -> ${ns.format.ram(lastUpgrade.toRam)} ` +
-          `for $${ns.format.number(lastUpgrade.cost)} @ ${lastUpgrade.time}`
+        `last upgrade: ${lastUpgrade.hostname} -> ${ns.format.ram(lastUpgrade.toRam)}, ` +
+          `$${ns.format.number(lastUpgrade.cost)} @ ${lastUpgrade.time}`
       );
     }
     if (lastBootstrapBuy) {
-      ns.print(`bootstrap bought: ${lastBootstrapBuy.hostname} for $${ns.format.number(lastBootstrapBuy.cost)} @ ${lastBootstrapBuy.time}`);
+      ns.print(`bootstrap bought: ${lastBootstrapBuy.hostname}, $${ns.format.number(lastBootstrapBuy.cost)} @ ${lastBootstrapBuy.time}`);
     }
     if (lastGrowthBuy) {
-      ns.print(`last growth buy: ${lastGrowthBuy.hostname} for $${ns.format.number(lastGrowthBuy.cost)} @ ${lastGrowthBuy.time}`);
+      ns.print(`last growth buy: ${lastGrowthBuy.hostname}, $${ns.format.number(lastGrowthBuy.cost)} @ ${lastGrowthBuy.time}`);
     }
 
     await ns.sleep(POLL_MS);

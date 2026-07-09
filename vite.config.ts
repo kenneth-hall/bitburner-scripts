@@ -67,6 +67,7 @@ export default defineConfig({
         if (file === 'daemon-batch-log.json') return 'logs/daemon-batch-log.json';
         if (/^targets-summary-\d+\.json$/.test(file)) return `logs/${file}`;
         if (/^sharecurve-\d+\.json$/.test(file)) return `logs/${file}`;
+        if (file === 'tail-layout.json') return 'logs/tail-layout.json'; // Phase 18 -- persistence is the feature under test, so export it (unlike finance-state.json's heartbeat, which is already visible live)
         if (file === 'ramcheck-result.json') return 'logs/ramcheck-result.json';
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';

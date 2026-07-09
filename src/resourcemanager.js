@@ -270,8 +270,8 @@ export async function main(ns) {
     previousFormulasSuppressed = formulasSuppressed;
 
     ns.clearLog();
-    ns.print(`===== finance manager @ ${timeLabel} =====`);
-    ns.print(`money: $${ns.format.number(money)}`);
+    ns.print(`===== resource manager @ ${timeLabel} =====`);
+    ns.print(`money $${ns.format.number(money)} | reserved $${ns.format.number(totalReserved)} | available $${ns.format.number(available)}`);
     if (reservations.length === 0) {
       ns.print("no active reservations");
     } else {
@@ -279,7 +279,6 @@ export async function main(ns) {
         ns.print(`  ${r.key.padEnd(18)} $${ns.format.number(r.amount).padStart(12)}  ${r.label}`);
       }
     }
-    ns.print(`totalReserved: $${ns.format.number(totalReserved)} | available: $${ns.format.number(available)}`);
     if (formulasSuppressed) {
       ns.print(`formulas reservation: DISABLED by flag (${FORMULAS_DISABLE_FILE}) -- would reserve $${ns.format.number(FORMULAS_COST)}`);
     }
