@@ -46,6 +46,14 @@ Conventions below apply at every stage (spec-reviewer enforces them).
   worktree (e.g. `bitburner-scripts2`) must never stop/restart it — that server isn't visible
   or under that session's control, and killing another session's process out from under it
   breaks the user's in-game sync without warning.
+- **Dev-server connection auto-heals on session start.** The game/daemon survives the
+  computer sleeping fine (scripts keep running), but `npm run dev`'s WebSocket connection
+  to it (port 12525) doesn't reconnect cleanly, so exported logs silently go stale. A
+  `SessionStart` hook (`.claude/hooks/dev-server-autoheal.sh`, wired in the gitignored
+  `.claude/settings.local.json` — never `bitburner-scripts2`) checks
+  `logs/daemon-batch-log.json`'s mtime every session start; past 60s stale (or the dev
+  server isn't running at all) it kills+restarts `npm run dev` automatically and reports
+  one line. No manual "is my computer asleep" debugging should be needed anymore.
 
 ## Tracking work
 Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas). On
