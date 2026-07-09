@@ -8,6 +8,40 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-08
 
+- **Phase 18 — readable, self-placing dashboard windows** →
+  `phase-18-dashboards.features.md`, `phase-18-dashboards.spec.md`. Fixed the five in-game
+  tail windows' line-wrap (too narrow), header scrolling out of view (content taller than
+  window), and manual re-dragging/resizing every aug install (nothing set geometry). New
+  headless `src/tailmanager.js` companion centrally restores each window's saved
+  position/size/font on launch and persists Kenneth's tweaks to `tail-layout.json` (one
+  0.3GB `getRunningScript` cost total, not one per window; every `ns.ui.*` call used is
+  0GB). Pure `reconcileTick` decision core with an explicit RESTORING/TRACKING mode per
+  window (a spec-reviewer blocker caught the original 3-arg signature omitting that state,
+  which would have snapped windows back against the user's own drag — fixed before
+  implementation). Content pass across `daemon.js`/`targetsmonitor.js`/
+  `transactionsmonitor.js`/`cloudmanager.js`/`resourcemanager.js` applying "status in
+  popups, lists in logs": daemon's member+draining list capped at 12 (+N more); redundant
+  log-duplicated lines (skip/shrunk counters, last-launch, prep-dispatch detail, saturated-
+  skip INFO) dropped from the tail; targets shows top 5 + a pointer to the full-ranking
+  export; transactions collapses to totals + last 3 with a filename footer; cloud/resource
+  manager lines tightened. `logEvent` calls and the daemon-batch-log schema untouched;
+  `transactionsmonitor.js`'s income-writer block untouched. Two same-session addendums
+  (folded in during live validation, not originally spec'd): `killscripts.js` now closes
+  each process's tail window in the same loop that kills it (`ns.kill()` doesn't auto-close
+  a tail), and `procureprograms.js` closes its own tail at each of its four self-terminating
+  exit points (a script finishing on its own doesn't auto-close it either) — both were
+  leaving frozen orphan windows on every daemon restart / natural exit. `npm test` 317/317
+  (24 new). **Live-confirmed same day**: RAM gate — `daemon.js`/`targetsmonitor.js`/
+  `resourcemanager.js` flat against their recorded baselines (16.30/12.70/3.35 GB),
+  `tailmanager.js` landed exactly on its predicted ~1.9GB, `cloudmanager.js`/
+  `transactionsmonitor.js` flat (no recorded prior baseline, but pure string/format edits
+  can't move reachability-based RAM); all five windows self-placed into the right-edge
+  column on first run; two manually-dragged windows (`cloudmanager.js`/`resourcemanager.js`)
+  persisted through a daemon restart and returned to their exact tweaked geometry; orphaned
+  windows confirmed gone after the `killscripts.js` fix; `procureprograms.js` observed
+  closing its own window on a natural exit; `npm run verify:log` 36/36 green against a fresh
+  post-restart export. Layer 3 (single condensed window) deferred — filed in BACKLOG Ideas.
+
 - **Phase 17 — home-core-aware grow/weaken sizing: investigated, measured, SHELVED** →
   `phase-17-home-cores.features.md`. `sampling.js` sizes all grow/weaken thread math at an
   implicit 1 core (both legacy and formulas branches), but `home` is a real worker host with

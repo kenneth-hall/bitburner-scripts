@@ -6,18 +6,7 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
-- **Phase 18 — readable, self-placing dashboard windows** (2026-07-08, brainstorm done →
-  `phase-18-dashboards.features.md`, next: fable spec via `/spec`). Fixes the in-game tail
-  windows: line-wrap (windows too narrow), header scrolling out of view (content taller than
-  window), and re-dragging/resizing all five every aug install (nothing sets geometry). Three
-  layers, in order: (1) managed tail geometry — restore each window's last position/size/font
-  on launch and persist the user's tweaks (game's `ns.ui.moveTail/resizeTail/setTailTitle` are
-  0 GB; `getRunningScript().tailProperties` reads geometry back at 0.3 GB and is pid-addressable,
-  so a centralized manager can place every window for 0.3 GB once); (2) content pass applying
-  "status in popups, lists in logs" — shrink transactions to totals+~3, targets to top-5,
-  daemon's per-tick spam to its existing log; (3) single condensed window — **deferred "maybe"**,
-  after 1–2. Supersedes most of the "Monitor cleanup + more meaningful logging" Idea below
-  (the out-of-game dashboard half of that item stays open).
+(none)
 
 ## Next Up
 
@@ -119,6 +108,16 @@ instead of deleting it — don't let history pile up here.
     live-validation follow-up when built, same as the waived fleetupgrade test.
 
 ## Ideas / Backlog
+
+- **Single condensed dashboard window (Phase 18's deferred Layer 3)** (2026-07-08, deferred
+  per Kenneth — "a maybe, at the end"; not started): after Phase 18's Layers 1–2 (self-placing
+  windows, trimmed content), revisit only if five tidy windows still feel like too many. Not a
+  formatting change — needs a `dashboard.js` renderer reading the others' on-disk state
+  (`finance-state.json`, `daemon-batch-log.json` snapshots, the daily transactions file), with
+  `transactionsmonitor.js` (the income *writer*) and `targetsmonitor.js` (runs `getTargets`
+  analysis) split into headless workers that drop their own tails. Phase 18's centralized
+  `tailmanager.js` is a natural stepping stone. See `docs/phases/phase-18-dashboards.features.md`
+  for the full design-space notes.
 
 - **Core-aware grow/weaken sizing (home cores are not 1)** — **investigated + SHELVED
   2026-07-08** (full story: `docs/phases/phase-17-home-cores.features.md`, condensed in
@@ -328,25 +327,22 @@ instead of deleting it — don't let history pile up here.
     `phase-NN-slug.features.md` itself (decisions, rejected alternatives, open questions) so even the
     opus→fable handoff is a file, not a re-paste.
 
-- **Monitor cleanup + more meaningful logging**: `daemon.js`'s tail popup is very verbose
-  and some numbers look stale or reset next cycle — concretely: the `durations:` line reads
-  `batchTarget.hackTime/growTime/weakenTime`, only refreshed in `refreshCycle()` (up to
-  `CYCLE_MS`/10s stale vs. the rest of the popup's `BATCH_INTERVAL_MS` redraw); and the
-  `batch #N` block always shows `lastBatch`, which persists from whenever the last real
-  launch happened, with no cue when it's not this tick's launch. Wants an out-of-game
-  (maybe live) dashboard. Candidate logs discussed (2026-07-04) — the $ transactions log
-  idea has since shipped as Phase 5 (see Done below); remaining open ideas:
-  - ~~**RAM utilization time series**: `utilization` is computed every tick in `daemon.js` but
-    only displayed, never logged as its own series — needed for a dashboard chart.~~
-    **Shipped by Phase 7 (2026-07-04, see Done below)** as `snapshot` log events
-    (`utilizationPct`, `memberCount`, per-member breakdown, once per `CYCLE_MS`) — the
-    verbosity half of this item is also addressed by Phase 7's tail-popup redesign; the
-    out-of-game dashboard half stays open here.
+- **Monitor cleanup + more meaningful logging** — verbosity half **closed by Phase 18**
+  (2026-07-08, see CHANGELOG): the popup-verbosity complaint this item was originally filed for
+  (a stale `durations:` line, a `lastBatch` block with no "is this tick's launch?" cue) is now
+  moot — Phase 18's content pass removed the last-launch line entirely and demoted the rest of
+  the per-tick spam to `daemon-batch-log.json`, which the popup was always meant to be a summary
+  of. The **out-of-game dashboard** half (wanted since 2026-07-04) stays open, along with two
+  still-unbuilt logging ideas:
+  - ~~**RAM utilization time series**~~ **Shipped by Phase 7** as `snapshot` log events
+    (`utilizationPct`, `memberCount`, per-member breakdown, once per `CYCLE_MS`).
   - **Per-target income/efficiency log**: `batch` events log expected steal but nothing
     closes the loop on realized money per target over time, to sanity-check the ranking
     score against real outcomes.
   - **Prep-cycle duration log**: how long each drift→prepped transition actually takes;
-    currently only visible live in the popup's prep-dispatched lines and lost once prepped.
+    currently only visible live in the popup's prep-dispatched lines and lost once prepped
+    (Phase 18 dropped the live prep-dispatched lines from the tail; the underlying `snapshot`
+    events still carry per-member state, but no dedicated duration log exists yet).
 
 - **Repo organization / decluttering — investigate, no plan committed yet** (2026-07-05):
   raised the "everything's lumped together, hard to tell what's what" pain; reviewed the tree
