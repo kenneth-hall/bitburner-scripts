@@ -2,7 +2,7 @@
 // Fake-ns style: plain objects exposing only the methods each helper touches,
 // table-driven where useful -- no mocking framework, per house convention.
 import { describe, it, expect } from 'vitest';
-import { scanNetwork, findPath, tprintTs, workerRamCosts } from '../src/common.js';
+import { scanNetwork, findPath, findAllPaths, tprintTs, workerRamCosts } from '../src/common.js';
 import { WORKER_SCRIPTS } from '../src/scheduler.js';
 
 /** Builds a fake ns.scan(host) => neighbors[] over a plain adjacency map. */
@@ -66,6 +66,40 @@ describe('findPath', () => {
   it('returns null for an unreachable target', () => {
     const ns = makeScanNs({ home: ['a'], a: ['home'] });
     expect(findPath(ns, 'nowhere')).toBeNull();
+  });
+});
+
+describe('findAllPaths', () => {
+  it('returns every discovered host\'s full path, including home itself', () => {
+    const ns = makeScanNs({
+      home: ['a', 'b'],
+      a: ['home', 'c'],
+      b: ['home'],
+      c: ['a'],
+    });
+    const paths = findAllPaths(ns);
+    expect(paths.get('home')).toEqual(['home']);
+    expect(paths.get('a')).toEqual(['home', 'a']);
+    expect(paths.get('b')).toEqual(['home', 'b']);
+    expect(paths.get('c')).toEqual(['home', 'a', 'c']);
+    expect(paths.size).toBe(4);
+  });
+
+  it('matches findPath\'s result for the same target', () => {
+    const ns = makeScanNs({
+      home: ['a'],
+      a: ['home', 'b'],
+      b: ['a', 'target'],
+      target: ['b'],
+    });
+    expect(findAllPaths(ns).get('target')).toEqual(findPath(ns, 'target'));
+  });
+
+  it('returns just home for a lone-home network', () => {
+    const ns = makeScanNs({ home: [] });
+    const paths = findAllPaths(ns);
+    expect(paths.size).toBe(1);
+    expect(paths.get('home')).toEqual(['home']);
   });
 });
 

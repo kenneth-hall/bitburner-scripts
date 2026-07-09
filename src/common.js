@@ -56,6 +56,36 @@ export function findPath(ns, target) {
   return path;
 }
 
+/**
+ * One BFS from home, reconstructed into every discovered host's full path at
+ * once -- the all-targets counterpart to findPath's single-target walk.
+ * Returns a Map<hostname, string[]> including "home" itself (path ["home"]).
+ */
+export function findAllPaths(ns) {
+  const visited = new Map([["home", null]]);
+  const queue = ["home"];
+
+  while (queue.length > 0) {
+    const host = queue.shift();
+    for (const neighbor of ns.scan(host)) {
+      if (!visited.has(neighbor)) {
+        visited.set(neighbor, host);
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  const paths = new Map();
+  for (const node of visited.keys()) {
+    const path = [];
+    for (let n = node; n !== null; n = visited.get(n)) {
+      path.unshift(n);
+    }
+    paths.set(node, path);
+  }
+  return paths;
+}
+
 // daemon.js runs unattended for a long time, so unlike a one-shot manual
 // utility's output (already implicitly timestamped by "you just ran it"),
 // its terminal notifications fire at unpredictable moments during that run
