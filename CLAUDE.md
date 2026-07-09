@@ -73,6 +73,15 @@ that `master` doesn't already have, so it's a clean fast-forward, not a real mer
 risks brainstorming/planning against stale state — e.g. re-flagging a bug that already shipped a
 fix.
 
+**This checkout (`bitburner-scripts`) needs the same check in reverse.** Worktrees share one
+`.git` object database and branch refs, but not working-tree state — a commit `worktree-docs`
+makes straight to `master` (valid whenever `master` isn't checked out here, e.g. mid-phase-branch
+work) updates this checkout's `master` ref immediately, yet stays invisible until `master` is
+actually checked out again. Before merging a finished phase branch back to `master`, run
+`git log master` (or `git log HEAD..master` from the branch) to check for anything that landed
+there from `worktree-docs` since the branch was cut — a normal `git merge` folds it in safely
+either way, this is just so a docs-only commit from the other worktree doesn't go unnoticed.
+
 ## Git
 Use version control: branch off `master`, commit, and merge your own work in interactive
 sessions — no need to ask.
