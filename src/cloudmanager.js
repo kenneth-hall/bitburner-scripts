@@ -154,7 +154,7 @@ export async function main(ns) {
             timestamp: nowMs,
             time: new Date(nowMs).toLocaleTimeString(),
           });
-          tprintTs(ns, `CLOUDBUY: ${hostname} (${ns.format.ram(BOOTSTRAP_RAM)}) for $${ns.format.number(cost)} -- bootstrap foothold`);
+          ns.print(`CLOUDBUY: ${hostname} (${ns.format.ram(BOOTSTRAP_RAM)}) for $${ns.format.number(cost)} -- bootstrap foothold`);
           lastBootstrapBuy = { hostname, cost, time: new Date(nowMs).toLocaleTimeString() };
           bootstrapStatus = { waiting: false, failing: false, cost };
         }
@@ -202,7 +202,7 @@ export async function main(ns) {
         timestamp: nowMs,
         time: new Date(nowMs).toLocaleTimeString(),
       });
-      tprintTs(ns, `CLOUDUPGRADE: ${plan.hostname} ${ns.format.ram(fromRam)} -> ${ns.format.ram(plan.nextTier)} for $${ns.format.number(cost)}`);
+      ns.print(`CLOUDUPGRADE: ${plan.hostname} ${ns.format.ram(fromRam)} -> ${ns.format.ram(plan.nextTier)} for $${ns.format.number(cost)}`);
 
       availableCash -= cost;
       lastUpgrade = { hostname: plan.hostname, fromRam, toRam: plan.nextTier, cost, time: new Date(nowMs).toLocaleTimeString() };
@@ -238,7 +238,7 @@ export async function main(ns) {
               timestamp: nowMs,
               time: new Date(nowMs).toLocaleTimeString(),
             });
-            tprintTs(ns, `CLOUDBUY: ${hostname} (${ns.format.ram(GROWTH_RAM)}) for $${ns.format.number(cost)} -- growth buy, slot ${owned.length + 1}/${serverLimit}`);
+            ns.print(`CLOUDBUY: ${hostname} (${ns.format.ram(GROWTH_RAM)}) for $${ns.format.number(cost)} -- growth buy, slot ${owned.length + 1}/${serverLimit}`);
             lastGrowthBuy = { hostname, cost, time: new Date(nowMs).toLocaleTimeString() };
             availableCash -= cost;
             growthStatus = { waiting: false, failing: false, cost };
