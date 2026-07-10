@@ -20,14 +20,20 @@ The debug port is only open while the game runs, and only on `localhost` — don
 ```
 node tools/bb/cli.mjs stats                 # character overview (money, hack, ...)
 node tools/bb/cli.mjs terminal "home; scan" # run a terminal command, print its output
+node tools/bb/cli.mjs restart cloudmanager.js # kill + close orphaned tail + relaunch
+node tools/bb/cli.mjs close-tail cloudmanager.js # close a stray/orphaned tail window
 node tools/bb/cli.mjs read-tail daemon      # text of the "daemon" tail window
 node tools/bb/cli.mjs aria                   # structured outline of clickable UI
 node tools/bb/cli.mjs shot out/screen.png    # screenshot
 ```
 
-`read-*` / `stats` / `aria` / `shot` are read-only. `terminal` and `goto` **drive your live
-session** (navigate / type) — they move you off whatever screen you're on. Default to reads;
-use writes deliberately.
+`read-*` / `stats` / `aria` / `shot` are read-only. `terminal`, `goto`, `restart`, and
+`close-tail` **drive your live session** (navigate / type / kill / relaunch) — they move you off
+whatever screen you're on. Default to reads; use writes deliberately.
+
+`restart` exists because Bitburner leaves a killed script's tail window open (an orphan that
+reverts to the filename title); `restart` closes it between kill and relaunch so repeated
+restarts don't pile up stray popups. `tailmanager.js` then re-docks the fresh window.
 
 ## Design note
 

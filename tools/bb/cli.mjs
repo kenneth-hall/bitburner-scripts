@@ -13,12 +13,14 @@ const [cmd, ...args] = process.argv.slice(2);
 const out = (v) => console.log(typeof v === 'string' ? v : JSON.stringify(v, null, 2));
 
 const USAGE =
-  'commands: stats | terminal <cmd...> | read-terminal | read-tail <name> | aria | body | goto <section> | shot [path]';
+  'commands: stats | terminal <cmd...> | restart <script> | close-tail <title> | read-terminal | read-tail <name> | aria | body | goto <section> | shot [path]';
 
 await bb.withPage(async (page) => {
   switch (cmd) {
     case 'stats': return out(await bb.getStats(page));
     case 'terminal': return out(await bb.runCommand(page, args.join(' ')));
+    case 'restart': return out(args[0] ? await bb.restartScript(page, args[0]) : 'usage: restart <script.js>');
+    case 'close-tail': return out((await bb.closeTail(page, args.join(' '))) ? 'closed' : 'no matching window');
     case 'read-terminal': return out(await bb.readTerminal(page));
     case 'read-tail': return out(await bb.readTail(page, args[0]));
     case 'aria': return out(await bb.ariaSnapshot(page));

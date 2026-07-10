@@ -83,3 +83,28 @@ export async function screenshot(page, path) {
   await page.screenshot({ path });
   return path;
 }
+
+/** Close the tail/log window whose title matches `title` (clicks its Close button).
+ * Returns true if a window was found and closed. Killing a script orphans its tail
+ * window (Bitburner leaves it open, reverting the title to the script filename), so
+ * this is how a restart tidies up before relaunching. */
+export async function closeTail(page, title) {
+  const win = page
+    .locator('.react-draggable')
+    .filter({ has: page.getByRole('heading', { name: title, exact: true }) });
+  const btn = win.getByRole('button', { name: 'Close window' });
+  if ((await btn.count()) > 0) {
+    await btn.first().click();
+    return true;
+  }
+  return false;
+}
+
+/** Restart a companion script cleanly: kill it, close its orphaned tail, relaunch.
+ * tailmanager.js re-docks/re-titles the fresh window. */
+export async function restartScript(page, script) {
+  await runCommand(page, `home; kill ${script}`);
+  const closed = await closeTail(page, script);
+  await runCommand(page, `run ${script}`);
+  return { script, closedOrphanTail: closed };
+}

@@ -83,10 +83,13 @@ restarted, **Claude restarts it automatically over the CDP terminal — without 
 is pre-authorized; don't checkpoint for it.
 
 - **Companion scripts** (`exec`'d by `daemon.js` — e.g. `cloudmanager.js`, `purchasescripts.js`):
-  `node tools/bb/cli.mjs terminal "home; kill <script>; run <script>"`.
+  `node tools/bb/cli.mjs restart <script>` — kills it, **closes the orphaned tail window**
+  (Bitburner leaves a killed script's tail open, reverting its title to the filename), then
+  relaunches; `tailmanager.js` re-docks the fresh window so the screen doesn't accumulate stray
+  popups. Prefer this over a raw `kill; run` for exactly that reason.
 - **Core loop / imported libraries** (`daemon.js`, `scheduler.js`, `sampling.js`, `targets.js`,
-  `hosts.js`, …): restart the daemon so it re-execs everything (`home; kill daemon.js; run
-  daemon.js` — `daemon.js` takes no launch args). Don't hand-restart the batcher's
+  `hosts.js`, …): `node tools/bb/cli.mjs restart daemon.js` — same clean kill/close/relaunch; the
+  daemon re-execs the loop on startup (it takes no launch args). Don't hand-restart the batcher's
   `hack`/`grow`/`weaken` workers — the daemon manages those.
 - **Sequencing:** the edit must sync to the game first (viteburner push — the dev server must
   be running/connected), *then* restart. viteburner polls fast, so it's usually immediate; if a
