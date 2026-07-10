@@ -52,5 +52,18 @@ latency lever is that the *host* can pull on demand rather than waiting on a pas
 such a server coexist with viteburner on a second port — **verify against the installed game
 version before relying on it.**)
 
+## A separate front-end path: UI automation over CDP
+
+Everything above is about the **running game's engine channel** (the RFA), and its "egress is
+files-only" rule still holds there. But there's a distinct path that doesn't touch the engine
+at all: because the game is an Electron/Chromium app, launching it with
+`--remote-debugging-port=9222` exposes the Chrome DevTools Protocol, and a browser-automation
+driver (Playwright over CDP) can then **read the rendered DOM and drive the UI like a human** —
+terminal text, menus, tail-window contents, screenshots, clicks, keystrokes. This is *not* an
+engine RPC (it sees the front-end, not `Player`/engine internals) and needs no game-side code.
+Confirmed working on the Steam build (Bitburner v3.0.1). Toolkit + setup:
+[`tools/bb/README.md`](../tools/bb/README.md).
+
 See also: [dev-server.md](dev-server.md) (operating the RFA connection; stale-socket
-workaround) · [logging.md](logging.md) (the file conventions egress rides on).
+workaround) · [logging.md](logging.md) (the file conventions egress rides on) ·
+[`tools/bb/README.md`](../tools/bb/README.md) (the CDP UI-automation driver).

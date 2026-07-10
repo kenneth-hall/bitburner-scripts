@@ -6,6 +6,22 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
+- **CDP game-driver toolkit** (2026-07-10, primitives validated live): `tools/bb/` attaches to
+  the Steam/Electron game over the Chrome DevTools Protocol (launch with
+  `--remote-debugging-port=9222`) and gives a shell — and Claude via the Bash tool — read+act
+  access to the **live UI**: `stats`, `read-tail <name>`, `terminal <cmd>` (runs a command,
+  returns output), `aria` (clickable-UI outline), `body`, `read-terminal`, `goto`, `shot`
+  (screenshot). All core primitives proven end-to-end against the running game (connect → read
+  exact DOM text → screenshot → navigate → type via real keystrokes → read result). This is the
+  **UI-automation** path (drives the rendered front-end like a human), distinct from the RFA
+  file bridge and needing no engine changes — see `docs/game-bridge.md` and `tools/bb/README.md`.
+  `driver.mjs` holds the reusable helpers; `cli.mjs` is a thin dispatch. **Next decision:**
+  whether to wrap `driver.mjs` in an **MCP server** so these become native Claude tools (no Bash
+  indirection; loads at Claude Code startup, so usable *next* session) vs. keep the Bash CLI.
+  Posture: read-only by default; `terminal`/`goto` drive the live session, so gate writes
+  deliberately. Dep added: `playwright-core` (devDependency; uses the game's own Chromium over
+  CDP, no browser download).
+
 - **Phase 19 — Coding contracts** (2026-07-09, brainstorm stage, **nothing decided**):
   `phase-19-contracts.features.md` captures a mid-brainstorm state — mechanics reference, seven
   findings, ten open questions, no agreed architecture. Blocking question is Q1 (who writes the

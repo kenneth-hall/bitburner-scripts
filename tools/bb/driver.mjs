@@ -1,0 +1,85 @@
+// Reusable driver: attach to the running Bitburner (Steam/Electron) over CDP and
+// expose game-aware read/act helpers. Node-side dev tooling; NOT viteburner-synced.
+//
+// Requires the game launched with:  --remote-debugging-port=9222
+// (set in Steam -> Bitburner -> Properties -> Launch Options: `%command% --remote-debugging-port=9222`)
+//
+// Safety: connects to a browser it did NOT launch. browser.close() on a CDP-connected
+// browser only DISCONNECTS Playwright -- it does not close the game.
+import { chromium } from 'playwright-core';
+
+const CDP = process.env.BB_CDP || 'http://localhost:9222';
+
+/** Connect, hand the live game page to fn, disconnect. */
+export async function withPage(fn) {
+  const browser = await chromium.connectOverCDP(CDP);
+  try {
+    const ctx = browser.contexts()[0];
+    if (!ctx) throw new Error(`no browser context at ${CDP} -- is the game running with --remote-debugging-port=9222?`);
+    const page = ctx.pages()[0];
+    if (!page) throw new Error('connected, but no game page found');
+    return await fn(page, browser);
+  } finally {
+    await browser.close();
+  }
+}
+
+/** Click a left-nav / titlebar button by its accessible name (e.g. "Terminal", "Factions"). */
+export async function goto(page, section) {
+  await page.getByRole('button', { name: section, exact: true }).click();
+  await page.waitForTimeout(300);
+}
+
+/** Full terminal scrollback text (exact). */
+export const readTerminal = (page) =>
+  page.evaluate(() => document.getElementById('terminal')?.innerText ?? '');
+
+/** Run a terminal command and return ONLY the lines it produced (prompt echo + output). */
+export async function runCommand(page, cmd) {
+  await goto(page, 'Terminal');
+  const before = await page.evaluate(() => document.getElementById('terminal')?.children.length ?? 0);
+  const input = page.locator('#terminal-input');
+  await input.click();
+  await page.keyboard.type(cmd, { delay: 15 });
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(700);
+  return page.evaluate((n) => {
+    const el = document.getElementById('terminal');
+    return el ? [...el.children].slice(n).map((c) => c.innerText).join('\n') : '';
+  }, before);
+}
+
+/** Character-overview stats, parsed from the sidebar overview table (present on any screen).
+ * (The overview-*-hook ids are empty plugin mount-points, not value holders.) */
+export const getStats = (page) =>
+  page.evaluate(() => {
+    const WANT = ['HP', 'Money', 'Hack', 'Str', 'Def', 'Dex', 'Agi', 'Cha'];
+    const stats = {};
+    for (const tr of document.querySelectorAll('table tr')) {
+      const cells = [...tr.querySelectorAll('th,td')].map((c) => c.innerText.trim()).filter(Boolean);
+      if (cells.length >= 2 && WANT.includes(cells[0])) stats[cells[0]] = cells[1];
+    }
+    return stats;
+  });
+
+/** Text of a tail/log window whose title matches `name` (e.g. "daemon", "cloud manager"). */
+export const readTail = (page, name) =>
+  page.evaluate((wanted) => {
+    const h = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')]
+      .find((e) => e.innerText.trim().toLowerCase() === wanted.toLowerCase());
+    if (!h) return null;
+    const win = h.closest('.react-draggable') || h.parentElement;
+    return win?.innerText ?? null;
+  }, name);
+
+/** Structured, named outline of the current screen -- best for "what can I click". */
+export const ariaSnapshot = (page) => page.locator('body').ariaSnapshot();
+
+/** Raw visible text of the whole page. */
+export const bodyText = (page) => page.evaluate(() => document.body.innerText);
+
+/** Save a PNG screenshot of the current screen. */
+export async function screenshot(page, path) {
+  await page.screenshot({ path });
+  return path;
+}

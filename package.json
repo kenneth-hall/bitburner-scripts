@@ -8,6 +8,7 @@
     "verify:log": "vitest run --config vitest.verify.config.ts"
   },
   "devDependencies": {
+    "playwright-core": "^1.61.1",
     "typescript": "^5.4.5",
     "vite": "^4.5.3",
     "viteburner": "^0.5.3",
