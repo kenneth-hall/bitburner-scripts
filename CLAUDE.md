@@ -55,6 +55,48 @@ Conventions below apply at every stage (spec-reviewer enforces them).
   server isn't running at all) it kills+restarts `npm run dev` automatically and reports
   one line. No manual "is my computer asleep" debugging should be needed anymore.
 
+## Driving the live game (CDP)
+
+Claude can reach **inside the running game** — not just push files to it. The Steam/Electron
+build exposes the Chrome DevTools Protocol on `--remote-debugging-port=9222` (set as a Steam
+launch option: `%command% --remote-debugging-port=9222`), and `tools/bb/` attaches over CDP to
+**read and drive the rendered UI like a human**: read the terminal / menus / tail windows,
+take screenshots, run terminal commands, click, type. This is **UI automation of the
+front-end**, distinct from the RFA file bridge (which only moves files) — see
+`docs/game-bridge.md` and `tools/bb/README.md`. It needs no engine changes.
+
+- **How to use it:** `node tools/bb/cli.mjs <cmd>` — `stats`, `read-tail <name>`,
+  `terminal "<cmd>"` (runs a terminal command, returns its output), `aria` (clickable-UI
+  outline), `read-terminal`, `body`, `goto <section>`, `shot [path]`. `driver.mjs` holds the
+  reusable helpers; `cli.mjs` is a thin dispatch.
+- **Requires:** the game running **and** launched with the debug flag (the port is only open
+  while the game runs). If `curl http://localhost:9222/json/version` fails, the capability is
+  unavailable — say so, don't guess.
+- **Read-only by default.** `read-*` / `stats` / `aria` / `shot` are safe. `terminal` and
+  `goto` **drive the live session** (navigate / type), moving the player off their screen —
+  use writes deliberately.
+
+### Auto-restart changed scripts — no permission needed
+
+When Claude edits a `src/` script and the change only takes effect after the in-game script is
+restarted, **Claude restarts it automatically over the CDP terminal — without asking.** This
+is pre-authorized; don't checkpoint for it.
+
+- **Companion scripts** (`exec`'d by `daemon.js` — e.g. `cloudmanager.js`, `purchasescripts.js`):
+  `node tools/bb/cli.mjs terminal "home; kill <script>; run <script>"`.
+- **Core loop / imported libraries** (`daemon.js`, `scheduler.js`, `sampling.js`, `targets.js`,
+  `hosts.js`, …): restart the daemon so it re-execs everything (`home; kill daemon.js; run
+  daemon.js` — `daemon.js` takes no launch args). Don't hand-restart the batcher's
+  `hack`/`grow`/`weaken` workers — the daemon manages those.
+- **Sequencing:** the edit must sync to the game first (viteburner push — the dev server must
+  be running/connected), *then* restart. viteburner polls fast, so it's usually immediate; if a
+  restart loads stale behavior, the push hadn't landed — restart again.
+
+**Scope:** this blanket authorization covers **restarting scripts Claude just changed**, nothing
+more. Other consequential in-game writes — buying augmentations, donating/spending money,
+installing augmentations, joining factions, anything that alters game progression — still
+require confirmation per the general "confirm outward-facing actions" rule.
+
 ## Tracking work
 Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas). On
 completion, move a dated, condensed entry to `docs/phases/CHANGELOG.md` — keep history out
