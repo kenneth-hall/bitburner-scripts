@@ -101,10 +101,19 @@ instead of deleting it — don't let history pile up here.
     3 Embedded Netburner Module hacking-mult upgrades (**Analyze Engine** 625k rep/$21.7b, **DMA Upgrade**
     1.0m/$25.3b, **Core V3 Upgrade** 1.75m/$27.1b), 3 combat/defense augs (skip — irrelevant to hacking),
     and **The Red Pill** (2.5m rep/$0). Plus repeatable NeuroFlux. Money is a non-issue ($600t vs ~$74b).
-    **Locked sequence:** grind Daedalus ~465k rep (150 favor, ~2.7h from 115k) → buy 1 NFG level + install
-    (banks 150 favor; near-zero mult) → **donate ~$1.5t → 2.5m rep** → buy the 3 ENM augs + big NFG stack +
-    Red Pill → install (back-to-back, no re-climb between) → rebuild fleet + re-climb to **3000** → backdoor
-    `w0r1d_d43m0n`. Two installs but one re-climb. Saves ~16h vs grinding the full 2.5m.
+    **Locked sequence:** grind Daedalus ~465k rep (150 favor, ~2.7h from 115k) → install (the 2
+    already-queued minor exp augs — NutriGen Implant, Neuregen Gene Mod — bank the favor; no throwaway
+    NFG needed) → **donate generously (~$4–6t → ~7–10M rep, NOT just the $1.5t for Red Pill)** → buy the
+    3 ENM augs + a deep NFG stack + Red Pill → install (back-to-back, no re-climb between) → rebuild fleet
+    + re-climb to **3000** → backdoor `w0r1d_d43m0n`. Two installs but one re-climb.
+  - **NFG stacking is ESSENTIAL, not optional (exp-curve math, 2026-07-11).** `level = mult ×
+    (32·ln(exp)−200)` → exp is exponential in (level/mult). At the current mult **4.72**, re-climbing
+    2,627→3000 needs **~218B exp** (~12× lifetime XP, ~150+h — infeasible, the same log wall that made
+    2500 hard). Raising mult collapses it: M=6 → ~3.2B exp (~2h), **M=8 → ~64M (minutes)**, M=10 → ~6M.
+    So raw grinding CANNOT reach 3000 — mult is the only lever. Donation converts the dead $600t →
+    Daedalus rep → NFG levels (~+1%/level all mults; rep req rises ~9%/level, but donation buys the rep)
+    → target mult ~10+ (NFG ~level 100 ≈ ~7M rep ≈ ~$4–5t + the 3 ENM augs). Exact NFG/level effect + rep
+    scaling assumed from stock Bitburner; verify live when buying (no SF4 to script-read aug stats).
   - **Gate 2 confirmed:** `w0r1d_d43m0n` needs hacking **3000** (standard BN1, `3000×WorldDaemonDifficulty`
     at mult 1.0; server not queryable until Red Pill spawns it). Only ~14% above current ~2,626, so the
     post-install re-climb is "restore position + a bit." Install-cycle mechanics (favor persists, rep

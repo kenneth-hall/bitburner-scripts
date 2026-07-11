@@ -25,10 +25,15 @@ on request — hold to them even when the moment is uncomfortable.
   joined or joinable, reads "No Augmentations left") — the 3 Embedded Netburner Module hacking-mult
   upgrades (Analyze Engine 625k rep, DMA 1.0m, Core V3 1.75m; ~$74b total, trivial vs $600t), unlimited
   NeuroFlux levels, and The Red Pill (2.5m). So a mult install **is** justified → **locked plan:** grind
-  Daedalus to ~465k rep (150 favor) → install a throwaway NFG level to bank the favor → **donate ~$1.5t
-  to jump to 2.5m rep** → buy the 3 ENM augs + a big NFG stack + Red Pill → install → rebuild fleet +
-  re-climb to 3000 → backdoor. Keep the two installs **back-to-back** (no re-climb between). Saves ~16h
-  vs hand-grinding the full 2.5m. Grafting ruled out (`docs/grafting.md`).
+  Daedalus to ~465k rep (150 favor) → install (the 2 already-queued minor exp augs bank the favor; no
+  throwaway needed) → **donate generously (~$4–6t → ~7–10M rep, not just the $1.5t for Red Pill)** →
+  buy the 3 ENM augs + a deep **NFG stack** + Red Pill → install → rebuild fleet + re-climb to 3000 →
+  backdoor. Keep the two installs **back-to-back** (no re-climb between). **NFG stacking is essential,
+  not optional:** the exp curve is exponential in (level/mult), so re-climbing 2,627→3000 at the current
+  mult 4.72 needs ~218B exp (infeasible, ~12× lifetime XP — the same log wall as 2500); at mult ~8 it's
+  ~64M exp (minutes). Donation converts the dead $600t → rep → NFG levels → mult ~10+, which is what
+  makes gate 2 reachable at all. Exact NFG/level effect tuned live when buying (no SF4 to script-read).
+  Grafting ruled out (`docs/grafting.md`).
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say
