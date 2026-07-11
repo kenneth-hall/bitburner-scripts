@@ -33,20 +33,18 @@ They're the `$0`-money "special" servers.
 
 ## Daedalus — extra gates beyond the backdoor
 
-Backdooring `The-Cave` alone will **not** invite you. What the **API actually documents** (gate
-*types* only) — and what it does **not**:
+Backdooring `The-Cave` alone will **not** invite you. The authoritative, SF-free check is
+**`run fl1ght.exe`** on `home` — the game prints a live checklist of Daedalus's gates for the
+current BitNode (its own hint, so these numbers are confirmed, not guessed):
 
-- **Installed augmentations ≥ a threshold.** Confirmed by `BitNodeMultipliers.DaedalusAugsRequirement`
-  ("influences how many Augmentations you need to get invited to Daedalus") — so the count is
-  **BitNode-modifiable**. The API does **not** state the base number.
-- **Money ≥ a threshold** (`MoneyRequirement` type exists). Amount not published.
-- **Skills ≥ a threshold** (`SkillsRequirement` type — a hacking OR combat gate). Values not published.
+- **Installed augmentations ≥ 30** (`BitNodeMultipliers.DaedalusAugsRequirement` scales this per BitNode).
+- **Money ≥ $100b** (`MoneyRequirement`).
+- **Hacking skill ≥ 2500** — OR all combat stats ≥ 1500 (`SkillsRequirement`; `fl1ght.exe` tracks the hacking path).
 
-The widely-known vanilla values are roughly **30 installed augs, ~$100b, and 2500 hacking OR 1500 in
-each combat stat** — but these are **NOT from an allowed source** (not in `markdown/`), are
-BitNode-modifiable, and should be treated as indicative only. Authoritative check:
-`ns.singularity.getFactionInviteRequirements("Daedalus")` — but that needs **SF4**, which we don't
-have, so confirm in-game instead.
+**Status 2026-07-10 (`run fl1ght.exe`):** augmentations **39/30 ✅**, money **✅** (trillions vs $100b),
+hacking **~1567/2500 ❌**. So **hacking skill is the only remaining gate** — combat stats are 1, so the
+2500-hacking path is the route. (`ns.singularity.getFactionInviteRequirements("Daedalus")` would also
+report this, but needs SF4 we don't have; `fl1ght.exe` is the SF-free equivalent.)
 
 ## Netburners — Hacknet-gated, no server
 
