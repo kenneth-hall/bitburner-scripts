@@ -82,13 +82,19 @@ instead of deleting it — don't let history pile up here.
   Hacking Contracts — because no Singularity means the daemon can't script `workForFaction`, and the
   donate-for-rep shortcut ($418t on hand) is locked behind 150 favor (Daedalus is at 0). Measured
   focused rate **22.827 rep/sec** with share OFF → ~30 h to 2.5m.
-  - **The daemon's one lever is `ns.share()` — already built (Phase 8), currently OFF.** `share-off.txt`
-    is present on home so `effectiveShareFraction=0` (fleet ~3% util, `sharePower:1`). `ns.share()`
-    multiplies faction-work rep for all factions; turning it on (`rm share-off.txt`) costs ~nothing
-    (money dead, batcher is target-limited not RAM-limited) and should lift the 22.8/sec. **Action:
-    flip it on and measure the rep/sec delta** before touching `SHARE_FRACTION` (share power is
-    logarithmic in threads, so 25% likely already captures most of it). This also finally tests the
-    2026-07-06 open question (does the share boost require *active* faction work — see Ideas item).
+  - **`ns.share()` (Phase 8) turned ON 2026-07-11 → measured win.** `rm share-off.txt`; daemon printed
+    `INFO: share ON (25%)`, 1.66M share threads, `sharePower 1.573`, rep/sec **22.827 → 35.924** (×1.573,
+    exactly sharePower) → ~30h → **~19h** to 2.5m. Also resolved the 2026-07-06 open question: the boost
+    **only applies while actively faction-working** (sharePower 1.00 idle → 1.57 working). Don't raise
+    `SHARE_FRACTION` above 25% — share power is logarithmic, the extra threads add only ~a few percent.
+  - **Donation shortcut — DON'T hand-grind the full 2.5m (Formulas.exe `favorprobe.js`, 2026-07-11).**
+    Donations unlock at **150 favor**, which needs only **~462,500 rep** accumulated + an install (~1/5 of
+    2.5m); once unlocked **$1.47t buys the full 2.5m rep instantly** (had $481t). Recommended: grind ~500k
+    Daedalus rep NOW while hacking is high (~3.5h at 35.9/sec) → fold into the planned multiplier install
+    (banks 150 favor) → donate ~$1.5t for 2.5m rep → buy Red Pill. **Catch:** Red Pill needs its own
+    install, so keep the two installs back-to-back (no re-climb between) to pay for only ONE hacking
+    re-climb. If a re-climb lands between them, grinding the full 2.5m and installing Red Pill + augs
+    together (one reset) wins instead. All via UI (no Singularity). Probe left as `src/favorprobe.js`.
   - **Sequencing risk — don't install Red Pill the instant rep hits 2.5m.** Installing it resets
     hacking, and there's a further gate after: backdooring `w0r1d_d43m0n` needs hacking well above
     2,600. Confirm that exact requirement first so the final install is timed to re-clear it fast, not
@@ -271,6 +277,10 @@ instead of deleting it — don't let history pile up here.
   get upgraded post-Singularity. Same deferred question as Phase 8's core-weighted *share*
   placement (`sharecurve.js:33-35`) — co-scope the two if either is revived.
 
+- **[RESOLVED 2026-07-11] `sharePower` reading 1.00 with live share threads in flight** — the
+  hypothesis below was correct: the share boost **only accrues while actively doing faction work**.
+  Confirmed live — 1.66M idle share threads read `sharePower 1.00`; the instant Daedalus Hacking
+  Contracts started, it read 1.573 and rep/sec rose ×1.573. Not a bug. Original note kept below.
 - **Investigate `sharePower` reading 1.00 with live share threads in flight** (2026-07-06,
   filed from Phase 15's diagnosis, S3, out of scope for that phase): the exported
   `daemon-batch-log.json` showed `sharePower: 1.00` for a full hour with 58 share threads
