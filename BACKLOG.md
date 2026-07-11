@@ -6,6 +6,11 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
+- **Phase 20 — XP farm — SHELVED 2026-07-11 (spec done, not implementing now).** The 2500 hacking
+  gate was cleared before the engine could ship, and the goal has moved to Daedalus rep (see Next Up),
+  which XP throughput doesn't serve. `phase-20-xpfarm.spec.md` stays on disk as a ready-to-implement
+  durable BN2+ tool — resume it only when a fresh BitNode's XP re-climb makes throughput the binding
+  constraint again. Not deleted; just not this cycle. Original entry kept below for the reasoning trail.
 - **Phase 20 — XP farm** (2026-07-11, brainstorm stage → `phase-20-xpfarm.features.md`):
   Convert the ~98% idle fleet into hacking XP to cut the 2500 ETA (measured after `share-off.txt`:
   util ~2%, ~22.9 PB free of ~26.5 PB — money batcher structurally can't fill the fleet; money is a
@@ -72,7 +77,24 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
-- **Reach the Daedalus hacking-2500 gate — multiplier stacking via install cycles** (2026-07-11,
+- **Grind 2.5m Daedalus rep for The Red Pill** (2026-07-11 — supersedes the 2500-gate item below,
+  which is **CLEARED**: hacking ~2,600, Daedalus **joined**). This is a **manual UI grind** —
+  Hacking Contracts — because no Singularity means the daemon can't script `workForFaction`, and the
+  donate-for-rep shortcut ($418t on hand) is locked behind 150 favor (Daedalus is at 0). Measured
+  focused rate **22.827 rep/sec** with share OFF → ~30 h to 2.5m.
+  - **The daemon's one lever is `ns.share()` — already built (Phase 8), currently OFF.** `share-off.txt`
+    is present on home so `effectiveShareFraction=0` (fleet ~3% util, `sharePower:1`). `ns.share()`
+    multiplies faction-work rep for all factions; turning it on (`rm share-off.txt`) costs ~nothing
+    (money dead, batcher is target-limited not RAM-limited) and should lift the 22.8/sec. **Action:
+    flip it on and measure the rep/sec delta** before touching `SHARE_FRACTION` (share power is
+    logarithmic in threads, so 25% likely already captures most of it). This also finally tests the
+    2026-07-06 open question (does the share boost require *active* faction work — see Ideas item).
+  - **Sequencing risk — don't install Red Pill the instant rep hits 2.5m.** Installing it resets
+    hacking, and there's a further gate after: backdooring `w0r1d_d43m0n` needs hacking well above
+    2,600. Confirm that exact requirement first so the final install is timed to re-clear it fast, not
+    to knock hacking back below it. The install-cycle mechanics (favor persists, rep resets) still
+    apply — see the superseded item below for that reasoning.
+- **[SUPERSEDED — 2500 gate CLEARED 2026-07-11] Reach the Daedalus hacking-2500 gate — multiplier stacking via install cycles** (2026-07-11,
   plan corrected; supersedes the 2026-07-10 "XP-max batcher" framing below):
   The endgame (finish BitNode 1 → Red Pill → Source-File) is gated on **Daedalus**, and per
   `run fl1ght.exe` the *only* unmet gate is **hacking skill ≥ 2500** (augs 39/30 ✅, money ✅; combat

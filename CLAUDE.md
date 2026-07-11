@@ -9,10 +9,15 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** finish BitNode 1. The binding constraint is the
-  **hacking exp/skill multiplier**, *not* XP throughput — the skill curve is logarithmic, so raw
-  grinding can't reach the 2500 Daedalus gate (measured 2026-07-11: ~5,400 h of active play at the
-  current rate). Multiplier-raising augmentations are the real lever; throughput is a rounding error.
+- **Current goal (keep this line current):** finish BitNode 1. The 2500 hacking gate is **cleared**
+  (2026-07-11, hacking ~2,600) and Daedalus is **joined**. Two gates remain: (1) grind **2.5m Daedalus
+  rep** to buy The Red Pill, and (2) a further **hacking re-climb** to backdoor `w0r1d_d43m0n` after
+  installing it — installing Red Pill resets hacking, so the two are entangled through that install and
+  the sequence must be confirmed (exact world-daemon hacking req not yet verified) before installing.
+  Levers for the rep grind: **manual** faction work (Hacking Contracts — no Singularity, so the daemon
+  can't script it) plus **`ns.share()`**, which multiplies faction-work rep and is an *already-built*
+  daemon capability — no goal-specific daemon mode needed or wanted. Measured focused rate 22.8 rep/sec
+  with share OFF (2026-07-11) → ~30 h; share-on delta TBD.
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say
