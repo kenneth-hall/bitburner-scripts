@@ -27,7 +27,14 @@ instead of deleting it — don't let history pile up here.
     and a *busy* fleet, so the engine **coexists with the money batcher and takes only surplus RAM**
     (self-scales: ~0 early, dominant once the fleet outgrows money needs), not the endgame-only "abandon
     money / seize the fleet." Q1 verified (hack exp is money-independent → hack-saturation, no grow);
-    features doc decisions finalized. **Next: spec stage (fable) → `phase-20-xpfarm.spec.md` + spec-reviewer.**
+    features doc decisions finalized.
+  - **Spec stage done (2026-07-11): `phase-20-xpfarm.spec.md` drafted + cold-reviewed (2 blockers
+    fixed: carveReservation strips maxRam so the per-host reserve applies *before* the claim carve;
+    snapshot `draining` is optional and absent ≠ malformed). Notable spec-stage override of features
+    decision 4: dedicated worker filenames `xphack.js`/`xpweaken.js` (same RAM), because
+    `inFlightByTarget` counts every `hack.js` process as a batch — filename reuse corrupts the
+    batcher's accounting. Ship gate set at ≥3× exp/sec vs batcher-only A/B.
+    **Next: implement (sonnet) on branch `phase20-xpfarm`.**
 
 - **CDP game-driver toolkit** (2026-07-10, primitives validated live): `tools/bb/` attaches to
   the Steam/Electron game over the Chrome DevTools Protocol (launch with
