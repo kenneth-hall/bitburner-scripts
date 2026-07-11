@@ -123,6 +123,19 @@ records our **owned Source-File level** shown on each panel.
 start 32GB home RAM, +all mults L1 16% / L2 24% / L3 28%. Panel offers *Advanced options* and
 *Enter BN1.2* (repeat for SF1.2). Current holding: **SF1.1** (BN1 cleared once).
 
+### BN2: Rise of the Underworld — owned **SF2 level 0 / 3** (not cleared)
+SF2: form gangs in other nodes (karma-gated) + crime success/money/charisma L1 24 / L2 36 / L3 42%.
+Only listed multipliers differ from BN1 (100%); the rest are baseline. Multiplier table:
+- **General** — `w0r1d_d43m0n` Difficulty: **500%** (backdoor-hack gate ≈ hacking 15000 — but BN2's gang offers The Red Pill, the intended path)
+- **Skills** — Hacking Level: **80%**
+- **Faction** — Work Reputation: **50%** · Passive Rep: **0%**
+- **Hacking** — Server Growth Rate: **80%** · Server Max Money: **8%** · Server Starting Money: **40%**
+- **Cloud Servers** — Softcap Cost: **1.300**
+- **Crime** — Crime Money: **300%**
+- **Infiltration** — Infiltration Money: **300%**
+- **Corporation** — Corporation Softcap: **0.900** · Division limit: **90%**
+- **Stanek's Gift** — Gift Power: **200%** · Base Size Modifier: **−6.00000**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -179,3 +192,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Added the in-game Comprehensive recommendation guide (per-node peculiarities +
   order advice), parsed via CDP.
 - 2026-07-11 — Started per-node BitVerse selection-panel captures: BN1 (owned SF1 level 1/3).
+- 2026-07-11 — Captured BN2 selection panel + full multiplier table (SF2 not yet owned).
