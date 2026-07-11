@@ -10,14 +10,18 @@ solutions — work from game mechanics and the API.
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** finish BitNode 1. The 2500 hacking gate is **cleared**
-  (2026-07-11, hacking ~2,600) and Daedalus is **joined**. Two gates remain: (1) grind **2.5m Daedalus
-  rep** to buy The Red Pill, and (2) a further **hacking re-climb** to backdoor `w0r1d_d43m0n` after
-  installing it — installing Red Pill resets hacking, so the two are entangled through that install and
-  the sequence must be confirmed (exact world-daemon hacking req not yet verified) before installing.
-  Levers for the rep grind: **manual** faction work (Hacking Contracts — no Singularity, so the daemon
-  can't script it) plus **`ns.share()`**, which multiplies faction-work rep and is an *already-built*
-  daemon capability — no goal-specific daemon mode needed or wanted. Measured focused rate 22.8 rep/sec
-  with share OFF (2026-07-11) → ~30 h; share-on delta TBD.
+  (2026-07-11, hacking ~2,600) and Daedalus is **joined**. Two gates remain: (1) get Daedalus to
+  **2.5m rep** to buy The Red Pill, and (2) a **hacking re-climb** to backdoor `w0r1d_d43m0n` after
+  installing it. **Recommended path for (1) — don't hand-grind 2.5m:** grind ~500k Daedalus rep now,
+  while hacking is high (share ON, measured **35.9 rep/sec**, ~3.5 h), bank 150 favor via the planned
+  multiplier install, then **donate ~$1.5t for the rest** (`docs/reputation-favor.md`). The Red Pill
+  needs its **own** install, so keep the mult-install and Red-Pill-install **back-to-back** to pay for
+  only ONE hacking re-climb. All levers are manual UI (no Singularity) except **`ns.share()`**, an
+  *already-built* daemon capability — no goal-specific daemon mode needed or wanted. **Two open
+  dependencies before locking the sequence:** the exact `w0r1d_d43m0n` hacking req (unverified — gates
+  gate 2 and install timing) and the queued-aug inventory (decides whether a mult install is justified;
+  if not, just grind the full 2.5m and install Red Pill + augs together, one reset). Grafting ruled out
+  (`docs/grafting.md`).
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say
