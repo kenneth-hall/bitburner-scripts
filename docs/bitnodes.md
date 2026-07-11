@@ -240,6 +240,23 @@ servers are disabled outright (matches the comprehensive guide's warning). Multi
 - **Bladeburner** — Rank Gain: **90%** · Skill Cost: **120%**
 - **Stanek's Gift** — Gift Power: **50%** · Base Size Modifier: **+2.00000**
 
+### BN10: Digital Carbon — owned **SF10 level 0 / 3** (not cleared)
+Unlocks Sleeves + Grafting (Grafting via VitaLife, New Tokyo). SF10: Sleeve + Grafting API
+elsewhere; **+1 Sleeve per level**. Multiplier table:
+- **General** — `w0r1d_d43m0n` Difficulty: **200%** · Hacknet Production: **50%** · Coding Contract Reward: **50%**
+- **Skills** — Hacking Level: **35%** · Strength/Defense/Dexterity/Agility/Charisma Level: **40%** each
+- **Augmentations** — Money Cost: **500%** · Reputation Cost: **200%**
+- **Hacking** — Money Gained From Manual Hack: **50%** · Stolen Money From Hack: **50%**
+- **Cloud Servers** — Base Cost: **5.000** · Softcap Cost: **1.100** · Server Limit: **60%** · Max RAM: **50%** · Home RAM Cost: **150%**
+- **Crime** — Crime Money: **50%**
+- **Darknet** — Darknet Money: **40%**
+- **Infiltration** — Infiltration Money: **50%**
+- **Company** — Work Money: **50%**
+- **Gang** — Gang Softcap: **0.900** · Unique Augmentations: **25%**
+- **Corporation** — Corporation Softcap: **0.900** · Valuation: **50%** · Division limit: **90%**
+- **Bladeburner** — Rank Gain: **80%**
+- **Stanek's Gift** — Gift Power: **75%** · Base Size Modifier: **−3.00000**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -308,3 +325,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
   all non-stock income zeroed, Corp/Bladeburner disabled, no `w0r1d_d43m0n` row at all.
 - 2026-07-11 — Captured BN9 selection panel + full multiplier table (SF9 not yet owned); Server
   Limit 0% confirms private servers disabled, hacking exp 5%/max money 1% confirm "extremely harsh".
+- 2026-07-11 — Captured BN10 selection panel + full multiplier table (SF10 not yet owned).
