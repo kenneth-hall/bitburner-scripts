@@ -273,6 +273,27 @@ table (matches "harsh mults, mediocre reward" from the guide):
 - **Gang** — Unique Augmentations: **75%**
 - **Corporation** — Corporation Softcap: **0.900** · Valuation: **10%** · Division limit: **90%**
 
+### BN12: The Recursion — owned **SF12 level 0 / ∞** (only node with no level cap)
+Gets harder every completion; SF12 grants free NeuroFlux Governor levels = SF12's own level.
+Multiplier table below is the **level-0/1 preview** — nearly every value sits within ~2% of
+baseline (98.039% or 102%), confirming the guide's "easy at first, ramps up" — this is what
+the *first* completion looks like, not the endgame-harsh version:
+- **General** — `w0r1d_d43m0n` Difficulty: **102%** · Daedalus Augs Requirement: **31** · Hacknet Production: **98.039%** · Coding Contract Reward: **98.039%** · Class/Gym Exp: **98.039%**
+- **Skills** — Hacking/Strength/Defense/Dexterity/Agility/Charisma Level: **98.039%** each
+- **Faction** — Favor to Donate: **102%** · Work Reputation: **98.039%** · Work Exp: **98.039%** · Passive Rep: **98.039%**
+- **Augmentations** — Money Cost: **102%** · Reputation Cost: **102%**
+- **Hacking** — Hacking Exp: **98.039%** · Server Growth Rate: **98.039%** · Server Max Money: **96.117%** · Server Starting Money: **98.039%** · Server Starting Security: **150%** · Server Weaken Rate: **98.039%** · Money Gained From Manual Hack: **98.039%** · Stolen Money From Hack: **98.039%**
+- **Cloud Servers** — Base Cost: **1.020** · Softcap Cost: **1.020** · Server Limit: **98.039%** · Max RAM: **98.039%** · Home RAM Cost: **102%**
+- **Stock Market** — Market Data Cost: **102%** · Market Data API Cost: **102%**
+- **Crime** — Crime Exp: **98.039%** · Crime Money: **98.039%**
+- **Darknet** — Darknet Money: **98.039%**
+- **Infiltration** — Infiltration Money: **98.039%** · Infiltration Reputation: **98.039%**
+- **Company** — Work Money: **98.039%** · Work Exp: **98.039%**
+- **Gang** — Gang Softcap: **0.800** · Unique Augmentations: **98.039%**
+- **Corporation** — Corporation Softcap: **0.800** · Valuation: **98.039%** · Division limit: **50%**
+- **Bladeburner** — Rank Gain: **98.039%** · Skill Cost: **102%**
+- **Stanek's Gift** — Gift Power: **102%** · Base Size Modifier: **+1.02000**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -343,3 +364,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
   Limit 0% confirms private servers disabled, hacking exp 5%/max money 1% confirm "extremely harsh".
 - 2026-07-11 — Captured BN10 selection panel + full multiplier table (SF10 not yet owned).
 - 2026-07-11 — Captured BN11 selection panel + full multiplier table (SF11 not yet owned).
+- 2026-07-11 — Captured BN12 selection panel + multiplier table (SF12 0/∞, uncapped level).
