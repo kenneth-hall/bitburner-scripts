@@ -13,7 +13,8 @@ bootstrapping *from*:
 
 | | **Install augmentations** (soft reset) | **Enter a new BitNode** (hard reset) |
 |---|---|---|
-| Money, servers, home RAM/cores | reset | reset |
+| Money, purchased servers | reset | reset |
+| **Home RAM & cores** | **kept** ✅ | reset ❌ |
 | Skills + XP (hacking, combat, etc.) | reset | reset |
 | Faction membership & rep | reset | reset |
 | Created programs, in-game scripts | reset* | reset* |
@@ -35,6 +36,25 @@ so a rebuild is instant.
   re-unlock. After a *hard* reset you also re-climb the aug count — relevant because Daedalus gates on
   **≥30 installed augs** (see below), and a fresh BitNode is also the only way to reach zero augs, which
   is what **Stanek's Gift** requires (Church of the Machine God accepts only aug-free players).
+
+## Before a soft reset (install): spend down while rich — FIRST STEP
+
+Money resets to ~$1k on install, but **home RAM & cores persist** (see table). So the moment you're
+richest — right before installing — is the *only* good time to buy expensive permanent home upgrades.
+Do this **first**, before clicking Install:
+1. **Max out home RAM and cores you can afford.** They carry through the install; your money won't.
+   (Home RAM has only a handful of tiers, so this is quick and may already be near-capped.)
+2. **Buy every augmentation you intend to take this cycle first** — the price of each queued aug rises
+   with each one already queued, but they all reset on install, so batching the purchases in one cycle
+   is fine; just don't install until the buy list is complete.
+3. *Then* install. Everything else (money, servers, skills, rep) is about to reset anyway, so there's
+   no downside to draining the balance into what survives.
+
+Why it matters for the current goal: installing is the **fast path** to the hacking-2500 Daedalus gate,
+not a setback — activating queued hacking-multiplier augs cuts the XP wall super-linearly (a level-mult
+bump of 3.55×→3.83× cut the XP-to-2500 ~5× in the 2026-07-11 measurement), so the reset-to-zero re-climb
+reaches *higher* than grinding the un-installed run ever would. Don't hoard levels; install to raise the
+multiplier, then re-climb.
 
 ## Core rule: auto-UNLOCK, never auto-JOIN
 
