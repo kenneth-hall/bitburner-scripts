@@ -9,6 +9,11 @@ screen** for BN4's detailed multiplier table. This build has **15 BitNodes** (va
 programmatically, but it **requires being in BitNode 5 or holding SF5** — we have neither, so
 per-node multiplier tables must be hand-read off the BitNode selection screen until SF5.
 
+**Singularity note:** `ns.singularity.*` is likewise **not scriptable for us right now** — it's
+available only *in-node in BN4* (before SF4, at 16× RAM) or *anywhere with SF4*. We have neither
+(we exited BN4 without clearing it), so all faction/company work, aug buy/install, program
+creation, and backdoors remain **manual-UI / CDP-driven** until we clear BN4.
+
 ## How BitNodes work (from the doc page)
 - Destroying a BitNode resets most progress but grants a persistent **Source-File** (different
   node → different SF). **Persists across destruction:** Source-Files, scripts on home, Intelligence.
@@ -539,3 +544,6 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
   attacking BN5's exponential gate (+ open Q: push to SF1.3?); batcher lens split into economy-vs-gate
   axes; BN10 fleet-throttle noted + its deferral reason fixed (grafting, not SF5); constraint tension
   surfaced (our constraints exclude all 3 rep-tax killers — open Q: is "no new engine" worth it?).
+- 2026-07-11 — **Locked the near-term goal: clear BN1 once more → SF1.2, then BN5.** Resolved the
+  SF1.3 open question → **stop at 1.2** (1.2→1.3 is +4pp for a whole extra endgame; revisit after a
+  rep-tax-killer). Mirrored into CLAUDE.md's goal line. Added the Singularity-availability note above.
