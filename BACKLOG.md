@@ -208,6 +208,45 @@ instead of deleting it — don't let history pile up here.
     measurement shows throughput is a rounding error against the multiplier — **do not build XP-max mode.**
     The `hacking-progress-log.json` instrumentation (c12a3d5) it produced stays useful as the ETA baseline.
 
+- **Static aug/faction install-order planner (one-time best-case calc)** (2026-07-11, decided,
+  not started): a *one-time* calculator that outputs the optimal **faction join-set + hacking-mult
+  aug buy-list** to maximize level-mult/exp-mult toward the Daedalus-2500 gate. Its real job is
+  settling the **irreversible mutually-exclusive faction-join decisions** (a wrong city-faction pick
+  locks you out of another's hacking augs and wastes a whole cycle's rep grind) *before* you commit —
+  a static decision that needs no current rep. Execute the plan by eye afterward (glance at your own
+  in-game rep bar). Supports the install-cycle strategy in the Daedalus item above and
+  `docs/reset-protocol.md`; supersedes the vaguer "Augment reservation cost model" Phase 10 follow-up
+  for the *ordering* question.
+  - **NOT SF4-gated — buildable now.** Inputs: owned state (base `ns`, already dumped by `auginfo.js`)
+    + the **aug catalog**. Current *rep* is the only SF4-blocked input and the planner doesn't need it
+    (it uses each aug's static rep *requirement*, not your live rep). Purchase/install execution is
+    explicitly **out of scope** (that's the SF4-gated acting half).
+  - **Catalog ASSEMBLED 2026-07-11 → `docs/aug-catalog-known-factions.json` (+ `docs/aug-catalog.md`).**
+    Parsed from bitburner-src `Augmentations.ts` + enum files (static lookup; not `ns`/CDP, which are
+    SF4-locked / joined-faction-only). 53 augs across the 11 in-scope factions, 30 hacking-relevant.
+    Carries the full multiplier block per aug (stat-complete → objective stays a parameter, reusable
+    BN-to-BN). Regeneration + the non-obvious mechanics (rep is a *threshold* not a cost; Red Pill is
+    the exit aug; cross-faction prereq DAG; exclude Church/Stanek) are documented in `aug-catalog.md`.
+    **Remaining work is the planner *logic***; the data half is done.
+  - **Spoiler boundary — settled: scope = unlocked/known factions only** (reachable-now, not
+    full-foresight). Widen the catalog's faction list as new factions are joined (Daedalus was added
+    the day it was joined). Keeps the tool spoiler-clean at the cost of no foresight into unreached
+    factions — an acceptable trade since join-order among *known* factions is the live decision.
+  - **Output shape (decided via worked example): a ranked plan-comparison, acted on by eye** — N
+    candidate plans scored by total hours-to-goal, not a step-by-step timeline. Decomposes into
+    tractable sub-calcs: (A) xp-hours-to-level-L given mult M [have the log fit], (B) best mult from a
+    faction/aug set [have the catalog], (C) rep-hours for a buy-list [needs a rep/sec measure], (D) the
+    marginal-install test "does one more cycle cut total time?". Build **(D)+(A) first** — the
+    install-now-vs-climb decision is the only one that materially moves the timeline. A fully
+    autonomous global optimizer over all cycle-counts × orders × path-types is **too open-ended /
+    false precision** — human proposes plans, model scores them.
+  - **Moot post-SF4, NOT a deferred todo — the live "best-case-for-right-now" watcher.** Rejected as a
+    build target on three counts: (1) SF4-gated (needs live `getFactionRep`; CDP workaround sees only
+    joined factions), (2) *redundant* — its job is reading back a rep number already on your screen, so
+    low-value even *with* SF4, and (3) obsoleted by SF4 — once you have Singularity you'd build the full
+    join/buy/install pipeline through `ns.singularity`, not resurrect this watcher. File as a non-item,
+    not "todo after BN4."
+
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
   "no matter what." Recommended against running the full ~67GB script resident indefinitely — the

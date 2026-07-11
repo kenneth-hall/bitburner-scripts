@@ -1,0 +1,1042 @@
+[
+  {
+    "name": "Stanek's Gift - Genesis",
+    "key": "StaneksGift1",
+    "factions": [
+      "Church of the Machine God"
+    ],
+    "moneyCost": 0,
+    "repCost": 0,
+    "hackMults": {
+      "hacking": 0.9,
+      "hacking_exp": 0.9,
+      "hacking_money": 0.9,
+      "hacking_chance": 0.9,
+      "hacking_speed": 0.9,
+      "hacking_grow": 0.9
+    },
+    "otherMults": {
+      "strength": 0.9,
+      "defense": 0.9,
+      "dexterity": 0.9,
+      "agility": 0.9,
+      "charisma": 0.9,
+      "strength_exp": 0.9,
+      "defense_exp": 0.9,
+      "dexterity_exp": 0.9,
+      "agility_exp": 0.9,
+      "charisma_exp": 0.9,
+      "company_rep": 0.9,
+      "faction_rep": 0.9,
+      "crime_money": 0.9,
+      "crime_success": 0.9,
+      "hacknet_node_money": 0.9,
+      "hacknet_node_purchase_cost": 1.1,
+      "hacknet_node_ram_cost": 1.1,
+      "hacknet_node_core_cost": 1.1,
+      "hacknet_node_level_cost": 1.1,
+      "work_money": 0.9
+    },
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "NeuroFlux Governor",
+    "key": "NeuroFluxGovernor",
+    "factions": [
+      "Daedalus",
+      "BitRunners",
+      "The Black Hand",
+      "NiteSec",
+      "Chongqing",
+      "Ishima",
+      "New Tokyo",
+      "Netburners",
+      "Tian Di Hui",
+      "CyberSec"
+    ],
+    "moneyCost": 750000,
+    "repCost": 500,
+    "hackMults": {
+      "hacking": 1.01,
+      "hacking_exp": 1.01,
+      "hacking_money": 1.01,
+      "hacking_chance": 1.01,
+      "hacking_speed": 1.01,
+      "hacking_grow": 1.01
+    },
+    "otherMults": {
+      "strength": 1.01,
+      "defense": 1.01,
+      "dexterity": 1.01,
+      "agility": 1.01,
+      "charisma": 1.01,
+      "strength_exp": 1.01,
+      "defense_exp": 1.01,
+      "dexterity_exp": 1.01,
+      "agility_exp": 1.01,
+      "charisma_exp": 1.01,
+      "company_rep": 1.01,
+      "faction_rep": 1.01,
+      "crime_money": 1.01,
+      "crime_success": 1.01,
+      "dnet_money": 1.01,
+      "hacknet_node_money": 1.01,
+      "hacknet_node_purchase_cost": 0.9900990099009901,
+      "hacknet_node_ram_cost": 0.9900990099009901,
+      "hacknet_node_core_cost": 0.9900990099009901,
+      "hacknet_node_level_cost": 0.9900990099009901,
+      "work_money": 1.01
+    },
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Neurotrainer I",
+    "key": "Neurotrainer1",
+    "factions": [
+      "CyberSec"
+    ],
+    "moneyCost": 4000000,
+    "repCost": 1000,
+    "hackMults": {
+      "hacking_exp": 1.1
+    },
+    "otherMults": {
+      "strength_exp": 1.1,
+      "defense_exp": 1.1,
+      "dexterity_exp": 1.1,
+      "agility_exp": 1.1,
+      "charisma_exp": 1.1
+    },
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Synaptic Enhancement Implant",
+    "key": "SynapticEnhancement",
+    "factions": [
+      "CyberSec"
+    ],
+    "moneyCost": 7500000,
+    "repCost": 2000,
+    "hackMults": {
+      "hacking_speed": 1.03
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "BitWire",
+    "key": "BitWire",
+    "factions": [
+      "CyberSec",
+      "NiteSec"
+    ],
+    "moneyCost": 10000000,
+    "repCost": 3750,
+    "hackMults": {
+      "hacking": 1.05
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Artificial Synaptic Potentiation",
+    "key": "ArtificialSynapticPotentiation",
+    "factions": [
+      "The Black Hand",
+      "NiteSec"
+    ],
+    "moneyCost": 80000000,
+    "repCost": 6250,
+    "hackMults": {
+      "hacking_exp": 1.05,
+      "hacking_chance": 1.05,
+      "hacking_speed": 1.02
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Cranial Signal Processors - Gen I",
+    "key": "CranialSignalProcessorsG1",
+    "factions": [
+      "CyberSec",
+      "NiteSec"
+    ],
+    "moneyCost": 70000000,
+    "repCost": 10000,
+    "hackMults": {
+      "hacking": 1.05,
+      "hacking_speed": 1.01
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Neurotrainer II",
+    "key": "Neurotrainer2",
+    "factions": [
+      "BitRunners",
+      "NiteSec"
+    ],
+    "moneyCost": 45000000,
+    "repCost": 10000,
+    "hackMults": {
+      "hacking_exp": 1.15
+    },
+    "otherMults": {
+      "strength_exp": 1.15,
+      "defense_exp": 1.15,
+      "dexterity_exp": 1.15,
+      "agility_exp": 1.15,
+      "charisma_exp": 1.15
+    },
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Embedded Netburner Module",
+    "key": "ENM",
+    "factions": [
+      "BitRunners",
+      "The Black Hand",
+      "NiteSec"
+    ],
+    "moneyCost": 250000000,
+    "repCost": 15000,
+    "hackMults": {
+      "hacking": 1.08
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Cranial Signal Processors - Gen II",
+    "key": "CranialSignalProcessorsG2",
+    "factions": [
+      "CyberSec",
+      "NiteSec"
+    ],
+    "moneyCost": 125000000,
+    "repCost": 18750,
+    "hackMults": {
+      "hacking": 1.07,
+      "hacking_chance": 1.05,
+      "hacking_speed": 1.02
+    },
+    "otherMults": {},
+    "prereqs": [
+      "Cranial Signal Processors - Gen I"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Neural-Retention Enhancement",
+    "key": "NeuralRetentionEnhancement",
+    "factions": [
+      "NiteSec"
+    ],
+    "moneyCost": 250000000,
+    "repCost": 20000,
+    "hackMults": {
+      "hacking_exp": 1.25
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Neuregen Gene Modification",
+    "key": "Neuregen",
+    "factions": [
+      "Chongqing"
+    ],
+    "moneyCost": 375000000,
+    "repCost": 37500,
+    "hackMults": {
+      "hacking_exp": 1.4
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "CRTX42-AA Gene Modification",
+    "key": "CRTX42AA",
+    "factions": [
+      "NiteSec"
+    ],
+    "moneyCost": 225000000,
+    "repCost": 45000,
+    "hackMults": {
+      "hacking": 1.08,
+      "hacking_exp": 1.15
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Cranial Signal Processors - Gen III",
+    "key": "CranialSignalProcessorsG3",
+    "factions": [
+      "NiteSec",
+      "The Black Hand",
+      "BitRunners"
+    ],
+    "moneyCost": 550000000,
+    "repCost": 50000,
+    "hackMults": {
+      "hacking": 1.09,
+      "hacking_money": 1.15,
+      "hacking_speed": 1.02
+    },
+    "otherMults": {},
+    "prereqs": [
+      "Cranial Signal Processors - Gen II",
+      "Cranial Signal Processors - Gen I"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Neuralstimulator",
+    "key": "Neuralstimulator",
+    "factions": [
+      "The Black Hand",
+      "Chongqing",
+      "New Tokyo",
+      "Ishima"
+    ],
+    "moneyCost": 3000000000,
+    "repCost": 50000,
+    "hackMults": {
+      "hacking_exp": 1.12,
+      "hacking_chance": 1.1,
+      "hacking_speed": 1.02
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Enhanced Myelin Sheathing",
+    "key": "EnhancedMyelinSheathing",
+    "factions": [
+      "BitRunners",
+      "The Black Hand"
+    ],
+    "moneyCost": 1375000000,
+    "repCost": 100000,
+    "hackMults": {
+      "hacking": 1.08,
+      "hacking_exp": 1.1,
+      "hacking_speed": 1.03
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "The Black Hand",
+    "key": "TheBlackHand",
+    "factions": [
+      "The Black Hand"
+    ],
+    "moneyCost": 550000000,
+    "repCost": 100000,
+    "hackMults": {
+      "hacking": 1.1,
+      "hacking_money": 1.1,
+      "hacking_speed": 1.02
+    },
+    "otherMults": {
+      "strength": 1.15,
+      "dexterity": 1.15
+    },
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "DataJack",
+    "key": "DataJack",
+    "factions": [
+      "BitRunners",
+      "The Black Hand",
+      "NiteSec",
+      "Chongqing",
+      "New Tokyo"
+    ],
+    "moneyCost": 450000000,
+    "repCost": 112500,
+    "hackMults": {
+      "hacking_money": 1.25
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Cranial Signal Processors - Gen IV",
+    "key": "CranialSignalProcessorsG4",
+    "factions": [
+      "The Black Hand",
+      "BitRunners"
+    ],
+    "moneyCost": 1100000000,
+    "repCost": 125000,
+    "hackMults": {
+      "hacking_money": 1.2,
+      "hacking_speed": 1.02,
+      "hacking_grow": 1.25
+    },
+    "otherMults": {},
+    "prereqs": [
+      "Cranial Signal Processors - Gen III",
+      "Cranial Signal Processors - Gen II",
+      "Cranial Signal Processors - Gen I"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Embedded Netburner Module Core Implant",
+    "key": "ENMCore",
+    "factions": [
+      "BitRunners",
+      "The Black Hand"
+    ],
+    "moneyCost": 2500000000,
+    "repCost": 175000,
+    "hackMults": {
+      "hacking": 1.07,
+      "hacking_exp": 1.07,
+      "hacking_money": 1.1,
+      "hacking_chance": 1.03,
+      "hacking_speed": 1.03
+    },
+    "otherMults": {},
+    "prereqs": [
+      "Embedded Netburner Module"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Neural Accelerator",
+    "key": "NeuralAccelerator",
+    "factions": [
+      "BitRunners"
+    ],
+    "moneyCost": 1750000000,
+    "repCost": 200000,
+    "hackMults": {
+      "hacking": 1.1,
+      "hacking_exp": 1.15,
+      "hacking_money": 1.2
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Cranial Signal Processors - Gen V",
+    "key": "CranialSignalProcessorsG5",
+    "factions": [
+      "BitRunners"
+    ],
+    "moneyCost": 2250000000,
+    "repCost": 250000,
+    "hackMults": {
+      "hacking": 1.3,
+      "hacking_money": 1.25,
+      "hacking_grow": 1.75
+    },
+    "otherMults": {},
+    "prereqs": [
+      "Cranial Signal Processors - Gen IV",
+      "Cranial Signal Processors - Gen III",
+      "Cranial Signal Processors - Gen II",
+      "Cranial Signal Processors - Gen I"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Artificial Bio-neural Network Implant",
+    "key": "ArtificialBioNeuralNetwork",
+    "factions": [
+      "BitRunners"
+    ],
+    "moneyCost": 3000000000,
+    "repCost": 275000,
+    "hackMults": {
+      "hacking": 1.12,
+      "hacking_money": 1.15,
+      "hacking_speed": 1.03
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Embedded Netburner Module Analyze Engine",
+    "key": "ENMAnalyzeEngine",
+    "factions": [
+      "Daedalus"
+    ],
+    "moneyCost": 6000000000,
+    "repCost": 625000,
+    "hackMults": {
+      "hacking_speed": 1.1
+    },
+    "otherMults": {},
+    "prereqs": [
+      "Embedded Netburner Module"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "BitRunners Neurolink",
+    "key": "Neurolink",
+    "factions": [
+      "BitRunners"
+    ],
+    "moneyCost": 4375000000,
+    "repCost": 875000,
+    "hackMults": {
+      "hacking": 1.15,
+      "hacking_exp": 1.2,
+      "hacking_chance": 1.1,
+      "hacking_speed": 1.05
+    },
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": true
+  },
+  {
+    "name": "Embedded Netburner Module Core V2 Upgrade",
+    "key": "ENMCoreV2",
+    "factions": [
+      "BitRunners"
+    ],
+    "moneyCost": 4500000000,
+    "repCost": 1000000,
+    "hackMults": {
+      "hacking": 1.08,
+      "hacking_exp": 1.15,
+      "hacking_money": 1.3,
+      "hacking_chance": 1.05,
+      "hacking_speed": 1.05
+    },
+    "otherMults": {},
+    "prereqs": [
+      "Embedded Netburner Module Core Implant",
+      "Embedded Netburner Module"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Embedded Netburner Module Direct Memory Access Upgrade",
+    "key": "ENMDMA",
+    "factions": [
+      "Daedalus"
+    ],
+    "moneyCost": 7000000000,
+    "repCost": 1000000,
+    "hackMults": {
+      "hacking_money": 1.4,
+      "hacking_chance": 1.2
+    },
+    "otherMults": {},
+    "prereqs": [
+      "Embedded Netburner Module"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Stanek's Gift - Awakening",
+    "key": "StaneksGift2",
+    "factions": [
+      "Church of the Machine God"
+    ],
+    "moneyCost": 0,
+    "repCost": 1000000,
+    "hackMults": {
+      "hacking": 1.0555555555555556,
+      "hacking_exp": 1.0555555555555556,
+      "hacking_money": 1.0555555555555556,
+      "hacking_chance": 1.0555555555555556,
+      "hacking_speed": 1.0555555555555556,
+      "hacking_grow": 1.0555555555555556
+    },
+    "otherMults": {
+      "strength": 1.0555555555555556,
+      "defense": 1.0555555555555556,
+      "dexterity": 1.0555555555555556,
+      "agility": 1.0555555555555556,
+      "charisma": 1.0555555555555556,
+      "strength_exp": 1.0555555555555556,
+      "defense_exp": 1.0555555555555556,
+      "dexterity_exp": 1.0555555555555556,
+      "agility_exp": 1.0555555555555556,
+      "charisma_exp": 1.0555555555555556,
+      "company_rep": 1.0555555555555556,
+      "faction_rep": 1.0555555555555556,
+      "crime_money": 1.0555555555555556,
+      "crime_success": 1.0555555555555556,
+      "hacknet_node_money": 1.0555555555555556,
+      "hacknet_node_purchase_cost": 0.9545454545454545,
+      "hacknet_node_ram_cost": 0.9545454545454545,
+      "hacknet_node_core_cost": 0.9545454545454545,
+      "hacknet_node_level_cost": 0.9545454545454545,
+      "work_money": 1.0555555555555556
+    },
+    "prereqs": [
+      "Stanek's Gift - Genesis"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Embedded Netburner Module Core V3 Upgrade",
+    "key": "ENMCoreV3",
+    "factions": [
+      "Daedalus"
+    ],
+    "moneyCost": 7500000000,
+    "repCost": 1750000,
+    "hackMults": {
+      "hacking": 1.1,
+      "hacking_exp": 1.25,
+      "hacking_money": 1.4,
+      "hacking_chance": 1.1,
+      "hacking_speed": 1.05
+    },
+    "otherMults": {},
+    "prereqs": [
+      "Embedded Netburner Module Core V2 Upgrade",
+      "Embedded Netburner Module Core Implant",
+      "Embedded Netburner Module"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Stanek's Gift - Serenity",
+    "key": "StaneksGift3",
+    "factions": [
+      "Church of the Machine God"
+    ],
+    "moneyCost": 0,
+    "repCost": 100000000,
+    "hackMults": {
+      "hacking": 1.0526315789473684,
+      "hacking_exp": 1.0526315789473684,
+      "hacking_money": 1.0526315789473684,
+      "hacking_chance": 1.0526315789473684,
+      "hacking_speed": 1.0526315789473684,
+      "hacking_grow": 1.0526315789473684
+    },
+    "otherMults": {
+      "strength": 1.0526315789473684,
+      "defense": 1.0526315789473684,
+      "dexterity": 1.0526315789473684,
+      "agility": 1.0526315789473684,
+      "charisma": 1.0526315789473684,
+      "strength_exp": 1.0526315789473684,
+      "defense_exp": 1.0526315789473684,
+      "dexterity_exp": 1.0526315789473684,
+      "agility_exp": 1.0526315789473684,
+      "charisma_exp": 1.0526315789473684,
+      "company_rep": 1.0526315789473684,
+      "faction_rep": 1.0526315789473684,
+      "crime_money": 1.0526315789473684,
+      "crime_success": 1.0526315789473684,
+      "hacknet_node_money": 1.0526315789473684,
+      "hacknet_node_purchase_cost": 0.9523809523809523,
+      "hacknet_node_ram_cost": 0.9523809523809523,
+      "hacknet_node_core_cost": 0.9523809523809523,
+      "hacknet_node_level_cost": 0.9523809523809523,
+      "work_money": 1.0526315789473684
+    },
+    "prereqs": [
+      "Stanek's Gift - Awakening",
+      "Stanek's Gift - Genesis"
+    ],
+    "hackRelevant": true
+  },
+  {
+    "name": "Wired Reflexes",
+    "key": "WiredReflexes",
+    "factions": [
+      "Tian Di Hui",
+      "Ishima"
+    ],
+    "moneyCost": 2500000,
+    "repCost": 1250,
+    "hackMults": {},
+    "otherMults": {
+      "agility": 1.05,
+      "dexterity": 1.05
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Hacknet Node NIC Architecture Neural-Upload",
+    "key": "HacknetNodeNICUpload",
+    "factions": [
+      "Netburners"
+    ],
+    "moneyCost": 4500000,
+    "repCost": 1875,
+    "hackMults": {},
+    "otherMults": {
+      "hacknet_node_money": 1.1,
+      "hacknet_node_purchase_cost": 0.9
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Hacknet Node Cache Architecture Neural-Upload",
+    "key": "HacknetNodeCacheUpload",
+    "factions": [
+      "Netburners"
+    ],
+    "moneyCost": 5500000,
+    "repCost": 2500,
+    "hackMults": {},
+    "otherMults": {
+      "hacknet_node_money": 1.1,
+      "hacknet_node_level_cost": 0.85
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Speech Enhancement",
+    "key": "SpeechEnhancement",
+    "factions": [
+      "Tian Di Hui"
+    ],
+    "moneyCost": 12500000,
+    "repCost": 2500,
+    "hackMults": {},
+    "otherMults": {
+      "company_rep": 1.1,
+      "charisma": 1.05
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "ADR-V1 Pheromone Gene",
+    "key": "ADRPheromone1",
+    "factions": [
+      "Tian Di Hui"
+    ],
+    "moneyCost": 17500000,
+    "repCost": 3750,
+    "hackMults": {},
+    "otherMults": {
+      "company_rep": 1.1,
+      "faction_rep": 1.1,
+      "charisma_exp": 1.05
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Hacknet Node CPU Architecture Neural-Upload",
+    "key": "HacknetNodeCPUUpload",
+    "factions": [
+      "Netburners"
+    ],
+    "moneyCost": 11000000,
+    "repCost": 3750,
+    "hackMults": {},
+    "otherMults": {
+      "hacknet_node_money": 1.15,
+      "hacknet_node_purchase_cost": 0.85
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Nuoptimal Nootropic Injector Implant",
+    "key": "NuoptimalInjectorImplant",
+    "factions": [
+      "Tian Di Hui",
+      "New Tokyo",
+      "Chongqing"
+    ],
+    "moneyCost": 20000000,
+    "repCost": 5000,
+    "hackMults": {},
+    "otherMults": {
+      "company_rep": 1.2,
+      "charisma": 1.03
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Augmented Targeting I",
+    "key": "Targeting1",
+    "factions": [
+      "Ishima"
+    ],
+    "moneyCost": 15000000,
+    "repCost": 5000,
+    "hackMults": {},
+    "otherMults": {
+      "dexterity": 1.1
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Neural Wit Amplifier",
+    "key": "Wit",
+    "factions": [
+      "BitRunners"
+    ],
+    "moneyCost": 10000000,
+    "repCost": 5000,
+    "hackMults": {},
+    "otherMults": {
+      "charisma": 1.03,
+      "charisma_exp": 1.05,
+      "company_rep": 1.05
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "NutriGen Implant",
+    "key": "NutriGen",
+    "factions": [
+      "New Tokyo"
+    ],
+    "moneyCost": 2500000,
+    "repCost": 6250,
+    "hackMults": {},
+    "otherMults": {
+      "strength_exp": 1.2,
+      "defense_exp": 1.2,
+      "dexterity_exp": 1.2,
+      "agility_exp": 1.2
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Social Negotiation Assistant (S.N.A)",
+    "key": "SNA",
+    "factions": [
+      "Tian Di Hui"
+    ],
+    "moneyCost": 30000000,
+    "repCost": 6250,
+    "hackMults": {},
+    "otherMults": {
+      "charisma_exp": 1.15,
+      "work_money": 1.1,
+      "company_rep": 1.15,
+      "faction_rep": 1.15
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Combat Rib I",
+    "key": "CombatRib1",
+    "factions": [
+      "Ishima"
+    ],
+    "moneyCost": 23750000,
+    "repCost": 7500,
+    "hackMults": {},
+    "otherMults": {
+      "strength": 1.1,
+      "defense": 1.1
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Hacknet Node Kernel Direct-Neural Interface",
+    "key": "HacknetNodeKernelDNI",
+    "factions": [
+      "Netburners"
+    ],
+    "moneyCost": 40000000,
+    "repCost": 7500,
+    "hackMults": {},
+    "otherMults": {
+      "hacknet_node_money": 1.25
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "INFRARET Enhancement",
+    "key": "INFRARet",
+    "factions": [
+      "Ishima"
+    ],
+    "moneyCost": 30000000,
+    "repCost": 7500,
+    "hackMults": {},
+    "otherMults": {
+      "crime_success": 1.25,
+      "crime_money": 1.1,
+      "dexterity": 1.1
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Speech Processor Implant",
+    "key": "SpeechProcessor",
+    "factions": [
+      "Tian Di Hui",
+      "Chongqing",
+      "New Tokyo",
+      "Ishima"
+    ],
+    "moneyCost": 50000000,
+    "repCost": 7500,
+    "hackMults": {},
+    "otherMults": {
+      "charisma": 1.1
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Hacknet Node Core Direct-Neural Interface",
+    "key": "HacknetNodeCoreDNI",
+    "factions": [
+      "Netburners"
+    ],
+    "moneyCost": 60000000,
+    "repCost": 12500,
+    "hackMults": {},
+    "otherMults": {
+      "hacknet_node_money": 1.45
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Magnetism Amplifier",
+    "key": "Magnetism",
+    "factions": [
+      "The Black Hand"
+    ],
+    "moneyCost": 250000000,
+    "repCost": 15000,
+    "hackMults": {},
+    "otherMults": {
+      "charisma": 1.05,
+      "company_rep": 1.1
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Nanofiber Weave",
+    "key": "NanofiberWeave",
+    "factions": [
+      "Tian Di Hui"
+    ],
+    "moneyCost": 125000000,
+    "repCost": 37500,
+    "hackMults": {},
+    "otherMults": {
+      "strength": 1.2,
+      "defense": 1.2,
+      "charisma": 1.05
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Neuroreceptor Management Implant",
+    "key": "NeuroreceptorManager",
+    "factions": [
+      "Tian Di Hui"
+    ],
+    "moneyCost": 550000000,
+    "repCost": 75000,
+    "hackMults": {},
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Synfibril Muscle",
+    "key": "SynfibrilMuscle",
+    "factions": [
+      "Daedalus"
+    ],
+    "moneyCost": 1125000000,
+    "repCost": 437500,
+    "hackMults": {},
+    "otherMults": {
+      "strength": 1.3,
+      "defense": 1.3
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "Synthetic Heart",
+    "key": "SyntheticHeart",
+    "factions": [
+      "Daedalus"
+    ],
+    "moneyCost": 2875000000,
+    "repCost": 750000,
+    "hackMults": {},
+    "otherMults": {
+      "agility": 1.5,
+      "strength": 1.5,
+      "charisma": 1.15
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "NEMEAN Subdermal Weave",
+    "key": "SubdermalArmor",
+    "factions": [
+      "Daedalus"
+    ],
+    "moneyCost": 3250000000,
+    "repCost": 875000,
+    "hackMults": {},
+    "otherMults": {
+      "defense": 2.2
+    },
+    "prereqs": [],
+    "hackRelevant": false
+  },
+  {
+    "name": "The Red Pill",
+    "key": "TheRedPill",
+    "factions": [
+      "Daedalus"
+    ],
+    "moneyCost": 0,
+    "repCost": 2500000,
+    "hackMults": {},
+    "otherMults": {},
+    "prereqs": [],
+    "hackRelevant": false
+  }
+]
