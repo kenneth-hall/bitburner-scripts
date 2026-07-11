@@ -308,6 +308,17 @@ elsewhere; **+1 Sleeve per level**. Multiplier table:
 - **Bladeburner** — Rank Gain: **80%**
 - **Stanek's Gift** — Gift Power: **75%** · Base Size Modifier: **−3.00000**
 
+**Clearing notes — the hacking penalty & its counter.** The rough hit is **Hacking Level ×0.35**
+(Hacking *Exp* is full 100% — the throttle is on XP→level conversion, not XP gain). That's a
+*reachability wall* on the WD ~6,000 gate, not a speed problem: level is logarithmic in XP, so
+raw grinding can't overcome ×0.35, and **augs don't persist across node entry** — you *start* at
+roughly `SF1.2 (1.24) × 0.35 ≈ 0.43×`, below 1×. **The designed counter is BN10's own Grafting:**
+install hacking-multiplier augs **rep-free and reset-free** to rebuild the multiplier toward
+~5–7×, at which point 6,000 is reachable. Costs an Entropy debuff (removable via a specific aug)
++ 500% aug money — money isn't the blocker (100% Server Max Money batcher). Bank **SF1.2 / SF5**
+hacking mults *before* entering to pre-offset the 0.35; use **Sleeves** to fund/parallelize.
+Throughput / the XP farm is only a *secondary* lever here — it doesn't fix a multiplier wall.
+
 ### BN11: The Big Crash — owned **SF11 level 0 / 3** (not cleared)
 No new mechanic. SF11: company favor → **both** salary and rep gain (+1%/favor); +company
 salary/rep mults L1 32 / L2 48 / L3 56%; −aug price increase L1 4 / L2 6 / L3 7%. Multiplier
