@@ -214,6 +214,12 @@ sessions — no need to ask.
 ## Task-specific detail
 See `docs/INDEX.md` for on-demand references (logging patterns, dev-server / Remote API).
 
+**Check the script library before hand-doing a task or writing a one-off.** `docs/scripts.md`
+indexes every `src/` script. A network/scan/**path**/aug/rep/backdoor task, or anything that
+smells like a one-off, almost certainly has a script already — reach for it first. (Concrete
+miss this exists to prevent: hand-walking a `connect` chain to `w0r1d_d43m0n` when `connect.js`
+prints the path.)
+
 **Owned augs + aggregate mults (no Singularity)** — `run auginfo.js` dumps the current owned-
 augmentation stack (incl. NeuroFlux Governor level) and the aggregate player multipliers to a
 timestamped `logs/auginfo-<epoch>.json` (+ a terminal summary). Reads `ns.getResetInfo().ownedAugs`
