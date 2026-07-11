@@ -107,6 +107,36 @@ instead of deleting it — don't let history pile up here.
     measurement shows throughput is a rounding error against the multiplier — **do not build XP-max mode.**
     The `hacking-progress-log.json` instrumentation (c12a3d5) it produced stays useful as the ETA baseline.
 
+- **Static aug/faction install-order planner (one-time best-case calc)** (2026-07-11, decided,
+  not started): a *one-time* calculator that outputs the optimal **faction join-set + hacking-mult
+  aug buy-list** to maximize level-mult/exp-mult toward the Daedalus-2500 gate. Its real job is
+  settling the **irreversible mutually-exclusive faction-join decisions** (a wrong city-faction pick
+  locks you out of another's hacking augs and wastes a whole cycle's rep grind) *before* you commit —
+  a static decision that needs no current rep. Execute the plan by eye afterward (glance at your own
+  in-game rep bar). Supports the install-cycle strategy in the Daedalus item above and
+  `docs/reset-protocol.md`; supersedes the vaguer "Augment reservation cost model" Phase 10 follow-up
+  for the *ordering* question.
+  - **NOT SF4-gated — buildable now.** Inputs: owned state (base `ns`, already dumped by `auginfo.js`)
+    + the **aug catalog**. Current *rep* is the only SF4-blocked input and the planner doesn't need it
+    (it uses each aug's static rep *requirement*, not your live rep). Purchase/install execution is
+    explicitly **out of scope** (that's the SF4-gated acting half).
+  - **Next step / the actual work: assemble the aug catalog** as a static data file — every aug's
+    selling faction(s), price, rep requirement, prereq chain, and hacking-mult stats. Not sourceable
+    via game APIs available to us: `ns.singularity.getAugmentation*` is SF4-locked, and CDP only reads
+    shops of *already-joined* factions (fatal blind spot for a join-order planner). Comes from **static
+    lookup** (the CLAUDE.md carve-out permits costs/prices/tables). The planner *logic* is easy; the
+    catalog *data* is where the effort lives.
+  - **Open question, Kenneth's call — the spoiler boundary.** The planner's whole value is foresight
+    into augs in factions not yet joined, which brushes the anti-spoiler rule. How much of the
+    un-unlocked catalog to pull in decides how strong (full-foresight) vs. weak (reachable-now-only)
+    the tool is. Settle this before assembling the catalog.
+  - **Moot post-SF4, NOT a deferred todo — the live "best-case-for-right-now" watcher.** Rejected as a
+    build target on three counts: (1) SF4-gated (needs live `getFactionRep`; CDP workaround sees only
+    joined factions), (2) *redundant* — its job is reading back a rep number already on your screen, so
+    low-value even *with* SF4, and (3) obsoleted by SF4 — once you have Singularity you'd build the full
+    join/buy/install pipeline through `ns.singularity`, not resurrect this watcher. File as a non-item,
+    not "todo after BN4."
+
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
   "no matter what." Recommended against running the full ~67GB script resident indefinitely — the
