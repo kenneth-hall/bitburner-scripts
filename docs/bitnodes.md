@@ -32,11 +32,20 @@ built. Straight from the panels:
 
 **Strategy: snowball the batcher on low-difficulty friendly nodes while building the next
 engine.**
-1. **Warm-up lap (test track, not a power bank):** clear **BN1→1.2** once, and **BN12.1**
-   (prefer it over a 2nd BN1 — new SF + starts the permanent free-NFG engine, same trivial
-   ~3,060 gate). *Power gain is near-zero;* the point is validating a streamlined batcher against
-   a non-hostile economy. **BN12's runway is short** — it hardens each clear, low-hanging for
-   ~1–2 levels only.
+1. **Low-difficulty clears — but NOT low-effort (see the fixed rep tax below):** **BN1→1.2** is
+   the strongest per-clear reward here — **+8pp to *every* multiplier** (1.1's +16% → 1.2's +24%;
+   the guide's "8 NFG levels"), which is a real bank given how dear each mult point was in the BN1
+   climb. **BN12.1** is the alternative: only ~+1 free NFG (small power) but a *new* SF + starts
+   the permanent uncapped-NFG engine, same trivial ~3,060 gate. So: **BN1.2 for power, BN12.1 for
+   a new SF / progression.** **BN12's runway is short** — it hardens each clear, low-hanging for
+   ~1–2 levels only. These are also a non-hostile economy to validate a streamlined batcher against.
+   - ⚠️ **The fixed cost every clear pays:** favor/rep/augs do **not** persist across destroying a
+     node — only Source-Files, scripts, and Intelligence do (BitNodes doc, captured above). So
+     *every* clear means re-grinding the full **Daedalus 2.5m rep → Red Pill → backdoor WD**
+     endgame from a fresh start (no banked favor to shortcut it), unless we've built the gang or
+     bladeburner alt-destroy path. "Low difficulty" = low WD gate + friendly economy (fast climb),
+     **not** a quick clear. This makes the rep grind the real recurring cost — and a reason to
+     value clears that attack it (e.g. BN10 Sleeves working Daedalus rep in parallel).
 2. **Streamline the batcher (throughput):** this is the **Phase 20 XP-farm resume trigger** — the
    backlog shelved it "until a fresh node's XP re-climb is the binding constraint," which a new
    node now is. Validate throughput against BN5/BN10 (real climbs), *not* BN1/BN12 (already trivial).
