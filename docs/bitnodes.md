@@ -154,6 +154,21 @@ SF3: create corporations in other nodes (some disable it), **L3 unlocks full Cor
 Full multiplier table is the **detailed BN4 section below** — re-verified against this live panel
 (all values match: WD 300%, hacking exp 40%, server max money 11.25%, gift power 150%, etc.).
 
+### BN5: Artificial Intelligence — owned **SF5 level 0 / 3** (not cleared)
+SF5: **Intelligence stat** (permanent, never resets to 1) + `getBitNodeMultipliers()` +
+permanent Formulas.exe + BitNode-mult info on Stats page; +hacking mults L1 8 / L2 12 / L3 14%.
+Multiplier table (rest baseline):
+- **General** — `w0r1d_d43m0n` Difficulty: **150%** · Hacknet Production: **20%**
+- **Augmentations** — Money Cost: **200%**
+- **Hacking** — Hacking Exp: **50%** · Server Starting Money: **50%** · Server Starting Security: **200%** · Stolen Money From Hack: **15%**
+- **Cloud Servers** — Softcap Cost: **1.200**
+- **Crime** — Crime Money: **50%**
+- **Darknet** — Darknet Money: **70%**
+- **Infiltration** — Infiltration Money: **150%** · Infiltration Reputation: **150%**
+- **Gang** — Unique Augmentations: **50%**
+- **Corporation** — Valuation: **75%** · Division limit: **75%**
+- **Stanek's Gift** — Gift Power: **130%**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -213,3 +228,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Captured BN2 selection panel + full multiplier table (SF2 not yet owned).
 - 2026-07-11 — Captured BN3 selection panel + full multiplier table (SF3 not yet owned).
 - 2026-07-11 — BN4 selection panel (SF4 0/3) re-verified against the detailed BN4 table — all match.
+- 2026-07-11 — Captured BN5 selection panel + full multiplier table (SF5 not yet owned).
