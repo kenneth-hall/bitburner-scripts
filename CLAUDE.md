@@ -9,26 +9,32 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** clear **BitNode 4 ("The Singularity")**. BN1 is **DONE**
-  (Red Pill installed, `w0r1d_d43m0n` backdoored → earned SF1). **We briefly entered BN4 to confirm a
-  mechanic, then exited — we are currently NOT inside any BitNode** (browsing the BitVerse selection
-  screen). **The headline (confirmed during that visit, applies once we re-enter):**
-  `ns.singularity.*` is available *in-node* — usable as soon as we enter BN4, before SF4 is even earned
-  (at the 16× RAM cost tier) — so the "manual UI only / no Singularity" constraint that shaped every
-  BN1 plan is DISSOLVED **the moment we're back inside BN4**, not right now. Faction/company work,
-  aug-shop reads, buy/install, program creation, and backdoors will all be scriptable once we re-enter
-  (they were manual-UI-only all through BN1). Completing BN4 grants **SF4**
-  (permanent cross-node Singularity; the per-call RAM cost drops **16×→4×→1×** at SF4 levels 1→2→3, so
-  re-clearing BN4 up to level 3 is itself a payoff). **Treat BN4 as a long node, not a quick SF4 grab**
-  — the economy is heavily nerfed and the finish line is far: Hacking Exp **40%**, Server Max Money
-  **11.25%**, and `w0r1d_d43m0n` Difficulty **300%** → the backdoor gate is effectively hacking
-  **~9000** (3× BN1's 3000). Full 15-node list + BN4's live-read multiplier table: **`docs/bitnodes.md`**;
-  memory [[reference_bn4_singularity]]. **Design implication:** keep Singularity calls **out of daemon
-  hot paths** — at 16× RAM early they're expensive, so the "isolate in `exec`'d companion scripts"
-  convention below is now *active* guidance, not theoretical. Several backlog items that were parked as
-  "SF4-gated / moot" (auto-backdoor factions, the aug-planner's execution half, the `procureprograms`
-  TOR/opener ladder, live rep/faction watchers) are now **unblocked** — re-triage them against this
-  goal before building.
+- **Current goal (keep this line current):** **snowball the hacking batcher across low-difficulty,
+  batcher-friendly BitNodes while building a second engine.** BN1 is **DONE** (Red Pill installed,
+  `w0r1d_d43m0n` backdoored → earned SF1.1); we're on the BitVerse selection screen, **not inside any
+  node**, choosing what's next. Full plan + all 15 nodes' live-read multiplier tables + the decision
+  record: **`docs/bitnodes.md` → "Our next-node plan (mature batcher)"** (read it before any node
+  choice). The shape:
+  - **The lens:** Server Max Money is the batcher's oxygen. Only **BN1 / BN5 / BN10 / BN12** keep it
+    ≥96% — everywhere else (BN2/3/4/9/11/13 at 1–11%) the batcher is *benched* and you'd win via a
+    mechanic we haven't built. So money-nerfed nodes (incl. **BN4 — deferred**) wait until a second
+    engine exists.
+  - **Fixed per-clear tax:** favor/rep/augs do **not** persist across destroying a node (only
+    Source-Files, scripts, Intelligence do), so *every* clear re-pays the full **Daedalus 2.5m-rep →
+    Red Pill → backdoor WD** endgame. "Low difficulty" = low WD gate + friendly economy, **not** low
+    effort.
+  - **Near-term:** **BN1→1.2** (+8pp to *every* mult, the guide's "8 NFG levels" — strong) and/or
+    **BN12.1** (new SF + starts the uncapped free-NFG engine, trivial ~3,060 gate) as the cheapest
+    clears; **next *extending* node is BN10 or BN5** (both batcher-friendly; BN10 = Sleeves+Grafting
+    which attack the rep-grind + reset pains, BN5 = scriptable multipliers + Formulas + Intelligence).
+  - **In parallel:** (a) **streamline batcher throughput** — this is the Phase 20 XP-farm resume
+    trigger (a fresh node's XP re-climb is now the binding constraint); (b) **prototype a second
+    engine** — only **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator + TOR) are
+    buildable now; gang/corp/bladeburner/sleeves are node-locked.
+  - **Note on Singularity:** `ns.singularity.*` is NOT available to us right now (only in-node in BN4,
+    or with SF4). So the endgame steps remain manual-UI / CDP-driven until we clear BN4 — the
+    SF4-gated backlog items (auto-backdoor, aug-planner execution, TOR ladder, rep watchers) stay
+    parked until then.
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say
