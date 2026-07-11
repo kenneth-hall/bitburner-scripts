@@ -257,6 +257,22 @@ elsewhere; **+1 Sleeve per level**. Multiplier table:
 - **Bladeburner** — Rank Gain: **80%**
 - **Stanek's Gift** — Gift Power: **75%** · Base Size Modifier: **−3.00000**
 
+### BN11: The Big Crash — owned **SF11 level 0 / 3** (not cleared)
+No new mechanic. SF11: company favor → **both** salary and rep gain (+1%/favor); +company
+salary/rep mults L1 32 / L2 48 / L3 56%; −aug price increase L1 4 / L2 6 / L3 7%. Multiplier
+table (matches "harsh mults, mediocre reward" from the guide):
+- **General** — `w0r1d_d43m0n` Difficulty: **150%** · Hacknet Production: **10%** · Coding Contract Reward: **25%**
+- **Skills** — Hacking Level: **60%**
+- **Augmentations** — Money Cost: **200%**
+- **Hacking** — Hacking Exp: **50%** · Server Growth Rate: **20%** · Server Max Money: **1%** · Server Starting Money: **10%** · Server Weaken Rate: **200%**
+- **Cloud Servers** — Softcap Cost: **2.000**
+- **Stock Market** — Market Data Cost: **400%** · Market Data API Cost: **400%**
+- **Crime** — Crime Money: **300%**
+- **Infiltration** — Infiltration Money: **250%** · Infiltration Reputation: **250%**
+- **Company** — Work Money: **50%**
+- **Gang** — Unique Augmentations: **75%**
+- **Corporation** — Corporation Softcap: **0.900** · Valuation: **10%** · Division limit: **90%**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -326,3 +342,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Captured BN9 selection panel + full multiplier table (SF9 not yet owned); Server
   Limit 0% confirms private servers disabled, hacking exp 5%/max money 1% confirm "extremely harsh".
 - 2026-07-11 — Captured BN10 selection panel + full multiplier table (SF10 not yet owned).
+- 2026-07-11 — Captured BN11 selection panel + full multiplier table (SF11 not yet owned).
