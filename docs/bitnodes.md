@@ -37,6 +37,42 @@ per-node multiplier tables must be hand-read off the BitNode selection screen un
 | 14 | IPvGO Subnet Takeover | IPvGO subnet combat | L1 +100% Node-Power stat mults; L2 unlock `go.cheat` API; L3 +25% cheat success; also raises winstreak favor caps (200k/300k/400k rep-equiv) and rep→favor conversion (1000/1500/2000) |
 | 15 | The Secrets of the Dark Net | **Darknet** (shifting/unreliable servers; Red Pill not yet monopolized by Daedalus) | L1 start with TOR + DarkscapeNavigator.exe, unlock full darknet everywhere; L2 charisma → salary/rep + faster auth (+20%); L3 charisma → faction rep + `.cache` xp/money +50% |
 
+## Which BitNode next (in-game recommendation guide, parsed via CDP)
+
+Order is not forced — pick freely; "best" varies by player. From the in-game guide:
+
+**tl;dr**
+- **BN1, BN2, BN5** are great starters.
+- **BN4, BN6/BN7** are also good early if their mechanics appeal.
+- **BN10** has interesting mechanics if you can generate lots of money.
+- **BN9, BN13, BN14, BN15** are tough but have interesting new mechanics.
+- **BN3** has a very tough mechanic to automate but gives unparalleled power.
+- **BN8, BN11** are tough but offer little benefit to new players.
+- **BN12** is easy to start but quickly ramps up in difficulty.
+
+**Good early**
+- **BN1** — no difficulty modifiers; SF1 raises *all* multipliers a lot. BN1.2/BN1.3 are natural first repeats.
+- **BN2** — Gang: good income + a large aug supply from one faction. Using gangs elsewhere needs low karma (big time sink, or Sleeves).
+- **BN5** — Intelligence (persists between nodes) + strong hacking SF bonuses + Formulas.exe. Worth getting early.
+
+**Depends on your priorities**
+- **BN4** — Singularity API (automate player actions). **Strongly recommended to complete BN4.3 before using Singularity in other nodes** (RAM cost).
+- **BN6** — Bladeburner: an alternative win path not reliant on money/hacking. Sleeves help but aren't required.
+- **BN7** — like BN6 but a bit harder; more Bladeburner-specific rewards (incl. the simultaneous-action aug).
+- **BN10** — Sleeves + Grafting. Both very useful but money-hungry; +1 sleeve per SF level, up to 5 more purchasable (this node only).
+
+**Tough but new mechanics**
+- **BN3** — Corporations: effectively limitless wealth + rep, but very complex/doc-dependent; using elsewhere needs $150b starting wealth. Advanced.
+- **BN9** — Hacknet Servers (hashes, not money). BN9.2's 128GiB home-RAM start helps RAM-tight openings.
+- **BN13** — Stanek's Gift (versatile bonuses) but not enough to offset the node's own difficulty.
+- **BN14** — IPvGO focus; automating it is challenging; wide variety of bonuses.
+- **BN15** — expands the darknet (DarkscapeNavigator.exe); practical distributed-scripting problems + password puzzles that deepen with darknet level.
+
+**Save for later**
+- **BN8** — stock market is the *only* income; complete ≥BN10.1 first (Grafting) so you don't have to install augs and lose market gains.
+- **BN11** — no real new mechanic beyond mild work-income bonus; cheaper bulk augs but not worth going out of your way; hard for little return.
+- **BN12** — BN1 but harder each completion, forever; SF is relatively weak for the rising effort.
+
 ---
 
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
@@ -91,3 +127,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
   stepped back out.
 - 2026-07-11 — Repurposed from `bn4.md` to a general BitNodes reference; added the full 15-node
   list parsed from the in-game Documentation page.
+- 2026-07-11 — Added the in-game "Which BitNode next" recommendation guide (parsed via CDP).
