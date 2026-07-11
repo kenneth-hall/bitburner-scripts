@@ -78,7 +78,17 @@ instead of deleting it — don't let history pile up here.
 ## Next Up
 
 - **Grind 2.5m Daedalus rep for The Red Pill** (2026-07-11 — supersedes the 2500-gate item below,
-  which is **CLEARED**: hacking ~2,600, Daedalus **joined**). This is a **manual UI grind** —
+  which is **CLEARED**: hacking ~2,600, Daedalus **joined**).
+  - **⚠️ CORRECTION (2026-07-11, after install #1): MONEY RESETS ON INSTALL (~$1k).** The donation
+    plan below repeatedly assumed the accumulated pile ($481t→$1.7q) would fund the donation — WRONG.
+    Installing augs wipes money too (not just hacking/fleet), and the install that unlocks donation is
+    the one that wipes the money, so the pile was never donatable. Donation must be funded by money
+    earned AFTER install #1 (batcher rebuild+earn, ~1–3 h). Install #1 is DONE (banked ~160 favor →
+    donation permanently unlocked; hacking→~1 re-climbing; money→rebuilding). Remaining: earn ~$1t →
+    donate (~$0.5–1.5t, cheaper at 160 favor — read the UI) → buy 3 ENM + NFG-to-money-cap + Red Pill
+    → install #2 → rebuild + re-climb 3000 → backdoor. See [[reference_install_resets_money]]. The
+    dollar figures in the bullets below are the pre-correction (wrong) framing — kept for the trail.
+  This is a **manual UI grind** —
   Hacking Contracts — because no Singularity means the daemon can't script `workForFaction`, and the
   donate-for-rep shortcut ($418t on hand) is locked behind 150 favor (Daedalus is at 0). Measured
   focused rate **22.827 rep/sec** with share OFF → ~30 h to 2.5m.

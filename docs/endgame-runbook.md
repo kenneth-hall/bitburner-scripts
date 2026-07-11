@@ -19,13 +19,20 @@ altering** — it's Kenneth's to execute, not an autonomous task. Rationale + me
 3. This **resets hacking to ~1** and **wipes the cloud fleet**. Expected. Daedalus rep → 0,
    **favor → 150** (donation now unlocked).
 
-## Step 2 — Donate for rep
-4. Factions → Daedalus → **Details**. A **Donate** section should now be present (was gated at
-   150 favor). If it isn't, STOP — the assumption failed; fall back to re-climbing hacking then
-   grinding Daedalus rep the slow way (do not thrash).
-5. Donate enough to reach **~7–10M rep** (~$4–6t of your $1.1q+) — more than the 2.5m the Red
-   Pill needs, because the extra funds a deeper NeuroFlux stack. Donation at 150 favor is cheaper
-   than the favor-0 estimate, so err high; money is not the constraint here.
+## ⚠️ Step 1.5 — Rebuild money FIRST (installing reset it to ~$1k)
+**Installing augmentations RESETS money** (to ~$1k), not just hacking + fleet. So the money that
+funds the donation must be **earned after install #1** — the pre-install pile is gone. Restart the
+bootstrap/daemon ([reset-protocol.md](reset-protocol.md)) and let the batcher rebuild the fleet and
+earn back **~$1t** (donation + ENM augs + NFG). This is the new critical-path wait (~1–3 h), not the
+instant step earlier drafts assumed. Hacking re-climbs as a side effect here — it gets reset again by
+install #2, that's fine.
+
+## Step 2 — Donate for rep (once money is rebuilt)
+4. Factions → Daedalus → **Details**. A **Donate** section should be present (favor ≥150 persists
+   from install #1). If it isn't, STOP — fall back to grinding Daedalus rep the slow way.
+5. Donate enough to reach **2.5m+ rep** (the Red Pill req), plus headroom for NFG. Cost is on the
+   order of **$0.5–1.5t** — the favor bonus (~160 favor) discounts it below the favor-0 estimate;
+   read the exact rate off the Donate UI, don't assume.
 
 ## Step 3 — Buy, in this order (order matters for price)
 Each purchase multiplies the next aug's price by ~1.9×, so buy **most-expensive-base first**:

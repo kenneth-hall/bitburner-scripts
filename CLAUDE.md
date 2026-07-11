@@ -23,13 +23,17 @@ on request — hold to them even when the moment is uncomfortable.
   above the current ~2,626, so the post-install re-climb is "restore position + a bit," not a new wall.
   **Aug inventory resolved (2026-07-11):** all unowned augs are in **Daedalus** (every other faction,
   joined or joinable, reads "No Augmentations left") — the 3 Embedded Netburner Module hacking-mult
-  upgrades (Analyze Engine 625k rep, DMA 1.0m, Core V3 1.75m; ~$74b total, trivial vs $600t), unlimited
-  NeuroFlux levels, and The Red Pill (2.5m). So a mult install **is** justified → **locked plan:** grind
-  Daedalus to ~465k rep (150 favor) → install (the 2 already-queued minor exp augs bank the favor; no
-  throwaway needed) → **donate generously (~$4–6t → ~7–10M rep, not just the $1.5t for Red Pill)** →
-  buy the 3 ENM augs + a deep **NFG stack** + Red Pill → install → rebuild fleet + re-climb to 3000 →
-  backdoor. Keep the two installs **back-to-back** (no re-climb between). Donation **VERIFIED live**
-  (Daedalus page: "Unlock donations at 150.000 favor") — exists in this build, threshold is 150.
+  upgrades (Analyze Engine 625k rep, DMA 1.0m, Core V3 1.75m; ~$74b total), unlimited NeuroFlux levels,
+  and The Red Pill (2.5m). So a mult install **is** justified.
+  **⚠️ MONEY RESETS ON INSTALL (~$1k) — corrected 2026-07-11 after install #1.** Installing augs wipes
+  money as well as hacking + fleet, so the accumulated pile (was $1.7q) is NOT donatable — the install
+  that unlocks donation also wipes it. **Donation is funded by money earned AFTER install #1**, which
+  makes it a rebuild-then-earn wait (~1–3 h via the batcher), not the instant step earlier drafts
+  claimed. **Status:** install #1 done (banked ~160 favor → donation permanently unlocked; hacking →
+  ~1, re-climbing; money → rebuilding). **Remaining:** batcher earns ~$1t → donate → 2.5m rep → buy 3
+  ENM augs + NFG-to-money-cap + Red Pill → install #2 → rebuild + re-climb to 3000 → `backdoor`.
+  Donation **VERIFIED live** (Daedalus page: "Unlock donations at 150.000 favor"); at ~160 favor the
+  rate is cheaper than the favor-0 $1.47t estimate (~$0.5–1.5t) — read the Donate UI, don't assume.
   **Raising mult is essential, not optional:** the exp curve is exponential in (level/mult), so
   re-climbing 2,627→3000 at the current mult 4.72 needs ~218B exp (infeasible, ~12× lifetime XP — the
   same log wall as 2500). BUT NFG stacking is **money-capped, not rep-capped**: the ~1.9×/aug price
