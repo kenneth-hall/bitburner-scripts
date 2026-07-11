@@ -294,6 +294,26 @@ the *first* completion looks like, not the endgame-harsh version:
 - **Bladeburner** — Rank Gain: **98.039%** · Skill Cost: **102%**
 - **Stanek's Gift** — Gift Power: **102%** · Base Size Modifier: **+1.02000**
 
+### BN13: They're lunatics — owned **SF13 level 0 / 3** (not cleared)
+Unlocks Stanek's Gift (Church of the Machine God, Allison "Mother" Stanek in Chongqing). SF13:
+Church appears in other nodes; +Stanek's Gift size per level. **Confirmed extremely harsh** —
+Hacking Exp **10%**, Corp Valuation **0.1%**, Market Data Cost **1000%**. The one buff: **Gift
+Power 200%** (matches the guide — utilizing the Gift is crucial to offset the difficulty).
+Multiplier table:
+- **General** — `w0r1d_d43m0n` Difficulty: **300%** · Hacknet Production: **40%** · Coding Contract Reward: **40%** · Class/Gym Exp: **50%**
+- **Skills** — Hacking Level: **25%** · Strength/Defense/Dexterity/Agility Level: **70%** each
+- **Faction** — Work Reputation: **60%** · Work Exp: **50%**
+- **Hacking** — Hacking Exp: **10%** · Server Max Money: **33.75%** · Server Starting Money: **75%** · Server Starting Security: **300%** · Stolen Money From Hack: **20%**
+- **Cloud Servers** — Softcap Cost: **1.600**
+- **Stock Market** — Market Data Cost: **1000%** · Market Data API Cost: **1000%**
+- **Crime** — Crime Exp: **50%** · Crime Money: **40%**
+- **Darknet** — Darknet Money: **10%**
+- **Company** — Work Money: **40%** · Work Exp: **50%**
+- **Gang** — Gang Softcap: **0.300** · Unique Augmentations: **10%**
+- **Corporation** — Corporation Softcap: **0.400** · Valuation: **0.1%** · Division limit: **40%**
+- **Bladeburner** — Rank Gain: **45%** · Skill Cost: **200%**
+- **Stanek's Gift** — Gift Power: **200%** · Base Size Modifier: **+1.00000**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -365,3 +385,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Captured BN10 selection panel + full multiplier table (SF10 not yet owned).
 - 2026-07-11 — Captured BN11 selection panel + full multiplier table (SF11 not yet owned).
 - 2026-07-11 — Captured BN12 selection panel + multiplier table (SF12 0/∞, uncapped level).
+- 2026-07-11 — Captured BN13 selection panel + full multiplier table (SF13 not yet owned).
