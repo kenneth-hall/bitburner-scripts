@@ -190,6 +190,17 @@ gated and NOT covered — read that from the in-game UI / CDP driver.
 map, Daedalus/Netburners gates, and the **auto-unlock-not-auto-join** rule) is kept in
 `docs/reset-protocol.md`. Read it before any faction-unlock or post-reset bootstrap work.
 
+**Faction reputation, favor & donation** — the active BN1 lever (Daedalus 2.5m rep → The Red
+Pill): how rep is earned (manual faction work + `ns.share()`), and the **donation shortcut**
+(150 favor ≈ 462.5k rep + an install → then ~$1.5t buys the full 2.5m rep). Measured numbers +
+sequencing catch in `docs/reputation-favor.md`. Read before any rep-grind or install-timing plan.
+
+**Augmentation grafting** — `docs/grafting.md`. Grafting applies aug effects without a reset but
+carries a compounding Entropy tax; the API needs SF10 (Kenneth has no Source-Files → manual UI
+only), and it was **observed NOT available** at VitaLife/New Tokyo in this build's BN1
+(2026-07-11, unlock condition unconfirmed). Read before proposing any grafting-based plan — the
+short version is it doesn't help the BN1 finish.
+
 **Docs layout:** `docs/` — Bitburner project/task references · `docs/metareference/` —
 non-Bitburner learning material (Claude Code / AI-workflow docs) · `docs/phases/` — archived
 shipped phase docs (index: `CHANGELOG.md`).
