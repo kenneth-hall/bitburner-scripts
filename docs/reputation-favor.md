@@ -68,6 +68,30 @@ donation buys you nothing on re-climbs either — you'd still re-climb to 2500 a
 rejoin. The donation shortcut still wins because it saves the *rep grind*, not a re-climb.) See
 [reset-protocol.md](reset-protocol.md).
 
+## Donation lock-down (computed 2026-07-11, `favorprobe.js` via Formulas.exe)
+
+Formulas.exe makes the money↔rep curve **authoritative** (it is favor-agnostic; the probe applies the
+`1 + favor/100` bonus itself — assumed favor 160 → ×2.60, **confirm at the Donate UI**). At `faction_rep`
+mult 1.697:
+
+| Rep target | Baseline ($, favor 0) | With favor 160 (×2.60) | Clears |
+|---|---|---|---|
+| 2.5m | $1.47t | $0.57t | Red Pill + all 3 ENM augs (≤1.75m) |
+| 5m | $2.95t | $1.13t | + headroom |
+| **20m** | **$11.8t** | **$4.5t** | **removes rep as an NFG constraint entirely** |
+| 50m | $29.5t | $11.3t | overkill |
+
+**Recommendation — over-donate to ~20m rep (~$4.5t, or ~$11.8t if favor doesn't discount donations;
+both trivial vs. the ~$35t pile).** Rep is *cheap* relative to money here, so brute-force it: at 20m
+rep the NFG **rep** requirement stops binding at any level you'd reach, collapsing NFG to a pure **money
+cap** (the constraint we understand). This dissolves the NFG-rep unknown without needing SF4.
+
+**What this does NOT lock (still live-only, no SF4 — read at the Daedalus shop / post-install):**
+- **NFG price per level** → how many levels the leftover money buys (the money cap). Read the buy-UI price.
+- **NFG + ENM mult effect per level** → the resulting `mults.hacking`, which decides whether the 3000
+  re-climb is one cycle or needs a second NFG pass. Only reads via `auginfo.js` *after* install #2 — this
+  is the designed step-6 checkpoint (≥7 good / ~6 ok / <5.5 = another NFG cycle), not a closeable gap.
+
 ## Key API / formula references (all in `markdown/`)
 
 - `ns.formulas.reputation.calculateFavorToRep(favor)` / `calculateRepToFavor(rep)`
