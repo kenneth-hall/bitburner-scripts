@@ -6,6 +6,36 @@ getting back to where we were, focused on the **faction-unlock sequence** and it
 doc — expand as we learn. (The *economic* rebuild — money/RAM/batcher — is handled by the existing
 `bootstrap.js` / `daemon.js` + companions, not this doc.)
 
+## Soft reset vs. hard reset — what actually persists
+
+Two different "resets," and they keep different things. This matters because it decides what you're
+bootstrapping *from*:
+
+| | **Install augmentations** (soft reset) | **Enter a new BitNode** (hard reset) |
+|---|---|---|
+| Money, servers, home RAM/cores | reset | reset |
+| Skills + XP (hacking, combat, etc.) | reset | reset |
+| Faction membership & rep | reset | reset |
+| Created programs, in-game scripts | reset* | reset* |
+| **Installed augmentations** | **kept** ✅ | **lost** ❌ |
+| **Source-Files** | — (not earned by installing) | **gained/kept** ✅ (permanent, all future BitNodes) |
+
+\* In-game copies are wiped, but our scripts survive in the git repo and re-push via the dev server,
+so a rebuild is instant.
+
+- **Soft reset** (this doc's usual case): keeps your augmentations — that's the whole point — and
+  loses everything else above. You re-run the faction-unlock sequence below to re-buy the *next*
+  batch of augs.
+- **Hard reset** (destroying / entering a new BitNode): also wipes **installed augmentations**, so
+  you start the aug ladder from zero. What you carry forward is **Source-Files** — permanent
+  multipliers that apply in every future BitNode (e.g. SF4 = Singularity, the API we keep hitting as
+  unavailable). A sliver of the **Intelligence** stat is believed to persist too (unconfirmed — don't
+  bank on it). So a hard reset isn't "start equal to run 1" — it's start-over-with-a-permanent-tailwind.
+- **Implication for this playbook:** after a *soft* reset you keep augs, so the goal is just faction
+  re-unlock. After a *hard* reset you also re-climb the aug count — relevant because Daedalus gates on
+  **≥30 installed augs** (see below), and a fresh BitNode is also the only way to reach zero augs, which
+  is what **Stanek's Gift** requires (Church of the Machine God accepts only aug-free players).
+
 ## Core rule: auto-UNLOCK, never auto-JOIN
 
 - **Unlock** = make a faction's invitation *available*. For backdoor factions that means: root the
