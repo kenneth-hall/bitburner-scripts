@@ -9,3 +9,6 @@ logs/
 Capture.JPG
 open-claude.bat
 open-claude2.bat
+
+# Bitburner game-save exports (Steam drops these in the repo dir; not source)
+bitburnerSave_*.json.gz

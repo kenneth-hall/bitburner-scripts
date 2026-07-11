@@ -25,12 +25,19 @@ node tools/bb/cli.mjs close-tail cloudmanager.js # close a stray/orphaned tail w
 node tools/bb/cli.mjs dismiss                 # close a blocking error/dialog modal
 node tools/bb/cli.mjs read-tail daemon      # text of the "daemon" tail window
 node tools/bb/cli.mjs aria                   # structured outline of clickable UI
+node tools/bb/cli.mjs locations              # names of every location on the open City map
+node tools/bb/cli.mjs location "Central Intelligence Agency" # open a City-map location by name
 node tools/bb/cli.mjs shot out/screen.png    # screenshot
 ```
 
-`read-*` / `stats` / `aria` / `shot` are read-only. `terminal`, `goto`, `restart`, and
-`close-tail` **drive your live session** (navigate / type / kill / relaunch) — they move you off
-whatever screen you're on. Default to reads; use writes deliberately.
+`read-*` / `stats` / `aria` / `locations` / `shot` are read-only. `terminal`, `goto`, `location`,
+`restart`, and `close-tail` **drive your live session** (navigate / type / kill / relaunch) — they
+move you off whatever screen you're on. Default to reads; use writes deliberately.
+
+**City-map navigation.** The map markers render as bare glyphs (`G`/`?`/`$`) with no role and no
+visible name, so `goto`/`click`-by-text can't reach them — but each carries an `aria-label` with
+the real location name. `location "<name>"` clicks by that aria-label (stable across resolutions,
+unlike screenshot coordinates); run `locations` first to get exact spellings for the open city.
 
 `restart` exists because Bitburner leaves a killed script's tail window open (an orphan that
 reverts to the filename title); `restart` closes it between kill and relaunch so repeated

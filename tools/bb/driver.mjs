@@ -31,11 +31,35 @@ export async function goto(page, section) {
 }
 
 /** Click the first element containing `text` (substring match) -- for things that aren't
- * role="button", like the clickable location markers on the ASCII city map. */
+ * role="button". Note: city-map markers are NOT reachable this way (their visible text is a
+ * decorative glyph/[label]); use clickLocation for those. */
 export async function clickText(page, text) {
   await page.getByText(text, { exact: false }).first().click();
   await page.waitForTimeout(300);
 }
+
+/** Click a City-map location by its full name and open its page (e.g. "Central Intelligence
+ * Agency", "Sector-12 City Hall", "Powerhouse Gym"). The map markers render as bare glyphs
+ * (G/?/$) with no role and no visible name, but each carries an `aria-label` with the real
+ * location name -- so an attribute selector on aria-label is the stable handle (resolution-
+ * independent, unlike clicking by screenshot coordinates). Assumes the City screen is open.
+ * Returns the heading of the page it landed on, or null if the label didn't match. */
+export async function clickLocation(page, name) {
+  const marker = page.locator(`[aria-label="${name}"]`);
+  if ((await marker.count()) === 0) return null;
+  await marker.first().click();
+  await page.waitForTimeout(400);
+  return page.evaluate(() => document.querySelector('h1,h2,h3,h4')?.innerText.trim() ?? null);
+}
+
+/** Names of every clickable location on the currently-open City map (from marker aria-labels).
+ * Handy for discovering exact spellings to feed clickLocation. */
+export const listLocations = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('[class*="-location"]')] // emotion keeps the "-location" label suffix stable across its hash
+      .map((el) => el.getAttribute('aria-label'))
+      .filter(Boolean),
+  );
 
 /** Full terminal scrollback text (exact). */
 export const readTerminal = (page) =>

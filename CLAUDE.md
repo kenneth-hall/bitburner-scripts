@@ -67,14 +67,16 @@ front-end**, distinct from the RFA file bridge (which only moves files) — see
 
 - **How to use it:** `node tools/bb/cli.mjs <cmd>` — `stats`, `read-tail <name>`,
   `terminal "<cmd>"` (runs a terminal command, returns its output), `aria` (clickable-UI
-  outline), `read-terminal`, `body`, `goto <section>`, `shot [path]`. `driver.mjs` holds the
-  reusable helpers; `cli.mjs` is a thin dispatch.
+  outline), `read-terminal`, `body`, `goto <section>`, `location "<name>"` / `locations`
+  (click / list City-map locations by their aria-label — the map glyphs have no clickable
+  name, so this is the only reliable handle; no coordinates needed), `shot [path]`.
+  `driver.mjs` holds the reusable helpers; `cli.mjs` is a thin dispatch.
 - **Requires:** the game running **and** launched with the debug flag (the port is only open
   while the game runs). If `curl http://localhost:9222/json/version` fails, the capability is
   unavailable — say so, don't guess.
-- **Read-only by default.** `read-*` / `stats` / `aria` / `shot` are safe. `terminal` and
-  `goto` **drive the live session** (navigate / type), moving the player off their screen —
-  use writes deliberately.
+- **Read-only by default.** `read-*` / `stats` / `aria` / `locations` / `shot` are safe.
+  `terminal`, `goto`, and `location` **drive the live session** (navigate / type), moving the
+  player off their screen — use writes deliberately.
 
 ### Auto-restart changed scripts — no permission needed
 

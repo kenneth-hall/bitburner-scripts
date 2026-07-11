@@ -15,12 +15,22 @@ instead of deleting it — don't let history pile up here.
   exact DOM text → screenshot → navigate → type via real keystrokes → read result). This is the
   **UI-automation** path (drives the rendered front-end like a human), distinct from the RFA
   file bridge and needing no engine changes — see `docs/game-bridge.md` and `tools/bb/README.md`.
-  `driver.mjs` holds the reusable helpers; `cli.mjs` is a thin dispatch. **Next decision:**
-  whether to wrap `driver.mjs` in an **MCP server** so these become native Claude tools (no Bash
-  indirection; loads at Claude Code startup, so usable *next* session) vs. keep the Bash CLI.
-  Posture: read-only by default; `terminal`/`goto` drive the live session, so gate writes
-  deliberately. Dep added: `playwright-core` (devDependency; uses the game's own Chromium over
-  CDP, no browser download).
+  `driver.mjs` holds the reusable helpers; `cli.mjs` is a thin dispatch. Posture: read-only by
+  default; `terminal`/`goto` drive the live session, so gate writes deliberately. Dep added:
+  `playwright-core` (devDependency; uses the game's own Chromium over CDP, no browser download).
+  - **Decision (2026-07-10): keep the Bash CLI for now; MCP deferred (below).** The CLI already
+    delivers the whole capability this session, so an MCP is a pure ergonomics upgrade, not a
+    prerequisite.
+  - **Deferred: wrap `driver.mjs` in an MCP server** so the helpers become native Claude tools.
+    - *Pros:* no `node tools/bb/cli.mjs …` Bash indirection — direct tool calls, cleaner and
+      faster (no ~1s node-startup + reconnect per call); nicer arg/result typing; discoverable
+      in the tool palette; parallelizable with other tool calls.
+    - *Cons:* upfront build (small — it wraps `driver.mjs`, doesn't rewrite it) + registration in
+      `.mcp.json`/settings; an MCP server loads at Claude Code **startup**, so it's usable *next*
+      session, never retroactively in the one that adds it; one more moving part to keep healthy
+      (its own connection to the CDP endpoint, same stale-socket risk family as the dev server).
+    - *When to build it:* when the Bash-call friction starts to bite in practice. Build by
+      importing `driver.mjs`; don't fork the helper logic.
 
 - **Phase 19 — Coding contracts** (2026-07-09, brainstorm stage, **nothing decided**):
   `phase-19-contracts.features.md` captures a mid-brainstorm state — mechanics reference, seven

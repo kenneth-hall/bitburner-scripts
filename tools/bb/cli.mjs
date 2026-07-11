@@ -13,7 +13,7 @@ const [cmd, ...args] = process.argv.slice(2);
 const out = (v) => console.log(typeof v === 'string' ? v : JSON.stringify(v, null, 2));
 
 const USAGE =
-  'commands: stats | terminal <cmd...> | restart <script> | close-tail <title> | read-terminal | read-tail <name> | aria | body | goto <section> | shot [path]';
+  'commands: stats | terminal <cmd...> | restart <script> | close-tail <title> | dismiss | read-terminal | read-tail <name> | aria | body | goto <section> | location <name...> | locations | shot [path]';
 
 await bb.withPage(async (page) => {
   switch (cmd) {
@@ -28,6 +28,12 @@ await bb.withPage(async (page) => {
     case 'body': return out(await bb.bodyText(page));
     case 'goto': { await bb.goto(page, args.join(' ')); return out('ok -> ' + args.join(' ')); }
     case 'click': { await bb.clickText(page, args.join(' ')); return out('clicked -> ' + args.join(' ')); }
+    case 'location': {
+      const name = args.join(' ');
+      const landed = await bb.clickLocation(page, name);
+      return out(landed === null ? `no map location named "${name}" (try: locations)` : `opened -> ${landed}`);
+    }
+    case 'locations': return out(await bb.listLocations(page));
     case 'shot': { return out('saved ' + (await bb.screenshot(page, args[0] || 'bb-shot.png'))); }
     default: return out(USAGE);
   }
