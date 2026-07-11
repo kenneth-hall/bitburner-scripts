@@ -7,17 +7,19 @@ instead of deleting it — don't let history pile up here.
 ## In Progress
 
 - **Phase 20 — XP farm** (2026-07-11, brainstorm stage → `phase-20-xpfarm.features.md`):
-  Convert the ~98% idle fleet into hacking XP to cut the 2500 ETA. Measured after `share-off.txt`:
-  utilization ~2%, ~22.9 PB free of a ~26.5 PB fleet — the money batcher structurally can't fill the
-  fleet at this size. Approach: clone the share manager's carve/top-up machinery with `weaken.js`
-  (coexistence-safe: only lowers security, never corrupts batcher money state) aimed at the
-  highest-level rooted server. Est. 4–6× exp/sec → ETA ~31 h down to ~6–10 h active. **Headline
-  decision: ship a ~30-line MVP `xpfarm.js` now** (grab free RAM, weaken-spam best target) to start
-  farming today and measure the real multiple, then productionize. Open questions (op choice /
-  linearity / in-daemon vs companion / target selection) in the features doc. **This deliberately
-  reverses the "do not build XP-max mode" verdict below** — that was right against the pre-install
-  ~5,300 h wall (throughput was a rounding error vs the multiplier); the install collapsed the wall
-  ~170×, the multiplier lever is now spent, and ETA scales linearly with throughput. Regime changed.
+  Convert the ~98% idle fleet into hacking XP to cut the 2500 ETA (measured after `share-off.txt`:
+  util ~2%, ~22.9 PB free of ~26.5 PB — money batcher structurally can't fill the fleet; money is a
+  dead resource). **Prototype (`src/xpfarm.js`) run live and it pivoted the design:** weaken-fill of
+  idle RAM filled the fleet to 95% util but only got **~1.4×** (194k→270k exp/sec), because **XP is
+  per operation *completion*, not per GB** — weaken is the slowest op, and the batcher's HWGW on
+  prepped targets is ~50–60× more exp-efficient per GB. **New direction (in features doc):** a
+  dedicated XP engine that *saturates the fleet with the fastest exp op (hack) on the highest-
+  difficulty targets held at min security, abandoning money entirely* — simpler than the money
+  batcher, not a variant of it. Critical open question to settle first: does hack still grant full exp
+  once a server's money is drained (decides hack-spam vs grow-based). Prototype stays running as a free
+  ~3.5 h stopgap until the hack engine ships. **Reverses the "do not build XP-max mode" verdict below**
+  — right against the pre-install ~5,300 h wall, wrong now that the install collapsed it ~170× and ETA
+  scales linearly with throughput.
 
 - **CDP game-driver toolkit** (2026-07-10, primitives validated live): `tools/bb/` attaches to
   the Steam/Electron game over the Chrome DevTools Protocol (launch with
