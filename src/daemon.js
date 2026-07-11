@@ -417,7 +417,19 @@ export async function main(ns) {
   }
 
   async function refreshCycle() {
-    hosts = getHosts(ns);
+    const newlyRooted = [];
+    hosts = getHosts(ns, newlyRooted);
+    if (newlyRooted.length > 0) {
+      // Demoted from a per-host terminal tprint (a rebuild flood) to one
+      // batched log event -- read the history in daemon-batch-log.json.
+      logEntries = appendLogEvent(logEntries, openSkipRecords, {
+        event: "rooted",
+        time: new Date().toLocaleTimeString(),
+        timestamp: Date.now(),
+        servers: newlyRooted,
+      });
+      pendingImmediateFlush = true;
+    }
     targets = getTargets(ns);
 
     // Re-checked every CYCLE_MS (decided): a mid-run Formulas.exe purchase
@@ -646,11 +658,8 @@ export async function main(ns) {
       // never recomputed live.
       const lastCost = lastKnownPipelineCostGb.get(exit.server) ?? 0;
       const commitmentPct = lastCost > 0 ? (inFlightInfo.ramGb / lastCost) * 100 : 0;
-      tprintTs(
-        ns,
-        `INFO: ${exit.server} exiting active set (${exit.reason}) -- ${inFlightInfo.batches} batch(es) draining ` +
-          `(${commitmentPct.toFixed(1)}% commitment)`
-      );
+      // Demoted from terminal to log-only (rebuild flood) -- history is the
+      // "exit" event below, in daemon-batch-log.json.
       logEntries = appendLogEvent(logEntries, openSkipRecords, {
         event: "exit",
         time: new Date().toLocaleTimeString(),
@@ -672,10 +681,8 @@ export async function main(ns) {
     for (const member of result.members) {
       if (previousMemberSet.has(member.server)) continue; // not an entrant this tick
       const displaced = result.displacement && result.displacement.entrant === member.server ? result.displacement.displaced : [];
-      tprintTs(
-        ns,
-        `INFO: ${member.server} entering active set${displaced.length ? ` (displaced ${displaced.join(", ")})` : ""}`
-      );
+      // Demoted from terminal to log-only (rebuild flood) -- history is the
+      // "enter" event below, in daemon-batch-log.json.
       logEntries = appendLogEvent(logEntries, openSkipRecords, {
         event: "enter",
         time: new Date().toLocaleTimeString(),

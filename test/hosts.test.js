@@ -62,8 +62,9 @@ describe('tryRoot', () => {
       ['FTPCrack.exe', 'foodnstuff'],
     ]);
     expect(ns.calls.nuke).toEqual(['foodnstuff']);
-    expect(ns.calls.tprint).toHaveLength(1);
-    expect(ns.calls.tprint[0]).toMatch(/rooted new host foodnstuff/);
+    // tryRoot is pure now: it roots and returns, no terminal I/O. Reporting a
+    // fresh root is the caller's job (getHosts' newlyRooted out-param).
+    expect(ns.calls.tprint).toHaveLength(0);
   });
 
   it('returns false without nuking when required level exceeds hacking level', () => {
@@ -174,5 +175,21 @@ describe('getHosts composition', () => {
     const hosts = getHosts(ns);
     expect(ns.calls.nuke).toEqual(['foodnstuff']);
     expect(hosts.find((h) => h.hostname === 'foodnstuff')).toEqual({ hostname: 'foodnstuff', maxRam: 16, freeRam: 16 });
+  });
+
+  it('collects only *newly* rooted hosts into the newlyRooted out-param (not already-rooted ones)', () => {
+    const ns = makeHostsNs({
+      scanTable: { home: ['foodnstuff', 'n00dles'] },
+      hackLevel: 50,
+      ownedFiles: new Set(['BruteSSH.exe']),
+      rooted: new Set(['n00dles']), // already rooted -- must NOT be reported as new
+      servers: {
+        foodnstuff: { reqLevel: 1, reqPorts: 1, maxRam: 16, usedRam: 0 },
+        n00dles: { reqLevel: 1, reqPorts: 1, maxRam: 8, usedRam: 0 },
+      },
+    });
+    const newlyRooted = [];
+    getHosts(ns, newlyRooted);
+    expect(newlyRooted).toEqual(['foodnstuff']);
   });
 });

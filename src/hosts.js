@@ -2,7 +2,7 @@
 // decides *what to attack*. Called fresh every daemon cycle so newly rooted
 // servers and newly purchased servers show up automatically.
 
-import { scanNetwork, tprintTs } from "./common.js";
+import { scanNetwork } from "./common.js";
 
 export const HOME_RESERVE_GB = 32;
 
@@ -65,7 +65,10 @@ export function tryRoot(ns, server) {
 
   for (const file of owned) openPort(ns, file, server);
   ns.nuke(server);
-  tprintTs(ns, `INFO: rooted new host ${server}`);
+  // Pure: no terminal I/O here. Callers that want to report a fresh root
+  // detect it themselves (root state before vs. after) -- getHosts collects
+  // them into its optional newlyRooted out-param, which the daemon logs as a
+  // single "rooted" event instead of one tprint per host (a rebuild flood).
   return true;
 }
 
@@ -117,16 +120,20 @@ export function listHosts(ns) {
 /**
  * Scans the network, nukes anything newly rootable (regardless of whether it
  * holds money), and returns listHosts(ns)'s full host list. Composition:
- * rooting pass (tryRoot per non-purchased network host, result unused --
- * rooting is the point), then listHosts.
+ * rooting pass (tryRoot per non-purchased network host), then listHosts.
+ * Optional `newlyRooted`: pass an array and each host that went from unrooted
+ * to rooted *this call* is pushed into it, so the caller can report the batch
+ * (the daemon logs one "rooted" event) without tryRoot doing terminal I/O.
  * @param {NS} ns
+ * @param {string[]|null} newlyRooted
  */
-export function getHosts(ns) {
+export function getHosts(ns, newlyRooted = null) {
   const purchased = new Set(ns.cloud.getServerNames());
 
   for (const server of scanNetwork(ns)) {
     if (purchased.has(server)) continue;
-    tryRoot(ns, server);
+    const wasRooted = ns.hasRootAccess(server); // tryRoot returns true for already-rooted too, so check before
+    if (tryRoot(ns, server) && !wasRooted && newlyRooted) newlyRooted.push(server);
   }
 
   return listHosts(ns);
