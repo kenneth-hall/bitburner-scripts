@@ -42,33 +42,46 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
-- **XP-max batcher mode — buy hacking levels with dead money** (2026-07-10, instrumented, decision pending):
+- **Reach the Daedalus hacking-2500 gate — multiplier stacking via install cycles** (2026-07-11,
+  plan corrected; supersedes the 2026-07-10 "XP-max batcher" framing below):
   The endgame (finish BitNode 1 → Red Pill → Source-File) is gated on **Daedalus**, and per
   `run fl1ght.exe` the *only* unmet gate is **hacking skill ≥ 2500** (augs 39/30 ✅, money ✅; combat
-  is 1/1/1/1 so the 1500-combat alt-path is a non-starter — see rejected-combat note below). Current
-  hacking ~1612. The problem: the batcher optimizes **$/sec**, but money is a **dead resource** for us —
-  56× over the $100b gate and climbing, and the fleet is **fully maxed** (25 × cloud servers at 1.05PB,
-  all "already at max size" per `cloudcosts.js` 2026-07-10), so there's nothing left that money can buy
-  that advances progression without an aug install (which resets hacking to 0 — a lap, not a shortcut).
-  - **The tradeoff (why this is nearly free for us):** every hack/grow/weaken op yields both money and
-    hacking XP, but they scale on *different* inputs — money ∝ target maxMoney × steal fraction; XP ∝
-    target **base security** × thread-seconds (grow/weaken print XP even with no extraction). They
-    compete for the **same finite RAM**, so $/sec-optimal and XP/sec-optimal pick different targets and
-    can't both be maxed. For most players trading $/sec→XP/sec hurts; for us the sacrificed income has
-    **zero marginal utility**, so the "$/level price" is effectively free. We're running the whole fleet
-    in the mode that optimizes the axis we've already won.
-  - **Instrumentation shipped (c12a3d5):** `daemon.js` now writes `hacking-progress-log.json` — a sparse
-    `{timestamp, level, exp}` sample every 3 min, ring-trimmed ~50h, restart-surviving, exported to
-    `logs/`. This is the baseline. **Next step: read it for a real passive levels/hour → ETA-to-2500**,
-    instead of eyeballing session reads.
-  - **The decision to make against numbers:** (A) accept the passive drift ETA and do nothing, or
-    (B) build an **XP-max mode** that reallocates batcher RAM from money-optimal to XP-optimal
-    (grow/weaken volume on the highest-base-security reachable targets) and *measure* the levels/hour
-    delta vs. the logged baseline. Design sketch + how much B compresses the ETA is the open work.
-  - **Rejected: the combat path to Daedalus.** Structurally worse for this build — combat starts at ~1
-    on all four stats (vs hacking 65% of the way there), our 39 augs are hacking-flavored so combat has
-    no multiplier tailwind, and hacking XP accrues passively via the batcher while combat needs active
-    gym/crime time. Confident on the structure, not on exact XP rates; the asymmetry is too large to flip.
+  1/1/1/1 so the 1500-combat alt-path is a non-starter — see rejected-combat note). **The lever is the
+  hacking multiplier, NOT XP throughput.**
+  - **The measurement that settled it (2026-07-11, from `hacking-progress-log.json`, 34 samples):**
+    hacking skill is *logarithmic* in XP (fit `level ≈ 113.5·ln(exp) − 709`, matches the game curve;
+    implies level-mult ~3.55×). At ~98k exp/sec that puts **2500 ≈ 5,300 h of active play** — raw
+    throughput cannot brute-force it, and an XP-max batcher (even a 10× throughput win) barely dents it.
+    (Also: overnight ran only 1.6 h of the 9 h span — the box slept; sleep ≠ grind.)
+  - **What actually moves it:** `level = mult × (32·ln(exp) − 200)`, so small multiplier gains collapse
+    the XP wall *super-linearly*. Aug page (2026-07-11) confirms: level-mult **3.55× now → 3.83×** after
+    installing the 2 queued augs, exp-mult **3.51× → 4.03×** — that one install cuts XP-to-2500 **~5×**
+    (5,300 h → ~930 h). Reaching a ~50 h single-run climb needs level-mult **~4.5×**.
+  - **Plan — install cycles (pre-install checklist now in `docs/augment-install-protocol.md`):** each
+    cycle, while rich, max home RAM/cores (they persist) + buy all this cycle's augs + NFG levels, then
+    install (level→0 but mult up), re-climb higher than before, unlock new factions for fresh hacking
+    augs. Repeat until a run crests 2500. **Installing is the fast path, not a setback** — the reset-and-
+    re-climb reaches higher than grinding the un-installed run ever would; don't hoard levels.
+  - **Open holes / risks (2026-07-11 adversarial review — read before acting):**
+    1. **Fleet wipes on install.** Cloud servers are purchased servers → reset on soft install, so
+       post-install exp/sec crashes to ~0 until `bootstrap.js` rebuilds the fleet. The ~930 h re-climb
+       estimate ignores that rebuild ramp — it's optimistic. Home RAM persisting mitigates, not erases.
+    2. **Favor few, big install batches — don't install now with only 2 queued.** Each install pays the
+       full fleet-rebuild + rep-regrind overhead, so maximize the aug haul *first* (unlock reachable
+       factions → grind rep → buy their hacking augs) and install *once*. → the faction/aug inventory is
+       a **prerequisite to installing**, not a follow-up.
+    3. **Rep resets every cycle.** Faction rep zeroes on install; re-grinding it (~17/sec; PCMatrix was
+       100k rep = hours) is a real per-cycle time cost the timeline must include.
+  - **Next step:** pull the **faction/aug inventory** — which factions are unlockable, which sell hacking
+    exp/skill-mult augs not yet owned — to build the maximal pre-install buy-list. Ties to the
+    "Post-reset auto-backdoor" auto-unlock item below (unlocking factions is now the primary mult lever).
+  - **Rejected: the combat path to Daedalus.** Structurally worse — combat starts at ~1 on all four
+    stats, the 39 augs are hacking-flavored (no combat mult tailwind), and hacking XP accrues passively
+    while combat needs active gym/crime time. Confident on structure, not exact rates; asymmetry too large to flip.
+  - **Superseded — "XP-max batcher mode" (2026-07-10):** reallocating batcher RAM from $/sec to XP/sec.
+    Correct that money is a dead resource (56× the $100b gate, fleet was maxed), but the 2026-07-11
+    measurement shows throughput is a rounding error against the multiplier — **do not build XP-max mode.**
+    The `hacking-progress-log.json` instrumentation (c12a3d5) it produced stays useful as the ETA baseline.
 
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
