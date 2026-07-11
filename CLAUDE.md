@@ -65,12 +65,12 @@ take screenshots, run terminal commands, click, type. This is **UI automation of
 front-end**, distinct from the RFA file bridge (which only moves files) — see
 `docs/game-bridge.md` and `tools/bb/README.md`. It needs no engine changes.
 
-- **How to use it:** `node tools/bb/cli.mjs <cmd>` — `stats`, `read-tail <name>`,
-  `terminal "<cmd>"` (runs a terminal command, returns its output), `aria` (clickable-UI
-  outline), `read-terminal`, `body`, `goto <section>`, `location "<name>"` / `locations`
-  (click / list City-map locations by their aria-label — the map glyphs have no clickable
-  name, so this is the only reliable handle; no coordinates needed), `shot [path]`.
-  `driver.mjs` holds the reusable helpers; `cli.mjs` is a thin dispatch.
+- **How to use it:** `node tools/bb/cli.mjs <cmd>` — reads (`stats`, `read-terminal`,
+  `read-tail`, `aria`, `body`, `locations`, `shot`) and writes that drive the live session
+  (`terminal`, `goto`, `location`, `restart`, `close-tail`). Full verb list + args in
+  `tools/bb/README.md`; `driver.mjs` holds the reusable helpers, `cli.mjs` is a thin dispatch.
+  Selector rule of thumb: reach elements by accessible attribute (role/name, or `aria-label`
+  for City-map glyphs), not screenshot coordinates.
 - **Requires:** the game running **and** launched with the debug flag (the port is only open
   while the game runs). If `curl http://localhost:9222/json/version` fails, the capability is
   unavailable — say so, don't guess.
