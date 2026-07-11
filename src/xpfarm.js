@@ -18,8 +18,10 @@
 import { listHosts } from "./hosts.js";
 import { scanNetwork } from "./common.js";
 
-const WORKER = "weaken.js";
+const WEAKEN = "weaken.js";
+const HACK = "hack.js";
 const RESERVE_FRAC = 0.05; // leave 5% of each host free for the money batcher
+const HACK_FRAC = 0.84; // hack/weaken split to hold min security (weaken -0.05 vs hack +0.002 at 4x duration)
 const LOOP_MS = 10_000;
 
 /** Highest-difficulty rooted network server = most hacking XP per weaken. */
@@ -42,7 +44,10 @@ export async function main(ns) {
   ns.disableLog("ALL");
   ns.ui.openTail();
 
-  const ramPerThread = ns.getScriptRam(WORKER, "home");
+  // mode: "weaken" (original stopgap) or "hack" (hack-saturation test). Default hack.
+  const mode = (ns.args[0] ?? "hack").toString();
+  const weakenRam = ns.getScriptRam(WEAKEN, "home");
+  const hackRam = ns.getScriptRam(HACK, "home");
   let uid = 0;
 
   while (true) {
@@ -54,29 +59,34 @@ export async function main(ns) {
     }
 
     const hosts = listHosts(ns);
-    let launchedThreads = 0;
-    let totalMax = 0;
-    let totalUsed = 0;
+    let hackThreads = 0;
+    let weakenThreads = 0;
 
     for (const host of hosts) {
-      totalMax += host.maxRam;
-      totalUsed += host.maxRam - host.freeRam;
-
-      // Fill down to the reserve line: usable is freeRam minus RESERVE_FRAC of
-      // this host's capacity, so the batcher always keeps a slice.
       const usable = host.freeRam - RESERVE_FRAC * host.maxRam;
-      const threads = Math.floor(usable / ramPerThread);
-      if (threads < 1) continue;
+      if (usable < weakenRam) continue;
+      ns.scp([WEAKEN, HACK], host.hostname, "home");
 
-      ns.scp(WORKER, host.hostname, "home"); // robust vs. newly-rooted hosts the daemon hasn't scp'd yet
-      const pid = ns.exec(WORKER, host.hostname, threads, target, 0, uid++);
-      if (pid !== 0) launchedThreads += threads;
+      if (mode === "hack") {
+        // Split this host's usable RAM ~84/16 hack/weaken on the same target,
+        // fire-and-forget: hack drains money (harmless -- exp is money-independent)
+        // and the weaken share holds min security so hackTime stays short.
+        const wThreads = Math.floor((usable * (1 - HACK_FRAC)) / weakenRam);
+        const hThreads = Math.floor((usable - wThreads * weakenRam) / hackRam);
+        if (wThreads >= 1 && ns.exec(WEAKEN, host.hostname, wThreads, target, 0, uid++) !== 0) weakenThreads += wThreads;
+        if (hThreads >= 1 && ns.exec(HACK, host.hostname, hThreads, target, 0, uid++) !== 0) hackThreads += hThreads;
+      } else {
+        const wThreads = Math.floor(usable / weakenRam);
+        if (wThreads >= 1 && ns.exec(WEAKEN, host.hostname, wThreads, target, 0, uid++) !== 0) weakenThreads += wThreads;
+      }
     }
 
-    const utilPct = totalMax > 0 ? ((totalUsed + launchedThreads * ramPerThread) / totalMax) * 100 : 0;
+    const sec = ns.getServerSecurityLevel(target);
+    const minSec = ns.getServerMinSecurityLevel(target);
     ns.print(
-      `[${new Date().toLocaleTimeString()}] target ${target} (req ${ns.getServerRequiredHackingLevel(target)}) | ` +
-        `+${ns.format.number(launchedThreads)} weaken threads | fleet ~${utilPct.toFixed(0)}% | hack lvl ${ns.getHackingLevel()}`,
+      `[${new Date().toLocaleTimeString()}] ${mode} ${target} (req ${ns.getServerRequiredHackingLevel(target)}) | ` +
+        `+${ns.format.number(hackThreads)}H/${ns.format.number(weakenThreads)}W | ` +
+        `sec ${sec.toFixed(1)}/${minSec.toFixed(1)} | lvl ${ns.getHackingLevel()}`,
     );
 
     await ns.sleep(LOOP_MS);

@@ -17,9 +17,17 @@ instead of deleting it — don't let history pile up here.
   difficulty targets held at min security, abandoning money entirely* — simpler than the money
   batcher, not a variant of it. Critical open question to settle first: does hack still grant full exp
   once a server's money is drained (decides hack-spam vs grow-based). Prototype stays running as a free
-  ~3.5 h stopgap until the hack engine ships. **Reverses the "do not build XP-max mode" verdict below**
+  stopgap. **Reverses the "do not build XP-max mode" verdict below**
   — right against the pre-install ~5,300 h wall, wrong now that the install collapsed it ~170× and ETA
   scales linearly with throughput.
+  - **Decision 2026-07-11: build the full phase, scoped as a durable BN2+ tool (NOT the 2500 sprint).**
+    The weaken stopgap is closing 2500 on its own (~3 h ETA and falling, rate ~428k exp/sec) — faster
+    than the engine could ship, so no immediate payoff. Justified by the **next re-climb**: every future
+    BitNode resets hacking to 1. This reframed the design — a fresh node has an *active* money economy
+    and a *busy* fleet, so the engine **coexists with the money batcher and takes only surplus RAM**
+    (self-scales: ~0 early, dominant once the fleet outgrows money needs), not the endgame-only "abandon
+    money / seize the fleet." Q1 verified (hack exp is money-independent → hack-saturation, no grow);
+    features doc decisions finalized. **Next: spec stage (fable) → `phase-20-xpfarm.spec.md` + spec-reviewer.**
 
 - **CDP game-driver toolkit** (2026-07-10, primitives validated live): `tools/bb/` attaches to
   the Steam/Electron game over the Chrome DevTools Protocol (launch with

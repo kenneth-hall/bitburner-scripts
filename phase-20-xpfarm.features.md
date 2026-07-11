@@ -23,6 +23,14 @@ multiplier). The install collapsed the wall ~170×; the multiplier lever is now 
 amortize this close to the gate — see rejected alternatives), ETA scales *linearly* with exp/sec, and
 the fleet is idle. Different regime, opposite conclusion.
 
+**Scope shift (2026-07-11): this ships as a durable BN2+ tool, not a 2500 sprint.** The weaken
+prototype is already closing the current 2500 gate (~3 h ETA and falling) — faster than this phase
+could ship, so the *immediate* payoff is gone. What justifies building it is the **next re-climb**:
+every future BitNode (post-Red-Pill, and each after) resets hacking to 1 and re-earns the level grind
+from scratch, so a reusable "surplus RAM → hacking XP" layer pays off on every node. **This reframes
+the premise:** in a fresh node money is *not* dead and the fleet is *not* idle, so the engine must
+**coexist with an active money economy** rather than seize the whole fleet (see Core approach).
+
 ## What the prototype proved (2026-07-11) — the pivot
 
 The first instinct was "fill idle RAM with `weaken` (coexistence-safe) on the highest-difficulty
@@ -43,8 +51,12 @@ production design below is a different architecture.
 
 ## Core approach
 
-**Saturate the fleet with the *fastest* exp-granting operation on the highest-difficulty target(s),
-holding those targets at minimum security — and abandon money entirely for the duration.**
+**Opportunistically fill the fleet's *surplus* RAM — whatever the money batcher leaves free — by
+saturating the highest-difficulty target(s) with the *fastest* exp op (hack), holding those targets at
+minimum security.** The money batcher keeps first claim; the XP engine takes only the surplus. This
+one rule self-scales across a node's whole life: near-zero XP farming early (a small fleet is fully
+spent on money), dominant late (the fleet outgrows money needs — today's ~98%-idle endgame). No mode
+switch, no "money is dead" assumption baked in — the batcher's own RAM appetite decides the split.
 
 Reasoning from the mechanics:
 
@@ -55,26 +67,29 @@ Reasoning from the mechanics:
 - op-time shrinks at **minimum security** (and hackChance is highest there) → keep the target at min
   sec with a small weaken allocation; hack raises security +0.002/thread, weaken lowers it
   −0.05/thread, so a fraction of threads must be weaken to hold the line.
-- **money is irrelevant**, so there is no prep-to-max-money and no HWGW landing-order timing. Each
-  hack independently grants exp on completion; we don't care what it steals or that it drains the
-  server. **This makes the XP engine simpler than the money batcher, not a variant of it.**
+- **the XP engine itself ignores money** — the money batcher owns the economy; the engine only spends
+  *surplus* RAM, so there's no prep-to-max-money and no HWGW landing-order timing *inside the engine*.
+  Each hack independently grants exp on completion; it doesn't matter what it steals or that it drains
+  a surplus-RAM target. **This makes the XP engine simpler than the money batcher, not a variant of
+  it** — and lets it ride on top of an active economy in a fresh node instead of replacing it.
 
 Net shape: pick the best target(s), spend a minority of threads on weaken to pin min security, and
-throw the rest of the fleet at hack. Fire-and-forget workers (reuse `hack.js`/`weaken.js`); no batch
-interleaving.
+throw the rest of the *surplus* RAM at hack. Fire-and-forget workers (reuse `hack.js`/`weaken.js`); no
+batch interleaving.
 
 ## Key decisions (proposed, for spec confirmation)
 
-1. **Abandon money optimization for the duration.** Money is dead; optimizing for it is what leaves
-   the fleet idle. The XP engine targets exp/sec only. (The money batcher can keep trickling on a
-   small reserve, or be turned off entirely — see open questions.)
+1. **Coexist with the money batcher; take only surplus RAM (DECIDED — was "abandon money").** The
+   money batcher keeps first claim on the fleet each cycle; the XP engine fills whatever it leaves free
+   (down to a small reserve). This self-scales across a node's life and works in a fresh BitNode where
+   money still matters — no "money is dead" assumption baked in. (Replaces the endgame-only "abandon
+   money / take the whole fleet" framing, which was correct only for today's idle-fleet state.)
 2. **Dedicated XP engine, not a money-batcher objective-swap.** Evolve the prototype into a small
    standalone saturator rather than re-scoring `daemon.js`. The batcher's complexity (HWGW timing,
    prep, money tracking) is exactly what an XP engine *doesn't* need, and swapping its objective risks
    a proven system. Isolation (CLAUDE.md) + simplicity both favor a companion.
-3. **Hack-heavy, pending one verification.** Hack is the highest exp/sec/thread op *if* it still
-   grants full exp once the server's money is drained — the critical open question below. If it
-   doesn't, fall back to grow-based saturation (grow always completes on a moneyed server; 3.2× time).
+3. **Hack-heavy — VERIFIED (open-Q1, `xpprobe.js`).** Hack exp is money-independent, so hack (the
+   fastest op) saturates surplus RAM and its targets' money drains harmlessly. No grow needed.
 4. **Reuse existing workers** (`hack.js`, `weaken.js`) — no new worker files/RAM.
 5. **Keep the weaken prototype running until the hack engine ships** (free 1.4% stopgap), then retire
    it.
@@ -115,23 +130,23 @@ interleaving.
    balance ≈ **84% hack / 16% weaken**, independent of absolute scale. **Still needs a LIVE test:** the
    *equilibrium* security a fire-and-forget (untimed) hack+weaken mix actually settles at — if lands
    arrive jumbled, security can hover above min and erode the 3× speed. That, plus hackChance (74.8% at
-   min sec on fulcrumassets — confirm failed hacks still grant exp), is what the live hack-saturation
-   prototype run measures next.
+   min sec on fulcrumassets — confirm failed hacks still grant exp), is **deferred to implementation's
+   first validation step** — it's tuning, not a fork (Q1 was the fork), so it doesn't block the spec.
 3. **Single best target vs spread across the top-N.** Concentrating on the highest-difficulty server
    maximizes exp/thread but hits the per-target security ceiling (#2) and one server's op-time sets
    the whole cadence. Spreading across several high-difficulty targets diversifies cadence and spreads
-   the weaken-hold load. Likely multi-target; confirm the N and the selection/re-selection cadence as
-   level climbs.
-4. **Architecture confirm: dedicated companion vs daemon-integrated.** Leaning dedicated (decision 2),
-   but the companion must discover hosts + free RAM itself (the prototype already does, via
-   `listHosts`) and decide how it coexists with the money batcher's RAM claims.
-5. **Money batcher: leave running on a reserve, or turn off for the duration?** Off → 100% of the
-   fleet to XP and no target contention; on → trickle income + keeps some servers prepped, at the cost
-   of a coexistence reserve. Money being dead argues for off; simplest to decide once #1 is known.
-6. **exp/sec scaling ceiling.** The 4–6× target assumes the fleet's hack throughput isn't capped by a
-   per-server thread/security wall (#2) or a client-side limit at ~10 M+ threads. Measure the real
-   multiple; it may be target-count-bound rather than RAM-bound.
-7. **Auto-disable at 2500?** Goal-specific tool — auto-off at level 2500 vs manual `xp-off.txt`.
+   the weaken-hold load. Likely multi-target; confirm the N and the re-selection cadence during
+   implementation validation (couples to #2's equilibrium result).
+4. **~~Architecture: companion vs daemon-integrated?~~ DECIDED — dedicated companion.** Evolve the
+   prototype; discovers hosts + free RAM via `listHosts` (already does). Rationale in decision 2.
+5. **~~Batcher off, or on with a reserve?~~ DECIDED — on, coexist; XP takes surplus only.** The BN2+
+   scope settles this: money isn't dead in a fresh node, so the engine must ride on top of an active
+   batcher (decision 1), not turn it off. Endgame idle-fleet just makes "surplus" ≈ the whole fleet.
+6. **exp/sec scaling ceiling (deferred to impl validation, with #2).** Whether throughput is
+   RAM-bound or target/security-bound sets the real multiple — measured with #2, not guessed now.
+7. **~~Auto-disable at 2500?~~ DECIDED — manual `xp-off.txt` only.** No auto-off: it's a per-node
+   reusable tool now (not a one-shot 2500 sprint), and it self-suppresses in a busy fleet anyway
+   (no surplus → no farming). A manual toggle mirroring `share-off.txt` is enough.
 
 ## Ship gate
 
