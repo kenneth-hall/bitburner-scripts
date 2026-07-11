@@ -19,7 +19,7 @@ on request — hold to them even when the moment is uncomfortable.
   re-clearing BN4 up to level 3 is itself a payoff). **Treat BN4 as a long node, not a quick SF4 grab**
   — the economy is heavily nerfed and the finish line is far: Hacking Exp **40%**, Server Max Money
   **11.25%**, and `w0r1d_d43m0n` Difficulty **300%** → the backdoor gate is effectively hacking
-  **~9000** (3× BN1's 3000). Full live-read multiplier table + open questions: **`docs/bn4.md`**;
+  **~9000** (3× BN1's 3000). Full 15-node list + BN4's live-read multiplier table: **`docs/bitnodes.md`**;
   memory [[reference_bn4_singularity]]. **Design implication:** keep Singularity calls **out of daemon
   hot paths** — at 16× RAM early they're expensive, so the "isolate in `exec`'d companion scripts"
   convention below is now *active* guidance, not theoretical. Several backlog items that were parked as
