@@ -28,12 +28,17 @@ on request — hold to them even when the moment is uncomfortable.
   Daedalus to ~465k rep (150 favor) → install (the 2 already-queued minor exp augs bank the favor; no
   throwaway needed) → **donate generously (~$4–6t → ~7–10M rep, not just the $1.5t for Red Pill)** →
   buy the 3 ENM augs + a deep **NFG stack** + Red Pill → install → rebuild fleet + re-climb to 3000 →
-  backdoor. Keep the two installs **back-to-back** (no re-climb between). **NFG stacking is essential,
-  not optional:** the exp curve is exponential in (level/mult), so re-climbing 2,627→3000 at the current
-  mult 4.72 needs ~218B exp (infeasible, ~12× lifetime XP — the same log wall as 2500); at mult ~8 it's
-  ~64M exp (minutes). Donation converts the dead $600t → rep → NFG levels → mult ~10+, which is what
-  makes gate 2 reachable at all. Exact NFG/level effect tuned live when buying (no SF4 to script-read).
-  Grafting ruled out (`docs/grafting.md`).
+  backdoor. Keep the two installs **back-to-back** (no re-climb between). Donation **VERIFIED live**
+  (Daedalus page: "Unlock donations at 150.000 favor") — exists in this build, threshold is 150.
+  **Raising mult is essential, not optional:** the exp curve is exponential in (level/mult), so
+  re-climbing 2,627→3000 at the current mult 4.72 needs ~218B exp (infeasible, ~12× lifetime XP — the
+  same log wall as 2500). BUT NFG stacking is **money-capped, not rep-capped**: the ~1.9×/aug price
+  escalation (verified: "Price multiplier x3.610" = 1.9²) caps NFG at ~17–18 levels/install even with
+  $1.13q, so realistic post-install mult is **~6–7 (not ~10)** → re-climb ~30 min–few hours, sensitive
+  around mult 6. **Sideline risk:** if one install's mult lands < ~5.5–6, reaching 3000 is impractical
+  and — all non-NFG augs exhausted — NFG-across-multiple-installs is the only lever left (recoverable,
+  but multi-cycle). Exact NFG/ENM per-level effects assumed from stock; tune live when buying (no SF4 to
+  script-read). Grafting ruled out (`docs/grafting.md`).
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say

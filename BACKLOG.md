@@ -106,14 +106,28 @@ instead of deleting it — don't let history pile up here.
     NFG needed) → **donate generously (~$4–6t → ~7–10M rep, NOT just the $1.5t for Red Pill)** → buy the
     3 ENM augs + a deep NFG stack + Red Pill → install (back-to-back, no re-climb between) → rebuild fleet
     + re-climb to **3000** → backdoor `w0r1d_d43m0n`. Two installs but one re-climb.
-  - **NFG stacking is ESSENTIAL, not optional (exp-curve math, 2026-07-11).** `level = mult ×
-    (32·ln(exp)−200)` → exp is exponential in (level/mult). At the current mult **4.72**, re-climbing
-    2,627→3000 needs **~218B exp** (~12× lifetime XP, ~150+h — infeasible, the same log wall that made
-    2500 hard). Raising mult collapses it: M=6 → ~3.2B exp (~2h), **M=8 → ~64M (minutes)**, M=10 → ~6M.
-    So raw grinding CANNOT reach 3000 — mult is the only lever. Donation converts the dead $600t →
-    Daedalus rep → NFG levels (~+1%/level all mults; rep req rises ~9%/level, but donation buys the rep)
-    → target mult ~10+ (NFG ~level 100 ≈ ~7M rep ≈ ~$4–5t + the 3 ENM augs). Exact NFG/level effect + rep
-    scaling assumed from stock Bitburner; verify live when buying (no SF4 to script-read aug stats).
+  - **Raising mult is ESSENTIAL (exp-curve math, 2026-07-11).** `level = mult × (32·ln(exp)−200)` → exp
+    is exponential in (level/mult). At mult **4.72**, re-climbing 2,627→3000 needs **~218B exp** (~12×
+    lifetime XP, ~150+h — infeasible, the log wall that made 2500 hard). Raising mult collapses it:
+    M=6 → ~3.2B exp (~2h), M=7 → ~330M, M=8 → ~64M. So raw grinding CANNOT reach 3000 — mult is the only
+    lever.
+  - **NFG stacking is MONEY-capped, not rep-capped (adversarial-review correction, 2026-07-11).** Earlier
+    "NFG ~level 100 / mult ~10 / re-climb in minutes" was WRONG — it ignored the ~1.9×/aug price
+    escalation (verified live: "Price multiplier x3.610" = 1.9² for the 2 queued augs). Each aug bought
+    multiplies the next by ~1.9×, so NFG escalates ~1.9×/level; against $1.13q only **~17–18 NFG levels/
+    install** are affordable (not ~80). Realistic post-install mult **~6–7**, re-climb **~30 min–few
+    hours**, sensitive around mult 6. **Sideline risk:** if one install lands mult < ~5.5–6, reaching
+    3000 is impractical and — all non-NFG augs exhausted — NFG-across-multiple-installs is the only lever
+    (recoverable, multi-cycle). Buy NFG to the money cap and watch the mult live before committing.
+  - **Donation VERIFIED live (2026-07-11):** Daedalus faction page reads "Unlock donations at 150.000
+    favor with Daedalus" — the mechanic exists in this modified build and the threshold is 150, killing
+    the two biggest assumptions (donation exists; threshold). Donation at 150 favor is cheaper than the
+    favor-0 `donationForRep` estimate (favor bonus), so ≤$1.5t for 2.5m rep; donate more to fund NFG.
+  - **Missing steps flagged:** (a) post-install a soft reset kills all scripts — manually restart the
+    bootstrap/daemon per `docs/reset-protocol.md`, don't wing it; (b) `w0r1d_d43m0n` isn't connected to
+    home — walk the network and run the manual terminal `backdoor` (no Singularity needed) at hacking
+    3000. Completion mechanic (Red Pill spawns it, backdoor finishes BN1) assumed standard, unconfirmed
+    until there (`destroyw0r1dd43m0n` exists in the API docs, so the concept is real).
   - **Gate 2 confirmed:** `w0r1d_d43m0n` needs hacking **3000** (standard BN1, `3000×WorldDaemonDifficulty`
     at mult 1.0; server not queryable until Red Pill spawns it). Only ~14% above current ~2,626, so the
     post-install re-climb is "restore position + a bit." Install-cycle mechanics (favor persists, rep
