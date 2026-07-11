@@ -150,6 +150,10 @@ SF3: create corporations in other nodes (some disable it), **L3 unlocks full Cor
 - **Gang** — Gang Softcap: **0.900** · Unique Augmentations: **50%**
 - **Stanek's Gift** — Gift Power: **75%** · Base Size Modifier: **−2.00000**
 
+### BN4: The Singularity — owned **SF4 level 0 / 3** (entered, backed out — not cleared)
+Full multiplier table is the **detailed BN4 section below** — re-verified against this live panel
+(all values match: WD 300%, hacking exp 40%, server max money 11.25%, gift power 150%, etc.).
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -208,3 +212,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Started per-node BitVerse selection-panel captures: BN1 (owned SF1 level 1/3).
 - 2026-07-11 — Captured BN2 selection panel + full multiplier table (SF2 not yet owned).
 - 2026-07-11 — Captured BN3 selection panel + full multiplier table (SF3 not yet owned).
+- 2026-07-11 — BN4 selection panel (SF4 0/3) re-verified against the detailed BN4 table — all match.
