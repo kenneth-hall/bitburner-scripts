@@ -6,6 +6,19 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
+- **Phase 20 — XP farm** (2026-07-11, brainstorm stage → `phase-20-xpfarm.features.md`):
+  Convert the ~98% idle fleet into hacking XP to cut the 2500 ETA. Measured after `share-off.txt`:
+  utilization ~2%, ~22.9 PB free of a ~26.5 PB fleet — the money batcher structurally can't fill the
+  fleet at this size. Approach: clone the share manager's carve/top-up machinery with `weaken.js`
+  (coexistence-safe: only lowers security, never corrupts batcher money state) aimed at the
+  highest-level rooted server. Est. 4–6× exp/sec → ETA ~31 h down to ~6–10 h active. **Headline
+  decision: ship a ~30-line MVP `xpfarm.js` now** (grab free RAM, weaken-spam best target) to start
+  farming today and measure the real multiple, then productionize. Open questions (op choice /
+  linearity / in-daemon vs companion / target selection) in the features doc. **This deliberately
+  reverses the "do not build XP-max mode" verdict below** — that was right against the pre-install
+  ~5,300 h wall (throughput was a rounding error vs the multiplier); the install collapsed the wall
+  ~170×, the multiplier lever is now spent, and ETA scales linearly with throughput. Regime changed.
+
 - **CDP game-driver toolkit** (2026-07-10, primitives validated live): `tools/bb/` attaches to
   the Steam/Electron game over the Chrome DevTools Protocol (launch with
   `--remote-debugging-port=9222`) and gives a shell — and Claude via the Bash tool — read+act
@@ -83,6 +96,12 @@ instead of deleting it — don't let history pile up here.
   - **Rejected: the combat path to Daedalus.** Structurally worse — combat starts at ~1 on all four
     stats, the 39 augs are hacking-flavored (no combat mult tailwind), and hacking XP accrues passively
     while combat needs active gym/crime time. Confident on structure, not exact rates; asymmetry too large to flip.
+  - **Un-superseded 2026-07-11 → now Phase 20 (In Progress).** The "XP-max batcher mode" idea below was
+    shelved because throughput was a rounding error against the pre-install multiplier wall. After the
+    install collapsed that wall ~170× (mult 3.55→4.72, ETA 5,300 h→~31 h), the multiplier lever is spent
+    and throughput scales the ETA linearly — and the fleet turned out ~98% idle. So the XP-farm idea is
+    now live as Phase 20 (In Progress above), though as a *fill on idle RAM* rather than reallocating the
+    money batcher itself. Original shelved note kept below for the reasoning trail.
   - **Superseded — "XP-max batcher mode" (2026-07-10):** reallocating batcher RAM from $/sec to XP/sec.
     Correct that money is a dead resource (56× the $100b gate, fleet was maxed), but the 2026-07-11
     measurement shows throughput is a rounding error against the multiplier — **do not build XP-max mode.**
