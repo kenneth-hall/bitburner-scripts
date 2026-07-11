@@ -103,16 +103,20 @@ interleaving.
 
 ## Open questions (resolve at spec / by measurement)
 
-1. **CRITICAL — does hack grant full exp when the server's money is drained (and on failed hacks)?**
-   Decides everything: if yes, pure hack-saturation works and money drains harmlessly; if no, we need
-   grow to keep money present (toward a grow+weaken saturator). Cheap to test with the prototype
-   (point it at hack, watch exp/sec as the target drains). This is the first thing the spec should
-   settle empirically.
-2. **Hack/weaken ratio to hold minimum security, and the per-target thread ceiling.** hack +0.002,
-   weaken −0.05, weaken 4× slower → roughly ~15–20% of a target's threads must be weaken to hold min
-   sec. Above some hack rate a single server's security outruns the weaken hold and hackTime balloons
-   (self-defeating). So: what split holds the line, and how many threads can one target absorb before
-   it saturates?
+1. **~~CRITICAL — does hack grant full exp when money is drained?~~ ANSWERED (2026-07-11, `xpprobe.js`
+   via Formulas.exe).** `hackExp(fulcrumassets)` = **162.59 at full money === 162.59 at zero money**
+   (money-independent), and it doesn't track current security either — hack exp is a flat per-server
+   constant (base difficulty). **⇒ pure hack-saturation is viable: money drains harmlessly, exp keeps
+   flowing at full rate, no grow needed.** The engine is hack + a weaken-hold, full stop.
+2. **Hack/weaken ratio to hold min security + per-target thread ceiling. Partially answered.** Probe
+   (Formulas): `hackTime` = **152.5 s at min sec vs 456.2 s at current sec (3× faster at min)** — since
+   exp/op is constant, holding min sec ~triples exp/sec, so the weaken allocation is for *speed*, not
+   exp. Analytic hold ratio: hack +0.002/thread, weaken −0.05/thread at 4× duration → steady-state
+   balance ≈ **84% hack / 16% weaken**, independent of absolute scale. **Still needs a LIVE test:** the
+   *equilibrium* security a fire-and-forget (untimed) hack+weaken mix actually settles at — if lands
+   arrive jumbled, security can hover above min and erode the 3× speed. That, plus hackChance (74.8% at
+   min sec on fulcrumassets — confirm failed hacks still grant exp), is what the live hack-saturation
+   prototype run measures next.
 3. **Single best target vs spread across the top-N.** Concentrating on the highest-difficulty server
    maximizes exp/thread but hits the per-target security ceiling (#2) and one server's op-time sets
    the whole cadence. Spreading across several high-difficulty targets diversifies cadence and spreads
