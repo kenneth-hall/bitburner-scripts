@@ -21,9 +21,14 @@ on request — hold to them even when the moment is uncomfortable.
   `w0r1d_d43m0n` needs hacking **3000** (standard BN1 value = `3000 × WorldDaemonDifficulty` at mult
   1.0; server isn't queryable until Red Pill spawns it, so live-unconfirmable until then) — only ~14%
   above the current ~2,626, so the post-install re-climb is "restore position + a bit," not a new wall.
-  **Remaining open dependency:** the queued-aug inventory (decides whether a mult install is justified
-  → donation shortcut; if not, just grind the full 2.5m and install Red Pill + augs together, one
-  reset). Grafting ruled out (`docs/grafting.md`).
+  **Aug inventory resolved (2026-07-11):** all unowned augs are in **Daedalus** (every other faction,
+  joined or joinable, reads "No Augmentations left") — the 3 Embedded Netburner Module hacking-mult
+  upgrades (Analyze Engine 625k rep, DMA 1.0m, Core V3 1.75m; ~$74b total, trivial vs $600t), unlimited
+  NeuroFlux levels, and The Red Pill (2.5m). So a mult install **is** justified → **locked plan:** grind
+  Daedalus to ~465k rep (150 favor) → install a throwaway NFG level to bank the favor → **donate ~$1.5t
+  to jump to 2.5m rep** → buy the 3 ENM augs + a big NFG stack + Red Pill → install → rebuild fleet +
+  re-climb to 3000 → backdoor. Keep the two installs **back-to-back** (no re-climb between). Saves ~16h
+  vs hand-grinding the full 2.5m. Grafting ruled out (`docs/grafting.md`).
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say

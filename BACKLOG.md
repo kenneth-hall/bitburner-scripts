@@ -95,11 +95,20 @@ instead of deleting it — don't let history pile up here.
     install, so keep the two installs back-to-back (no re-climb between) to pay for only ONE hacking
     re-climb. If a re-climb lands between them, grinding the full 2.5m and installing Red Pill + augs
     together (one reset) wins instead. All via UI (no Singularity). Probe left as `src/favorprobe.js`.
-  - **Sequencing risk — don't install Red Pill the instant rep hits 2.5m.** Installing it resets
-    hacking, and there's a further gate after: backdooring `w0r1d_d43m0n` needs hacking well above
-    2,600. Confirm that exact requirement first so the final install is timed to re-clear it fast, not
-    to knock hacking back below it. The install-cycle mechanics (favor persists, rep resets) still
-    apply — see the superseded item below for that reasoning.
+  - **Aug inventory resolved + PLAN LOCKED (2026-07-11, read live via CDP).** All unowned augs are in
+    **Daedalus** — every other faction (member: Chongqing, New Tokyo; joinable: CyberSec, NiteSec, The
+    Black Hand, BitRunners, Tian Di Hui, Ishima) reads **"No Augmentations left."** Daedalus's 7:
+    3 Embedded Netburner Module hacking-mult upgrades (**Analyze Engine** 625k rep/$21.7b, **DMA Upgrade**
+    1.0m/$25.3b, **Core V3 Upgrade** 1.75m/$27.1b), 3 combat/defense augs (skip — irrelevant to hacking),
+    and **The Red Pill** (2.5m rep/$0). Plus repeatable NeuroFlux. Money is a non-issue ($600t vs ~$74b).
+    **Locked sequence:** grind Daedalus ~465k rep (150 favor, ~2.7h from 115k) → buy 1 NFG level + install
+    (banks 150 favor; near-zero mult) → **donate ~$1.5t → 2.5m rep** → buy the 3 ENM augs + big NFG stack +
+    Red Pill → install (back-to-back, no re-climb between) → rebuild fleet + re-climb to **3000** → backdoor
+    `w0r1d_d43m0n`. Two installs but one re-climb. Saves ~16h vs grinding the full 2.5m.
+  - **Gate 2 confirmed:** `w0r1d_d43m0n` needs hacking **3000** (standard BN1, `3000×WorldDaemonDifficulty`
+    at mult 1.0; server not queryable until Red Pill spawns it). Only ~14% above current ~2,626, so the
+    post-install re-climb is "restore position + a bit." Install-cycle mechanics (favor persists, rep
+    resets) still apply — see the superseded item below.
 - **[SUPERSEDED — 2500 gate CLEARED 2026-07-11] Reach the Daedalus hacking-2500 gate — multiplier stacking via install cycles** (2026-07-11,
   plan corrected; supersedes the 2026-07-10 "XP-max batcher" framing below):
   The endgame (finish BitNode 1 → Red Pill → Source-File) is gated on **Daedalus**, and per
