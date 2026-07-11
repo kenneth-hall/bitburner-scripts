@@ -97,10 +97,19 @@ profitable), so weaken-farming them doesn't compete with the batcher for targets
 
 ## Open questions (resolve at spec / by measurement)
 
-1. **Which operation actually maximizes exp/sec/thread?** Weaken is the coexistence-safe default and
-   the MVP choice, but it's the *longest* op (4× hack time), so it may be the *lowest* exp/sec/thread.
-   Measure weaken vs grow vs a dedicated-target mini-HWGW before committing the production design.
-   (Does weaken still grant XP at minimum security? Believed yes — verify.)
+1. **Which operation actually maximizes exp/sec/thread? — ANSWERED by the MVP (2026-07-11), and it
+   reshapes the phase.** Weaken-fill on the highest-req server (`fulcrumassets`, req 1408) filled the
+   fleet to 95% util but delivered only **~1.4×** (194k → ~270k exp/sec). Root cause: **XP is granted
+   per operation *completion*, not per GB occupied.** Weaken is the *slowest* op (4× hack time), so on
+   a high-req server each thread completes rarely — huge RAM, few completions. The batcher's ~3.5% of
+   the fleet produces ~194k via tight HWGW cycles on *prepped* targets; the farm's ~91% produces only
+   ~85k — the batcher is **~50–60× more exp-efficient per GB.** Implication: a single-op RAM fill is
+   the wrong architecture. The efficient lever is **more fast completions on prepped targets** — i.e.
+   flood the batcher's prepped targets with overkill HWGW batches beyond the money-optimal cap
+   (hack is the fastest op → highest exp/sec/thread), rather than occupying RAM with slow weakens.
+   Cheap intermediate tests the MVP still enables: grow-fill (~25% faster than weaken) and hack-fill
+   (4× faster, but depletes money / interferes) — but neither is expected to approach batcher-flood.
+   The weaken MVP is worth *keeping running* meanwhile: 1.4× is a free ~3.5 h off the ETA at no cost.
 2. **Does exp/sec scale ~linearly as we fill 22.9 PB?** The 4–6× upside assumes near-linear. Each
    weaken thread grants XP independently, so it should — but confirm there's no per-server thread
    cap or client-side performance wall at ~10M+ threads (22.9 PB / ~1.75 GB per weaken thread).
