@@ -17,6 +17,48 @@ per-node multiplier tables must be hand-read off the BitNode selection screen un
   destroy method unlocks after destroying BN6 or BN7 (Bladeburners).
 - Each SF maxes at **level 3** (except **SF12**, unlimited). Re-destroying a node upgrades its SF.
 
+## Our next-node plan (mature batcher — decided 2026-07-11)
+
+**State:** SF1 level 1 only; a mature hacking batcher; no gang/corp/bladeburner/sleeve/stock
+tooling. Backed out of BN4 (too grindy at SF1.1).
+
+**The lens:** Server Max Money is the batcher's oxygen. A node either lets the batcher stay the
+protagonist, or nerfs money to single digits and forces you to win via a mechanic we haven't
+built. Straight from the panels:
+
+| Batcher stays the star | Money-nerfed → batcher benched |
+|---|---|
+| BN1 (100% $, WD 3,000) · BN5 (100% $, WD 4,500, 15% steal) · BN10 (100% $, WD 6,000, 50% steal, full exp) · BN12.1 (~96% $, WD ~3,060) | BN2 (8%) · BN3 (4%) · BN4 (11.25%) · BN9 (1%) · BN11 (1%) · BN13 (33%). BN14/BN15 keep money but gate WD at 15,000 / behind puzzles. |
+
+**Strategy: snowball the batcher on low-difficulty friendly nodes while building the next
+engine.**
+1. **Warm-up lap (test track, not a power bank):** clear **BN1→1.2** once, and **BN12.1**
+   (prefer it over a 2nd BN1 — new SF + starts the permanent free-NFG engine, same trivial
+   ~3,060 gate). *Power gain is near-zero;* the point is validating a streamlined batcher against
+   a non-hostile economy. **BN12's runway is short** — it hardens each clear, low-hanging for
+   ~1–2 levels only.
+2. **Streamline the batcher (throughput):** this is the **Phase 20 XP-farm resume trigger** — the
+   backlog shelved it "until a fresh node's XP re-climb is the binding constraint," which a new
+   node now is. Validate throughput against BN5/BN10 (real climbs), *not* BN1/BN12 (already trivial).
+3. **Build a second engine — only IPvGO or darknet are buildable now.** Gang/corp/bladeburner/
+   sleeves are **node-locked** (can't prototype until inside their node). The only mechanics
+   playable outside their node are **IPvGO** (CIA, Sector-12 / `ns.go`) and **darknet**
+   (DarkscapeNavigator.exe + TOR). Those two are also what crack the WD-gated money-ok nodes
+   (BN14, BN15).
+
+**Next *extending* node (after the warm-up + tooling): BN10 or BN5.**
+- **BN10** — batcher-friendly (100% money, full exp, 50% steal), and its rewards kill our two
+  worst BN1 pains: **Sleeves** parallelize the manual rep grind, **Grafting** installs augs with
+  *no reset* (deletes the money/membership wipe). Cost: WD 6,000, aug cost 500%, Sleeves' best
+  synergy (karma-farming) needs mechanics we lack — but Grafting alone is a universal reset-killer.
+- **BN5** — banks *tooling* instead: `getBitNodeMultipliers()` (script-read every node's mults —
+  fixes the exact wall that forced hand-copying these panels), permanent Formulas.exe, Intelligence.
+  Friendly to clear (100% money) but you run a 15%-steal (nerfed-income) batcher to get it.
+
+**Deferred:** BN4 and every money-nerfed node — revisit once a second engine exists. BN4
+specifically: come back with real multipliers and grind straight to **SF4.3** (needed for cheap
+Singularity elsewhere anyway).
+
 ## BitNode list (Source-File effect = headline)
 
 | BN | Name | New content | Source-File effect |
@@ -428,3 +470,6 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
   own IPvGO Node Power bonus category (400%), Hacking Speed field instead of Hacking Exp.
 - 2026-07-11 — Captured BN15 selection panel + full multiplier table (SF15 not yet owned);
   Daedalus Augs Requirement 20 (lower than BN1's 30). **All 15 nodes' panels now captured.**
+- 2026-07-11 — Added "Our next-node plan (mature batcher)": snowball batcher on BN1.2/BN12.1
+  while streamlining throughput (Phase 20 resume) + building an IPvGO/darknet engine; BN10/BN5
+  as the next extending node; BN4 + money-nerfed nodes deferred.
