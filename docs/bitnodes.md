@@ -136,6 +136,20 @@ Only listed multipliers differ from BN1 (100%); the rest are baseline. Multiplie
 - **Corporation** — Corporation Softcap: **0.900** · Division limit: **90%**
 - **Stanek's Gift** — Gift Power: **200%** · Base Size Modifier: **−6.00000**
 
+### BN3: Corporatocracy — owned **SF3 level 0 / 3** (not cleared)
+SF3: create corporations in other nodes (some disable it), **L3 unlocks full Corp API** + charisma/company-salary L1 8 / L2 12 / L3 14%. Multiplier table (rest baseline):
+- **General** — `w0r1d_d43m0n` Difficulty: **200%** · Hacknet Production: **25%**
+- **Skills** — Hacking Level: **80%**
+- **Faction** — Favor to Donate: **50%**
+- **Augmentations** — Money Cost: **300%** · Reputation Cost: **300%**
+- **Hacking** — Server Growth Rate: **20%** · Server Max Money: **4%** · Server Starting Money: **20%** · Stolen Money From Hack: **20%**
+- **Cloud Servers** — Base Cost: **2.000** · Softcap Cost: **1.300** · Home RAM Cost: **150%**
+- **Crime** — Crime Money: **25%**
+- **Darknet** — Darknet Money: **40%**
+- **Company** — Work Money: **25%**
+- **Gang** — Gang Softcap: **0.900** · Unique Augmentations: **50%**
+- **Stanek's Gift** — Gift Power: **75%** · Base Size Modifier: **−2.00000**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -193,3 +207,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
   order advice), parsed via CDP.
 - 2026-07-11 — Started per-node BitVerse selection-panel captures: BN1 (owned SF1 level 1/3).
 - 2026-07-11 — Captured BN2 selection panel + full multiplier table (SF2 not yet owned).
+- 2026-07-11 — Captured BN3 selection panel + full multiplier table (SF3 not yet owned).
