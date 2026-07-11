@@ -72,6 +72,16 @@ const DAEMON_LOG_FILE = "daemon-batch-log.json";
 export const DAEMON_LOG_MAX_ENTRIES = 2000; // raised from 1000 (Phase 7): N members means N x the batch/skip events per tick; exported for trimLog's unit test
 const LOG_FLUSH_INTERVAL_MS = 10000; // lazy-flush cadence for batch/skip/snapshot events; mode/enter/exit flush immediately
 
+// Sparse hacking-level/XP time series, separate from the batch ring buffer above.
+// Purpose: a long-horizon ETA to the Daedalus hacking gate (2500) -- the batch log
+// carries hackingLevel per tick but ages out in ~an hour at fleet size, far too short
+// to fit a levels/hour trend against an endgame gate that's hours-to-days away. This is
+// time-gated (not per-tick) and survives daemon restarts (loaded from disk at startup),
+// so the series accumulates across the frequent restarts our workflow does.
+const HACK_PROGRESS_FILE = "hacking-progress-log.json";
+const HACK_SAMPLE_INTERVAL_MS = 3 * 60 * 1000; // one {level, exp} sample at most every 3 min
+const HACK_PROGRESS_MAX_SAMPLES = 1000; // ~50 h of history at that cadence; small file, plenty of curve to extrapolate
+
 // Phase 1's daemon scp'd these to every rooted host over its runs; they're
 // dead weight now that hack.js/grow.js/weaken.js replace them. Swept once at
 // startup, not every CYCLE_MS -- ns.rm just returns false (harmlessly) once
@@ -213,6 +223,20 @@ function flushDaemonLog(ns, entries) {
   ns.write(DAEMON_LOG_FILE, JSON.stringify(entries, null, 2), "w");
 }
 
+/** Load the persisted hacking-progress series so a daemon restart continues it
+ * (rather than resetting the ETA baseline every restart). Tolerates a missing or
+ * malformed file by starting fresh. */
+function readHackProgress(ns) {
+  try {
+    const raw = ns.read(HACK_PROGRESS_FILE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Trims the ring buffer to exactly DAEMON_LOG_MAX_ENTRIES, pinning the most
  * recent `mode` event at the head instead of letting ordinary FIFO trimming
@@ -345,6 +369,8 @@ export async function main(ns) {
   let batchSequence = 0;
   let logEntries = []; // in-memory mirror of DAEMON_LOG_FILE's bounded ring buffer
   let lastLazyFlush = Date.now(); // last time a lazy-flush-eligible event was flushed to disk
+  let hackProgress = readHackProgress(ns); // sparse {timestamp, level, exp} series, continued across restarts
+  let lastHackSample = hackProgress.length ? hackProgress[hackProgress.length - 1].timestamp : 0; // 0 => sample on the first tick
   let useFormulas = false;
   let forcedLegacy = false;
   let previousMathMode = null; // null until the first refreshCycle, so startup also announces its mode once
@@ -994,6 +1020,17 @@ export async function main(ns) {
     if (pendingImmediateFlush || Date.now() - lastLazyFlush >= LOG_FLUSH_INTERVAL_MS) {
       flushDaemonLog(ns, logEntries);
       lastLazyFlush = Date.now();
+    }
+
+    // Sparse hacking-level/XP sample for the Daedalus-2500 ETA series. Time-gated
+    // (independent of the per-tick snapshot) so it spans hours-to-days in a small,
+    // ring-trimmed file. exp is the smooth signal (level is integer-quantized), so a
+    // rate fit works even between level-ups; level is the metric the gate is stated in.
+    if (Date.now() - lastHackSample >= HACK_SAMPLE_INTERVAL_MS) {
+      lastHackSample = Date.now();
+      hackProgress.push({ timestamp: Date.now(), level: ns.getHackingLevel(), exp: ns.getPlayer().exp.hacking });
+      if (hackProgress.length > HACK_PROGRESS_MAX_SAMPLES) hackProgress = hackProgress.slice(-HACK_PROGRESS_MAX_SAMPLES);
+      ns.write(HACK_PROGRESS_FILE, JSON.stringify(hackProgress, null, 2), "w");
     }
 
     memberServers = result.members.map((m) => m.server);

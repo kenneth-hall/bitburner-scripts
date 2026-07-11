@@ -65,6 +65,8 @@ export default defineConfig({
       // finance-log.json rather than a fixed-cadence write.
       location: (file) => {
         if (file === 'daemon-batch-log.json') return 'logs/daemon-batch-log.json';
+        if (file === 'hacking-progress-log.json') return 'logs/hacking-progress-log.json'; // sparse level/XP series for the Daedalus-2500 ETA
+
         if (/^targets-summary-\d+\.json$/.test(file)) return `logs/${file}`;
         if (/^sharecurve-\d+\.json$/.test(file)) return `logs/${file}`;
         if (file === 'tail-layout.json') return 'logs/tail-layout.json'; // Phase 18 -- persistence is the feature under test, so export it (unlike finance-state.json's heartbeat, which is already visible live)
