@@ -4,7 +4,23 @@
 the locked sequence. Full click-by-click is [endgame-runbook.md](endgame-runbook.md); mechanics +
 numbers are [reputation-favor.md](reputation-favor.md); reasoning trail is `BACKLOG.md`.
 
-## Status — 2026-07-11 (mid-sequence)
+## Status — 2026-07-11 (FINAL STEP: re-climb to 3000 → backdoor)
+
+**Red Pill INSTALLED (install #2 done). Everything is de-risked — one re-climb left.** All the
+previously-unknown numbers are now read live and favorable:
+- **`mults.hacking` = 6.09** (post-install #2; NFG 22→38, +16 levels as predicted) — above the 5.5
+  danger line, so **no second NFG cycle needed**. Re-climb to 3000 ≈ **1–2 h** at this mult.
+- **`w0r1d_d43m0n` confirmed live** (`worldprobe.js`): exists, **requiredHackingSkill 3000** (assumption
+  now verified), **5 open ports required**, not yet rooted/backdoored.
+- Hacking re-climbing fast (exp-mult now 10.2); money + fleet rebuilding via the auto-restarted daemon.
+
+**Remaining (all manual UI, no Singularity):** (1) re-run `xpfarm.js` + `nano share-off.txt` once the
+fleet is up (maximizes XP for the ~2.5B-exp climb); (2) hand-buy the 5 port openers from the darkweb
+(TOR → BruteSSH/FTPCrack/relaySMTP/HTTPWorm/SQLInject — `procureprograms` can't auto-buy without SF4,
+only reserves the cash); (3) at hacking 3000, walk to `w0r1d_d43m0n`, root + terminal `backdoor` → BN1
+done. Probes `worldprobe.js`/`favorprobe.js` are one-offs — delete after BN1.
+
+## Status — 2026-07-11 (superseded; kept for trail)
 
 **Install #1 is DONE; money is rebuilt; the gate is now the hacking re-climb to 2500 to REJOIN
 Daedalus.** The install banked ~160 favor (donation permanently unlockable), but it also **dropped us
