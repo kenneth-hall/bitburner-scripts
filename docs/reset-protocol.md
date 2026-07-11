@@ -129,7 +129,8 @@ Destroying BN1 wipes augs/rep/favor/money/fleet/home-RAM — only Source-Files +
 of Intelligence carry over. So **every** BN1 clear re-pays the full Daedalus endgame from scratch;
 this is the ordered playbook, distilled from clear #1's hard-won corrections. The **dominant cost is
 the rep grind**, not money and not the XP climbs — sequence around unlocking the donation shortcut
-early.
+early. The faction-join order + per-cycle hacking-aug buy-list this references lives in
+[`bn1-install-plan.md`](./bn1-install-plan.md).
 
 1. **Bootstrap + climb to 2500.** Let `bootstrap.js`/`daemon.js` rebuild the fleet; climb hacking to
    2500 to trigger the Daedalus invite (needs augs ≥30 ✅ persist? **no** — augs are wiped on a hard

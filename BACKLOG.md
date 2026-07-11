@@ -198,8 +198,14 @@ instead of deleting it — don't let history pile up here.
     measurement shows throughput is a rounding error against the multiplier — **do not build XP-max mode.**
     The `hacking-progress-log.json` instrumentation (c12a3d5) it produced stays useful as the ETA baseline.
 
-- **Static aug/faction install-order planner (one-time best-case calc)** (2026-07-11, decided,
-  not started): a *one-time* calculator that outputs the optimal **faction join-set + hacking-mult
+- **Static aug/faction install-order planner (one-time best-case calc)** (2026-07-11, decided;
+  **by-eye half SHIPPED 2026-07-11 as [`docs/bn1-install-plan.md`](docs/bn1-install-plan.md)** — the
+  faction join order, the irreversible eastern-trio city-faction call, the tiered level/exp buy-list,
+  prereq chains, and the install-cadence rule, all as a glance-once checklist. What remains is only
+  the **optional thin calculator** (`tools/install-calc.mjs`, offline node): the one
+  "install-now-vs-one-more-cycle / how-many-NFG-levels" exp-curve×NFG-escalation call — build only if
+  the cadence proves fiddly by eye. The rest of this item below is the original framing.):
+  a *one-time* calculator that outputs the optimal **faction join-set + hacking-mult
   aug buy-list** to maximize level-mult/exp-mult toward the Daedalus-2500 gate. Its real job is
   settling the **irreversible mutually-exclusive faction-join decisions** (a wrong city-faction pick
   locks you out of another's hacking augs and wastes a whole cycle's rep grind) *before* you commit —
