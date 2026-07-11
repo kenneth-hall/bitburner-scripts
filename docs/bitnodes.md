@@ -220,6 +220,16 @@ Multiplier table (rest baseline):
 - **Corporation** — Valuation: **75%** · Division limit: **75%**
 - **Stanek's Gift** — Gift Power: **130%**
 
+**Clearing notes — soft penalties, throughput is the counter.** BN5's hacking hits are the
+*gentle* kind: Hacking **Exp** 50% + steal-per-hack 15% + Server Starting Security 200% — but
+**Hacking Level mult and Server Max Money are full 100%**, so there is **no reachability wall**
+(unlike BN10's ×0.35) and **no grafting needed**. The 50% exp is a pure *patience* cost — ~2×
+wall-clock to the WD **4,500** gate — and it's exactly what a streamlined batcher / the Phase 20
+XP farm cancels (more XP/sec directly offsets it). 15% steal → more threads/cycles per unit
+money, but full Server Max Money keeps the pools deep. **Richest snowball reward of the friendly
+nodes:** +8% hacking mults *plus* three permanent force-multipliers — Formulas.exe and
+`getBitNodeMultipliers()` and Intelligence all compound on every *future* clear.
+
 ### BN6: Bladeburners — owned **SF6 level 0 / 3** (not cleared)
 SF6: Bladeburner in other nodes; +combat level & exp gain L1 8 / L2 12 / L3 14%. Multiplier
 table (rest baseline):
