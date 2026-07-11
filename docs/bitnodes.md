@@ -314,6 +314,27 @@ Multiplier table:
 - **Bladeburner** — Rank Gain: **45%** · Skill Cost: **200%**
 - **Stanek's Gift** — Gift Power: **200%** · Base Size Modifier: **+1.00000**
 
+### BN14: IPvGO Subnet Takeover — owned **SF14 level 0 / 3** (not cleared)
+SF14: L1 +100% Node-Power stat mults, L2 unlock `go.cheat`, L3 +25% cheat success; raises
+winstreak favor caps (200k/300k/400k rep-equiv) and rep→favor for 2-in-a-row wins
+(1000/1500/2000). **Confirms the guide's "IPvGO mults buffed significantly"** — its own
+category has a **400% Node Power bonus**. Also the first panel with **Hacking Speed** (not
+Hacking Exp) and Company **Work Reputation** (not Work Money) as the tracked fields. Multiplier
+table:
+- **General** — `w0r1d_d43m0n` Difficulty: **500%** · Hacknet Production: **25%**
+- **Skills** — Hacking Level: **40%** · Strength/Defense/Dexterity/Agility Level: **50%** each
+- **Faction** — Work Reputation: **20%**
+- **Augmentations** — Money Cost: **150%**
+- **Hacking** — Hacking Speed: **30%** · Server Max Money: **70%** · Server Starting Money: **50%** · Server Starting Security: **150%** · Stolen Money From Hack: **30%**
+- **Crime** — Crime Money: **75%** · Crime Success Rate: **40%**
+- **Infiltration** — Infiltration Money: **75%**
+- **Company** — Work Reputation: **20%**
+- **Gang** — Gang Softcap: **0.700** · Unique Augmentations: **40%**
+- **Corporation** — Corporation Softcap: **0.900** · Valuation: **40%** · Division limit: **80%**
+- **Bladeburner** — Rank Gain: **60%** · Skill Cost: **200%**
+- **Stanek's Gift** — Gift Power: **50%** · Base Size Modifier: **−1.00000**
+- **IPvGO Subnet Takeover** — Node Power bonus: **400%**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -386,3 +407,5 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Captured BN11 selection panel + full multiplier table (SF11 not yet owned).
 - 2026-07-11 — Captured BN12 selection panel + multiplier table (SF12 0/∞, uncapped level).
 - 2026-07-11 — Captured BN13 selection panel + full multiplier table (SF13 not yet owned).
+- 2026-07-11 — Captured BN14 selection panel + full multiplier table (SF14 not yet owned); its
+  own IPvGO Node Power bonus category (400%), Hacking Speed field instead of Hacking Exp.
