@@ -40,9 +40,10 @@ engine.**
    multiplier** (1.1's +16% → 1.2's +24%; the guide's "8 NFG levels"). Its real value (cold-review
    correction) is **not** a vague "broad tailwind" — it's that BN5's next gate (4,500) is
    *exponential* in level/mult, so +8pp on **both** the hacking-level *and* exp mult attacks that
-   gate directly. **Open question: push straight to SF1.3?** The in-game guide says most do; 1.2→1.3
-   is only +4pp but it's the cheapest clear we'll ever get, right before the node where mult matters
-   most. Decide before leaving BN1. **BN12.1** is a *new*-SF alternative (starts the uncapped free-
+   gate directly. **Decided 2026-07-11: clear to SF1.2 and STOP — not 1.3.** 1.2→1.3 is only +4pp
+   for another *entire* Daedalus endgame (poor ROI at our full manual rep-tax); it won't
+   meaningfully shrink BN5's grind. Revisit 1.3+ only after a rep-tax-killer (Sleeves/gang) makes
+   re-farming BN1 cheap. **BN12.1** is a *new*-SF alternative (starts the uncapped free-
    NFG engine) but it's low *difficulty*, not low *effort* — it still costs a full Daedalus endgame
    for ~+1 NFG, and BN12 hardens each clear (short runway). These are also a non-hostile economy to
    validate a streamlined batcher against.

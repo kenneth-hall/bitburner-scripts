@@ -9,32 +9,35 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **snowball the hacking batcher across low-difficulty,
-  batcher-friendly BitNodes while building a second engine.** BN1 is **DONE** (Red Pill installed,
-  `w0r1d_d43m0n` backdoored → earned SF1.1); we're on the BitVerse selection screen, **not inside any
-  node**, choosing what's next. Full plan + all 15 nodes' live-read multiplier tables + the decision
-  record: **`docs/bitnodes.md` → "Our next-node plan (mature batcher)"** (read it before any node
-  choice). The shape:
-  - **The lens:** Server Max Money is the batcher's oxygen. Only **BN1 / BN5 / BN10 / BN12** keep it
-    ≥96% — everywhere else (BN2/3/4/9/11/13 at 1–11%) the batcher is *benched* and you'd win via a
-    mechanic we haven't built. So money-nerfed nodes (incl. **BN4 — deferred**) wait until a second
-    engine exists.
-  - **Fixed per-clear tax:** favor/rep/augs do **not** persist across destroying a node (only
-    Source-Files, scripts, Intelligence do), so *every* clear re-pays the full **Daedalus 2.5m-rep →
-    Red Pill → backdoor WD** endgame. "Low difficulty" = low WD gate + friendly economy, **not** low
-    effort.
-  - **Near-term:** **BN1→1.2** (+8pp to *every* mult, the guide's "8 NFG levels" — strong) and/or
-    **BN12.1** (new SF + starts the uncapped free-NFG engine, trivial ~3,060 gate) as the cheapest
-    clears; **next *extending* node is BN10 or BN5** (both batcher-friendly; BN10 = Sleeves+Grafting
-    which attack the rep-grind + reset pains, BN5 = scriptable multipliers + Formulas + Intelligence).
-  - **In parallel:** (a) **streamline batcher throughput** — this is the Phase 20 XP-farm resume
-    trigger (a fresh node's XP re-climb is now the binding constraint); (b) **prototype a second
-    engine** — only **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator + TOR) are
-    buildable now; gang/corp/bladeburner/sleeves are node-locked.
+- **Current goal (keep this line current):** **re-enter BN1 and clear it once more to reach
+  Source-File 1.2** (+8pp to *every* multiplier — the guide's "8 NFG levels" — a permanent, broad,
+  cheapest-possible bank). BN1 is already **DONE once** (Red Pill installed, `w0r1d_d43m0n`
+  backdoored → earned SF1.1); we're on the BitVerse selection screen, **not inside any node**. This
+  is the locked near-term goal (decided 2026-07-11). The clear is *low difficulty* (WD 3,000, full
+  economy, known playbook) but **not low effort** — favor/rep/augs don't persist across destroying a
+  node (only Source-Files, scripts, Intelligence do), so it re-pays the full **Daedalus 2.5m-rep →
+  Red Pill → backdoor WD** endgame. Full plan + all 15 nodes' multiplier tables + reasoning:
+  **`docs/bitnodes.md` → "Our next-node plan (mature batcher)"** (read before any node choice).
+  - **Why 1.2 and stop there (not 1.3):** 1.2→1.3 is only +4pp for another *entire* endgame — poor
+    ROI at our full manual rep-tax. Revisit 1.3+ only after a rep-tax-killer (Sleeves/gang) makes
+    re-farming BN1 cheap.
+  - **After 1.2 — the next *extending* node is BN5** (re-priced by cold review: a **2–3 install
+    mult grind**, not a quick clear — its 4,500 gate is a multiplier problem and its 200%-aug-cost /
+    15%-steal economy throttles the mult lever; picked as the least-bad option under our "no new
+    engine / no rough penalty" constraints, *despite* its overrated tooling). **BN10 deferred** (its
+    ×0.35 hacking-level wall needs in-node Grafting). **BN4 + economy-nerfed nodes deferred** until a
+    second engine exists.
+  - **In parallel:** (a) **streamline batcher throughput** — the Phase 20 XP-farm resume trigger (a
+    fresh node's XP re-climb is now the binding constraint); (b) **prototype a second engine** — only
+    **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator + TOR) are buildable now;
+    gang/corp/bladeburner/sleeves are node-locked.
+  - **Open strategic Q (surfaced by cold review, not yet decided):** our "no new engine" constraint
+    excludes all three rep-tax killers (gang/sleeves/darknet), so we accept paying the full Daedalus
+    tax every clear. Gang (BN2) is a *small* script and the game's designed answer — worth
+    reconsidering once the tax bites across multiple clears.
   - **Note on Singularity:** `ns.singularity.*` is NOT available to us right now (only in-node in BN4,
-    or with SF4). So the endgame steps remain manual-UI / CDP-driven until we clear BN4 — the
-    SF4-gated backlog items (auto-backdoor, aug-planner execution, TOR ladder, rep watchers) stay
-    parked until then.
+    or with SF4). Endgame steps remain manual-UI / CDP-driven until we clear BN4 — the SF4-gated
+    backlog items (auto-backdoor, aug-planner execution, TOR ladder, rep watchers) stay parked.
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say
