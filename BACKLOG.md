@@ -42,6 +42,34 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
+- **XP-max batcher mode — buy hacking levels with dead money** (2026-07-10, instrumented, decision pending):
+  The endgame (finish BitNode 1 → Red Pill → Source-File) is gated on **Daedalus**, and per
+  `run fl1ght.exe` the *only* unmet gate is **hacking skill ≥ 2500** (augs 39/30 ✅, money ✅; combat
+  is 1/1/1/1 so the 1500-combat alt-path is a non-starter — see rejected-combat note below). Current
+  hacking ~1612. The problem: the batcher optimizes **$/sec**, but money is a **dead resource** for us —
+  56× over the $100b gate and climbing, and the fleet is **fully maxed** (25 × cloud servers at 1.05PB,
+  all "already at max size" per `cloudcosts.js` 2026-07-10), so there's nothing left that money can buy
+  that advances progression without an aug install (which resets hacking to 0 — a lap, not a shortcut).
+  - **The tradeoff (why this is nearly free for us):** every hack/grow/weaken op yields both money and
+    hacking XP, but they scale on *different* inputs — money ∝ target maxMoney × steal fraction; XP ∝
+    target **base security** × thread-seconds (grow/weaken print XP even with no extraction). They
+    compete for the **same finite RAM**, so $/sec-optimal and XP/sec-optimal pick different targets and
+    can't both be maxed. For most players trading $/sec→XP/sec hurts; for us the sacrificed income has
+    **zero marginal utility**, so the "$/level price" is effectively free. We're running the whole fleet
+    in the mode that optimizes the axis we've already won.
+  - **Instrumentation shipped (c12a3d5):** `daemon.js` now writes `hacking-progress-log.json` — a sparse
+    `{timestamp, level, exp}` sample every 3 min, ring-trimmed ~50h, restart-surviving, exported to
+    `logs/`. This is the baseline. **Next step: read it for a real passive levels/hour → ETA-to-2500**,
+    instead of eyeballing session reads.
+  - **The decision to make against numbers:** (A) accept the passive drift ETA and do nothing, or
+    (B) build an **XP-max mode** that reallocates batcher RAM from money-optimal to XP-optimal
+    (grow/weaken volume on the highest-base-security reachable targets) and *measure* the levels/hour
+    delta vs. the logged baseline. Design sketch + how much B compresses the ETA is the open work.
+  - **Rejected: the combat path to Daedalus.** Structurally worse for this build — combat starts at ~1
+    on all four stats (vs hacking 65% of the way there), our 39 augs are hacking-flavored so combat has
+    no multiplier tailwind, and hacking XP accrues passively via the batcher while combat needs active
+    gym/crime time. Confident on the structure, not on exact XP rates; the asymmetry is too large to flip.
+
 - **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
   Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
   "no matter what." Recommended against running the full ~67GB script resident indefinitely — the
