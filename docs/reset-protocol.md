@@ -37,6 +37,33 @@ so a rebuild is instant.
   **≥30 installed augs** (see below), and a fresh BitNode is also the only way to reach zero augs, which
   is what **Stanek's Gift** requires (Church of the Machine God accepts only aug-free players).
 
+## ⚠️ The two reset consequences that keep breaking the endgame plan
+
+Both are in the table above, but as bare rows they get read past; the *derived plans* (handoff,
+runbook, reputation-favor) have twice been written as if these didn't apply. Read them as rules, not
+trivia. Both are **live-verified in this build's BN1, 2026-07-11** — don't re-assert from stock memory.
+
+1. **Money → ~$1k on install.** Not just the fleet — your whole cash balance. So a big accumulated
+   pile is **not** spendable on the post-install donation; the donation must be funded by money earned
+   *after* the install. (Corollary: spend down into what survives — home RAM/cores — *before* clicking
+   Install. See "Before a soft reset" below.) Verified: $1.745q → ~$1k on install #1. Detail +
+   consequence: [[reference_install_resets_money]].
+
+2. **You are removed from EVERY faction on install** — membership, not just rep. Favor is banked
+   (persists), but you are no longer *in* the faction, so you **cannot donate to it, buy its augs, or
+   work for it until you re-earn its invitation and re-join.** For Daedalus that means the invite gates
+   apply again: **≥30 augs ✅ and ≥$100b ✅ persist, but hacking resets to ~1, so you must re-climb to
+   2500 to get re-invited, accept, and only THEN can you donate** (favor is already ≥150, so donation
+   unlocks the instant you rejoin). Verified after install #1: the Factions page read *"You have not yet
+   joined any Factions,"* and Daedalus was absent even from the Rumors list, at hacking ~1,950.
+   Consequence for the plan: [[reference_install_resets_faction_membership]].
+
+**Net rule for the BN1 endgame:** every augmentation install inserts a **full hacking re-climb before
+you can act on that faction again.** The mult-install → donate → buy → Red-Pill-install sequence
+therefore contains **two** re-climbs, not zero: one to 2500 (to rejoin Daedalus after the mult install),
+one to 3000 (to backdoor `w0r1d_d43m0n` after the Red-Pill install). Money is never the endgame gate;
+the re-climbs are.
+
 ## Before a soft reset (install): spend down while rich — FIRST STEP
 
 Money resets to ~$1k on install, but **home RAM & cores persist** (see table). So the moment you're

@@ -9,10 +9,17 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** finish BitNode 1. The 2500 hacking gate is **cleared**
-  (2026-07-11, hacking ~2,600) and Daedalus is **joined**. Two gates remain: (1) get Daedalus to
-  **2.5m rep** to buy The Red Pill, and (2) a **hacking re-climb** to backdoor `w0r1d_d43m0n` after
-  installing it. **Recommended path for (1) — don't hand-grind 2.5m:** grind ~500k Daedalus rep now,
+- **Current goal (keep this line current):** finish BitNode 1. **Install #1 is done; money is rebuilt
+  (~$2.0t); the live gate is a hacking re-climb to 2500 to REJOIN Daedalus.** Installing augs removes
+  you from every faction (membership, not just rep — verified live 2026-07-11: "You have not yet joined
+  any Factions"), so donation is *not* accessible until you re-climb hacking to 2500, accept the
+  Daedalus re-invite, and rejoin (favor ~160 persists, so donation unlocks the instant you rejoin;
+  30-augs/$100b gates still ✅). Currently ~1,985/2500, ~6–9 h at mult 4.72. Then: donate → 2.5m rep →
+  buy 3 ENM augs + NFG + Red Pill → install #2 → re-climb to 3000 → backdoor `w0r1d_d43m0n`. Remaining
+  gates: (1) 2500 re-climb + rejoin + 2.5m rep for The Red Pill, and (2) the 3000 re-climb to backdoor
+  it after install #2. **Both reset mechanics (money→$1k, membership→must re-earn invite) are locked in
+  `docs/reset-protocol.md`'s persistence table + gotchas callout — read it before any install-timing
+  plan.** **Recommended path for (1) — don't hand-grind 2.5m:** grind ~500k Daedalus rep now,
   while hacking is high (share ON, measured **35.9 rep/sec**, ~3.5 h), bank 150 favor via the planned
   multiplier install, then **donate ~$1.5t for the rest** (`docs/reputation-favor.md`). The Red Pill
   needs its **own** install, so keep the mult-install and Red-Pill-install **back-to-back** to pay for
@@ -28,12 +35,16 @@ on request — hold to them even when the moment is uncomfortable.
   **⚠️ MONEY RESETS ON INSTALL (~$1k) — corrected 2026-07-11 after install #1.** Installing augs wipes
   money as well as hacking + fleet, so the accumulated pile (was $1.7q) is NOT donatable — the install
   that unlocks donation also wipes it. **Donation is funded by money earned AFTER install #1**, which
-  makes it a rebuild-then-earn wait (~1–3 h via the batcher), not the instant step earlier drafts
-  claimed. **Status:** install #1 done (banked ~160 favor → donation permanently unlocked; hacking →
-  ~1, re-climbing; money → rebuilding). **Remaining:** batcher earns ~$1t → donate → 2.5m rep → buy 3
-  ENM augs + NFG-to-money-cap + Red Pill → install #2 → rebuild + re-climb to 3000 → `backdoor`.
-  Donation **VERIFIED live** (Daedalus page: "Unlock donations at 150.000 favor"); at ~160 favor the
-  rate is cheaper than the favor-0 $1.47t estimate (~$0.5–1.5t) — read the Donate UI, don't assume.
+  makes it a rebuild-then-earn wait, not the instant step earlier drafts claimed. **⚠️ AND INSTALL
+  REMOVES YOU FROM EVERY FACTION** (membership, not just rep — verified live after install #1: "You have
+  not yet joined any Factions"), so donating needs you back *in* Daedalus, which needs the hacking-2500
+  invite gate again. **Status (2026-07-11 ~2:27 PM):** install #1 done (banked ~160 favor); money
+  **rebuilt (~$2.0t) — done**; **NOT in Daedalus**; hacking ~1,985 re-climbing toward **2500 to rejoin**
+  (~6–9 h at mult 4.72). **Remaining:** re-climb 2500 → accept Daedalus re-invite + join → donate → 2.5m
+  rep → buy 3 ENM augs + NFG-to-money-cap + Red Pill → install #2 (drops Daedalus again, but its augs are
+  bought) → rebuild + re-climb to 3000 → `backdoor`. Donation **VERIFIED live** (Daedalus page: "Unlock
+  donations at 150.000 favor"); at ~160 favor the rate is cheaper than the favor-0 $1.47t estimate
+  (~$0.5–1.5t) — read the Donate UI, don't assume.
   **Raising mult is essential, not optional:** the exp curve is exponential in (level/mult), so
   re-climbing 2,627→3000 at the current mult 4.72 needs ~218B exp (infeasible, ~12× lifetime XP — the
   same log wall as 2500). BUT NFG stacking is **money-capped, not rep-capped**: the ~1.9×/aug price

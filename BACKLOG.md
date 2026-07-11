@@ -88,6 +88,20 @@ instead of deleting it — don't let history pile up here.
     donate (~$0.5–1.5t, cheaper at 160 favor — read the UI) → buy 3 ENM + NFG-to-money-cap + Red Pill
     → install #2 → rebuild + re-climb 3000 → backdoor. See [[reference_install_resets_money]]. The
     dollar figures in the bullets below are the pre-correction (wrong) framing — kept for the trail.
+  - **⚠️ CORRECTION 2 (2026-07-11 ~2:27 PM): INSTALL ALSO DROPPED US OUT OF DAEDALUS — "joined" above
+    is WRONG.** Installing removes faction *membership*, not just rep (verified live via CDP: Factions
+    page reads "You have not yet joined any Factions"; Daedalus not even rumored, at hacking ~1,985).
+    Favor (~160) persists, but **you cannot donate until you rejoin**, and rejoining needs the Daedalus
+    invite gate again — 30-augs/$100b persist, but hacking reset to ~1, so **re-climb to 2500 to
+    rejoin** first. **Money is DONE (~$2.0t), NOT the gate** — the gate is now this ~6–9 h re-climb at
+    mult 4.72 (install #1 raised only the exp-*rate* mult 4.97→6.96, not the level-mult 4.72; exp-to-2500
+    ≈ 7.97B, ~7.7B to go). Corrected Remaining: **re-climb 2500 → rejoin Daedalus → donate → 2.5m rep →
+    buy 3 ENM + NFG + Red Pill → install #2 (drops Daedalus again, augs already bought) → re-climb 3000 →
+    backdoor.** So there are **two** re-climbs, not the "one re-climb" the locked-sequence bullet below
+    claims — no ordering avoids the 2500 climb, since donating requires membership. **XP lever:** money's
+    dead, so the fleet should grind XP not $/sec — the shelved Phase-20 `src/xpfarm.js` weaken-fill
+    prototype measured **~428k exp/sec** (vs the money batcher's ~250–330k), which would cut the climb to
+    ~3–5 h; consider re-running it + `share-off.txt`. See [[reference_install_resets_faction_membership]].
   This is a **manual UI grind** —
   Hacking Contracts — because no Singularity means the daemon can't script `workForFaction`, and the
   donate-for-rep shortcut ($418t on hand) is locked behind 150 favor (Daedalus is at 0). Measured

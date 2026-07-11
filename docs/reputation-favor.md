@@ -53,13 +53,20 @@ Pill, and once unlocked the donation is trivial ($1.5t of a $481t pile). Recomme
 
 1. Grind ~500k Daedalus rep **now** while hacking is high (~3.5 h at the share-boosted rate).
 2. Fold it into the planned **multiplier install** — banks 150 Daedalus favor as a side effect.
-3. Post-install, **donate ~$1.5t → instant 2.5m rep** → buy The Red Pill.
+3. **Re-climb hacking to 2500 and rejoin Daedalus** — the install drops you out of the faction
+   (membership resets, only favor persists), so you can't donate until you re-earn the invite. This is
+   a ~6–9 h re-climb, *not* an instant step. See [reset-protocol.md](reset-protocol.md).
+4. Once rejoined, **donate ~$1.5t → instant 2.5m rep** → buy The Red Pill.
 
-**Sequencing catch:** The Red Pill needs its **own** install (to spawn `w0r1d_d43m0n`). Keep the
-two installs **back-to-back** (mult-install → donate → buy Red Pill → Red-Pill-install, *then*
-rebuild fleet and re-climb hacking once) so you pay for only **one** hacking re-climb. If a full
-re-climb lands between them, grinding the full 2.5m and installing Red Pill + augs together (one
-reset) wins instead — so this shortcut is conditional on doing a mult install anyway.
+**Sequencing catch (corrected):** The Red Pill needs its **own** install (to spawn `w0r1d_d43m0n`).
+An earlier draft claimed keeping the two installs back-to-back costs only **one** hacking re-climb —
+that's **wrong**, because the mult install drops you out of Daedalus and donating requires membership,
+so you must re-climb to **2500 to rejoin before you can donate at all**. The unavoidable shape is: mult
+install → re-climb 2500 → rejoin → donate → buy Red Pill + ENM augs → Red-Pill install → re-climb 3000
+→ backdoor. **Two** re-climbs, not one. (This means grinding the full 2.5m rep pre-install to skip the
+donation buys you nothing on re-climbs either — you'd still re-climb to 2500 after the mult install to
+rejoin. The donation shortcut still wins because it saves the *rep grind*, not a re-climb.) See
+[reset-protocol.md](reset-protocol.md).
 
 ## Key API / formula references (all in `markdown/`)
 

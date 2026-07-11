@@ -9,8 +9,12 @@ altering** — it's Kenneth's to execute, not an autonomous task. Rationale + me
 - **Daedalus rep ≥ ~465k** (converts to ≥150 favor — the donation unlock, verified live on the
   Daedalus page: "Unlock donations at 150.000 favor"). Overshooting is fine. At ~36 rep/sec with
   share on, this is the only wait.
-- Do the whole sequence **in one sitting** — installs 1 and 2 must be back-to-back with no
-  hacking re-climb between them, or you pay for two re-climbs.
+- **Two hacking re-climbs are unavoidable** (this corrects an earlier "back-to-back installs = one
+  re-climb" plan): install #1 drops you out of Daedalus, so you must re-climb to **2500** to rejoin
+  before you can donate/buy; then install #2 (Red Pill) resets you again and you re-climb to **3000**
+  to backdoor `w0r1d_d43m0n`. There is no ordering that avoids the 2500 re-climb — donating requires
+  Daedalus membership, and membership requires the hacking gate. See
+  [reset-protocol.md](reset-protocol.md) for why.
 
 ## Step 1 — Install #1 (bank the favor)
 1. (Optional) Export a backup save first.
@@ -27,9 +31,21 @@ earn back **~$1t** (donation + ENM augs + NFG). This is the new critical-path wa
 instant step earlier drafts assumed. Hacking re-climbs as a side effect here — it gets reset again by
 install #2, that's fine.
 
-## Step 2 — Donate for rep (once money is rebuilt)
+## ⚠️ Step 1.6 — Re-climb hacking to 2500 and REJOIN Daedalus (installing kicked you out)
+**Installing removes you from every faction** — membership, not just rep (verified live after install #1:
+Factions page read "You have not yet joined any Factions"). Favor is banked, but you **cannot donate,
+buy augs, or work for Daedalus until you rejoin.** The 30-augs and $100b invite gates still pass; the
+one that reset is **hacking → ~1**, so you must re-climb to **2500** to get re-invited.
+- Let the daemon grind hacking XP to 2500. Since money is already done, point the fleet at XP not $/sec
+  and turn share **off** (`share-off.txt`) — you're in no faction, so the share boost buys nothing.
+- At mult ~4.72 this is ~7.7B exp from level ~1985 (~6–9 h at ~250–330k exp/sec, back-loaded).
+- When the **Daedalus** invitation reappears on the Factions screen, click **Join!**. Only now is the
+  Donate section reachable.
+
+## Step 2 — Donate for rep (once REJOINED and money is rebuilt)
 4. Factions → Daedalus → **Details**. A **Donate** section should be present (favor ≥150 persists
-   from install #1). If it isn't, STOP — fall back to grinding Daedalus rep the slow way.
+   from install #1, and you rejoined in Step 1.6). If it isn't, STOP — fall back to grinding Daedalus
+   rep the slow way.
 5. Donate enough to reach **2.5m+ rep** (the Red Pill req), plus headroom for NFG. Cost is on the
    order of **$0.5–1.5t** — the favor bonus (~160 favor) discounts it below the favor-0 estimate;
    read the exact rate off the Donate UI, don't assume.

@@ -6,19 +6,24 @@ numbers are [reputation-favor.md](reputation-favor.md); reasoning trail is `BACK
 
 ## Status — 2026-07-11 (mid-sequence)
 
-**Install #1 is DONE; rebuilding money for the donation.** The 2500 gate is long cleared; Daedalus
-is joined; install #1 (the 2 queued minor-exp augs) banked ~160 favor → **donation permanently
-unlocked**. That install reset hacking + money + fleet (expected).
+**Install #1 is DONE; money is rebuilt; the gate is now the hacking re-climb to 2500 to REJOIN
+Daedalus.** The install banked ~160 favor (donation permanently unlockable), but it also **dropped us
+out of Daedalus** — install removes faction *membership*, not just rep (see Verified facts). So you
+cannot donate yet: you must re-climb hacking to 2500, accept the Daedalus re-invite, *then* donate.
 
-Live snapshot at handoff:
-- **Hacking ~1,840** — re-climbing from the install-#1 reset; *will be reset again by install #2*, so
-  this climb is just a side effect of the batcher earning money. Not the final climb.
-- **Money ~$51b and rising** — rebuilding toward the **~$1t** we need (donation + 3 ENM augs + NFG).
-  This is the current critical-path wait (~1–3 h of batcher time).
-- **Daedalus: rep 0, favor ~160** (donation unlocked). *Visually confirm the Donate section on the
-  Daedalus → Details page — CDP nav was timing out at handoff, so this rests on the math, not a read.*
-- **Fleet rebuilding** (~28% util). Share is running but `sharePower` reads 1 (no faction work active →
-  no boost; harmless, uses idle RAM).
+Live snapshot (updated 2026-07-11 ~2:27 PM, verified via CDP):
+- **Hacking ~1,985** — re-climbing from the install-#1 reset toward **2500 (the Daedalus re-invite
+  gate)**. `mults.hacking` **4.72** (install #1 raised only the *exp-rate* mult 4.97→6.96, not the
+  level-mult), so exp-to-2500 ≈ **7.97B** total, ~7.7B to go; at the measured ~250–330k exp/sec that's
+  **~6–9 h**, back-loaded. This *is* a real gate now — not just a money side effect.
+- **Money ~$2.0t — DONE.** Already past the ~$1t needed (donation + 3 ENM augs + NFG); more only buys
+  extra NFG levels. Money is no longer the critical path.
+- **Daedalus: NOT joined.** Verified live: Factions page reads "You have not yet joined any Factions";
+  Daedalus absent even from Rumors. Favor (~160) persists, so donation unlocks the instant you rejoin —
+  but rejoining needs hacking 2500 first (30-augs / $100b gates still ✅).
+- **Fleet rebuilt, money-batching.** Since money is done, the fleet should be pointed at XP, not $/sec —
+  turn share **off** (`share-off.txt`; no faction work → `sharePower` 1, boost buys nothing) and
+  consider an XP-max grind mode to shorten the ~6–9 h climb. Open lever, not yet done.
 
 ## The goal
 
@@ -33,6 +38,12 @@ install/backdoor action is **manual UI**; the daemon only earns money + XP and r
   mid-session planning error — see [[reference_install_resets_money]].)
 - **Donation unlocks at 150 favor** — VERIFIED live on the Daedalus page ("Unlock donations at
   150.000 favor"). Favor persists across installs; only money is transient.
+- **Install removes you from EVERY faction** (membership, not just rep) — VERIFIED live after install #1
+  (Factions page: "You have not yet joined any Factions"; Daedalus not even rumored). Favor is banked,
+  but you must **re-earn each faction's invite and rejoin** before you can donate/buy/work. Daedalus's
+  invite needs hacking **2500** again (30-augs + $100b gates persist). Net: each install inserts a full
+  hacking re-climb before you can act on the faction. Full mechanic + both reset gotchas:
+  [reset-protocol.md](reset-protocol.md).
 - **`w0r1d_d43m0n` needs hacking 3000** (standard BN1 = 3000×WorldDaemonDifficulty; not queryable until
   Red Pill spawns it, so live-unconfirmable until then).
 - **All unowned augs are in Daedalus** — every other faction (joined or joinable) reads "No
@@ -49,14 +60,19 @@ install/backdoor action is **manual UI**; the daemon only earns money + XP and r
 ## The locked sequence (▶ = current position)
 
 1. ✅ Grind Daedalus ≥462.5k rep (150-favor floor). *Done — overshot to 619.9k.*
-2. ✅ Install #1 (2 queued augs) → banked ~160 favor, donation unlocked.
-3. ▶ **Rebuild fleet + earn ~$1t** (batcher running now; ~$51b so far). ← we are here
-4. **Donate → 2.5m+ rep** (cost ~$0.5–1.5t; favor discounts it — read the Donate UI).
-5. **Buy**, most-expensive-base first: 3 ENM augs → NeuroFlux to the money cap → Red Pill ($0).
-6. **Install #2** → applies the stack (hacking + money reset again; mult now ~6–7).
-7. **Restart bootstrap/daemon** ([reset-protocol.md](reset-protocol.md)), rebuild fleet, **re-climb to
+2. ✅ Install #1 (2 queued augs) → banked ~160 favor. **Also dropped us out of Daedalus** (membership
+   resets on install; only favor persists).
+3. ✅ Rebuild fleet + earn ~$1t. *Done — money at ~$2.0t; no longer the gate.*
+4. ▶ **Re-climb hacking to 2500 → accept the Daedalus re-invite → rejoin.** ← we are here (~1,985/2500,
+   ~6–9 h). Favor persists so donation is available immediately on rejoin; 30-augs/$100b gates still ✅.
+   *Lever: point the fleet at XP not $/sec, and share off, to shorten this.*
+5. **Donate → 2.5m+ rep** (cost ~$0.5–1.5t; favor discounts it — read the Donate UI).
+6. **Buy**, most-expensive-base first: 3 ENM augs → NeuroFlux to the money cap → Red Pill ($0).
+7. **Install #2** → applies the stack (hacking + money reset again; mult now ~6–7). *This drops you out
+   of Daedalus again too — but you don't need it anymore; all its augs are now bought.*
+8. **Restart bootstrap/daemon** ([reset-protocol.md](reset-protocol.md)), rebuild fleet, **re-climb to
    3000**. Turn share OFF here (`share-off.txt` on home) — no faction work, no boost.
-8. **`backdoor` `w0r1d_d43m0n`** — walk the network to it (not connected to home), run the terminal
+9. **`backdoor` `w0r1d_d43m0n`** — walk the network to it (not connected to home), run the terminal
    `backdoor` command. Completes BN1.
 
 ## Open risks / where it could stretch
