@@ -75,6 +75,11 @@ instead of deleting it — don't let history pile up here.
   - **Next step:** pull the **faction/aug inventory** — which factions are unlockable, which sell hacking
     exp/skill-mult augs not yet owned — to build the maximal pre-install buy-list. Ties to the
     "Post-reset auto-backdoor" auto-unlock item below (unlocking factions is now the primary mult lever).
+    - **Owned-side + baseline: `run auginfo.js` (2026-07-11).** Dumps owned augs (39, NFG lvl 1) +
+      aggregate mults to `logs/auginfo-<epoch>.json`, one file per run for pre/post-install diffs.
+      Confirmed live: level-mult (`mults.hacking`) 3.547, exp-mult (`mults.hacking_exp`) 3.508 — matches
+      the aug-page figures. This is the scriptable half; the **shop** half (prices/rep/what's for sale)
+      is Singularity-gated, so read that from the in-game UI / CDP driver. Documented in CLAUDE.md.
   - **Rejected: the combat path to Daedalus.** Structurally worse — combat starts at ~1 on all four
     stats, the 39 augs are hacking-flavored (no combat mult tailwind), and hacking XP accrues passively
     while combat needs active gym/crime time. Confident on structure, not exact rates; asymmetry too large to flip.

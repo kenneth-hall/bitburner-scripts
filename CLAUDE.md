@@ -173,6 +173,14 @@ sessions — no need to ask.
 ## Task-specific detail
 See `docs/INDEX.md` for on-demand references (logging patterns, dev-server / Remote API).
 
+**Owned augs + aggregate mults (no Singularity)** — `run auginfo.js` dumps the current owned-
+augmentation stack (incl. NeuroFlux Governor level) and the aggregate player multipliers to a
+timestamped `logs/auginfo-<epoch>.json` (+ a terminal summary). Reads `ns.getResetInfo().ownedAugs`
+and `ns.getPlayer().mults` — both base-cost, no SF4 needed. `mults.hacking` is the level-mult /
+`mults.hacking_exp` the exp-mult the Daedalus-2500 plan tracks. One file per run, so run it
+before and after an install to diff. The aug **shop** (prices/rep/what's for sale) is Singularity-
+gated and NOT covered — read that from the in-game UI / CDP driver.
+
 **Post-reset / augment-install recovery** — the faction-unlock sequence (backdoor→faction server
 map, Daedalus/Netburners gates, and the **auto-unlock-not-auto-join** rule) is kept in
 `docs/reset-protocol.md`. Read it before any faction-unlock or post-reset bootstrap work.
