@@ -10,11 +10,14 @@ solutions — work from game mechanics and the API.
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** clear **BitNode 4 ("The Singularity")**. BN1 is **DONE**
-  (Red Pill installed, `w0r1d_d43m0n` backdoored → earned SF1); we've entered BN4. **The headline:
-  `ns.singularity.*` is now available *in-node* — usable right now, before SF4 is even earned (at the
-  16× RAM cost tier) — so the "manual UI only / no Singularity" constraint that shaped every BN1 plan
-  is DISSOLVED.** Faction/company work, aug-shop reads, buy/install, program creation, and backdoors
-  are all scriptable now (they were manual-UI-only all through BN1). Completing BN4 grants **SF4**
+  (Red Pill installed, `w0r1d_d43m0n` backdoored → earned SF1). **We briefly entered BN4 to confirm a
+  mechanic, then exited — we are currently NOT inside any BitNode** (browsing the BitVerse selection
+  screen). **The headline (confirmed during that visit, applies once we re-enter):**
+  `ns.singularity.*` is available *in-node* — usable as soon as we enter BN4, before SF4 is even earned
+  (at the 16× RAM cost tier) — so the "manual UI only / no Singularity" constraint that shaped every
+  BN1 plan is DISSOLVED **the moment we're back inside BN4**, not right now. Faction/company work,
+  aug-shop reads, buy/install, program creation, and backdoors will all be scriptable once we re-enter
+  (they were manual-UI-only all through BN1). Completing BN4 grants **SF4**
   (permanent cross-node Singularity; the per-call RAM cost drops **16×→4×→1×** at SF4 levels 1→2→3, so
   re-clearing BN4 up to level 3 is itself a payoff). **Treat BN4 as a long node, not a quick SF4 grab**
   — the economy is heavily nerfed and the finish line is far: Hacking Exp **40%**, Server Max Money
