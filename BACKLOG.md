@@ -77,32 +77,22 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
-- **Grind 2.5m Daedalus rep for The Red Pill** (2026-07-11 — supersedes the 2500-gate item below,
-  which is **CLEARED**: hacking ~2,600, Daedalus **joined**).
-  - **⚠️ CORRECTION (2026-07-11, after install #1): MONEY RESETS ON INSTALL (~$1k).** The donation
-    plan below repeatedly assumed the accumulated pile ($481t→$1.7q) would fund the donation — WRONG.
-    Installing augs wipes money too (not just hacking/fleet), and the install that unlocks donation is
-    the one that wipes the money, so the pile was never donatable. Donation must be funded by money
-    earned AFTER install #1 (batcher rebuild+earn, ~1–3 h). Install #1 is DONE (banked ~160 favor →
-    donation permanently unlocked; hacking→~1 re-climbing; money→rebuilding). Remaining: earn ~$1t →
-    donate (~$0.5–1.5t, cheaper at 160 favor — read the UI) → buy 3 ENM + NFG-to-money-cap + Red Pill
-    → install #2 → rebuild + re-climb 3000 → backdoor. See [[reference_install_resets_money]]. The
-    dollar figures in the bullets below are the pre-correction (wrong) framing — kept for the trail.
-  - **⚠️ CORRECTION 2 (2026-07-11 ~2:27 PM): INSTALL ALSO DROPPED US OUT OF DAEDALUS — "joined" above
-    is WRONG.** Installing removes faction *membership*, not just rep (verified live via CDP: Factions
-    page reads "You have not yet joined any Factions"; Daedalus not even rumored, at hacking ~1,985).
-    Favor (~160) persists, but **you cannot donate until you rejoin**, and rejoining needs the Daedalus
-    invite gate again — 30-augs/$100b persist, but hacking reset to ~1, so **re-climb to 2500 to
-    rejoin** first. **Money is DONE (~$2.0t), NOT the gate** — the gate is now this ~6–9 h re-climb at
-    mult 4.72 (install #1 raised only the exp-*rate* mult 4.97→6.96, not the level-mult 4.72; exp-to-2500
-    ≈ 7.97B, ~7.7B to go). Corrected Remaining: **re-climb 2500 → rejoin Daedalus → donate → 2.5m rep →
-    buy 3 ENM + NFG + Red Pill → install #2 (drops Daedalus again, augs already bought) → re-climb 3000 →
-    backdoor.** So there are **two** re-climbs, not the "one re-climb" the locked-sequence bullet below
-    claims — no ordering avoids the 2500 climb, since donating requires membership. **XP lever:** money's
-    dead, so the fleet should grind XP not $/sec — the shelved Phase-20 `src/xpfarm.js` weaken-fill
-    prototype measured **~428k exp/sec** (vs the money batcher's ~250–330k), which would cut the climb to
-    ~3–5 h; consider re-running it + `share-off.txt`. See [[reference_install_resets_faction_membership]].
-  This is a **manual UI grind** —
+- **Close out BN1.2 (current goal, launched 2026-07-11).** Fresh BN1 clear for SF1.2; state is
+  hacking ~48, no factions, ~$2k, fleet rebuilding — everything below in this item is **clear-#1
+  trail (wiped state), NOT current status.** The live, de-duplicated playbook is now the
+  **"BN1 endgame checklist" in [`docs/reset-protocol.md`](docs/reset-protocol.md)** — follow that, not
+  the blow-by-blow below. Dominant cost is the **Daedalus 2.5m-rep grind** (not money, not the XP
+  climbs — SF1.1's +16% mult carries in, so the climbs are faster than clear #1). No backlog tooling
+  shortens the rep grind; the one non-node-locked accelerator to test once in Daedalus is **coding-
+  contract faction rep** (Phase 19). Phase 20 XP-farm is *not* the BN1 bottleneck (climb already
+  trivial here) — it's a pre-BN5 investment. The bullets below are the historical clear-#1 reasoning
+  trail, kept because the numbers (donation shortcut, mult math, NFG cap) are reusable next clear.
+  - **[clear-#1 trail] Two corrections that reshaped the plan:** (1) **money resets to ~$1k on
+    install** — the donation must be funded by money earned *after* the favor-banking install, not the
+    pre-install pile ([[reference_install_resets_money]]); (2) **install also drops faction
+    membership**, so you re-climb 2500 to rejoin Daedalus before you can donate — **two** re-climbs
+    total, not one ([[reference_install_resets_faction_membership]]). Both folded into the checklist.
+  - **[clear-#1 trail]** This was a **manual UI grind** —
   Hacking Contracts — because no Singularity means the daemon can't script `workForFaction`, and the
   donate-for-rep shortcut ($418t on hand) is locked behind 150 favor (Daedalus is at 0). Measured
   focused rate **22.827 rep/sec** with share OFF → ~30 h to 2.5m.
