@@ -21,6 +21,92 @@ Everything here serves one number: **hacking skill → 2500 (join Daedalus) → 
 `hacking_money`/`_chance`/`_grow`/`_speed`-only aug (batcher is already over-funded; money is
 non-binding). Those are noise for this goal — the buy-list below is *only* level/exp movers.
 
+## The recipe (read this one)
+
+The whole node in plain steps. The idea in one line: **buy augs to raise your hacking multiplier,
+install to switch them on, climb higher, repeat ~4 times, then finish.** Installing feels like a
+reset but it's the *payoff* — it's the only thing that lifts the multiplier, and the multiplier is
+the only way past the level wall.
+
+1. **Do nothing at first — let the batcher cook.** Fresh node: you're broke and low-level. The
+   daemon earns money and your hacking climbs on its own. Early levels are cheap, so hacking shoots
+   up fast. There's no manual move until you can afford augs.
+
+2. **Unlock the hacking factions as you pass their level.** As hacking climbs, root + backdoor each
+   server and accept the invite: **CSEC** (level 55) → **avmnite-02h** (210) → **I.I.I.I** (351) →
+   **run4theh111z** (542). These four are safe to join — no downside.
+
+3. **Join the eastern cities — and ONLY those.** Travel to **Chongqing, New Tokyo, Ishima** and join
+   all three (costs a bit of cash + being there). Chongqing sells **Neuregen**, a big cheap
+   experience booster. ⚠️ **Never join Sector-12, Aevum, or Volhaven** — that permanently locks you
+   out of Chongqing for the rest of the node.
+
+4. **Grind faction reputation — the slow part.** Pick a faction, do its **Hacking Contracts** work in
+   the UI. This is the main time sink of the whole node. Turn **share ON** while working (it boosts
+   rep). Grind until you can afford the augs you want from the shopping list below.
+
+5. **Shop: buy every hacking aug you can afford, then dump leftover cash into NeuroFlux.** Order among
+   the real augs doesn't matter — but buy **NeuroFlux Governor LAST**, as many levels as your
+   remaining money buys (each level is +1% to everything and also counts toward Daedalus's 30-aug
+   gate).
+
+6. **Install.** This wipes money, hacking level, and faction membership — but switches the augs ON,
+   so your multiplier jumps and the next climb goes far higher. **Before you click install:** buy up
+   your **home RAM** — it survives the install, your money doesn't.
+
+7. **Repeat steps 4–6 until hacking crosses 2500.** Usually **2 rounds**. Each round you're in more
+   factions and can afford deeper augs, so each install lifts the multiplier more than the last.
+
+8. **At 2500, join Daedalus.** By now you'll also have 30+ augs and $100b (both happen naturally).
+   Backdoor **The-Cave** and accept the invite.
+
+9. **The endgame — 2 more installs:**
+   - **a.** Grind ~465k Daedalus rep. That banks **150 favor** → **install** (this permanently
+     unlocks *donating* for rep).
+   - **b.** Re-climb to 2500, rejoin Daedalus, earn ~$1.5t, and **donate** — that instantly buys the
+     full **2.5m rep**. Then buy **The Red Pill**.
+   - **c.** **Install** the Red Pill. Re-climb to **3000**, walk the network to **w0r1d_d43m0n**, and
+     run `backdoor`. Node done.
+
+That's **~4 installs total**: 2 to reach 2500, then 2 for the endgame. (Details on why, and the
+"install now vs. grind one more round" judgment call, are in the sections below.)
+
+## Shopping list (the augs worth buying)
+
+Only augs that raise **level-mult** (skill) or **exp-mult** (climb speed) — everything else is
+skipped. Reputation is a *threshold*: to buy several augs from one faction you only need enough rep
+for the single most expensive one you want.
+
+**Cheap — grab these first (rep up to 50k):**
+- **Neurotrainer I** — +10% exp — CyberSec — 1k rep
+- **BitWire** — +5% level — CyberSec/NiteSec — 3.75k
+- **Artificial Synaptic Potentiation** — +5% exp — NiteSec — 6.25k
+- **Cranial Signal Processors Gen 1** — +5% level — CyberSec/NiteSec — 10k *(start of the "Cranial" chain — each Gen needs the one before it)*
+- **Neurotrainer II** — +15% exp — NiteSec — 10k
+- **Embedded Netburner Module (ENM)** — +8% level — NiteSec — 15k *(buy early — it unlocks the ENM upgrade chain used later)*
+- **Cranial Signal Processors Gen 2** — +7% level — NiteSec — 18.75k
+- **Neural-Retention Enhancement** — +25% exp — NiteSec — 20k
+- **Neuregen Gene Modification** — +40% exp — **Chongqing** — 37.5k *(the big cheap one — the reason you joined the cities)*
+- **CRTX42-AA** — +8% level **and** +15% exp — NiteSec — 45k *(best all-rounder)*
+- **Cranial Signal Processors Gen 3** — +9% level — NiteSec — 50k
+- **Neuralstimulator** — +12% exp — The Black Hand — 50k
+
+**Mid — second round, mostly from BitRunners (rep 100k–275k):**
+- **Enhanced Myelin Sheathing** — +8% level, +10% exp — BitRunners — 100k
+- **The Black Hand** — +10% level — The Black Hand — 100k
+- **ENM Core Implant** — +7% level, +7% exp — BitRunners — 175k *(needs ENM)*
+- **Neural Accelerator** — +10% level, +15% exp — BitRunners — 200k
+- **Cranial Signal Processors Gen 5** — **+30% level** — BitRunners — 250k *(biggest single jump; needs Gen 4 first, which is 125k and money-only)*
+- **Artificial Bio-neural Network** — +12% level — BitRunners — 275k
+
+**Deep — only if a round needs more to reach 2500, or while grinding Daedalus (rep 875k+):**
+- **BitRunners Neurolink** — +15% level, +20% exp — BitRunners — 875k
+- **ENM Core V2** — +8% level, +15% exp — BitRunners — 1m
+- **ENM Core V3** — +10% level, +25% exp — **Daedalus** — 1.75m
+- **The Red Pill** — the exit aug (finishes the node) — **Daedalus** — 2.5m
+
+**Always:** **NeuroFlux Governor** — +1% to everything per level — any faction — cheap. Buy it **last**, in bulk, with leftover cash.
+
 ## The one irreversible decision: city factions
 
 Backdoor factions (below) are free of exclusivity — join them all. The trap is **city factions**:
@@ -41,67 +127,19 @@ Hacking rises *fast* through low levels (early levels are cheap on the log curve
 in minutes), so you'll blow past all four gates well before the 2500 wall. Unlock them by rooting +
 backdooring the server (see reset-protocol's table); the invite then appears.
 
-| Faction | Server | Hack gate | Why it matters here |
-|---|---|---|---|
-| CyberSec | `CSEC` | 55 | entry augs; cheap early mult |
-| NiteSec | `avmnite-02h` | 210 | **densest cheap hacking-aug shop** (CRTX42-AA, Neural-Retention, ENM) |
-| The Black Hand | `I.I.I.I` | 351 | The Black Hand aug, Myelin, shares ENM/CSP |
-| BitRunners | `run4theh111z` | 542 | **the deep hacking augs** (CSP-V, Neural Accelerator, Neurolink, ENM chain) |
-| Daedalus | `The-Cave` | 925 + gates | endgame only — needs 30 augs / $100b / **hacking 2500** on top of the backdoor |
+- **CyberSec** — backdoor `CSEC` at hacking **55** — entry augs, cheap early mult.
+- **NiteSec** — backdoor `avmnite-02h` at **210** — the densest cheap hacking-aug shop (CRTX42-AA, Neural-Retention, ENM).
+- **The Black Hand** — backdoor `I.I.I.I` at **351** — The Black Hand aug, Myelin; shares ENM/Cranial augs.
+- **BitRunners** — backdoor `run4theh111z` at **542** — the deep hacking augs (Cranial Gen 5, Neural Accelerator, Neurolink, ENM chain).
+- **Daedalus** — backdoor `The-Cave` at **925** — endgame only, and needs 30 augs / $100b / **hacking 2500** on top of the backdoor.
 
-## The buy-list (level/exp movers only), by rep tier
+## How rep and prereqs work (the mechanics behind the shopping list)
 
-Rep is a **threshold, not a currency** — to buy N augs from a faction you only need rep ≥ the most
-expensive one you want. So grinding one faction to a tier unlocks everything cheaper it sells for
-free. Prereq chains are noted; you must *own* (installed or queued) the prereq to buy the child.
-
-### Tier 1 — cheap, grab every cycle (rep ≤ 50k)
-The backbone. All reachable at modest rep, big combined mult.
-
-| Aug | `hacking` | `hacking_exp` | Rep | Faction(s) | Note |
-|---|---|---|---|---|---|
-| Neurotrainer I | — | 1.10 | 1.0k | CyberSec | trivial |
-| BitWire | 1.05 | — | 3.75k | CyberSec, NiteSec | |
-| Artificial Synaptic Potentiation | — | 1.05 | 6.25k | NiteSec, Black Hand | |
-| Cranial Signal Processors G1 | 1.05 | — | 10k | CyberSec, NiteSec | **CSP chain root** |
-| Neurotrainer II | — | 1.15 | 10k | NiteSec, BitRunners | |
-| **Embedded Netburner Module (ENM)** | 1.08 | — | 15k | NiteSec, Black Hand, BitRunners | **buy early — gates the whole ENM/Daedalus chain** |
-| Cranial Signal Processors G2 | 1.07 | — | 18.75k | CyberSec, NiteSec | needs CSP-G1 |
-| Neural-Retention Enhancement | — | 1.25 | 20k | NiteSec | big exp, cheap |
-| **Neuregen Gene Modification** | — | **1.40** | 37.5k | **Chongqing** | biggest cheap exp; the reason for the eastern trio |
-| **CRTX42-AA** | 1.08 | 1.15 | 45k | NiteSec | best combined level+exp for the rep |
-| Cranial Signal Processors G3 | 1.09 | — | 50k | NiteSec, Black Hand, BitRunners | needs CSP-G2,G1 |
-| Neuralstimulator | — | 1.12 | 50k | Black Hand, cities | |
-
-### Tier 2 — moderate, once BitRunners rep is up (100k–275k)
-Where the level-mult really climbs. Grind BitRunners for these.
-
-| Aug | `hacking` | `hacking_exp` | Rep | Faction(s) | Note |
-|---|---|---|---|---|---|
-| Enhanced Myelin Sheathing | 1.08 | 1.10 | 100k | BitRunners, Black Hand | |
-| The Black Hand | 1.10 | — | 100k | Black Hand | |
-| ENM Core Implant | 1.07 | 1.07 | 175k | BitRunners, Black Hand | needs ENM |
-| Neural Accelerator | 1.10 | 1.15 | 200k | BitRunners | strong combined |
-| **Cranial Signal Processors G5** | **1.30** | — | 250k | BitRunners | biggest single level-mult; needs CSP-G4→G3→G2→G1 (buy G4 too, rep 125k) |
-| Artificial Bio-neural Network | 1.12 | — | 275k | BitRunners | |
-
-### Tier 3 — deep, late cycles / Daedalus (875k+)
-Diminishing returns per rep-hour. Only worth it if a cycle needs the extra mult to cross 2500, or
-during the Daedalus endgame when you're grinding that rep anyway.
-
-| Aug | `hacking` | `hacking_exp` | Rep | Faction | Note |
-|---|---|---|---|---|---|
-| BitRunners Neurolink | 1.15 | 1.20 | 875k | BitRunners | |
-| ENM Core V2 Upgrade | 1.08 | 1.15 | 1.0m | BitRunners | needs ENM Core Implant |
-| ENM Core V3 Upgrade | 1.10 | 1.25 | 1.75m | **Daedalus** | needs Core V2 chain; grab during the Daedalus grind |
-| The Red Pill | — | — | 2.5m | **Daedalus** | exit aug — buying 2.5m rep clears everything cheaper Daedalus sells too |
-
-## Purchase order within a cycle
-Order is **irrelevant** (all reset on install; you need the rep *threshold*, not the sum) with **one
-exception: buy NeuroFlux Governor LAST.** Every aug you queue raises the *next* aug's price ~1.9×,
-and NFG is the one you buy in bulk — queue it after the fixed augs so the escalation lands on the
-cheap repeatable, not on it inflating the fixed ones. (Also just buy each fixed aug once; there's no
-ordering subtlety among them.)
+Reputation is a **threshold, not a currency**: to buy several augs from one faction you only need rep
+≥ the single most expensive one you want, so grinding a faction up to a tier unlocks everything
+cheaper it sells for free. **Prereq chains:** the Cranial Signal Processors go Gen 1 → 2 → 3 → 4 → 5
+(each needs the one before), and the ENM upgrades (Core Implant → Core V2 → Core V3) all need the
+base ENM first — so buy ENM and Cranial Gen 1 early even though they're small.
 
 ## Install cadence — when to pull the trigger
 
