@@ -21,11 +21,13 @@ await bb.withPage(async (page) => {
     case 'terminal': return out(await bb.runCommand(page, args.join(' ')));
     case 'restart': return out(args[0] ? await bb.restartScript(page, args[0]) : 'usage: restart <script.js>');
     case 'close-tail': return out((await bb.closeTail(page, args.join(' '))) ? 'closed' : 'no matching window');
+    case 'dismiss': return out((await bb.dismissModal(page)) ? 'dismissed modal' : 'no modal');
     case 'read-terminal': return out(await bb.readTerminal(page));
     case 'read-tail': return out(await bb.readTail(page, args[0]));
     case 'aria': return out(await bb.ariaSnapshot(page));
     case 'body': return out(await bb.bodyText(page));
     case 'goto': { await bb.goto(page, args.join(' ')); return out('ok -> ' + args.join(' ')); }
+    case 'click': { await bb.clickText(page, args.join(' ')); return out('clicked -> ' + args.join(' ')); }
     case 'shot': { return out('saved ' + (await bb.screenshot(page, args[0] || 'bb-shot.png'))); }
     default: return out(USAGE);
   }

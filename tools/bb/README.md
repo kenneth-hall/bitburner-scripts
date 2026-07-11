@@ -22,6 +22,7 @@ node tools/bb/cli.mjs stats                 # character overview (money, hack, .
 node tools/bb/cli.mjs terminal "home; scan" # run a terminal command, print its output
 node tools/bb/cli.mjs restart cloudmanager.js # kill + close orphaned tail + relaunch
 node tools/bb/cli.mjs close-tail cloudmanager.js # close a stray/orphaned tail window
+node tools/bb/cli.mjs dismiss                 # close a blocking error/dialog modal
 node tools/bb/cli.mjs read-tail daemon      # text of the "daemon" tail window
 node tools/bb/cli.mjs aria                   # structured outline of clickable UI
 node tools/bb/cli.mjs shot out/screen.png    # screenshot
@@ -34,6 +35,13 @@ whatever screen you're on. Default to reads; use writes deliberately.
 `restart` exists because Bitburner leaves a killed script's tail window open (an orphan that
 reverts to the filename title); `restart` closes it between kill and relaunch so repeated
 restarts don't pile up stray popups. `tailmanager.js` then re-docks the fresh window.
+
+**Gotcha — error modals block navigation.** A script runtime error (or any Bitburner dialog)
+pops a modal that overlays the whole UI and intercepts clicks, so `goto`/`click`/`restart` time
+out with `waiting for getByRole('button', { name: 'Terminal' })`. Reads (`read-terminal`, `body`,
+`read-tail`, `shot`) still work through it — so read the modal's text to get the error, then
+`dismiss` it. `runCommand` now auto-`dismiss`es before navigating, so `terminal`/`restart`
+self-heal; a bare `goto`/`click` still needs a manual `dismiss` first if a modal is up.
 
 ## Design note
 

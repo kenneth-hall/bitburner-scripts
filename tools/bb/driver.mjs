@@ -30,12 +30,34 @@ export async function goto(page, section) {
   await page.waitForTimeout(300);
 }
 
+/** Click the first element containing `text` (substring match) -- for things that aren't
+ * role="button", like the clickable location markers on the ASCII city map. */
+export async function clickText(page, text) {
+  await page.getByText(text, { exact: false }).first().click();
+  await page.waitForTimeout(300);
+}
+
 /** Full terminal scrollback text (exact). */
 export const readTerminal = (page) =>
   page.evaluate(() => document.getElementById('terminal')?.innerText ?? '');
 
+/** Dismiss an open Bitburner error/dialog modal (clicks its "Close" button).
+ * A script runtime error pops a modal that OVERLAYS the UI and intercepts clicks,
+ * so goto/click time out ("waiting for getByRole button ...") until it's cleared.
+ * Returns true if a modal was closed. Reads (read-terminal/body/shot) work through it. */
+export async function dismissModal(page) {
+  const btn = page.getByRole('button', { name: 'Close', exact: true });
+  if ((await btn.count()) > 0 && (await btn.first().isVisible())) {
+    await btn.first().click();
+    await page.waitForTimeout(200);
+    return true;
+  }
+  return false;
+}
+
 /** Run a terminal command and return ONLY the lines it produced (prompt echo + output). */
 export async function runCommand(page, cmd) {
+  await dismissModal(page); // clear a prior command's error modal so the nav click isn't blocked
   await goto(page, 'Terminal');
   const before = await page.evaluate(() => document.getElementById('terminal')?.children.length ?? 0);
   const input = page.locator('#terminal-input');
