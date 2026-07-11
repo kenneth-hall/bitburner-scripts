@@ -335,6 +335,23 @@ table:
 - **Stanek's Gift** — Gift Power: **50%** · Base Size Modifier: **−1.00000**
 - **IPvGO Subnet Takeover** — Node Power bonus: **400%**
 
+### BN15: The Secrets of the Dark Net — owned **SF15 level 0 / 3** (not cleared)
+Bigger/deeper darknet. SF15: L1 start with TOR + DarkscapeNavigator, unlock full dark web
+everywhere; L2 charisma→salary/rep + auth speed +20%; L3 charisma→faction rep + `.cache`
+xp/money +50%. **Daedalus Augs Requirement: 20** — *lower* than BN1's 30, consistent with the
+lore that Daedalus hasn't monopolized the Red Pill here yet (the darknet route is the intended
+path instead). Multiplier table:
+- **General** — `w0r1d_d43m0n` Difficulty: **200%** · Daedalus Augs Requirement: **20**
+- **Skills** — Hacking Level: **60%** · Strength/Defense/Dexterity/Agility Level: **70%** each · Charisma Level: **110%** (the one stat buffed above baseline)
+- **Augmentations** — Money Cost: **300%**
+- **Hacking** — Hacking Speed: **60%** · Server Max Money: **80%** · Server Starting Money: **50%** · Server Starting Security: **150%**
+- **Gang** — Unique Augmentations: **30%**
+- **Corporation** — Corporation Softcap: **0.400** · Valuation: **20%** · Division limit: **40%**
+- **Bladeburner** — Rank Gain: **20%** · Skill Cost: **300%**
+- **Stanek's Gift** — Gift Power: **70%** · Base Size Modifier: **−2.00000**
+
+**All 15 BitVerse selection panels now captured (BN1–BN15).**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -409,3 +426,5 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Captured BN13 selection panel + full multiplier table (SF13 not yet owned).
 - 2026-07-11 — Captured BN14 selection panel + full multiplier table (SF14 not yet owned); its
   own IPvGO Node Power bonus category (400%), Hacking Speed field instead of Hacking Exp.
+- 2026-07-11 — Captured BN15 selection panel + full multiplier table (SF15 not yet owned);
+  Daedalus Augs Requirement 20 (lower than BN1's 30). **All 15 nodes' panels now captured.**
