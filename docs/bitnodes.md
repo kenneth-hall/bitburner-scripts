@@ -185,6 +185,24 @@ table (rest baseline):
 - **Corporation** — Corporation Softcap: **0.900** · Valuation: **20%** · Division limit: **80%**
 - **Stanek's Gift** — Gift Power: **50%** · Base Size Modifier: **+2.00000**
 
+### BN7: Bladeburners 2079 — owned **SF7 level 0 / 3** (not cleared)
+SF7: Bladeburner in other nodes; +bladeburner mults L1 8 / L2 12 / L3 14%; **L3 also grants
+"The Blade's Simulacrum"** aug on joining Bladeburner. Multiplier table (rest baseline) —
+identical to BN6 on shared fields, plus its own Augmentations/Stock Market/Bladeburner rows:
+- **General** — `w0r1d_d43m0n` Difficulty: **200%** · Daedalus Augs Requirement: **35** · Hacknet Production: **20%**
+- **Skills** — Hacking Level: **35%**
+- **Augmentations** — Money Cost: **300%**
+- **Hacking** — Hacking Exp: **25%** · Server Max Money: **20%** · Server Starting Money: **50%** · Server Starting Security: **150%** · Stolen Money From Hack: **50%** (vs BN6's 75%)
+- **Cloud Servers** — Softcap Cost: **2.000**
+- **Stock Market** — Market Data Cost: **200%** · Market Data API Cost: **200%**
+- **Crime** — Crime Money: **75%**
+- **Infiltration** — Infiltration Money: **75%**
+- **Company** — Work Money: **50%**
+- **Gang** — Gang Softcap: **0.700** · Unique Augmentations: **20%**
+- **Corporation** — Corporation Softcap: **0.900** · Valuation: **20%** · Division limit: **80%**
+- **Bladeburner** — Rank Gain: **60%** · Skill Cost: **200%**
+- **Stanek's Gift** — Gift Power: **90%** · Base Size Modifier: **−1.00000**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -247,3 +265,5 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Captured BN5 selection panel + full multiplier table (SF5 not yet owned).
 - 2026-07-11 — Captured BN6 selection panel + full multiplier table (SF6 not yet owned); first
   node with a non-% "Daedalus Augs Requirement" field (35, vs BN1's 30).
+- 2026-07-11 — Captured BN7 selection panel + full multiplier table (SF7 not yet owned);
+  shares BN6's core fields but adds Bladeburner rank/skill-cost + Stock Market cost rows.
