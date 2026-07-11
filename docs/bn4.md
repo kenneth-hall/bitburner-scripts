@@ -1,14 +1,17 @@
 # BN4 — The Singularity ("The Man and the Machine")
 
-BitNode-4 info, read live from the in-game BitNode screen (2026-07-11). Spoiler gate
-lifted — BN4 is unlocked/viewable. Still finishing BN1 first (see
-[bn1-handoff.md](bn1-handoff.md)); this is forward planning.
+BitNode-4 info, read live from the in-game BitNode screen (2026-07-11). **BN1 is cleared
+(Red Pill installed, `w0r1d_d43m0n` backdoored → SF1); we are now IN BN4, goal is to clear
+it.** This is now the active node, not forward planning.
 
 ## Why BN4 matters (the headline)
-- Completing BN4 grants **SF4**, unlocking the `ns.singularity.*` API (work for
-  factions/companies, buy/install augs, create programs — all scriptable).
-- SF4 removes the "manual UI only / no Singularity" constraint that shapes every current
-  BN1 plan. Aug-shop reads, rep grinding, installs, faction joins all become automatable.
+- **`ns.singularity.*` is available RIGHT NOW, in-node** — being inside BN4 grants the API
+  without needing SF4 first (at the 16× RAM cost tier). Work for factions/companies, buy/
+  install augs, create programs, backdoor servers — all scriptable *this node*. **The "manual
+  UI only / no Singularity" constraint that shaped every BN1 plan is already dissolved.** Keep
+  the calls out of daemon hot paths (16× RAM early → isolate in `exec`'d companion scripts).
+- Completing BN4 grants **SF4**, making Singularity **permanent across all BitNodes** (not just
+  while inside BN4).
 - SF4 level maxes at **3** (destroy again to upgrade). Each level cuts the **RAM cost of
   Singularity functions** in *other* BitNodes:
   - Level 1: **16×** cost
@@ -76,3 +79,5 @@ Budget BN4 as a long node, not a quick SF4 grab.
 
 ## Log
 - 2026-07-11 — BN4 unlocked; recorded BitNode screen (SF4 tiers + full multiplier table).
+- 2026-07-11 — BN1 cleared (SF1 earned); **entered BN4, now the active node.** Confirmed the
+  key mechanic: `ns.singularity.*` is usable in-node before SF4 — manual-UI-only constraint lifted.

@@ -9,51 +9,23 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** finish BitNode 1. **Install #1 is done; money is rebuilt
-  (~$2.0t); the live gate is a hacking re-climb to 2500 to REJOIN Daedalus.** Installing augs removes
-  you from every faction (membership, not just rep — verified live 2026-07-11: "You have not yet joined
-  any Factions"), so donation is *not* accessible until you re-climb hacking to 2500, accept the
-  Daedalus re-invite, and rejoin (favor ~160 persists, so donation unlocks the instant you rejoin;
-  30-augs/$100b gates still ✅). Currently ~1,985/2500, ~6–9 h at mult 4.72. Then: donate → 2.5m rep →
-  buy 3 ENM augs + NFG + Red Pill → install #2 → re-climb to 3000 → backdoor `w0r1d_d43m0n`. Remaining
-  gates: (1) 2500 re-climb + rejoin + 2.5m rep for The Red Pill, and (2) the 3000 re-climb to backdoor
-  it after install #2. **Both reset mechanics (money→$1k, membership→must re-earn invite) are locked in
-  `docs/reset-protocol.md`'s persistence table + gotchas callout — read it before any install-timing
-  plan.** **Recommended path for (1) — don't hand-grind 2.5m:** grind ~500k Daedalus rep now,
-  while hacking is high (share ON, measured **35.9 rep/sec**, ~3.5 h), bank 150 favor via the planned
-  multiplier install, then **donate ~$1.5t for the rest** (`docs/reputation-favor.md`). The Red Pill
-  needs its **own** install, so keep the mult-install and Red-Pill-install **back-to-back** to pay for
-  only ONE hacking re-climb. All levers are manual UI (no Singularity) except **`ns.share()`**, an
-  *already-built* daemon capability — no goal-specific daemon mode needed or wanted. Gate (2) target:
-  `w0r1d_d43m0n` needs hacking **3000** (standard BN1 value = `3000 × WorldDaemonDifficulty` at mult
-  1.0; server isn't queryable until Red Pill spawns it, so live-unconfirmable until then) — only ~14%
-  above the current ~2,626, so the post-install re-climb is "restore position + a bit," not a new wall.
-  **Aug inventory resolved (2026-07-11):** all unowned augs are in **Daedalus** (every other faction,
-  joined or joinable, reads "No Augmentations left") — the 3 Embedded Netburner Module hacking-mult
-  upgrades (Analyze Engine 625k rep, DMA 1.0m, Core V3 1.75m; ~$74b total), unlimited NeuroFlux levels,
-  and The Red Pill (2.5m). So a mult install **is** justified.
-  **⚠️ MONEY RESETS ON INSTALL (~$1k) — corrected 2026-07-11 after install #1.** Installing augs wipes
-  money as well as hacking + fleet, so the accumulated pile (was $1.7q) is NOT donatable — the install
-  that unlocks donation also wipes it. **Donation is funded by money earned AFTER install #1**, which
-  makes it a rebuild-then-earn wait, not the instant step earlier drafts claimed. **⚠️ AND INSTALL
-  REMOVES YOU FROM EVERY FACTION** (membership, not just rep — verified live after install #1: "You have
-  not yet joined any Factions"), so donating needs you back *in* Daedalus, which needs the hacking-2500
-  invite gate again. **Status (2026-07-11 ~2:27 PM):** install #1 done (banked ~160 favor); money
-  **rebuilt (~$2.0t) — done**; **NOT in Daedalus**; hacking ~1,985 re-climbing toward **2500 to rejoin**
-  (~6–9 h at mult 4.72). **Remaining:** re-climb 2500 → accept Daedalus re-invite + join → donate → 2.5m
-  rep → buy 3 ENM augs + NFG-to-money-cap + Red Pill → install #2 (drops Daedalus again, but its augs are
-  bought) → rebuild + re-climb to 3000 → `backdoor`. Donation **VERIFIED live** (Daedalus page: "Unlock
-  donations at 150.000 favor"); at ~160 favor the rate is cheaper than the favor-0 $1.47t estimate
-  (~$0.5–1.5t) — read the Donate UI, don't assume.
-  **Raising mult is essential, not optional:** the exp curve is exponential in (level/mult), so
-  re-climbing 2,627→3000 at the current mult 4.72 needs ~218B exp (infeasible, ~12× lifetime XP — the
-  same log wall as 2500). BUT NFG stacking is **money-capped, not rep-capped**: the ~1.9×/aug price
-  escalation (verified: "Price multiplier x3.610" = 1.9²) caps NFG at ~17–18 levels/install even with
-  $1.13q, so realistic post-install mult is **~6–7 (not ~10)** → re-climb ~30 min–few hours, sensitive
-  around mult 6. **Sideline risk:** if one install's mult lands < ~5.5–6, reaching 3000 is impractical
-  and — all non-NFG augs exhausted — NFG-across-multiple-installs is the only lever left (recoverable,
-  but multi-cycle). Exact NFG/ENM per-level effects assumed from stock; tune live when buying (no SF4 to
-  script-read). Grafting ruled out (`docs/grafting.md`).
+- **Current goal (keep this line current):** clear **BitNode 4 ("The Singularity")**. BN1 is **DONE**
+  (Red Pill installed, `w0r1d_d43m0n` backdoored → earned SF1); we've entered BN4. **The headline:
+  `ns.singularity.*` is now available *in-node* — usable right now, before SF4 is even earned (at the
+  16× RAM cost tier) — so the "manual UI only / no Singularity" constraint that shaped every BN1 plan
+  is DISSOLVED.** Faction/company work, aug-shop reads, buy/install, program creation, and backdoors
+  are all scriptable now (they were manual-UI-only all through BN1). Completing BN4 grants **SF4**
+  (permanent cross-node Singularity; the per-call RAM cost drops **16×→4×→1×** at SF4 levels 1→2→3, so
+  re-clearing BN4 up to level 3 is itself a payoff). **Treat BN4 as a long node, not a quick SF4 grab**
+  — the economy is heavily nerfed and the finish line is far: Hacking Exp **40%**, Server Max Money
+  **11.25%**, and `w0r1d_d43m0n` Difficulty **300%** → the backdoor gate is effectively hacking
+  **~9000** (3× BN1's 3000). Full live-read multiplier table + open questions: **`docs/bn4.md`**;
+  memory [[reference_bn4_singularity]]. **Design implication:** keep Singularity calls **out of daemon
+  hot paths** — at 16× RAM early they're expensive, so the "isolate in `exec`'d companion scripts"
+  convention below is now *active* guidance, not theoretical. Several backlog items that were parked as
+  "SF4-gated / moot" (auto-backdoor factions, the aug-planner's execution half, the `procureprograms`
+  TOR/opener ladder, live rep/faction watchers) are now **unblocked** — re-triage them against this
+  goal before building.
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say
