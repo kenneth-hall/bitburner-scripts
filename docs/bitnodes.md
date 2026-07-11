@@ -222,6 +222,24 @@ node listed one). Multiplier table:
 - **Bladeburner** — **Disabled**
 - **Stanek's Gift** — Base Size Modifier: **−99.00000** (no Gift Power row — effectively unusable)
 
+### BN9: Hacktocracy — owned **SF9 level 0 / 3** (not cleared)
+Hacknet Server replaces Hacknet Node. SF9: L1 permanent Hacknet Server elsewhere, L2 start
+128GB home RAM, L3 pre-upgraded Hacknet Server on new-node entry (entry-only, not on aug
+install); +hacknet production / −costs L1 12 / L2 18 / L3 21%. **Confirmed the harshest node
+seen so far** — every non-combat stat nerfed, and **Server Limit: 0%** confirms private/cloud
+servers are disabled outright (matches the comprehensive guide's warning). Multiplier table:
+- **General** — `w0r1d_d43m0n` Difficulty: **200%**
+- **Skills** — Hacking Level: **50%** · Strength/Defense/Dexterity/Agility/Charisma Level: **45%** each
+- **Hacking** — Hacking Exp: **5%** · Server Max Money: **1%** · Server Starting Money: **10%** · Server Starting Security: **250%** · Stolen Money From Hack: **10%**
+- **Cloud Servers** — Server Limit: **0%** (private servers disabled) · Home RAM Cost: **500%**
+- **Stock Market** — Market Data Cost: **500%** · Market Data API Cost: **400%**
+- **Crime** — Crime Money: **50%**
+- **Darknet** — Darknet Money: **5%**
+- **Gang** — Gang Softcap: **0.800** · Unique Augmentations: **25%**
+- **Corporation** — Corporation Softcap: **0.750** · Valuation: **50%** · Division limit: **80%**
+- **Bladeburner** — Rank Gain: **90%** · Skill Cost: **120%**
+- **Stanek's Gift** — Gift Power: **50%** · Base Size Modifier: **+2.00000**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -288,3 +306,5 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
   shares BN6's core fields but adds Bladeburner rank/skill-cost + Stock Market cost rows.
 - 2026-07-11 — Captured BN8 selection panel + full multiplier table (SF8 not yet owned); nearly
   all non-stock income zeroed, Corp/Bladeburner disabled, no `w0r1d_d43m0n` row at all.
+- 2026-07-11 — Captured BN9 selection panel + full multiplier table (SF9 not yet owned); Server
+  Limit 0% confirms private servers disabled, hacking exp 5%/max money 1% confirm "extremely harsh".
