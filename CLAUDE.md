@@ -175,7 +175,7 @@ See `docs/INDEX.md` for on-demand references (logging patterns, dev-server / Rem
 
 **Post-reset / augment-install recovery** — the faction-unlock sequence (backdoor→faction server
 map, Daedalus/Netburners gates, and the **auto-unlock-not-auto-join** rule) is kept in
-`docs/augment-install-protocol.md`. Read it before any faction-unlock or post-reset bootstrap work.
+`docs/reset-protocol.md`. Read it before any faction-unlock or post-reset bootstrap work.
 
 **Docs layout:** `docs/` — Bitburner project/task references · `docs/metareference/` —
 non-Bitburner learning material (Claude Code / AI-workflow docs) · `docs/phases/` — archived

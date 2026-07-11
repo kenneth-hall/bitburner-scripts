@@ -57,7 +57,7 @@ instead of deleting it — don't let history pile up here.
     the XP wall *super-linearly*. Aug page (2026-07-11) confirms: level-mult **3.55× now → 3.83×** after
     installing the 2 queued augs, exp-mult **3.51× → 4.03×** — that one install cuts XP-to-2500 **~5×**
     (5,300 h → ~930 h). Reaching a ~50 h single-run climb needs level-mult **~4.5×**.
-  - **Plan — install cycles (pre-install checklist now in `docs/augment-install-protocol.md`):** each
+  - **Plan — install cycles (pre-install checklist now in `docs/reset-protocol.md`):** each
     cycle, while rich, max home RAM/cores (they persist) + buy all this cycle's augs + NFG levels, then
     install (level→0 but mult up), re-climb higher than before, unlock new factions for fresh hacking
     augs. Repeat until a run crests 2500. **Installing is the fast path, not a setback** — the reset-and-

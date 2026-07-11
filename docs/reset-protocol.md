@@ -1,4 +1,4 @@
-# Augment-install / reset bootstrap protocol
+# Reset protocol — augment install & new BitNode bootstrap
 
 When you install augmentations (a soft reset) or enter a new BitNode, hacking level, faction
 membership, and faction rep reset — you re-earn progression from scratch. This is the playbook for
