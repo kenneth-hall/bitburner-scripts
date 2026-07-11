@@ -17,11 +17,13 @@ on request — hold to them even when the moment is uncomfortable.
   multiplier install, then **donate ~$1.5t for the rest** (`docs/reputation-favor.md`). The Red Pill
   needs its **own** install, so keep the mult-install and Red-Pill-install **back-to-back** to pay for
   only ONE hacking re-climb. All levers are manual UI (no Singularity) except **`ns.share()`**, an
-  *already-built* daemon capability — no goal-specific daemon mode needed or wanted. **Two open
-  dependencies before locking the sequence:** the exact `w0r1d_d43m0n` hacking req (unverified — gates
-  gate 2 and install timing) and the queued-aug inventory (decides whether a mult install is justified;
-  if not, just grind the full 2.5m and install Red Pill + augs together, one reset). Grafting ruled out
-  (`docs/grafting.md`).
+  *already-built* daemon capability — no goal-specific daemon mode needed or wanted. Gate (2) target:
+  `w0r1d_d43m0n` needs hacking **3000** (standard BN1 value = `3000 × WorldDaemonDifficulty` at mult
+  1.0; server isn't queryable until Red Pill spawns it, so live-unconfirmable until then) — only ~14%
+  above the current ~2,626, so the post-install re-climb is "restore position + a bit," not a new wall.
+  **Remaining open dependency:** the queued-aug inventory (decides whether a mult install is justified
+  → donation shortcut; if not, just grind the full 2.5m and install Red Pill + augs together, one
+  reset). Grafting ruled out (`docs/grafting.md`).
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say
