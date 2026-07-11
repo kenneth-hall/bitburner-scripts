@@ -169,6 +169,22 @@ Multiplier table (rest baseline):
 - **Corporation** — Valuation: **75%** · Division limit: **75%**
 - **Stanek's Gift** — Gift Power: **130%**
 
+### BN6: Bladeburners — owned **SF6 level 0 / 3** (not cleared)
+SF6: Bladeburner in other nodes; +combat level & exp gain L1 8 / L2 12 / L3 14%. Multiplier
+table (rest baseline):
+- **General** — `w0r1d_d43m0n` Difficulty: **200%** · **Daedalus Augs Requirement: 35** (vs BN1's
+  30 — first node seen with a non-% field; the Red Pill's aug-count gate is harder here) ·
+  Hacknet Production: **20%**
+- **Skills** — Hacking Level: **35%**
+- **Hacking** — Hacking Exp: **25%** · Server Max Money: **20%** · Server Starting Money: **50%** · Server Starting Security: **150%** · Stolen Money From Hack: **75%**
+- **Cloud Servers** — Softcap Cost: **2.000**
+- **Crime** — Crime Money: **75%**
+- **Infiltration** — Infiltration Money: **75%**
+- **Company** — Work Money: **50%**
+- **Gang** — Gang Softcap: **0.700** · Unique Augmentations: **20%**
+- **Corporation** — Corporation Softcap: **0.900** · Valuation: **20%** · Division limit: **80%**
+- **Stanek's Gift** — Gift Power: **50%** · Base Size Modifier: **+2.00000**
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -229,3 +245,5 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Captured BN3 selection panel + full multiplier table (SF3 not yet owned).
 - 2026-07-11 — BN4 selection panel (SF4 0/3) re-verified against the detailed BN4 table — all match.
 - 2026-07-11 — Captured BN5 selection panel + full multiplier table (SF5 not yet owned).
+- 2026-07-11 — Captured BN6 selection panel + full multiplier table (SF6 not yet owned); first
+  node with a non-% "Daedalus Augs Requirement" field (35, vs BN1's 30).
