@@ -22,23 +22,30 @@ per-node multiplier tables must be hand-read off the BitNode selection screen un
 **State:** SF1 level 1 only; a mature hacking batcher; no gang/corp/bladeburner/sleeve/stock
 tooling. Backed out of BN4 (too grindy at SF1.1).
 
-**The lens:** Server Max Money is the batcher's oxygen. A node either lets the batcher stay the
-protagonist, or nerfs money to single digits and forces you to win via a mechanic we haven't
-built. Straight from the panels:
+**The lens (two axes, not one — cold-review caveat):** a node can bench the batcher two different
+ways: **economy** (Server Max Money nerfed to single digits → no money to steal) *or* **gate**
+(WD difficulty / hacking-level nerf so high the climb is impractical). Don't conflate them:
 
-| Batcher stays the star | Money-nerfed → batcher benched |
-|---|---|
-| BN1 (100% $, WD 3,000) · BN5 (100% $, WD 4,500, 15% steal) · BN10 (100% $, WD 6,000, 50% steal, full exp) · BN12.1 (~96% $, WD ~3,060) | BN2 (8%) · BN3 (4%) · BN4 (11.25%) · BN9 (1%) · BN11 (1%) · BN13 (33%). BN14/BN15 keep money but gate WD at 15,000 / behind puzzles. |
+| Batcher stays the star | Economy-nerfed (no $) | Money OK but gate-walled |
+|---|---|---|
+| BN1 (100% $, WD 3,000) · BN5 (100% $, WD 4,500) · BN10 (100% $, WD 6,000†) · BN12.1 (~96% $, WD ~3,060) | BN2 (8%) · BN3 (4%) · BN4 (11.25%) · BN9 (1%) · BN11 (1%) · BN13 (33%) | BN14 (70% $, WD 15,000) · BN15 (80% $, hacking 60% + puzzles) |
+
+† BN10's *income* pools are full, but its purchased-server **fleet** is throttled (Base Cost 5.0,
+Max RAM 50%, Server Limit 60%) — half the batcher's muscle.
 
 **Strategy: snowball the batcher on low-difficulty friendly nodes while building the next
 engine.**
 1. **Low-difficulty clears — but NOT low-effort (see the fixed rep tax below):** **BN1→1.2** is
-   the strongest per-clear reward here — **+8pp to *every* multiplier** (1.1's +16% → 1.2's +24%;
-   the guide's "8 NFG levels"), which is a real bank given how dear each mult point was in the BN1
-   climb. **BN12.1** is the alternative: only ~+1 free NFG (small power) but a *new* SF + starts
-   the permanent uncapped-NFG engine, same trivial ~3,060 gate. So: **BN1.2 for power, BN12.1 for
-   a new SF / progression.** **BN12's runway is short** — it hardens each clear, low-hanging for
-   ~1–2 levels only. These are also a non-hostile economy to validate a streamlined batcher against.
+   the cheapest-ever clear (WD 3,000, full economy, known playbook) for **+8pp to *every*
+   multiplier** (1.1's +16% → 1.2's +24%; the guide's "8 NFG levels"). Its real value (cold-review
+   correction) is **not** a vague "broad tailwind" — it's that BN5's next gate (4,500) is
+   *exponential* in level/mult, so +8pp on **both** the hacking-level *and* exp mult attacks that
+   gate directly. **Open question: push straight to SF1.3?** The in-game guide says most do; 1.2→1.3
+   is only +4pp but it's the cheapest clear we'll ever get, right before the node where mult matters
+   most. Decide before leaving BN1. **BN12.1** is a *new*-SF alternative (starts the uncapped free-
+   NFG engine) but it's low *difficulty*, not low *effort* — it still costs a full Daedalus endgame
+   for ~+1 NFG, and BN12 hardens each clear (short runway). These are also a non-hostile economy to
+   validate a streamlined batcher against.
    - ⚠️ **The fixed cost every clear pays:** favor/rep/augs do **not** persist across destroying a
      node — only Source-Files, scripts, and Intelligence do (BitNodes doc, captured above). So
      *every* clear means re-grinding the full **Daedalus 2.5m rep → Red Pill → backdoor WD**
@@ -55,16 +62,28 @@ engine.**
    (DarkscapeNavigator.exe + TOR). Those two are also what crack the WD-gated money-ok nodes
    (BN14, BN15).
 
-**Next *extending* node (after the warm-up + tooling): BN10 or BN5.**
-- **BN10** — batcher-friendly (100% money, full exp, 50% steal), and its rewards kill our two
-  worst BN1 pains: **Sleeves** parallelize the manual rep grind, **Grafting** installs augs with
-  *no reset* (deletes the money/membership wipe). Cost: WD 6,000, aug cost 500%, Sleeves' best
-  synergy (karma-farming) needs mechanics we lack — but Grafting alone is a universal reset-killer.
-- **BN5** — banks *tooling* instead: `getBitNodeMultipliers()` (script-read every node's mults —
-  fixes the exact wall that forced hand-copying these panels), permanent Formulas.exe, Intelligence.
-  Friendly to clear (100% money) but you run a 15%-steal (nerfed-income) batcher to get it.
+**Next *extending* node (after the BN1 warm-up): BN5 — re-priced by cold review.**
+- **BN5** — the least-bad option under the "no new engine / no rough penalty" constraints. Durable
+  reward is **+8% hacking mults**; its tooling (Formulas, `getBitNodeMultipliers()`, Intelligence)
+  is weaker than it looks (see BN5 clearing notes — Formulas is buyable for $5b, the API is
+  redundant with this doc, Intelligence is glacial for our playstyle). **Budget it as a 2–3
+  install-cycle mult grind**, not a quick clear: the 4,500 gate is a mult problem, and BN5's
+  200%-aug-cost / 15%-steal economy throttles the money that funds the mult. No BN10-style wall
+  though (level mult full), so the ceiling is reachable.
+- **BN10 — deferred, corrected reasoning.** Its Sleeves+Grafting rewards *do* kill our two worst
+  pains (rep grind, reset wipe), but its **×0.35 hacking-level wall** violates the "no rough
+  penalty" constraint. Deferral is correct — but the fix is **in-node Grafting + the biggest SF1
+  stack you carry in, NOT SF5** (+8% is noise against ×0.35). Do it after banking SF1 levels, not
+  "after SF5."
 
-**Deferred:** BN4 and every money-nerfed node — revisit once a second engine exists. BN4
+**⚠️ Constraint tension (cold-review meta-point) — decide consciously.** Our two constraints
+exclude **all three** in-game rep-tax killers: gang Red Pill (BN2), Sleeves (BN10), darknet Red
+Pill (BN15). So this plan *accepts paying the full Daedalus 2.5m-rep tax on every clear
+indefinitely*. Gang especially is a *small* script (far less than corp/bladeburner) and the game's
+designed answer to that exact tax — excluding it is a legitimate choice, but a choice, not a law.
+**Open question: is "no new engine" worth a permanent recurring rep tax?**
+
+**Deferred:** BN4 and every economy-nerfed node — revisit once a second engine exists. BN4
 specifically: come back with real multipliers and grind straight to **SF4.3** (needed for cheap
 Singularity elsewhere anyway).
 
@@ -220,15 +239,22 @@ Multiplier table (rest baseline):
 - **Corporation** — Valuation: **75%** · Division limit: **75%**
 - **Stanek's Gift** — Gift Power: **130%**
 
-**Clearing notes — soft penalties, throughput is the counter.** BN5's hacking hits are the
-*gentle* kind: Hacking **Exp** 50% + steal-per-hack 15% + Server Starting Security 200% — but
-**Hacking Level mult and Server Max Money are full 100%**, so there is **no reachability wall**
-(unlike BN10's ×0.35) and **no grafting needed**. The 50% exp is a pure *patience* cost — ~2×
-wall-clock to the WD **4,500** gate — and it's exactly what a streamlined batcher / the Phase 20
-XP farm cancels (more XP/sec directly offsets it). 15% steal → more threads/cycles per unit
-money, but full Server Max Money keeps the pools deep. **Richest snowball reward of the friendly
-nodes:** +8% hacking mults *plus* three permanent force-multipliers — Formulas.exe and
-`getBitNodeMultipliers()` and Intelligence all compound on every *future* clear.
+**Clearing notes — a mult grind, NOT a patience tax (corrected by cold review 2026-07-11).**
+Good news first: Hacking **Level** mult and Server **Max Money** are full 100%, so there's **no
+BN10-style reachability wall** and **no grafting required** — the ceiling is reachable. But the
+earlier "50% exp is just ~2× patience that throughput cancels" was **wrong**: the WD gate is
+**4,500** (vs BN1's 3,000), and by our own 218B-XP measurement, closing a higher gate is a
+**multiplier problem, not an XP-throughput one** (level is logarithmic in XP). Worse, BN5's
+penalties **compound onto the mult lever itself**: Aug Money Cost **200%** + steal **15%** +
+Server Starting Money **50%** throttle the money that funds NFG/augs — and we proved in BN1 that
+NFG is *money-capped*. So budget BN5 as a **2–3 install-cycle mult grind** (each cycle re-pays
+the Daedalus endgame), not a quick clear. Throughput/XP-farm helps *accumulate* XP but is a
+secondary lever; **mult is the binding constraint**, exactly as in the BN1 endgame.
+**Reward, re-priced:** the durable win is **+8% hacking mults**. The tooling is weaker than it
+looks — `getBitNodeMultipliers()` is largely *redundant with this very doc* (we hand-captured all
+15 panels), Formulas.exe is buyable in-node for $5b anyway (SF5 just makes it free/permanent),
+and Intelligence accrues glacially for a scripted no-Singularity playstyle. Pick BN5 *despite*
+the tooling, not because of it.
 
 ### BN6: Bladeburners — owned **SF6 level 0 / 3** (not cleared)
 SF6: Bladeburner in other nodes; +combat level & exp gain L1 8 / L2 12 / L3 14%. Multiplier
@@ -325,9 +351,13 @@ raw grinding can't overcome ×0.35, and **augs don't persist across node entry**
 roughly `SF1.2 (1.24) × 0.35 ≈ 0.43×`, below 1×. **The designed counter is BN10's own Grafting:**
 install hacking-multiplier augs **rep-free and reset-free** to rebuild the multiplier toward
 ~5–7×, at which point 6,000 is reachable. Costs an Entropy debuff (removable via a specific aug)
-+ 500% aug money — money isn't the blocker (100% Server Max Money batcher). Bank **SF1.2 / SF5**
-hacking mults *before* entering to pre-offset the 0.35; use **Sleeves** to fund/parallelize.
++ 500% aug money — money isn't the blocker (100% Server Max Money batcher). Bank **SF1** levels
+*before* entering to pre-offset the 0.35 (SF5's +8% is noise against ×0.35 — the fix is grafting +
+the biggest SF1 stack you carry in, *not* SF5); use **Sleeves** to fund/parallelize.
 Throughput / the XP farm is only a *secondary* lever here — it doesn't fix a multiplier wall.
+**Caveat (cold review):** "batcher-friendly" overstates it — max money is 100% but the *fleet* is
+throttled (Cloud Base Cost 5.0, Max RAM 50%, Server Limit 60%), so the batcher's muscle is halved
+even where its income pools are full.
 
 ### BN11: The Big Crash — owned **SF11 level 0 / 3** (not cleared)
 No new mechanic. SF11: company favor → **both** salary and rep gain (+1%/favor); +company
@@ -503,3 +533,8 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Added "Our next-node plan (mature batcher)": snowball batcher on BN1.2/BN12.1
   while streamlining throughput (Phase 20 resume) + building an IPvGO/darknet engine; BN10/BN5
   as the next extending node; BN4 + money-nerfed nodes deferred.
+- 2026-07-11 — Cold review (fable) corrections: BN5 re-priced as a 2–3 install-cycle mult grind
+  (not "throughput-cancelled patience"); its tooling reward deflated; BN1.2's value reframed as
+  attacking BN5's exponential gate (+ open Q: push to SF1.3?); batcher lens split into economy-vs-gate
+  axes; BN10 fleet-throttle noted + its deferral reason fixed (grafting, not SF5); constraint tension
+  surfaced (our constraints exclude all 3 rep-tax killers — open Q: is "no new engine" worth it?).
