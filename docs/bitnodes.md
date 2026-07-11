@@ -112,6 +112,17 @@ in-node via UI + API.)
 
 ---
 
+## BitVerse selection panels (live-read, per node)
+
+Captured from the in-game BitVerse node-selection panels — including the per-node multiplier
+tables `getBitNodeMultipliers()` can't reach without SF5. Grows as nodes are inspected. Also
+records our **owned Source-File level** shown on each panel.
+
+### BN1: Source Genesis — owned **SF1 level 1 / 3**
+"The original BitNode." No modifiers — baseline, all multipliers 100% (no table shown). SF1:
+start 32GB home RAM, +all mults L1 16% / L2 24% / L3 28%. Panel offers *Advanced options* and
+*Enter BN1.2* (repeat for SF1.2). Current holding: **SF1.1** (BN1 cleared once).
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -167,3 +178,4 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — Added the in-game "Which BitNode next" (short) recommendation guide (parsed via CDP).
 - 2026-07-11 — Added the in-game Comprehensive recommendation guide (per-node peculiarities +
   order advice), parsed via CDP.
+- 2026-07-11 — Started per-node BitVerse selection-panel captures: BN1 (owned SF1 level 1/3).
