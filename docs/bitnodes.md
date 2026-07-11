@@ -203,6 +203,25 @@ identical to BN6 on shared fields, plus its own Augmentations/Stock Market/Blade
 - **Bladeburner** — Rank Gain: **60%** · Skill Cost: **200%**
 - **Stanek's Gift** — Gift Power: **90%** · Base Size Modifier: **−1.00000**
 
+### BN8: Ghost of Wall Street — owned **SF8 level 0 / 3** (not cleared)
+Start **$250m** + WSE/TIX; shorts + limit/stop orders. SF8: L1 permanent WSE+TIX, L2 shorts
+elsewhere, L3 limit/stop elsewhere; +hacking-growth mults L1 12 / L2 18 / L3 21%. **Most
+non-stock income is zeroed outright** — the "forced into the stock market" design, confirmed
+numerically. Also the first panel with **no `w0r1d_d43m0n` Difficulty row at all** (every prior
+node listed one). Multiplier table:
+- **General** — Hacknet Production: **0%** · Coding Contract Reward: **0%**
+- **Faction** — Favor to Donate: **0%**
+- **Hacking** — Money Gained From Manual Hack: **0%** · Stolen Money From Hack: **30%** · Money Gained From Script Hack: **0%**
+- **Cloud Servers** — Softcap Cost: **4.000**
+- **Crime** — Crime Money: **0%**
+- **Darknet** — Darknet Money: **0%**
+- **Infiltration** — Infiltration Money: **0%**
+- **Company** — Work Money: **0%**
+- **Gang** — Gang Softcap: **0.000** · Unique Augmentations: **0%**
+- **Corporation** — **Disabled**
+- **Bladeburner** — **Disabled**
+- **Stanek's Gift** — Base Size Modifier: **−99.00000** (no Gift Power row — effectively unusable)
+
 ## BN4 — The Singularity (detailed, live-read from the BitNode selection screen)
 
 BN1 is cleared (Red Pill installed, `w0r1d_d43m0n` backdoored → SF1). We entered BN4 and then
@@ -267,3 +286,5 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
   node with a non-% "Daedalus Augs Requirement" field (35, vs BN1's 30).
 - 2026-07-11 — Captured BN7 selection panel + full multiplier table (SF7 not yet owned);
   shares BN6's core fields but adds Bladeburner rank/skill-cost + Stock Market cost rows.
+- 2026-07-11 — Captured BN8 selection panel + full multiplier table (SF8 not yet owned); nearly
+  all non-stock income zeroed, Corp/Bladeburner disabled, no `w0r1d_d43m0n` row at all.
