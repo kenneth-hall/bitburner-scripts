@@ -331,6 +331,10 @@ function recordSkipEvent(entries, openSkipRecords, record) {
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
+  // Wipe the terminal once on launch so a restart starts from a clean
+  // scrollback -- the daemon's own tprint lines and the pre-restart clutter
+  // don't accumulate across sessions.
+  ns.ui.clearTerminal();
   ns.ui.openTail();
 
   // Pass our own pid so killscripts.js protects only *this* daemon.js
