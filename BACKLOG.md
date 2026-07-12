@@ -81,9 +81,18 @@ instead of deleting it — don't let history pile up here.
   to own Source-File 4 level 3 without playing BN4, unlocking `ns.singularity.*` at 1× RAM. Core edit
   is one substring (`[[1,1]]`→`[[1,1],[4,3]]`) + additive SF4 achievement records; the real weight is
   the safety harness (minimal-diff invariant, save bookkeeping/`saves/INDEX.md`, 3-layer test plan).
-  Features: `phase-21-sf4-grant.features.md` → next stage is fable spec + spec-reviewer. **Supersedes
+  Features: `phase-21-sf4-grant.features.md`. **Supersedes
   the SF4-gated parked backlog** (auto-backdoor, aug-planner execution, TOR ladder, rep watchers) —
   those become buildable once this lands, each as its own later phase (do NOT fold them into 21).
+  - **Spec stage done (2026-07-12): `phase-21-sf4-grant.spec.md` drafted + cold-reviewed (1 blocker
+    resolved by Kenneth's sign-off: features Decision 6's SF4.1/4.2/4.3 achievement records are
+    unimplementable — only `SF4.1` exists, one achievement per Source-File — and the engine
+    self-grants it once the map holds `[4,3]`, so the transform writes NOTHING to achievements and
+    the edit stays exactly one insertion; fallback if self-grant doesn't fire = follow-up mini-edit
+    with the same tooling). Needle verified to occur exactly once in the real save. 4 should-fixes
+    folded in (RAM reading demoted to corroboration — `ownedSF ⊇ [4,3]` is the gate; expected-RAM
+    derivation fixed at ≈7.65 GB; L6 ownedSF-miss routed to the rollback contingency; the `[[1,1]]`
+    needle assumption stated). **Next: implement (sonnet) on branch `phase21-sf4grant`.**
 
 - **Close out BN1.2 (current goal, launched 2026-07-11).** Fresh BN1 clear for SF1.2; state is
   hacking ~48, no factions, ~$2k, fleet rebuilding — everything below in this item is **clear-#1
