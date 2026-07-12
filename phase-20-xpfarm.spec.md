@@ -137,7 +137,10 @@ check loops back to a [code] fix (constants tuning is a [code] change), as in pr
   servers the batcher may *later* adopt (it then pays a re-prep), and the exclusion only covers
   the batcher's *current* claim.
 - **S4 — Security hold (features Q2): `HOLD_WEAKEN_FRAC = 0.16` of each host's XP allocation
-  goes to weaken, with a crush mode for hot targets.** Steady-state balance from the mechanics
+  goes to weaken, with a crush mode for hot targets.** *(Crush as written here is superseded by
+  **amendment S8** at the bottom of this spec — live validation showed uncapped crush commits the
+  whole surplus into one 37-minute burst; S8 replaces it with a sized, cooldown-gated volley. The
+  hold split below is unchanged.)* Steady-state balance from the mechanics
   (hack +0.002 sec/thread per completion at duration T; weaken −0.05/thread at 4T; RAM 1.70 vs
   1.75 GB/thread) gives weaken ≈ 14.1% of XP RAM; 16% is that plus deliberate margin, since
   over-weakening is a harmless no-op and the whole 3× speed win of min security rides on the
@@ -230,6 +233,9 @@ keys `hack`/`weaken` are confirmed safe (Phase 13's probe: keys are not phantom-
 `scheduler.js` stays pure; importers pay nothing.
 
 ### Work item 3 — `src/xpfarm.js`: the production engine [code]
+
+*(Shipped as written; **amendment S8** then modifies the crush path — sized volleys, cooldown
+ledger, crush-wait mode. Read S8 before touching `planXpJobs` or the main loop.)*
 
 Full rewrite in place (the file header notes it replaces the Phase 20 MVP prototype; the
 prototype's findings live in the features doc). Constants:
@@ -552,10 +558,17 @@ that reserve in one shot instead of ramping into it.
 **every `daemon.js` restart** (frequent, per your own workflow) -- each restart briefly reopens a
 big surplus before the batcher's claim re-establishes, and `planXpJobs` has no per-pass ceiling to
 stop it from spending all of that surplus at once on whatever 3 targets are currently most
-drifted. Once the current burst lands, security on all 3 targets will crater far below min (3.9M
-threads is massive overkill for a ~3x-above-min gap), which will very likely trigger a second,
+drifted. Once the current burst lands, the massive overkill (3.9M
+threads against a gap needing ~860: (65−22)/0.05) is pure wasted RAM-time — security floors at
+`minSec`, it can't crater below — and the freed surplus will very likely trigger a second,
 similar-sized hold-mode burst (84/16 hack/weaken) before things settle into genuine small
-steady-state top-ups.
+steady-state top-ups. *(Correction on resume review, 2026-07-12: the original text here said
+sec would "crater far below min" — mechanically impossible; the follow-on cost is the giant
+hold re-burst and the wasted RAM, restated above.)* A second live observation from the same
+window sharpens the diagnosis: at 6:46:45 PM a ~5TB sliver of RAM freed mid-burst and the very
+next pass spent it as 2,871 *more* weaken threads at the same still-drifted target — the engine
+re-crushes the same gap every time RAM appears, because it has no awareness of its own
+in-flight work.
 
 ### Decision (2026-07-12, made right before pausing)
 
@@ -573,6 +586,11 @@ change to S3/S4 (the spec as written has no such cap), so it probably wants at l
 spec-amendment note (new S-decision or an addendum) before/alongside implementing, per the
 project's normal spec-then-code discipline -- don't just patch it silently.
 
+**→ Resolved on resume review (2026-07-12): amendment S8 below is that spec amendment.** The
+flat-GB / fraction-of-usable shapes sketched above were evaluated and rejected there (they smooth
+the launch but don't fix the 37-minute commitment lockup); the per-target thread ceiling survived,
+sharpened into a gap-sized, cooldown-gated volley.
+
 ### State the live game was left in
 
 - `npm run dev` is running (I restarted it for the RAM gate at the start of this session).
@@ -584,14 +602,106 @@ project's normal spec-then-code discipline -- don't just patch it silently.
   BACKLOG/CHANGELOG close-out and `git rm src/xpprobe.js`, both explicitly deferred to after the
   ship-gate multiple is measured (spec's work item 9).
 
-### Resume checklist
+## Amendment S8 (2026-07-12, resume review) — the per-pass cap is a sized, cooldown-gated crush volley, not a blanket GB ramp
 
-1. Implement the per-pass cap (design note above), re-run `npm test` + a fresh RAM gate for
-   `xpfarm.js` (expect a small delta from whatever mechanism is added).
-2. Kill+restart the dev server and `daemon.js` again, confirm the cap actually smooths the
-   restart-burst (watch `logs/xpfarm-log.json` for a ramp instead of a one-shot 0-forever).
-3. Resume live validation at spec step 2 (coexistence) -- step 1 (first fill) was already
-   observed working during this session, modulo the burst finding above.
-4. Steps 3-8 as written (security equilibrium, the ≥3x exp/sec A/B via `xp-off.txt`,
-   money-independence, toggle behavior, fresh-node coexistence observations, `npm run verify:log`).
-5. Close-out: BACKLOG/CHANGELOG entries + `git rm src/xpprobe.js`, per work item 9.
+**Supersedes S4's crush paragraph and work item 3's `planXpJobs` crush path where they
+conflict. Everything else — S2's claim mechanics, the hold split, target selection, lifecycle,
+instrumentation — stands as written.**
+
+### The decision
+
+1. **Size the volley to the gap.** When a target reads `sec > minSec + CRUSH_SEC_GAP` and no
+   volley is in flight for it, launch
+   `ceil((sec − minSec) / WEAKEN_SEC_PER_THREAD × CRUSH_OVERSIZE)` weaken threads
+   (`WEAKEN_SEC_PER_THREAD = 0.05`, `CRUSH_OVERSIZE = 1.1`), spread across that target's
+   round-robin hosts *before* any hold split. Scale check from the live finding: syscore's
+   3×-min drift (sec 65, min 22) needs ~860 threads ≈ 1.5TB — the uncapped design spent
+   ~1.3M threads ≈ 2.3PB on it.
+2. **Cooldown ledger.** When a volley actually launches (≥ 1 thread with a nonzero exec pid),
+   record `crushUntil[server] = now + ns.getWeakenTime(server) + LOOP_MS`. Until that passes,
+   the target is in **crush-wait**: no further crush weakens no matter what `sec` reads — the
+   in-flight volley's reduction isn't observable yet, and re-reading the same gap every 10s
+   pass is exactly the re-crush pathology the live log caught (the 6:46:45 PM sliver). The
+   ledger is a plain in-memory `Map`; an engine restart loses it, worst case one duplicate
+   *sized* volley (thousands of threads, bounded) — and a daemon restart kills the workers and
+   the engine together (killscripts sweep), so ledger and in-flight state always reset
+   coherently.
+3. **Hold runs everywhere else, at any security level.** All remaining capacity — the volley
+   hosts' leftover slices, and every host assigned to a crush-wait target — gets the normal
+   `HOLD_WEAKEN_FRAC` 84/16 split *at the elevated security*. This is the load-bearing insight:
+   the hold ratio is security-invariant (hack adds +0.002 sec/thread at duration T; weaken
+   removes 0.05/thread at 4T; the balance point W/H = 0.002×4/0.05 = 0.16 has T cancel out),
+   so hold neither fights the volley nor waits for it. XP flows from the first pass — at a
+   reduced rate (ops ~3× longer at drifted sec, hackChance lower), but ≫ the uncapped design's
+   *zero completions for 37 minutes* — and the fleet's commitment horizon becomes hack-time
+   (minutes) instead of weaken-at-drifted-sec (37+ min observed).
+4. **Partial volleys converge.** If the target's hosts this pass can't fit the full volley,
+   launch what fits and set the cooldown anyway; the residual gap is re-measured from live
+   `sec` after the volley lands and re-volleyed next round. Multiple weaken rounds on a small
+   fleet is correct behavior, not a failure.
+
+### Why not the checkpoint's flat-GB / fraction-of-usable ramp
+
+The observed harm was never batcher starvation — S2's claim held and the batcher stayed healthy
+throughout the burst. The harm was (a) **overkill** (3.9M threads against an ~860-thread gap)
+and (b) **lockup** (the whole surplus committed into 37-minute weakens; `usableGb` flatlined at
+0; zero XP completions for the duration). A blanket GB-per-pass ramp fixes neither: it still
+commits ~everything into long weakens within a few passes, just politely, and then taxes
+steady-state throughput forever after. Sizing + cooldown caps the commitment in the dimension
+that matters — **duration** — which is what answers the workflow concern that triggered the
+pause: *every daemon restart and every aug install reopens a drifted-target state* (restarts
+kill in-flight weakens and strand the drift; rising player level feeds in newly-eligible servers
+that always arrive drifted), so post-reset time-to-steady-state is a recurring cost, not a
+one-off. Under S8 that cost is: XP nonzero from pass 1, full min-sec rate within ~1 weaken
+duration. Under the shipped code it was: ≥ 1 weaken duration of zero XP, then a likely re-burst.
+
+Deliberately **not** added: any ramp protecting the batcher during the restart's first passes.
+The live burst — worst case — didn't starve it (claim mechanism worked; 0 skips, income grew
+throughout), and under S8 any transient over-grab returns on hack cadence anyway. If live
+step 2 shows otherwise, that's a new finding, not a known gap.
+
+### Mechanical deltas for the implementer
+
+- **Constants added:** `WEAKEN_SEC_PER_THREAD = 0.05` (fleet hosts are 1-core; home's core
+  bonus only makes weakens stronger — harmless over-delivery, so the constant needn't model
+  cores), `CRUSH_OVERSIZE = 1.1`. Identifier hygiene per the ground rule: pre-check these plus
+  `crushUntil` and the `"crush-wait"` mode string against `NetscriptDefinitions.d.ts` before
+  the RAM gate.
+- **`planXpJobs` stays pure.** The caller derives per-target `crushOk` from the ledger and
+  passes it on the target records; the plan must let the caller distinguish volley weakens from
+  hold weakens in its output (per-target volley thread counts, a job `kind` flag — implementer's
+  call), because the cooldown is set only when ≥ 1 volley thread actually launched (exec pid
+  ≠ 0). Behavior: `sec` over the gap + `crushOk` → sized volley first, hold split on all
+  remaining capacity; over the gap + not `crushOk` → pure hold; under the gap → hold (unchanged).
+- **ns surface / RAM:** adds `ns.getWeakenTime` (0.05GB, verified
+  `markdown/bitburner.ns.getweakentime.md`). Expected `xpfarm.js` reading: **5.85GB** (the
+  checkpoint's recorded 5.80 baseline + 0.05); anything else → identifier hunt per the gate.
+- **Log/tail:** `targets[].mode` gains `"crush-wait"`; `"crush"` now means "volley launched
+  this pass". Engine-internal only — no daemon, sampling, or verify-log changes.
+- **Tests (extends work item 8's `test/xpfarm.test.js`):** volley sized to gap (ceil +
+  oversize), crush-wait target gets pure hold at elevated sec, no volley when `crushOk` is
+  false, partial volley when hosts can't fit it, volley + hold coexisting on one host's slice,
+  hold split unchanged below the gap.
+- **Live step 3 reads under S8 as:** `"hold"` entries hold within ~2 of min (as written);
+  a drifted target's `"crush-wait"` entries must *transition* to `"hold"` within ~1 weaken
+  duration of its volley plus a couple passes — that transition is the new convergence check,
+  and `hackThreadsLaunched` should be nonzero from the first post-restart passes (the
+  no-more-lockup check).
+
+### Resume checklist (rewritten under S8)
+
+1. **[code]** Implement S8 in `src/xpfarm.js` (pure functions + tests first, house style);
+   `npm test` green.
+2. **[code→live]** Fresh RAM gate for `xpfarm.js` (dev server kill+restart + `dist/src/*`
+   byte-check per standing rule): expect 5.85GB.
+3. **[live]** Restart `daemon.js`. In `logs/xpfarm-log.json` confirm the restart-burst is
+   fixed: volley sizes in the thousands (≈ gap/0.05), `usableGb` does *not* flatline at 0,
+   nonzero `hackThreadsLaunched` from the first passes, drifted targets walk
+   crush → crush-wait → hold within ~1 weaken duration. (Whatever the pre-S8 code left in
+   flight is swept by the restart — no cleanup needed; the 6:21 PM burst self-resolved when it
+   landed ~6:58 PM on 2026-07-12 regardless.)
+4. **[live]** Resume live validation at step 2 (coexistence) — step 1 (first fill) was
+   observed working before the pause; steps 3–8 as written, with step 3 read per the S8 note
+   above.
+5. **[code]** Close-out: BACKLOG/CHANGELOG entries + `git rm src/xpprobe.js` per work item 9;
+   both phase docs (including this amendment) graduate to `docs/phases/`.
