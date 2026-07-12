@@ -8,6 +8,29 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-12
 
+- **Phase 22 — auto-backdoor the four hacking-faction servers, live-validated end-to-end.**
+  New self-terminating Singularity fulfiller (`src/backdoorfactions.js`, the
+  `procureprograms.js` model): roots + walks + `installBackdoor()`s CSEC/`avmnite-02h`/
+  `I.I.I.I`/`run4theh111z` as hacking level allows, never calls anything that joins a
+  faction (hard rail enforced by grep in acceptance — the join-verb string appears nowhere
+  in `src/`). Spec-stage addition beyond the features file: a `backdoor-status.json`
+  overwrite-in-place snapshot (`vite.config.ts` filter added), since CLAUDE.md's
+  log-over-paste convention needs *some* export and the features file's events-log
+  infrastructure stayed deliberately deleted. `common.js`'s `findPath` gained a `start`
+  parameter (default `"home"`, byte-identical for the existing `connect.js` call site) so
+  the walk can path from wherever the terminal currently sits, not just from home.
+  **Live validation ran Tier 1 for real, not just mocked** (hacking level had already
+  climbed to 371 by the live pass): CSEC, `avmnite-02h`, and `I.I.I.I` all backdoored
+  automatically within the run, each surfacing its faction invite with zero auto-joins
+  (all three "Decide later"'d); `run4theh111z` (542) still pending. RAM measured **11 GB**
+  at SF4.3's 1× multiplier (spec's derived ~9–13 GB band), `daemon.js` flat at 16.3 GB.
+  Tier 2 (fresh-node reset → climb → invite from scratch) stays deferred to the next
+  install/reset (tracked in BACKLOG). **Unrelated finding surfaced, not fixed here:**
+  `npm run verify:log`'s event-type checker doesn't recognize the pre-existing `rooted`
+  event type (`hosts.js`) — confirmed pre-existing on `master` via `git stash`, logged as
+  its own BACKLOG bug rather than folded into this phase's diff.
+  `phase-22-autobackdoor.features.md` / `.spec.md`.
+
 - **procureprograms.js — TOR/port-opener auto-buy validated live (backlog close-out, no code change).**
   With SF4 now permanent (Phase 21), the Singularity buy path that had only ever exercised its
   "SF4 missing → exit cleanly" branch was finally watched end-to-end. Triggered by an aug install

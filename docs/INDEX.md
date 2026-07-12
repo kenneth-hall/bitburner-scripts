@@ -13,5 +13,7 @@ files hold the *how*, read only when the relevant task comes up.
 | BN1 endgame runbook: click-by-click favor-install → donate → buy → install → rebuild → re-climb → backdoor | [endgame-runbook.md](endgame-runbook.md) | Executing the finish once Daedalus rep clears ~465k |
 | BN1 handoff: live state + verified mechanics + locked sequence with current position marked | [bn1-handoff.md](bn1-handoff.md) | **Resuming the BN1 endgame** in any new session — read this first |
 | BitNodes reference: all 15 nodes + Source-File effects, how-to-destroy, BN4's live-read multiplier table | [bitnodes.md](bitnodes.md) | Choosing a next BitNode; anything about a node's mechanics / Source-File / SF4 / `ns.singularity.*` |
+| Stock market mechanics: two access doors (WSE / TIX API), 4S data add-on, progression locks | [stock-market.md](stock-market.md) | Any future stock-market design pass (no code exists yet) |
+| Darknet (`ns.dnet`) mechanics: access chain, network volatility, three extraction paths | [darknet.md](darknet.md) | Any future darknet design pass (no code exists yet) |
 | Exported log patterns (ring-buffer / timestamped / daily-rotating), `vite.config.ts` filter | [logging.md](logging.md) | Adding or reading back an exported log; debugging money (transactions file) |
 | Dev server: Remote API auto-reconnect, stale-connection kill+restart workaround | [dev-server.md](dev-server.md) | Restarting `npm run dev`; a file/log isn't syncing to the game; before a RAM-gate/live run |

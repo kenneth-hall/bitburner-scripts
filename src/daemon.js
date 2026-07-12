@@ -355,6 +355,11 @@ export async function main(ns) {
   launchDetached(ns, "resourcemanager.js");
   launchDetached(ns, "cloudmanager.js");
   launchDetached(ns, "procureprograms.js");
+  // Phase 22: Singularity-heavy self-terminating fulfiller for the four
+  // hacking-faction backdoors -- resident until all four are done (never
+  // joins any faction); exits across a level climb only when finished, not
+  // on lulls, since nothing relaunches it until the next daemon restart.
+  launchDetached(ns, "backdoorfactions.js");
   // Phase 18: headless window manager -- restores/persists every dashboard
   // tail's position/size/font so they don't need re-dragging after every
   // restart. Owns no tail of its own.

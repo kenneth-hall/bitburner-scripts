@@ -29,12 +29,16 @@ export function scanNetwork(ns) {
 }
 
 /**
- * BFS parent-chain walk from home to target; returns the hop list inclusive
- * of both ends, or null if unreachable.
+ * BFS parent-chain walk from `start` (default "home") to target; returns the
+ * hop list inclusive of both ends, or null if unreachable. The `start`
+ * parameter (Phase 22) lets a caller path from wherever the player's terminal
+ * currently sits -- ns.singularity.connect only reaches neighbors, so a
+ * home-rooted path is useless once the player has moved. Default preserves
+ * every existing call site (connect.js) byte-for-byte.
  */
-export function findPath(ns, target) {
-  const visited = new Map([["home", null]]);
-  const queue = ["home"];
+export function findPath(ns, target, start = "home") {
+  const visited = new Map([[start, null]]);
+  const queue = [start];
 
   while (queue.length > 0) {
     const host = queue.shift();
