@@ -360,6 +360,17 @@ export async function main(ns) {
   // joins any faction); exits across a level climb only when finished, not
   // on lulls, since nothing relaunches it until the next daemon restart.
   launchDetached(ns, "backdoorfactions.js");
+  // Formulas.exe fulfiller: resident Singularity companion that buys Formulas
+  // once hacking clears the reservation threshold (>400) and it's affordable
+  // above the bootstrap holdback, then exits. daemon switches legacy->formulas
+  // math within a cycle once the file lands. Vetoed by finance-disable-formulas.txt.
+  launchDetached(ns, "procureformulas.js");
+  // Post-install XP kick: one-shot Singularity companion that throws the
+  // character into Rothman University Computer Science when hacking is still
+  // near level 1 (fresh install), converting post-install dead time into
+  // hacking XP. Self-terminating -- fires (or skips) once and exits, so later
+  // daemon restarts past the level threshold are no-ops.
+  launchDetached(ns, "studybootstrap.js");
   // Phase 18: headless window manager -- restores/persists every dashboard
   // tail's position/size/font so they don't need re-dragging after every
   // restart. Owns no tail of its own.
@@ -462,9 +473,11 @@ export async function main(ns) {
     ramCosts = { ...workerRamCosts(ns), [SHARE_SCRIPT]: ns.getScriptRam(SHARE_SCRIPT, "home") };
 
     const currentTargetNames = new Set(targets.map((t) => t.server));
-    for (const name of currentTargetNames) {
-      if (!previousTargetNames.has(name)) tprintTs(ns, `INFO: new target ${name}`);
-    }
+    // "new target" prints were removed as non-actionable terminal noise: they
+    // fire routinely as the hacking level climbs and unlocks servers, and
+    // targetsmonitor.js already surfaces the live eligible-target set. The
+    // rarer "dropped target" line is kept -- a target leaving eligibility is
+    // infrequent and more likely to be worth a glance.
     for (const name of previousTargetNames) {
       if (!currentTargetNames.has(name)) tprintTs(ns, `INFO: dropped target ${name}`);
     }
