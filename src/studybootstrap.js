@@ -49,10 +49,10 @@ function hasSourceFile4(ns) {
 /** @param {NS} ns */
 export async function main(ns) {
   const hack = ns.getHackingLevel();
-  if (hack >= HACK_THRESHOLD) {
-    tprintTs(ns, `INFO: studybootstrap skipped -- hacking ${hack} already >= ${HACK_THRESHOLD}`);
-    return;
-  }
+  // Silent no-op: past the post-install window (the common case on every daemon
+  // restart), there's nothing to announce. Only the actual study action, or a
+  // genuine can't-act diagnostic below, is worth a terminal line.
+  if (hack >= HACK_THRESHOLD) return;
 
   if (!hasSourceFile4(ns)) {
     tprintTs(ns, "INFO: studybootstrap skipped -- Source-File 4 not active (can't drive university via Singularity)");

@@ -157,6 +157,16 @@ export async function main(ns) {
       rows.push({ server, faction: FACTION_BY_SERVER[server], classification });
     }
 
+    // Already all-done at startup (steady state after the four backdoors are
+    // installed): exit silently -- no LAUNCH + SUMMARY pair narrating a no-op on
+    // every daemon restart. The mid-session completion path below still prints
+    // SUMMARY once, when it finishes work it actually started this run.
+    if (!launchedSummary && rows.every((r) => r.classification.startsWith("done"))) {
+      writeStatus(ns, { hackingLevel, targets: rows, allDone: true });
+      ns.ui.closeTail();
+      return;
+    }
+
     if (!launchedSummary) {
       tprintTs(
         ns,

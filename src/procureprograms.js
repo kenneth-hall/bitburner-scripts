@@ -127,10 +127,11 @@ export async function main(ns) {
     const hasTor = ns.hasTorRouter();
 
     if (hasTor && ownedFiles.size === PORT_OPENER_COSTS.length) {
-      ns.tprint("===== procureprograms summary =====");
-      if (bought.length === 0) {
-        ns.tprint("  nothing needed -- TOR + all port openers already owned");
-      } else {
+      // Announce only if we actually bought something this run; a restart that
+      // finds TOR + every opener already owned exits silently (no "nothing
+      // needed" terminal noise on the steady-state daemon restart).
+      if (bought.length > 0) {
+        ns.tprint("===== procureprograms summary =====");
         for (const line of bought) ns.tprint(`  ${line}`);
       }
       ns.ui.closeTail(); // Phase 18: clean exit shouldn't leave a frozen window behind -- see exitSingularityUnavailable's comment
