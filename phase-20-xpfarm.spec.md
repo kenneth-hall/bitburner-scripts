@@ -490,3 +490,108 @@ assertion + info line only).
 `share.js`/share planning, all existing workers (`hack.js`/`grow.js`/`weaken.js`),
 `killscripts.js` (its fleet-wide sweep already covers XP workers), `translog.js` (no spend),
 `test/verify-log-checks.js` (no invariant touches XP state), the daemon's tail display.
+
+## Session checkpoint (2026-07-12, paused mid-live-validation)
+
+**Status: all [code] work items shipped and tested; live validation stopped before step 3
+because of a live finding below. Resume here.**
+
+### What's done
+
+- All work items 1-7 implemented on branch `phase20-xpfarm` (2 commits: `555f182` "feat(phase-20):
+  XP engine production rewrite", `786486e` "docs(backlog): note phase-20 implementation status +
+  live burst observation"). **Not merged to `master`** -- waiting on live validation per the ship
+  gate.
+- `npm test`: 381/381 green, including work item 8's new suites (`test/xpfarm.test.js`,
+  `sampling.test.js`/`verify-log.test.js` additions) and the pre-existing `rooted`-validTypes bug
+  fix.
+- RAM gate run live (dev server killed+restarted first, byte-checked against `dist/src/*`,
+  `logs/ramcheck-result.json` written): `daemon.js` flat 16.3GB, `hack.js`/`weaken.js` flat,
+  `xphack.js`/`xpweaken.js` exactly match their counterparts (1.70/1.75GB) — clean pass.
+  `xpfarm.js` recorded at **5.8GB**, ~0.5GB over the spec's RAM-gate-table estimate of "+0.3GB
+  over prototype baseline". Traced with the in-game `mem xpfarm.js` breakdown (see below) --
+  every charge is a real, intentional call; the spec's own delta estimate just didn't account for
+  S4's `getServerSecurityLevel`/`getServerMinSecurityLevel` reads, which the design requires. No
+  identifier collision found. Treat 5.8GB as the correct recorded baseline going forward, not a
+  bug to chase.
+  ```
+  xpfarm.js: 5.80GB total
+    1.60 baseCost | 1.30 exec | 1.05 cloud.getServerNames | 0.60 scp | 0.20 scan
+    0.15 weaken | 0.10 hack   (^ these two are inherited from xphack.js/xpweaken.js's own bodies --
+                                 this build's RAM analyzer traces through ns.exec(job.script, ...)
+                                 into the exec'd file's own ns-call surface, same as daemon.js
+                                 already does for WORKER_SCRIPTS -- confirmed via mem daemon.js)
+    0.10 getScriptRam | 0.10 fileExists | 0.10 getServerRequiredHackingLevel | 0.10 getServerMaxMoney
+    0.10 getServerSecurityLevel | 0.10 getServerMinSecurityLevel
+    0.05 getHackingLevel | 0.05 hasRootAccess | 0.05 getServerMaxRam | 0.05 getServerUsedRam
+  ```
+
+### Live finding: uncapped single-pass burst (the reason we paused)
+
+Restarted `daemon.js` for the RAM gate at ~6:21:5x PM. Within the first 10s pass, `xpfarm.js` saw
+a huge one-tick surplus (batcher's claim hadn't ramped up yet post-restart) and, per `planXpJobs`'
+current design, committed **all of it in one pass**: ~6.9PB as ~3.9M weaken threads, crush mode,
+split across only 3 targets (`syscore` req591, `alpha-ent` req588, `rho-construction` req499 --
+all freshly drifted to 3x+ their min security after the restart).
+
+That single-pass commitment then self-stalled: `usableGb` read exactly `0` on every subsequent
+10s pass for 15+ minutes straight (checked `logs/xpfarm-log.json`), because the weaken threads it
+launched are still in flight, occupying the RAM `listHosts` reports as "used." Confirmed the
+reason via the in-game terminal `analyze` on `syscore` (backdoored path: `home -> harakiri-sushi
+-> zer0 -> neo-net -> avmnite-02h -> syscore`): at its current security (65, vs min 22),
+`hackTime` is **9m21s**, so `weakenTime` (~4x hack) is **~37 minutes**. The burst launched ~6:21
+PM won't land until roughly **6:58-6:59 PM**.
+
+**Not a correctness bug.** The batcher stayed fully healthy throughout (checked
+`daemon-batch-log.json`: 1293+ batch events, 0 skips, memberCount == candidateCount every
+snapshot, income flowing $142.5m -> $7.45b over the observation window). The claim mechanism (S2)
+correctly protected the batcher's own reserve the whole time -- XP just ate everything *outside*
+that reserve in one shot instead of ramping into it.
+
+**Why it matters beyond today's measurement:** this isn't a one-off startup fluke. It'll recur on
+**every `daemon.js` restart** (frequent, per your own workflow) -- each restart briefly reopens a
+big surplus before the batcher's claim re-establishes, and `planXpJobs` has no per-pass ceiling to
+stop it from spending all of that surplus at once on whatever 3 targets are currently most
+drifted. Once the current burst lands, security on all 3 targets will crater far below min (3.9M
+threads is massive overkill for a ~3x-above-min gap), which will very likely trigger a second,
+similar-sized hold-mode burst (84/16 hack/weaken) before things settle into genuine small
+steady-state top-ups.
+
+### Decision (2026-07-12, made right before pausing)
+
+Presented three options (wait it out / kill the stuck processes and observe / add a per-pass
+cap). **Kenneth chose: add a per-pass cap to `xpfarm.js` now**, before resuming live validation --
+not just to unstick today's measurement, but because the restart-triggered burst pattern would
+otherwise recur every time the daemon restarts.
+
+**No cap has been designed or implemented yet** -- this is the next work item. Rough shape to
+evaluate on resume (not yet vetted against the spec's S2/S3/S4 language, so treat as a starting
+point, not a decision): cap `planXpJobs`' total per-pass commitment to some bound (a flat GB
+ceiling, or a fraction of `usableGb`, or a per-target thread ceiling) so a reopened surplus ramps
+in over several passes instead of landing in one shot. Whatever shape it takes, it's a real design
+change to S3/S4 (the spec as written has no such cap), so it probably wants at least a quick
+spec-amendment note (new S-decision or an addendum) before/alongside implementing, per the
+project's normal spec-then-code discipline -- don't just patch it silently.
+
+### State the live game was left in
+
+- `npm run dev` is running (I restarted it for the RAM gate at the start of this session).
+- `daemon.js` and `xpfarm.js` are both running in-game, left as-is (not turned off). The stuck
+  burst will land on its own around 6:58-6:59 PM regardless of whether anyone's watching --
+  no action needed to "unstick" it if the cap work takes a while.
+- `xp-off.txt` was **not** created -- the engine is live, mid-burst, when this session paused.
+- Branch `phase20-xpfarm` (2 commits, not merged) has everything through work item 9 except the
+  BACKLOG/CHANGELOG close-out and `git rm src/xpprobe.js`, both explicitly deferred to after the
+  ship-gate multiple is measured (spec's work item 9).
+
+### Resume checklist
+
+1. Implement the per-pass cap (design note above), re-run `npm test` + a fresh RAM gate for
+   `xpfarm.js` (expect a small delta from whatever mechanism is added).
+2. Kill+restart the dev server and `daemon.js` again, confirm the cap actually smooths the
+   restart-burst (watch `logs/xpfarm-log.json` for a ramp instead of a one-shot 0-forever).
+3. Resume live validation at spec step 2 (coexistence) -- step 1 (first fill) was already
+   observed working during this session, modulo the burst finding above.
+4. Steps 3-8 as written (security equilibrium, the ≥3x exp/sec A/B via `xp-off.txt`,
+   money-independence, toggle behavior, fresh-node coexistence observations, `npm run verify:log`).
+5. Close-out: BACKLOG/CHANGELOG entries + `git rm src/xpprobe.js`, per work item 9.
