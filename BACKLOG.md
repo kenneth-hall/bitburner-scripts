@@ -243,17 +243,6 @@ instead of deleting it — don't let history pile up here.
     join/buy/install pipeline through `ns.singularity`, not resurrect this watcher. File as a non-item,
     not "todo after BN4."
 
-- **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
-  Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
-  "no matter what." Recommended against running the full ~67GB script resident indefinitely — the
-  RAM cost is fixed for as long as it's alive regardless of activity, and the wait for the
-  Source-File it needs could be long, so that RAM is better spent on the hacking/growing/weakening
-  worker pool in the meantime. Proposed instead: a tiny (~1GB) always-on watcher that polls
-  `ns.getResetInfo().ownedSF` cheaply and only `exec`s `procureprograms.js` once that Source-File is
-  actually active, instead of holding the full footprint the whole time. Not yet built — Kenneth
-  hadn't decided between this and just remembering to manually re-run it. Revisit alongside the
-  "re-validate TOR/port-opener automation" Ideas item below, since they're the same follow-up.
-
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
   same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
   likely also applies to `WORKER_SCRIPTS`' keys — `hack`/`grow`/`weaken` (`scheduler.js`) match
@@ -419,14 +408,6 @@ instead of deleting it — don't let history pile up here.
     shows a `bootstrap-server` reservation for a *first* cloud server — i.e. a fresh post-reset
     fleet. This is exactly the scenario the item predicts: the 25% carve competing with getting
     the pipeline started at all. Evidence captured before the state passes.
-
-- **Re-validate `procureprograms.js`'s TOR/port-opener ladder live** (2026-07-05, filed from Phase
-  11's Round B): Kenneth's account doesn't yet have the Source-File `ns.singularity.purchaseTor`/
-  `purchaseProgram` require, so the auto-buy ladder has never actually been observed working live —
-  only its "can't run yet, exit cleanly" path has. Once that Source-File is available, `run
-  procureprograms.js` (or a `daemon.js` restart) should walk TOR then the port openers automatically;
-  worth a deliberate check the first time it's possible, since the code path is untested in reality.
-  Pairs with the lightweight watcher-script idea in Next Up.
 
 - **Phase 10 follow-ups** (2026-07-05, filed per `docs/phases/phase-10-finance-cloud.md`'s Files section;
   none of these block Phase 10 sign-off):

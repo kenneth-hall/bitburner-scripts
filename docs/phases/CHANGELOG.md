@@ -8,6 +8,30 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-12
 
+- **procureprograms.js — TOR/port-opener auto-buy validated live (backlog close-out, no code change).**
+  With SF4 now permanent (Phase 21), the Singularity buy path that had only ever exercised its
+  "SF4 missing → exit cleanly" branch was finally watched end-to-end. Triggered by an aug install
+  (a 1-level NeuroFlux, chosen as the cheap validation vehicle Kenneth accepted the re-climb for),
+  which wipes all six programs → watched the re-buy during re-bootstrap. **Confirmed live this
+  cycle:** launches past the SF4 guard with no runtime-error popup; sees 0 owned; respects the
+  $110k bootstrap holdback ("waiting for cash"); buys **TOR first** (`auto-tor` $200k @ 09:55:27 —
+  first-ever logged capture of that call); walks openers **cheapest-first** (BruteSSH $500k →
+  FTPCrack $1.5m); reservations release in `finance-log.json` as each is bought. **Self-termination
+  taken on evidence, not re-observed this cycle** — today's log already held a full completed-and-
+  exited cycle (4 openers bought earlier, tail closed at session start = the summary→`closeTail`→exit
+  after-state), and the exit is 3 trivially-correct lines; forcing it via a `.txt` flag was rejected
+  as a permanent test-hook in a hot script for near-zero risk (decision: close on evidence). The
+  ladder itself parked at 6/9 mid-validation — **not a bug**: income plateaued below relaySMTP's $5m
+  reservation (`available = money − reserved = 0`), the reservation model correctly protecting the
+  opener cash from cloudmanager. Closes the *"Re-validate procureprograms TOR/opener ladder live"*
+  backlog item and moots the *"Lightweight Source-File watcher"* item (SF4 permanent + daemon
+  launches it at startup → no wait-for-SF scenario). **Open follow-ups surfaced, not closed:**
+  `upgradeHomeRam` Singularity call still unvalidated (home RAM was UI-bought, no `home-ram-upgrade`
+  log); the fleet ran ~90% idle on ~1TB persisted home RAM (income plateau) — feeds Phase 20 and the
+  finance-manager brainstorm; and the reservation model demonstrably coordinates cloud-vs-program
+  spends but protects only the *immediate-next* opener — the exact priority seam a future aug
+  purchaser would expose.
+
 - **Phase 21 — Grant SF4.3 via save edit** → `phase-21-sf4-grant.features.md`,
   `phase-21-sf4-grant.spec.md`. Deliberate save-file cheat: own Source-File 4 level 3 (1×
   Singularity RAM) without playing BN4, unlocking `ns.singularity.*` inside the ongoing BN1.2
