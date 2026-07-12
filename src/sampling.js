@@ -2,7 +2,7 @@
 // decides "formulas or legacy?" per calculation -- daemon.js and targets.js
 // call these functions and never branch on mode themselves.
 
-import { WORKER_SCRIPTS, SHARE_SCRIPT, HACK_FRACTION, GROW_BUFFER, WEAKEN_BUFFER, DRIFT_SEC_EPSILON, DRIFT_MONEY_FRACTION } from "./scheduler.js";
+import { WORKER_SCRIPTS, SHARE_SCRIPT, XP_SCRIPTS, HACK_FRACTION, GROW_BUFFER, WEAKEN_BUFFER, DRIFT_SEC_EPSILON, DRIFT_MONEY_FRACTION } from "./scheduler.js";
 
 // Forced-legacy override: while this 0.1 GB marker file exists on home,
 // hasFormulas reports false even with Formulas.exe owned. Deleting it flips
@@ -155,34 +155,41 @@ export function countInFlightThreads(ns, hosts, server, script) {
  * with N active members that was N full sweeps every tick). Called at most
  * twice per tick (pre-launch, and post-launch for the reserve's re-measure)
  * regardless of member count -- this is load-bearing (see Phase 8's daemon
- * comment), so share info is folded into this same pass rather than adding a
- * third sweep.
+ * comment), so share and XP info are folded into this same pass rather than
+ * adding a third sweep.
  *
- * `ramCosts` (keyed by filename: hack.js/grow.js/weaken.js/share.js) doubles
- * as the worker-script membership filter -- checking `ramCosts[proc.filename]
- * !== undefined` naturally restricts the sum to those scripts without a
- * separate WORKER_SCRIPTS/SHARE_SCRIPT membership check.
+ * `ramCosts` (keyed by filename: hack.js/grow.js/weaken.js/share.js/
+ * xphack.js/xpweaken.js) doubles as the worker-script membership filter --
+ * checking `ramCosts[proc.filename] !== undefined` naturally restricts the
+ * sum to those scripts without a separate WORKER_SCRIPTS/SHARE_SCRIPT/
+ * XP_SCRIPTS membership check.
  *
  * Share processes (filename === SHARE_SCRIPT) have no target argument --
  * proc.args[0] is share.js's ignored launch counter, not a server name -- so
  * they're accumulated into the separate `sharePool` bucket and never touch
- * `byTarget`.
+ * `byTarget`. XP-engine processes (filename === XP_SCRIPTS.hack/weaken) DO
+ * carry a target in proc.args[0], but are still routed to their own `xpPool`
+ * bucket (Phase 20) rather than `byTarget` -- distinct filenames mean the
+ * batcher's own accounting stays structurally blind to them, exactly the
+ * point of giving the XP engine dedicated worker filenames (see
+ * phase-20-xpfarm.spec.md S1).
  *
  * A server with zero matching processes anywhere is simply absent from
  * `byTarget` -- callers must default-fill (`result.byTarget[server] ??
  * {batches: 0, ramGb: 0}`) rather than assume every known server has a key.
- * `sharePool` is always present, defaulting to `{threads: 0, ramGb: 0}`.
+ * `sharePool`/`xpPool` are always present, zero-defaulted.
  * (Named `sharePool`, not `share` -- Phase 9: `share` collides with
  * `ns.share`'s exact name and gets charged its 2.4 GB RAM cost even though
  * nothing here calls it; see docs/phases/phase-09-batcher-refactor.md.)
  * @param {NS} ns
  * @param {{hostname: string}[]} hosts
  * @param {Record<string, number>} ramCosts
- * @returns {{byTarget: Record<string, {batches: number, ramGb: number}>, sharePool: {threads: number, ramGb: number}}}
+ * @returns {{byTarget: Record<string, {batches: number, ramGb: number}>, sharePool: {threads: number, ramGb: number}, xpPool: {hackThreads: number, weakenThreads: number, inFlightRamGb: number}}}
  */
 export function inFlightByTarget(ns, hosts, ramCosts) {
   const byTarget = {};
   const sharePool = { threads: 0, ramGb: 0 };
+  const xpPool = { hackThreads: 0, weakenThreads: 0, inFlightRamGb: 0 };
   for (const host of hosts) {
     for (const proc of ns.ps(host.hostname)) {
       const ramPerThread = ramCosts[proc.filename];
@@ -190,6 +197,12 @@ export function inFlightByTarget(ns, hosts, ramCosts) {
       if (proc.filename === SHARE_SCRIPT) {
         sharePool.threads += proc.threads;
         sharePool.ramGb += ramPerThread * proc.threads;
+        continue;
+      }
+      if (proc.filename === XP_SCRIPTS.hack || proc.filename === XP_SCRIPTS.weaken) {
+        xpPool.inFlightRamGb += ramPerThread * proc.threads;
+        if (proc.filename === XP_SCRIPTS.hack) xpPool.hackThreads += proc.threads;
+        else xpPool.weakenThreads += proc.threads;
         continue;
       }
       const server = String(proc.args[0]);
@@ -200,7 +213,7 @@ export function inFlightByTarget(ns, hosts, ramCosts) {
       if (proc.filename === WORKER_SCRIPTS.hack) byTarget[server].batches += 1;
     }
   }
-  return { byTarget, sharePool };
+  return { byTarget, sharePool, xpPool };
 }
 
 /**

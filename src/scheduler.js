@@ -38,6 +38,14 @@ export const WORKER_SCRIPTS = {
 export const SHARE_FRACTION = 0.25;
 export const SHARE_SCRIPT = "share.js";
 
+// Phase 20: the XP engine's own worker set, distinct filenames from
+// WORKER_SCRIPTS.hack/weaken so the batcher's inFlightByTarget membership
+// filter (keyed by filename) never counts XP workers as batch activity --
+// see phase-20-xpfarm.spec.md S1. Kept out of WORKER_SCRIPTS on purpose --
+// that name means "the three targeted batch workers" and
+// workerRamCosts/inFlightByTarget depend on that meaning.
+export const XP_SCRIPTS = { hack: "xphack.js", weaken: "xpweaken.js" };
+
 /**
  * A target counts as prepped once it's within these margins of min
  * security / max money; only prepped targets get hack-containing batches.
