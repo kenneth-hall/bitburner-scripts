@@ -98,6 +98,20 @@ Conventions below apply at every stage (spec-reviewer enforces them).
   server isn't running at all) it kills+restarts `npm run dev` automatically and reports
   one line. No manual "is my computer asleep" debugging should be needed anymore.
 
+## Script writing rules (this is a custom Bitburner build)
+
+This build is **not vanilla** — it's a 3.0.0+ fork that **removes/renames some `ns` API**. Coding
+an `ns.*` call from memory of upstream Bitburner will compile and then crash at runtime with a
+**REMOVED FUNCTION ERROR** popup (see the CDP section — the terminal won't show it). Before using
+an `ns` function you haven't used in this repo, check `markdown/` or grep `src/` for a real call
+site rather than trusting recall.
+- **Number/RAM formatting:** `ns.formatNumber(x)` / `ns.formatRam(x)` are **removed** → use
+  **`ns.format.number(x)`** / **`ns.format.ram(x)`** (grep `src/` for live examples).
+- **Purchased servers:** vanilla `ns.getPurchasedServers()` / `ns.purchaseServer()` etc. are
+  **removed** → use **`ns.cloud.*`** (see `cloudmanager.js`).
+- When in doubt, the authoritative signatures for *this* build are in `markdown/bitburner.*.md`;
+  the online NS docs describe upstream and will mislead you.
+
 ## Driving the live game (CDP)
 
 Claude can reach **inside the running game** — not just push files to it. The Steam/Electron
@@ -120,6 +134,18 @@ front-end**, distinct from the RFA file bridge (which only moves files) — see
 - **Read-only by default.** `read-*` / `stats` / `aria` / `locations` / `shot` are safe.
   `terminal`, `goto`, and `location` **drive the live session** (navigate / type), moving the
   player off their screen — use writes deliberately.
+- **`run`ning a script needs to be on `home`.** The terminal's connected server is wherever
+  the player/daemon last left it (often `darkweb` or a target) — a `run foo.js` there fails with
+  "does not exist on &lt;host&gt;". Before running a check script, either send `home` first, or
+  read the prompt (`read-terminal` / the `[host /]>` prefix) to confirm you're already home. Home
+  can also be RAM-saturated by the daemon — if a `run` fails on RAM, that's a separate problem
+  (free RAM / run elsewhere), not a wrong-server problem.
+- **A script can fail *after* it starts, via an error popup the terminal doesn't show.** `run foo.js`
+  printing "Running script..." only means it launched — a runtime exception surfaces as an in-game
+  **RUNTIME ERROR modal**, not terminal text, so a `read-terminal` that looks fine can be hiding a
+  crash. If a script doesn't produce its expected output (no log file, missing tprint lines), check
+  the game for an error popup (`shot` / `aria`, or ask Kenneth) before assuming it worked or
+  re-running blindly.
 
 ### Story popups — Claude clears them, no permission needed
 
@@ -223,8 +249,15 @@ augmentation stack (incl. NeuroFlux Governor level) and the aggregate player mul
 timestamped `logs/auginfo-<epoch>.json` (+ a terminal summary). Reads `ns.getResetInfo().ownedAugs`
 and `ns.getPlayer().mults` — both base-cost, no SF4 needed. `mults.hacking` is the level-mult /
 `mults.hacking_exp` the exp-mult the Daedalus-2500 plan tracks. One file per run, so run it
-before and after an install to diff. The aug **shop** (prices/rep/what's for sale) is Singularity-
-gated and NOT covered — read that from the in-game UI / CDP driver.
+before and after an install to diff.
+
+**Aug SHOP lookup (SF4/Singularity)** — `run augcheck.js "Aug Name"` or `run augcheck.js faction
+"Faction Name"` dumps the shop side `auginfo.js` can't see: rep requirement, price/base price,
+selling factions, prereq chain, and stat mults, to `logs/augcheck-<epoch>.txt` + a terminal
+summary. Use this instead of re-writing a throwaway Singularity query (or reading the in-game UI)
+whenever you need aug prices/reqs. **Caveat:** `getAugmentationStats` returns numeric mults only —
+pure-utility augs (focus-penalty removal, etc.) read all `1.0`, so non-mult effects need the
+in-game aug description, not this. (Runs on `home`; Singularity RAM at SF4.3 is 1×.)
 
 **Post-reset / augment-install recovery** — the faction-unlock sequence (backdoor→faction server
 map, Daedalus/Netburners gates, and the **auto-unlock-not-auto-join** rule) is kept in

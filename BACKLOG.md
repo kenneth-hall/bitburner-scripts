@@ -342,6 +342,23 @@ instead of deleting it — don't let history pile up here.
 
 ## Ideas / Backlog
 
+- **Focus-mode interlock for a Singularity rep-grinder — BACKBURNERED 2026-07-12 (don't build).**
+  Concern raised: once daemon drives player-work via `singularity.workForFaction`, unfocused work
+  gains only ~80% (20% penalty), so a "greedy focus" daemon would fight Kenneth and Claude's CDP
+  driver for the single shared **player-action slot** (there's no focus queue). The clean fix is an
+  interlock (Kenneth leaned toward cooperative auto-yield via presence/heartbeat detection, not the
+  current sloppy `.txt` flag). **Decision after fact-check: not worth building.** The penalty-removal
+  aug — **Neuroreceptor Management Implant**, confirmed live via `augcheck.js`: **Tian Di Hui only,
+  75k rep, $550m, no prereq** — makes the problem self-resolving early (first install or two per
+  node-entry): money is trivial, and the only focused grind that matters is the one-time 75k rep for
+  the aug itself, worth maybe ~minutes/clear at 20%. Plan: **priority-buy NRMI early, work unfocused
+  after, no interlock.** Two things left unverified (do before relying on this): (a) that NRMI
+  actually *zeroes* the penalty — `getAugmentationStats` shows all mults 1.0, so it's a non-mult
+  effect the API can't confirm; read the in-game aug description; (b) whether unfocused daemon work
+  still blocks Kenneth's *own* manual player-actions (slot contention) or only gives up the screen —
+  decides whether the aug is a full or partial fix. Full mechanic + numbers: `[[reference_focus_penalty_and_slot]]`
+  memory. Revisit only when the Singularity rep-grinder is actually built (that's when it first bites).
+
 - **`saves/index.mjs` generator (Phase 21's deferred optional tool, 2026-07-12).** Phase 21's spec
   (S6) explicitly deferred this: a script that scans `saves/`, decodes each file's BN/SF/hacking/
   money via `tools/save/savelib.mjs`, hashes them, and regenerates `saves/INDEX.md` automatically.
