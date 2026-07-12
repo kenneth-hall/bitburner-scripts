@@ -468,9 +468,11 @@ export async function main(ns) {
     ramCosts = { ...workerRamCosts(ns), [SHARE_SCRIPT]: ns.getScriptRam(SHARE_SCRIPT, "home") };
 
     const currentTargetNames = new Set(targets.map((t) => t.server));
-    for (const name of currentTargetNames) {
-      if (!previousTargetNames.has(name)) tprintTs(ns, `INFO: new target ${name}`);
-    }
+    // "new target" prints were removed as non-actionable terminal noise: they
+    // fire routinely as the hacking level climbs and unlocks servers, and
+    // targetsmonitor.js already surfaces the live eligible-target set. The
+    // rarer "dropped target" line is kept -- a target leaving eligibility is
+    // infrequent and more likely to be worth a glance.
     for (const name of previousTargetNames) {
       if (!currentTargetNames.has(name)) tprintTs(ns, `INFO: dropped target ${name}`);
     }
