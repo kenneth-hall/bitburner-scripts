@@ -24,9 +24,10 @@ non-binding). Those are noise for this goal — the buy-list below is *only* lev
 ## The recipe (read this one)
 
 The whole node in plain steps. The idea in one line: **buy augs to raise your hacking multiplier,
-install to switch them on, climb higher, repeat ~4 times, then finish.** Installing feels like a
-reset but it's the *payoff* — it's the only thing that lifts the multiplier, and the multiplier is
-the only way past the level wall.
+install to switch them on, re-climb higher, repeat until 3000.** Installing feels like a reset but
+it's the *payoff* — it's the only thing that lifts the multiplier, and the multiplier is the only way
+past the level wall. You will install **many times** (BN1.1 was ~15–25). That's normal — the goal
+isn't to minimize installs, it's to make each one **cheap to walk away from** (step 6 / cadence).
 
 1. **Do nothing at first — let the batcher cook.** Fresh node: you're broke and low-level. The
    daemon earns money and your hacking climbs on its own. Early levels are cheap, so hacking shoots
@@ -45,17 +46,26 @@ the only way past the level wall.
    the UI. This is the main time sink of the whole node. Turn **share ON** while working (it boosts
    rep). Grind until you can afford the augs you want from the shopping list below.
 
-5. **Shop: buy every hacking aug you can afford, then dump leftover cash into NeuroFlux.** Order among
-   the real augs doesn't matter — but buy **NeuroFlux Governor LAST**, as many levels as your
-   remaining money buys (each level is +1% to everything and also counts toward Daedalus's 30-aug
-   gate).
+5. **Shop — most-expensive wanted aug FIRST.** Each purchase raises the *next* aug's price ~1.9×, so
+   buying your priciest wanted aug first lets the cheap ones absorb the escalation. Junk augs
+   (combat/charisma) are fine to grab for the 30-aug gate, but buy them *after* the ones you want.
+   Buy **NeuroFlux Governor dead last**, as many levels as leftover cash allows (+1% to everything
+   each; also counts toward the 30-aug gate). *(You had the NFG-last instinct right on BN1.1.)*
 
-6. **Install.** This wipes money, hacking level, and faction membership — but switches the augs ON,
-   so your multiplier jumps and the next climb goes far higher. **Before you click install:** buy up
-   your **home RAM** — it survives the install, your money doesn't.
+6. **Install, then walk away.** Installing wipes money, hacking level, and faction membership but
+   switches the augs ON — your multiplier jumps. **Before you click install:** buy up **home RAM**
+   (it survives; money doesn't). **Right after:** `run bootstrap.js` (one command — rebuilds the
+   fleet + relaunches the daemon; the batcher then re-climbs hacking *and* earns money unattended),
+   and set faction work in the UI so rep accrues while you're gone. Only once you've bought this
+   cycle's augs and are *just waiting on level* should you flip **xpfarm** on (it trades money for
+   faster XP — pointless while you still need money to rebuild). Target: ~2 minutes of attention per
+   install, not a babysat evening. This — not install count — is the real lever for a schedule-bound
+   player.
 
-7. **Repeat steps 4–6 until hacking crosses 2500.** Usually **2 rounds**. Each round you're in more
-   factions and can afford deeper augs, so each install lifts the multiplier more than the last.
+7. **Repeat steps 4–6 until hacking crosses 2500.** The efficiency that matters: **climb once to ~550
+   to unlock all four hacking factions, then grind several of them before installing.** Don't install
+   after each single faction — installing drops hacking to ~1, so you'd re-climb the wall just to
+   re-reach the next faction. Re-climbs are the expensive part; minimize *those*, not the installs.
 
 8. **At 2500, join Daedalus.** By now you'll also have 30+ augs and $100b (both happen naturally).
    Backdoor **The-Cave** and accept the invite.
@@ -68,8 +78,11 @@ the only way past the level wall.
    - **c.** **Install** the Red Pill. Re-climb to **3000**, walk the network to **w0r1d_d43m0n**, and
      run `backdoor`. Node done.
 
-That's **~4 installs total**: 2 to reach 2500, then 2 for the endgame. (Details on why, and the
-"install now vs. grind one more round" judgment call, are in the sections below.)
+**How many installs?** Realistically **10–25**, not a handful — the fixed augs only carry the
+multiplier partway, so most installs are incremental (more rep unlocked, or NFG topped up near the
+end). Expected and fine *if each is cheap to recover from* (step 6). Two things cut the count: fewer
+re-climbs (step 7) and more money-per-install (a bigger fleet buys more per cycle, so the ramp is
+working for you even while idle). See the cadence section for the grind-vs-slingshot call.
 
 ## Shopping list (the augs worth buying)
 
@@ -143,23 +156,44 @@ base ENM first — so buy ENM and Cranial Gen 1 early even though they're small.
 
 ## Install cadence — when to pull the trigger
 
-The tension: installing raises mult (good — collapses the climb) but pays a fixed tax (fleet rebuild
-+ rep re-grind from zero). So **batch, don't install piecemeal** — but don't over-hoard rep on
-Tier-3 augs pre-Daedalus if a smaller haul already crosses the gate. Rule of thumb:
+Your real constraint isn't money or rep in the abstract — it's **attended time**: without SF4 to
+script it, every install needs hand-holding to recover. So the cadence goal is **fewer re-climbs and
+cheaper recovery**, not a clever optimum. Four rules, in priority order:
 
-1. **Cycle 1:** climb cheaply to ~550 (unlocks all four backdoor factions). Grind Tier-1 rep across
-   CyberSec/NiteSec/Black Hand + join the eastern trio for Neuregen. Buy all Tier-1 + ENM + NFG to
-   the money cap. **Install.** Mult jumps off the ~1.16 floor.
-2. **Re-climb** (much faster now) toward 2500 while grinding **BitRunners** rep in the background.
-3. **Cycle 2 (if 2500 isn't in reach):** add Tier-2 (CSP chain → G5, Neural Accelerator, Myelin) +
-   deeper NFG. **Install.** This is usually the one that crosses 2500 → **join Daedalus**.
-4. **Daedalus endgame** (own doc): grind ~465k rep → 150 favor → install → donate → Red Pill →
-   install → re-climb 3000 → backdoor. See reset-protocol's "BN1 endgame checklist."
+**1. Make recovery unattended — the biggest lever.** `run bootstrap.js` (rebuilds fleet + relaunches
+daemon; the batcher re-climbs hacking *and* earns money) + set faction work, then walk away — add
+xpfarm only in a pure-climb window (see step 6). This turns an install from a babysat evening into
+~2 min of attention + an unattended re-climb. It matters more than install count, because it's what
+lets you install before work and return to progress. Optimize this first.
 
-**Signal to install now** (not later): you've bought every aug your *current* rep unlocks from every
-*unlocked* faction, **and** the climb has gone slow at the current mult (you're on the log wall). If
-you're still unlocking factions or rep is still climbing toward a Tier you want, keep grinding — one
-fat install beats two thin ones.
+**2. Climb once, unlock all four, then grind — don't reset per faction.** Installing drops hacking to
+~1, and you lose access to every faction until you re-climb. Grinding one faction → install →
+grinding the next means you re-climbed the wall *between* factions. Climb to ~550 once, grind as many
+of CyberSec/NiteSec/Black Hand/BitRunners as your patience allows, buy them all, install once.
+Re-climbs are the tax; one-faction-per-install pays it repeatedly. *(This was the main avoidable cost
+on BN1.1.)*
+
+**3. Cut the rep-regrind with favor + donation.** Rep resets every install, so buying piecemeal
+re-grinds the same low rep range over and over. **Favor persists across installs**, and at **150
+favor** you can **donate money for a faction's rep** instead of grinding it. Bank 150 favor on a
+faction you'll revisit (BitRunners) *once*, and every later install converts your expensive manual
+grind into cheap automated money. This is the escape hatch from the rep-reset tax.
+
+**4. Grind-vs-slingshot — the per-cycle judgment call.** *"Keep grinding rep, or do I have enough
+that installing now slingshots me past where grinding would land me?"* Rule of thumb: **install when
+the climb has gone slow at your current mult** (you're on the log wall) **and** you've bought what
+current rep affords. If hacking is still rising fast, or you're one session from a big aug (CSP-G5,
+Neural Accelerator), finish that first. This is the call worth a calculator if eyeballing it keeps
+costing cycles — you flagged doing all of BN1.1 on gut feel.
+
+**On the money-escalation tax:** buying many augs in one cycle makes the tail ones ~1.9× each more
+expensive, which pushed you toward piecemeal installs on BN1.1. But money is the *cheap* resource
+here (the batcher earns it while you sleep) and re-climbs/attended-recovery are the *expensive* one —
+so don't shrink batches to dodge the money tax. Eat it (buying expensive-first, per step 5) and
+install less often.
+
+**Endgame** (own doc): grind ~465k Daedalus rep → 150 favor → install → donate for 2.5m → Red Pill →
+install → re-climb 3000 → backdoor. See reset-protocol's "BN1 endgame checklist."
 
 ## Two gates the cadence must respect
 - **Daedalus needs ≥30 installed augs.** The Tier-1/2 hacking augs (~20) + **NFG levels each count as
