@@ -210,7 +210,10 @@ branch back to `master` like any other worktree when the docs work is ready.
 (fixes, close-outs) lands directly on `master` in the main worktree — `worktree-docs` never sees
 it automatically, only via merge. Before reading or editing `BACKLOG.md` or any doc that phase
 work might touch, run `git merge master` in this worktree first — not just once at session start,
-since phase work can land on `master` mid-session too. This worktree normally carries no commits
+since phase work can land on `master` mid-session too. Use `git merge`, **not `git fetch`**: the
+worktrees share one local `.git`, so `master`'s ref is already current here — there is nothing to
+fetch, and fetch only downloads commits, it never updates your working files (the stale thing).
+Merge is what rewrites the files you're about to read. This worktree normally carries no commits
 of its own that `master` doesn't already have, so it's a clean fast-forward, not a real merge.
 Skipping this risks brainstorming/planning against stale state — e.g. re-flagging a bug that
 already shipped a fix.
