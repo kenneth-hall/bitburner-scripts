@@ -9,51 +9,40 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** finish BitNode 1. **Install #1 is done; money is rebuilt
-  (~$2.0t); the live gate is a hacking re-climb to 2500 to REJOIN Daedalus.** Installing augs removes
-  you from every faction (membership, not just rep — verified live 2026-07-11: "You have not yet joined
-  any Factions"), so donation is *not* accessible until you re-climb hacking to 2500, accept the
-  Daedalus re-invite, and rejoin (favor ~160 persists, so donation unlocks the instant you rejoin;
-  30-augs/$100b gates still ✅). Currently ~1,985/2500, ~6–9 h at mult 4.72. Then: donate → 2.5m rep →
-  buy 3 ENM augs + NFG + Red Pill → install #2 → re-climb to 3000 → backdoor `w0r1d_d43m0n`. Remaining
-  gates: (1) 2500 re-climb + rejoin + 2.5m rep for The Red Pill, and (2) the 3000 re-climb to backdoor
-  it after install #2. **Both reset mechanics (money→$1k, membership→must re-earn invite) are locked in
-  `docs/reset-protocol.md`'s persistence table + gotchas callout — read it before any install-timing
-  plan.** **Recommended path for (1) — don't hand-grind 2.5m:** grind ~500k Daedalus rep now,
-  while hacking is high (share ON, measured **35.9 rep/sec**, ~3.5 h), bank 150 favor via the planned
-  multiplier install, then **donate ~$1.5t for the rest** (`docs/reputation-favor.md`). The Red Pill
-  needs its **own** install, so keep the mult-install and Red-Pill-install **back-to-back** to pay for
-  only ONE hacking re-climb. All levers are manual UI (no Singularity) except **`ns.share()`**, an
-  *already-built* daemon capability — no goal-specific daemon mode needed or wanted. Gate (2) target:
-  `w0r1d_d43m0n` needs hacking **3000** (standard BN1 value = `3000 × WorldDaemonDifficulty` at mult
-  1.0; server isn't queryable until Red Pill spawns it, so live-unconfirmable until then) — only ~14%
-  above the current ~2,626, so the post-install re-climb is "restore position + a bit," not a new wall.
-  **Aug inventory resolved (2026-07-11):** all unowned augs are in **Daedalus** (every other faction,
-  joined or joinable, reads "No Augmentations left") — the 3 Embedded Netburner Module hacking-mult
-  upgrades (Analyze Engine 625k rep, DMA 1.0m, Core V3 1.75m; ~$74b total), unlimited NeuroFlux levels,
-  and The Red Pill (2.5m). So a mult install **is** justified.
-  **⚠️ MONEY RESETS ON INSTALL (~$1k) — corrected 2026-07-11 after install #1.** Installing augs wipes
-  money as well as hacking + fleet, so the accumulated pile (was $1.7q) is NOT donatable — the install
-  that unlocks donation also wipes it. **Donation is funded by money earned AFTER install #1**, which
-  makes it a rebuild-then-earn wait, not the instant step earlier drafts claimed. **⚠️ AND INSTALL
-  REMOVES YOU FROM EVERY FACTION** (membership, not just rep — verified live after install #1: "You have
-  not yet joined any Factions"), so donating needs you back *in* Daedalus, which needs the hacking-2500
-  invite gate again. **Status (2026-07-11 ~2:27 PM):** install #1 done (banked ~160 favor); money
-  **rebuilt (~$2.0t) — done**; **NOT in Daedalus**; hacking ~1,985 re-climbing toward **2500 to rejoin**
-  (~6–9 h at mult 4.72). **Remaining:** re-climb 2500 → accept Daedalus re-invite + join → donate → 2.5m
-  rep → buy 3 ENM augs + NFG-to-money-cap + Red Pill → install #2 (drops Daedalus again, but its augs are
-  bought) → rebuild + re-climb to 3000 → `backdoor`. Donation **VERIFIED live** (Daedalus page: "Unlock
-  donations at 150.000 favor"); at ~160 favor the rate is cheaper than the favor-0 $1.47t estimate
-  (~$0.5–1.5t) — read the Donate UI, don't assume.
-  **Raising mult is essential, not optional:** the exp curve is exponential in (level/mult), so
-  re-climbing 2,627→3000 at the current mult 4.72 needs ~218B exp (infeasible, ~12× lifetime XP — the
-  same log wall as 2500). BUT NFG stacking is **money-capped, not rep-capped**: the ~1.9×/aug price
-  escalation (verified: "Price multiplier x3.610" = 1.9²) caps NFG at ~17–18 levels/install even with
-  $1.13q, so realistic post-install mult is **~6–7 (not ~10)** → re-climb ~30 min–few hours, sensitive
-  around mult 6. **Sideline risk:** if one install's mult lands < ~5.5–6, reaching 3000 is impractical
-  and — all non-NFG augs exhausted — NFG-across-multiple-installs is the only lever left (recoverable,
-  but multi-cycle). Exact NFG/ENM per-level effects assumed from stock; tune live when buying (no SF4 to
-  script-read). Grafting ruled out (`docs/grafting.md`).
+- **Current goal (keep this line current):** **re-enter BN1 and clear it once more to reach
+  Source-File 1.2** (+8pp to *every* multiplier — the guide's "8 NFG levels" — a permanent, broad,
+  cheapest-possible bank). BN1 is already **DONE once** (Red Pill installed, `w0r1d_d43m0n`
+  backdoored → earned SF1.1); we have **re-entered BN1 and are early game in the 1.2 run** (as of
+  2026-07-12 — no longer on the BitVerse selection screen). This
+  is the locked near-term goal (decided 2026-07-11). The clear is *low difficulty* (WD 3,000, full
+  economy, known playbook) but **not low effort** — favor/rep/augs don't persist across destroying a
+  node (only Source-Files, scripts, Intelligence do), so it re-pays the full **Daedalus 2.5m-rep →
+  Red Pill → backdoor WD** endgame. Full plan + all 15 nodes' multiplier tables + reasoning:
+  **`docs/bitnodes.md` → "Our next-node plan (mature batcher)"** (read before any node choice).
+  - **Why 1.2 and stop there (not 1.3):** 1.2→1.3 is only +4pp for another *entire* endgame — poor
+    ROI at our full manual rep-tax. Revisit 1.3+ only after a rep-tax-killer (Sleeves/gang) makes
+    re-farming BN1 cheap.
+  - **After 1.2 — the next *extending* node is BN5** (re-priced by cold review: a **2–3 install
+    mult grind**, not a quick clear — its 4,500 gate is a multiplier problem and its 200%-aug-cost /
+    15%-steal economy throttles the mult lever; picked as the least-bad option under our "no new
+    engine / no rough penalty" constraints, *despite* its overrated tooling). **BN10 deferred** (its
+    ×0.35 hacking-level wall needs in-node Grafting). **BN4 + economy-nerfed nodes deferred** until a
+    second engine exists.
+  - **In parallel:** (a) **streamline batcher throughput** — the Phase 20 XP-farm resume trigger (a
+    fresh node's XP re-climb is now the binding constraint); (b) **prototype a second engine** — only
+    **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator + TOR) are buildable now;
+    gang/corp/bladeburner/sleeves are node-locked.
+  - **Open strategic Q (surfaced by cold review, not yet decided):** our "no new engine" constraint
+    excludes all three rep-tax killers (gang/sleeves/darknet), so we accept paying the full Daedalus
+    tax every clear. Gang (BN2) is a *small* script and the game's designed answer — worth
+    reconsidering once the tax bites across multiple clears.
+  - **Note on Singularity — UPDATED 2026-07-12:** `ns.singularity.*` is now available. Phase 21
+    granted SF4 level 3 via a deliberate save edit (`docs/phases/phase-21-sf4-grant.spec.md`) — a
+    permanent grant on the current save, not tied to this BN1.2 run, so it persists across future
+    installs/resets. The 1× RAM discount is live (confirmed via `sf4check.js` + `ramcheck.js`, ≈7.65
+    GB). The previously-parked SF4-gated backlog items (auto-backdoor, aug-planner execution, TOR
+    ladder, rep watchers) are now buildable — each is still its own future phase, not automatically
+    in scope.
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say
@@ -110,6 +99,20 @@ Conventions below apply at every stage (spec-reviewer enforces them).
   server isn't running at all) it kills+restarts `npm run dev` automatically and reports
   one line. No manual "is my computer asleep" debugging should be needed anymore.
 
+## Script writing rules (this is a custom Bitburner build)
+
+This build is **not vanilla** — it's a 3.0.0+ fork that **removes/renames some `ns` API**. Coding
+an `ns.*` call from memory of upstream Bitburner will compile and then crash at runtime with a
+**REMOVED FUNCTION ERROR** popup (see the CDP section — the terminal won't show it). Before using
+an `ns` function you haven't used in this repo, check `markdown/` or grep `src/` for a real call
+site rather than trusting recall.
+- **Number/RAM formatting:** `ns.formatNumber(x)` / `ns.formatRam(x)` are **removed** → use
+  **`ns.format.number(x)`** / **`ns.format.ram(x)`** (grep `src/` for live examples).
+- **Purchased servers:** vanilla `ns.getPurchasedServers()` / `ns.purchaseServer()` etc. are
+  **removed** → use **`ns.cloud.*`** (see `cloudmanager.js`).
+- When in doubt, the authoritative signatures for *this* build are in `markdown/bitburner.*.md`;
+  the online NS docs describe upstream and will mislead you.
+
 ## Driving the live game (CDP)
 
 Claude can reach **inside the running game** — not just push files to it. The Steam/Electron
@@ -132,6 +135,34 @@ front-end**, distinct from the RFA file bridge (which only moves files) — see
 - **Read-only by default.** `read-*` / `stats` / `aria` / `locations` / `shot` are safe.
   `terminal`, `goto`, and `location` **drive the live session** (navigate / type), moving the
   player off their screen — use writes deliberately.
+- **`run`ning a script needs to be on `home`.** The terminal's connected server is wherever
+  the player/daemon last left it (often `darkweb` or a target) — a `run foo.js` there fails with
+  "does not exist on &lt;host&gt;". Before running a check script, either send `home` first, or
+  read the prompt (`read-terminal` / the `[host /]>` prefix) to confirm you're already home. Home
+  can also be RAM-saturated by the daemon — if a `run` fails on RAM, that's a separate problem
+  (free RAM / run elsewhere), not a wrong-server problem.
+- **A script can fail *after* it starts, via an error popup the terminal doesn't show.** `run foo.js`
+  printing "Running script..." only means it launched — a runtime exception surfaces as an in-game
+  **RUNTIME ERROR modal**, not terminal text, so a `read-terminal` that looks fine can be hiding a
+  crash. If a script doesn't produce its expected output (no log file, missing tprint lines), check
+  the game for an error popup (`shot` / `aria`, or ask Kenneth) before assuming it worked or
+  re-running blindly.
+
+### Story popups — Claude clears them, no permission needed
+
+A narrative toast (faction-recruit text, "Message received" notifications, lore interludes)
+periodically overlays the whole UI and swallows every click until cleared — it has no named
+"Close" button, so `dismissModal` doesn't catch it; Kenneth normally clears it by clicking
+anywhere on it. **Claude clears these itself** via `node tools/bb/cli.mjs dismiss` (or
+automatically — `goto`/`terminal`/`restart` call `dismissStoryPopup` before navigating, per
+`tools/bb/driver.mjs`) — don't ask Kenneth to do it. Pre-authorized because the detector is
+narrowly guarded, not a blind click: it only fires when the *entire* accessible tree is exactly
+one nameless button plus narrative text and nothing else. A real confirm/buy/install dialog
+always exposes multiple/named controls, and a normal game screen always has named nav buttons —
+neither ever collapses to that shape, so the guard can't misfire onto a consequential action
+(buying/installing/joining still requires the general confirmation rule below). If `dismiss`
+reports "no modal/popup found" and a click still times out, that's a different, unhandled
+overlay — stop and ask, don't guess at a wider click.
 
 ### Auto-restart changed scripts — no permission needed
 
@@ -225,8 +256,15 @@ augmentation stack (incl. NeuroFlux Governor level) and the aggregate player mul
 timestamped `logs/auginfo-<epoch>.json` (+ a terminal summary). Reads `ns.getResetInfo().ownedAugs`
 and `ns.getPlayer().mults` — both base-cost, no SF4 needed. `mults.hacking` is the level-mult /
 `mults.hacking_exp` the exp-mult the Daedalus-2500 plan tracks. One file per run, so run it
-before and after an install to diff. The aug **shop** (prices/rep/what's for sale) is Singularity-
-gated and NOT covered — read that from the in-game UI / CDP driver.
+before and after an install to diff.
+
+**Aug SHOP lookup (SF4/Singularity)** — `run augcheck.js "Aug Name"` or `run augcheck.js faction
+"Faction Name"` dumps the shop side `auginfo.js` can't see: rep requirement, price/base price,
+selling factions, prereq chain, and stat mults, to `logs/augcheck-<epoch>.txt` + a terminal
+summary. Use this instead of re-writing a throwaway Singularity query (or reading the in-game UI)
+whenever you need aug prices/reqs. **Caveat:** `getAugmentationStats` returns numeric mults only —
+pure-utility augs (focus-penalty removal, etc.) read all `1.0`, so non-mult effects need the
+in-game aug description, not this. (Runs on `home`; Singularity RAM at SF4.3 is 1×.)
 
 **Post-reset / augment-install recovery** — the faction-unlock sequence (backdoor→faction server
 map, Daedalus/Netburners gates, and the **auto-unlock-not-auto-join** rule) is kept in

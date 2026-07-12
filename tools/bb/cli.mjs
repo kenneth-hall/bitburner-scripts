@@ -21,7 +21,11 @@ await bb.withPage(async (page) => {
     case 'terminal': return out(await bb.runCommand(page, args.join(' ')));
     case 'restart': return out(args[0] ? await bb.restartScript(page, args[0]) : 'usage: restart <script.js>');
     case 'close-tail': return out((await bb.closeTail(page, args.join(' '))) ? 'closed' : 'no matching window');
-    case 'dismiss': return out((await bb.dismissModal(page)) ? 'dismissed modal' : 'no modal');
+    case 'dismiss': {
+      if (await bb.dismissModal(page)) return out('dismissed modal');
+      if (await bb.dismissStoryPopup(page)) return out('dismissed story popup');
+      return out('no modal/popup found');
+    }
     case 'read-terminal': return out(await bb.readTerminal(page));
     case 'read-tail': return out(await bb.readTail(page, args[0]));
     case 'aria': return out(await bb.ariaSnapshot(page));

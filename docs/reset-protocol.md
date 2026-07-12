@@ -123,6 +123,48 @@ hacking **~1567/2500 ❌**. So **hacking skill is the only remaining gate** — 
 2500-hacking path is the route. (`ns.singularity.getFactionInviteRequirements("Daedalus")` would also
 report this, but needs SF4 we don't have; `fl1ght.exe` is the SF-free equivalent.)
 
+## The BN1 endgame checklist (run this every clear)
+
+Destroying BN1 wipes augs/rep/favor/money/fleet/home-RAM — only Source-Files + scripts + a sliver
+of Intelligence carry over. So **every** BN1 clear re-pays the full Daedalus endgame from scratch;
+this is the ordered playbook, distilled from clear #1's hard-won corrections. The **dominant cost is
+the rep grind**, not money and not the XP climbs — sequence around unlocking the donation shortcut
+early. The faction-join order + per-cycle hacking-aug buy-list this references lives in
+[`bn1-install-plan.md`](./bn1-install-plan.md).
+
+1. **Bootstrap + climb to 2500.** Let `bootstrap.js`/`daemon.js` rebuild the fleet; climb hacking to
+   2500 to trigger the Daedalus invite (needs augs ≥30 ✅ persist? **no** — augs are wiped on a hard
+   reset, so re-buy ≥30 augs this run too; money ≥$100b; hacking ≥2500). You carry **SF1.1's +16%**
+   on both level- and exp-mult now, so this climb is faster than clear #1's.
+2. **Join Daedalus.** Backdoor `The-Cave` (hack 925) is necessary-but-not-sufficient; the invite
+   appears once all three gates (augs/money/2500) are met. `run fl1ght.exe` is the SF-free live check.
+3. **Bank 150 favor via one install.** Grind only ~465k Daedalus rep (≈150 favor, ~1/5 of 2.5m), buy
+   this cycle's hacking-mult augs + a deep NFG stack, then **install**. This is the mult-raising
+   install — it also unlocks donation permanently (favor persists across installs).
+   - ⚠️ The install drops you out of Daedalus (membership, not just rep) **and** zeroes money to ~$1k.
+     So after it you must **re-climb to 2500 to rejoin** and **re-earn ~$1.5t** before you can donate.
+     See [[reference_install_resets_faction_membership]], [[reference_install_resets_money]].
+   - Before clicking Install: **max home RAM/cores** (persist) and finish the whole aug buy-list first
+     (prices reset on install, so batch them) — see "Before a soft reset" above.
+4. **Rejoin → donate → buy Red Pill.** Re-climb 2500, rejoin Daedalus, earn ~$1.5t, **donate** (150
+   favor makes 2.5m rep cost ≤~$1.5t; donate more to also fund NFG), then buy **The Red Pill** (2.5m
+   rep / $0) plus any remaining augs.
+5. **Install Red Pill (2nd install) → re-climb 3000 → backdoor WD.** Keep installs 3 and 5
+   back-to-back where possible so only one 3000 re-climb is paid. Then walk the network to
+   `w0r1d_d43m0n` and run the manual terminal `backdoor` (hack 3000, no Singularity needed) to finish
+   the node.
+
+**Two re-climbs, not zero** (2500 to rejoin after the mult install; 3000 to backdoor after the Red
+Pill install) — no ordering avoids the 2500 climb, because donating requires membership.
+**Mult is the only lever for 3000:** `level = mult × (32·ln(exp) − 200)`, so raw grinding can't reach
+3000 at low mult — raising the multiplier via the install is what collapses the XP wall. NFG stacking
+is **money-capped** (~1.9×/aug price escalation → ~17–18 NFG levels/install), so watch the mult live
+before committing to the Red Pill install; if it lands below ~5.5–6, add another NFG-only cycle.
+
+**The one non-node-locked rep accelerator worth a look:** coding contracts can award *"reputation with
+one specific faction"* or *"reputation with every faction you've joined"* (Phase 19). Once you're in
+Daedalus, that's free rep toward the grind — but targetability/rate are unverified; test then, not now.
+
 ## Netburners — Hacknet-gated, no server
 
 **Not** a backdoor faction; there is no Netburners server. It's gated on **Hacknet** progress — the

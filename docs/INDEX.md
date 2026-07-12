@@ -12,6 +12,6 @@ files hold the *how*, read only when the relevant task comes up.
 | Augmentation grafting: aug effects without a reset, Entropy tax, SF10-gated API, observed unavailable in this build's BN1 | [grafting.md](grafting.md) | Anyone proposes a grafting-based plan (short answer: it doesn't help the BN1 finish) |
 | BN1 endgame runbook: click-by-click favor-install → donate → buy → install → rebuild → re-climb → backdoor | [endgame-runbook.md](endgame-runbook.md) | Executing the finish once Daedalus rep clears ~465k |
 | BN1 handoff: live state + verified mechanics + locked sequence with current position marked | [bn1-handoff.md](bn1-handoff.md) | **Resuming the BN1 endgame** in any new session — read this first |
-| BN4 (The Singularity) planning notes: scaffold, why SF4 matters, open questions | [bn4.md](bn4.md) | Planning "what's next" after BN1; anything about SF4 / `ns.singularity.*` |
+| BitNodes reference: all 15 nodes + Source-File effects, how-to-destroy, BN4's live-read multiplier table | [bitnodes.md](bitnodes.md) | Choosing a next BitNode; anything about a node's mechanics / Source-File / SF4 / `ns.singularity.*` |
 | Exported log patterns (ring-buffer / timestamped / daily-rotating), `vite.config.ts` filter | [logging.md](logging.md) | Adding or reading back an exported log; debugging money (transactions file) |
 | Dev server: Remote API auto-reconnect, stale-connection kill+restart workaround | [dev-server.md](dev-server.md) | Restarting `npm run dev`; a file/log isn't syncing to the game; before a RAM-gate/live run |

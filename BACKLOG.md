@@ -77,32 +77,22 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
-- **Grind 2.5m Daedalus rep for The Red Pill** (2026-07-11 — supersedes the 2500-gate item below,
-  which is **CLEARED**: hacking ~2,600, Daedalus **joined**).
-  - **⚠️ CORRECTION (2026-07-11, after install #1): MONEY RESETS ON INSTALL (~$1k).** The donation
-    plan below repeatedly assumed the accumulated pile ($481t→$1.7q) would fund the donation — WRONG.
-    Installing augs wipes money too (not just hacking/fleet), and the install that unlocks donation is
-    the one that wipes the money, so the pile was never donatable. Donation must be funded by money
-    earned AFTER install #1 (batcher rebuild+earn, ~1–3 h). Install #1 is DONE (banked ~160 favor →
-    donation permanently unlocked; hacking→~1 re-climbing; money→rebuilding). Remaining: earn ~$1t →
-    donate (~$0.5–1.5t, cheaper at 160 favor — read the UI) → buy 3 ENM + NFG-to-money-cap + Red Pill
-    → install #2 → rebuild + re-climb 3000 → backdoor. See [[reference_install_resets_money]]. The
-    dollar figures in the bullets below are the pre-correction (wrong) framing — kept for the trail.
-  - **⚠️ CORRECTION 2 (2026-07-11 ~2:27 PM): INSTALL ALSO DROPPED US OUT OF DAEDALUS — "joined" above
-    is WRONG.** Installing removes faction *membership*, not just rep (verified live via CDP: Factions
-    page reads "You have not yet joined any Factions"; Daedalus not even rumored, at hacking ~1,985).
-    Favor (~160) persists, but **you cannot donate until you rejoin**, and rejoining needs the Daedalus
-    invite gate again — 30-augs/$100b persist, but hacking reset to ~1, so **re-climb to 2500 to
-    rejoin** first. **Money is DONE (~$2.0t), NOT the gate** — the gate is now this ~6–9 h re-climb at
-    mult 4.72 (install #1 raised only the exp-*rate* mult 4.97→6.96, not the level-mult 4.72; exp-to-2500
-    ≈ 7.97B, ~7.7B to go). Corrected Remaining: **re-climb 2500 → rejoin Daedalus → donate → 2.5m rep →
-    buy 3 ENM + NFG + Red Pill → install #2 (drops Daedalus again, augs already bought) → re-climb 3000 →
-    backdoor.** So there are **two** re-climbs, not the "one re-climb" the locked-sequence bullet below
-    claims — no ordering avoids the 2500 climb, since donating requires membership. **XP lever:** money's
-    dead, so the fleet should grind XP not $/sec — the shelved Phase-20 `src/xpfarm.js` weaken-fill
-    prototype measured **~428k exp/sec** (vs the money batcher's ~250–330k), which would cut the climb to
-    ~3–5 h; consider re-running it + `share-off.txt`. See [[reference_install_resets_faction_membership]].
-  This is a **manual UI grind** —
+- **Close out BN1.2 (current goal, launched 2026-07-11).** Fresh BN1 clear for SF1.2; state is
+  hacking ~48, no factions, ~$2k, fleet rebuilding — everything below in this item is **clear-#1
+  trail (wiped state), NOT current status.** The live, de-duplicated playbook is now the
+  **"BN1 endgame checklist" in [`docs/reset-protocol.md`](docs/reset-protocol.md)** — follow that, not
+  the blow-by-blow below. Dominant cost is the **Daedalus 2.5m-rep grind** (not money, not the XP
+  climbs — SF1.1's +16% mult carries in, so the climbs are faster than clear #1). No backlog tooling
+  shortens the rep grind; the one non-node-locked accelerator to test once in Daedalus is **coding-
+  contract faction rep** (Phase 19). Phase 20 XP-farm is *not* the BN1 bottleneck (climb already
+  trivial here) — it's a pre-BN5 investment. The bullets below are the historical clear-#1 reasoning
+  trail, kept because the numbers (donation shortcut, mult math, NFG cap) are reusable next clear.
+  - **[clear-#1 trail] Two corrections that reshaped the plan:** (1) **money resets to ~$1k on
+    install** — the donation must be funded by money earned *after* the favor-banking install, not the
+    pre-install pile ([[reference_install_resets_money]]); (2) **install also drops faction
+    membership**, so you re-climb 2500 to rejoin Daedalus before you can donate — **two** re-climbs
+    total, not one ([[reference_install_resets_faction_membership]]). Both folded into the checklist.
+  - **[clear-#1 trail]** This was a **manual UI grind** —
   Hacking Contracts — because no Singularity means the daemon can't script `workForFaction`, and the
   donate-for-rep shortcut ($418t on hand) is locked behind 150 favor (Daedalus is at 0). Measured
   focused rate **22.827 rep/sec** with share OFF → ~30 h to 2.5m.
@@ -208,8 +198,14 @@ instead of deleting it — don't let history pile up here.
     measurement shows throughput is a rounding error against the multiplier — **do not build XP-max mode.**
     The `hacking-progress-log.json` instrumentation (c12a3d5) it produced stays useful as the ETA baseline.
 
-- **Static aug/faction install-order planner (one-time best-case calc)** (2026-07-11, decided,
-  not started): a *one-time* calculator that outputs the optimal **faction join-set + hacking-mult
+- **Static aug/faction install-order planner (one-time best-case calc)** (2026-07-11, decided;
+  **by-eye half SHIPPED 2026-07-11 as [`docs/bn1-install-plan.md`](docs/bn1-install-plan.md)** — the
+  faction join order, the irreversible eastern-trio city-faction call, the tiered level/exp buy-list,
+  prereq chains, and the install-cadence rule, all as a glance-once checklist. What remains is only
+  the **optional thin calculator** (`tools/install-calc.mjs`, offline node): the one
+  "install-now-vs-one-more-cycle / how-many-NFG-levels" exp-curve×NFG-escalation call — build only if
+  the cadence proves fiddly by eye. The rest of this item below is the original framing.):
+  a *one-time* calculator that outputs the optimal **faction join-set + hacking-mult
   aug buy-list** to maximize level-mult/exp-mult toward the Daedalus-2500 gate. Its real job is
   settling the **irreversible mutually-exclusive faction-join decisions** (a wrong city-faction pick
   locks you out of another's hacking augs and wastes a whole cycle's rep grind) *before* you commit —
@@ -246,17 +242,6 @@ instead of deleting it — don't let history pile up here.
     low-value even *with* SF4, and (3) obsoleted by SF4 — once you have Singularity you'd build the full
     join/buy/install pipeline through `ns.singularity`, not resurrect this watcher. File as a non-item,
     not "todo after BN4."
-
-- **Lightweight Source-File watcher for `procureprograms.js`** (2026-07-05, proposed, not built):
-  Kenneth asked whether `procureprograms.js` could just stay resident until it can buy TOR/openers
-  "no matter what." Recommended against running the full ~67GB script resident indefinitely — the
-  RAM cost is fixed for as long as it's alive regardless of activity, and the wait for the
-  Source-File it needs could be long, so that RAM is better spent on the hacking/growing/weakening
-  worker pool in the meantime. Proposed instead: a tiny (~1GB) always-on watcher that polls
-  `ns.getResetInfo().ownedSF` cheaply and only `exec`s `procureprograms.js` once that Source-File is
-  actually active, instead of holding the full footprint the whole time. Not yet built — Kenneth
-  hadn't decided between this and just remembering to manually re-run it. Revisit alongside the
-  "re-validate TOR/port-opener automation" Ideas item below, since they're the same follow-up.
 
 - **RAM-analyzer identifier hygiene** (2026-07-04, filed from the Phase 9 investigation): the
   same exact-name-collision mechanism that caused the `share`/`ns.share` 2.4 GB phantom charge
@@ -346,6 +331,30 @@ instead of deleting it — don't let history pile up here.
 
 ## Ideas / Backlog
 
+- **Focus-mode interlock for a Singularity rep-grinder — BACKBURNERED 2026-07-12 (don't build).**
+  Concern raised: once daemon drives player-work via `singularity.workForFaction`, unfocused work
+  gains only ~80% (20% penalty), so a "greedy focus" daemon would fight Kenneth and Claude's CDP
+  driver for the single shared **player-action slot** (there's no focus queue). The clean fix is an
+  interlock (Kenneth leaned toward cooperative auto-yield via presence/heartbeat detection, not the
+  current sloppy `.txt` flag). **Decision after fact-check: not worth building.** The penalty-removal
+  aug — **Neuroreceptor Management Implant**, confirmed live via `augcheck.js`: **Tian Di Hui only,
+  75k rep, $550m, no prereq** — makes the problem self-resolving early (first install or two per
+  node-entry): money is trivial, and the only focused grind that matters is the one-time 75k rep for
+  the aug itself, worth maybe ~minutes/clear at 20%. Plan: **priority-buy NRMI early, work unfocused
+  after, no interlock.** Two things left unverified (do before relying on this): (a) that NRMI
+  actually *zeroes* the penalty — `getAugmentationStats` shows all mults 1.0, so it's a non-mult
+  effect the API can't confirm; read the in-game aug description; (b) whether unfocused daemon work
+  still blocks Kenneth's *own* manual player-actions (slot contention) or only gives up the screen —
+  decides whether the aug is a full or partial fix. Full mechanic + numbers: `[[reference_focus_penalty_and_slot]]`
+  memory. Revisit only when the Singularity rep-grinder is actually built (that's when it first bites).
+
+- **`saves/index.mjs` generator (Phase 21's deferred optional tool, 2026-07-12).** Phase 21's spec
+  (S6) explicitly deferred this: a script that scans `saves/`, decodes each file's BN/SF/hacking/
+  money via `tools/save/savelib.mjs`, hashes them, and regenerates `saves/INDEX.md` automatically.
+  `sf4grant.mjs describe` already makes one row cheap to produce by hand, and hand-maintaining
+  ~8 rows doesn't justify a generator yet — revisit once the save count grows enough that manual
+  upkeep starts to hurt.
+
 - **Single condensed dashboard window (Phase 18's deferred Layer 3)** (2026-07-08, deferred
   per Kenneth — "a maybe, at the end"; not started): after Phase 18's Layers 1–2 (self-placing
   windows, trimmed content), revisit only if five tidy windows still feel like too many. Not a
@@ -399,14 +408,6 @@ instead of deleting it — don't let history pile up here.
     shows a `bootstrap-server` reservation for a *first* cloud server — i.e. a fresh post-reset
     fleet. This is exactly the scenario the item predicts: the 25% carve competing with getting
     the pipeline started at all. Evidence captured before the state passes.
-
-- **Re-validate `procureprograms.js`'s TOR/port-opener ladder live** (2026-07-05, filed from Phase
-  11's Round B): Kenneth's account doesn't yet have the Source-File `ns.singularity.purchaseTor`/
-  `purchaseProgram` require, so the auto-buy ladder has never actually been observed working live —
-  only its "can't run yet, exit cleanly" path has. Once that Source-File is available, `run
-  procureprograms.js` (or a `daemon.js` restart) should walk TOR then the port openers automatically;
-  worth a deliberate check the first time it's possible, since the code path is untested in reality.
-  Pairs with the lightweight watcher-script idea in Next Up.
 
 - **Phase 10 follow-ups** (2026-07-05, filed per `docs/phases/phase-10-finance-cloud.md`'s Files section;
   none of these block Phase 10 sign-off):
