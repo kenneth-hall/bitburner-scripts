@@ -8,6 +8,21 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-12
 
+- **Auto-buy Formulas.exe (`src/procureformulas.js`) — fulfill the standing reservation SF4
+  unblocked.** `resourcemanager.js` has reserved $5b for Formulas.exe since Phase 11 but nothing
+  ever bought it (kept hand-buy-only under the then-live "zero Singularity" constraint), leaving
+  $5b earmarked-but-idle every run. With SF4 now granted, a new resident Singularity companion
+  (the `backdoorfactions.js` model, `launchDetached` from `daemon.js` startup) buys Formulas once
+  hacking clears the same `>400` gate `resourcemanager.js` uses for the reservation and it's
+  affordable above the bootstrap holdback, then exits; `daemon.js` already re-checks the file each
+  cycle and flips legacy→formulas math live, no restart. Resident (not self-terminating like
+  `procureprograms.js`) because `>400` is reached long after the openers are bought, so a one-shot
+  would exit before eligibility. Vetoable via the existing `finance-disable-formulas.txt` flag.
+  Pure `planFormulasPurchase` decision (13 unit tests); fail-safes mirror `procureprograms.js`
+  (stale finance state → buy nothing; `purchaseProgram` throw → print once + exit). Note: programs
+  don't persist across installs, so this re-pays $5b per install — accepted as an explicit choice
+  (option 1 of the three-way fork), the `>400` gate keeping it from firing during the fragile
+  post-install ramp.
 - **Post-install study kick (`src/studybootstrap.js`) — convert post-install dead time to
   hacking XP.** After an augment install the character idles at hacking ~1 with a wiped fleet
   and no port openers, so the batcher/`xpfarm.js` produce ~no XP and the level can sit at 1 for

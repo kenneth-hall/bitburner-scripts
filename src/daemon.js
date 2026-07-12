@@ -360,6 +360,11 @@ export async function main(ns) {
   // joins any faction); exits across a level climb only when finished, not
   // on lulls, since nothing relaunches it until the next daemon restart.
   launchDetached(ns, "backdoorfactions.js");
+  // Formulas.exe fulfiller: resident Singularity companion that buys Formulas
+  // once hacking clears the reservation threshold (>400) and it's affordable
+  // above the bootstrap holdback, then exits. daemon switches legacy->formulas
+  // math within a cycle once the file lands. Vetoed by finance-disable-formulas.txt.
+  launchDetached(ns, "procureformulas.js");
   // Post-install XP kick: one-shot Singularity companion that throws the
   // character into Rothman University Computer Science when hacking is still
   // near level 1 (fresh install), converting post-install dead time into

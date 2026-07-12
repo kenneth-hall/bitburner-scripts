@@ -41,7 +41,7 @@ const POLL_MS = 2000;
 
 const LOG_FILE = "finance-log.json";
 const MANUAL_EXTRA_FILE = "finance-reserve-extra.txt";
-const FORMULAS_DISABLE_FILE = "finance-disable-formulas.txt";
+export const FORMULAS_DISABLE_FILE = "finance-disable-formulas.txt";
 const LOG_MAX_ENTRIES = 500;
 
 export const BOOTSTRAP_SERVER_COST = 110_000; // 2GB cloud-server price -- Kenneth hand-buys the first foothold in the UI, not purchasecloudservers.js's 16GB floor
