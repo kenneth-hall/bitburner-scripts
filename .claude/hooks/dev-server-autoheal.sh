@@ -45,12 +45,29 @@ restart_dev_server() {
   " >/dev/null 2>&1
 }
 
+msgs=""
+
 if [ "$listening" != "yes" ]; then
   restart_dev_server
-  echo "{\"systemMessage\": \"dev-server-autoheal: npm run dev wasn't running -- started it.\"}"
+  msgs="dev-server-autoheal: npm run dev wasn't running -- started it."
 elif [ "$age" -gt "$THRESHOLD" ]; then
   restart_dev_server
-  echo "{\"systemMessage\": \"dev-server-autoheal: dev-server connection stale (last sync ${age}s ago) -- killed and restarted npm run dev.\"}"
+  msgs="dev-server-autoheal: dev-server connection stale (last sync ${age}s ago) -- killed and restarted npm run dev."
+fi
+
+# Orphan-commit check: docs work committed to worktree-docs but never merged
+# back to master strands off the branch (hit 2026-07-12 -- three doc commits
+# sat unmerged until a manual sweep found them; see CLAUDE.md Worktrees). Run
+# the same sweep every session start and nag if worktree-docs is ahead. This
+# is a read-only git log -- worst case a spurious line, it can touch nothing.
+orphans=$(git -C "$PROJECT_ROOT" log --oneline master..worktree-docs 2>/dev/null | wc -l | tr -d ' ')
+if [ "${orphans:-0}" -gt 0 ] 2>/dev/null; then
+  orphan_msg="worktree-orphan-check: worktree-docs has ${orphans} commit(s) not on master -- merge back to master before they strand (git merge worktree-docs)."
+  if [ -n "$msgs" ]; then msgs="$msgs  ||  $orphan_msg"; else msgs="$orphan_msg"; fi
+fi
+
+if [ -n "$msgs" ]; then
+  echo "{\"systemMessage\": \"$msgs\"}"
 fi
 
 exit 0
