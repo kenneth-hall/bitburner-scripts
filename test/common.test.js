@@ -67,6 +67,45 @@ describe('findPath', () => {
     const ns = makeScanNs({ home: ['a'], a: ['home'] });
     expect(findPath(ns, 'nowhere')).toBeNull();
   });
+
+  it('start param: default call is unchanged (home-rooted)', () => {
+    const ns = makeScanNs({
+      home: ['a'],
+      a: ['home', 'b'],
+      b: ['a', 'target'],
+      target: ['b'],
+    });
+    expect(findPath(ns, 'target')).toEqual(['home', 'a', 'b', 'target']);
+  });
+
+  it('start param: paths from a non-home start, inclusive of start', () => {
+    const ns = makeScanNs({
+      home: ['a'],
+      a: ['home', 'b'],
+      b: ['a', 'target'],
+      target: ['b'],
+    });
+    expect(findPath(ns, 'target', 'a')).toEqual(['a', 'b', 'target']);
+  });
+
+  it('start param: start === target returns [start]', () => {
+    const ns = makeScanNs({
+      home: ['a'],
+      a: ['home', 'b'],
+      b: ['a'],
+    });
+    expect(findPath(ns, 'b', 'b')).toEqual(['b']);
+  });
+
+  it('start param: unreachable from start returns null', () => {
+    const ns = makeScanNs({
+      home: ['a'],
+      a: ['home'],
+      island: ['isolated'],
+      isolated: ['island'],
+    });
+    expect(findPath(ns, 'a', 'island')).toBeNull();
+  });
 });
 
 describe('findAllPaths', () => {

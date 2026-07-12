@@ -34,6 +34,13 @@ do, and what's broken?*
   liveness-aware Remote API client, off the critical path): **`docs/dev-server.md` → "Root cause &
   why the fix is restart"**. Related confirmed-and-fixed variant (stale *push* from a `git checkout`
   under the live watcher) is closed — see `docs/phases/phase-13-consolidation.closeout.md`.
+- **`verify-log.test.js` doesn't recognize the `rooted` event type** — `npm run verify:log` fails
+  "log format > every event has a valid event type" on any `daemon-batch-log.json` containing a
+  `rooted` event (`hosts.js`'s `getHosts` newlyRooted → daemon logs one "rooted" event per newly
+  rooted batch, an existing feature). The checker's `validTypes` set in
+  `test/verify-log.test.js` was never updated to include it. Pre-existing on `master` (confirmed
+  via `git stash` during Phase 22's live validation, 2026-07-12) — unrelated to that phase, not
+  fixed there to keep scope clean. **Next:** add `'rooted'` to `validTypes` (one-line fix).
 
 ## Ideas
 
@@ -43,11 +50,11 @@ do, and what's broken?*
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
   first — does `contract.submit()` dodge `attempt`'s 10 GB charge? — it can invalidate the
   single-script architecture. → `phase-19-contracts.features.md`.
-- **Post-reset auto-backdoor** (CSEC / `avmnite-02h`) — auto-root + walk-connect + backdoor a
-  faction server once eligible, standalone after a reset, no auto-join. **Now buildable** (SF4
-  permanent). Built + reverted twice; full design + open decisions (launch-retry gap, terminal
-  hijack) live in `docs/phases/phase-06-batcher-refactor.md`. Its own future phase when
-  prioritized.
+- **Auto-backdoor Tier-2 validation: fresh-node end-to-end** (Phase 22 shipped Tier 1 —
+  `src/backdoorfactions.js` live-validated mid-run: CSEC/avmnite-02h/I.I.I.I all backdoored
+  automatically, zero auto-joins, RAM 11 GB). Tier 2 (reset → climb from level 1 → invite
+  appears on a *brand-new* node) is structurally deferred — can't run before the next
+  install/reset on this node. **Trigger:** the next install/reset on this BitNode.
 - **Install-order calculator** (`tools/install-calc.mjs`, offline node) — the by-eye half
   shipped as `docs/bn1-install-plan.md`; catalog assembled (`docs/aug-catalog*`). Remaining is
   only the thin calc for the one "install-now vs one-more-cycle / how-many-NFG-levels" call.
