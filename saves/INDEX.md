@@ -32,6 +32,7 @@ Role tags per phase-21-sf4-grant.spec.md S6 / features file:
 | file | role | captured (UTC) | BN | ownedSF | hacking | money | augs | sha256 (file) | note |
 |---|---|---|---|---|---|---|---|---|---|
 | `bitburnerSave_1783861992_BN1x2.json.gz` | pre-edit-backup | 2026-07-12T13:13:12Z | 1 | `[[1,1]]` | 190 | 23893442.376666665 | 4 | `8b5086bddddfc1afadc5f885b29a0e364d7c68a5620ae1c88fad30277b7ec3e7` | L1: fresh Backup Save taken at the start of the live sitting. The rollback — never modified. Sha256 re-verified immediately before Import (L4). |
+| `bitburnerSave_1783861992_BN1x2.sf4.json.gz` | edited-import | 2026-07-12T13:13:12Z | 1 | `[[1,1],[4,3]]` | 190 | 23893442.376666665 | 4 | `9160a5b45d784676f69017750b7a766c7d196b10c18d1485f173b9cf30ff5fa6` | L3: `grant` output on the pre-edit-backup. `ALL GUARDS PASSED`, +6 bytes (decompressed), summary differs only in `sfLevels`. This is the file to Import (L4) — `.sf4.json` is the plain-JSON fallback if the `.gz` is rejected. |
 
 ## Downloads — not yet consolidated
 
