@@ -24,8 +24,12 @@ export async function withPage(fn) {
   }
 }
 
-/** Click a left-nav / titlebar button by its accessible name (e.g. "Terminal", "Factions"). */
+/** Click a left-nav / titlebar button by its accessible name (e.g. "Terminal", "Factions").
+ * Clears a blocking error modal or story popup first (see dismissModal / dismissStoryPopup)
+ * so a stray overlay doesn't silently eat the click and time out. */
 export async function goto(page, section) {
+  await dismissModal(page);
+  await dismissStoryPopup(page);
   await page.getByRole('button', { name: section, exact: true }).click();
   await page.waitForTimeout(300);
 }
@@ -79,10 +83,29 @@ export async function dismissModal(page) {
   return false;
 }
 
+/** Dismiss a full-screen story/message popup (faction-recruit text, "Message received"
+ * toasts, narrative interludes) that overlays the whole UI and swallows every click until
+ * cleared -- these carry no "Close"-named button so dismissModal doesn't catch them.
+ * Guard: only fires when the ENTIRE accessible tree is exactly one NAMELESS button plus
+ * narrative text and nothing else. A real confirm/buy/install dialog always exposes
+ * multiple/named controls (e.g. "Confirm", "Cancel", an item name) and a normal game
+ * screen always has named nav buttons -- neither ever collapses to this shape, so the
+ * guard can't misfire onto a consequential action. Confirmed live 2026-07-12: clicking
+ * the bare button is exactly the "click anywhere on it" dismissal a human would do.
+ * Returns true if a popup was found and dismissed, false (nothing clicked) otherwise. */
+export async function dismissStoryPopup(page) {
+  const snapshot = await ariaSnapshot(page);
+  const lines = snapshot.split('\n').map((l) => l.trim()).filter(Boolean);
+  const isBareStoryPopup = lines[0] === '- button' && lines.slice(1).every((l) => l.startsWith('- text:'));
+  if (!isBareStoryPopup) return false;
+  await page.getByRole('button').first().click();
+  await page.waitForTimeout(300);
+  return true;
+}
+
 /** Run a terminal command and return ONLY the lines it produced (prompt echo + output). */
 export async function runCommand(page, cmd) {
-  await dismissModal(page); // clear a prior command's error modal so the nav click isn't blocked
-  await goto(page, 'Terminal');
+  await goto(page, 'Terminal'); // clears a prior error modal / story popup, then navigates
   const before = await page.evaluate(() => document.getElementById('terminal')?.children.length ?? 0);
   const input = page.locator('#terminal-input');
   await input.click();

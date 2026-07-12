@@ -117,6 +117,22 @@ front-end**, distinct from the RFA file bridge (which only moves files) — see
   `terminal`, `goto`, and `location` **drive the live session** (navigate / type), moving the
   player off their screen — use writes deliberately.
 
+### Story popups — Claude clears them, no permission needed
+
+A narrative toast (faction-recruit text, "Message received" notifications, lore interludes)
+periodically overlays the whole UI and swallows every click until cleared — it has no named
+"Close" button, so `dismissModal` doesn't catch it; Kenneth normally clears it by clicking
+anywhere on it. **Claude clears these itself** via `node tools/bb/cli.mjs dismiss` (or
+automatically — `goto`/`terminal`/`restart` call `dismissStoryPopup` before navigating, per
+`tools/bb/driver.mjs`) — don't ask Kenneth to do it. Pre-authorized because the detector is
+narrowly guarded, not a blind click: it only fires when the *entire* accessible tree is exactly
+one nameless button plus narrative text and nothing else. A real confirm/buy/install dialog
+always exposes multiple/named controls, and a normal game screen always has named nav buttons —
+neither ever collapses to that shape, so the guard can't misfire onto a consequential action
+(buying/installing/joining still requires the general confirmation rule below). If `dismiss`
+reports "no modal/popup found" and a click still times out, that's a different, unhandled
+overlay — stop and ask, don't guess at a wider click.
+
 ### Auto-restart changed scripts — no permission needed
 
 When Claude edits a `src/` script and the change only takes effect after the in-game script is

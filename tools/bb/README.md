@@ -22,7 +22,7 @@ node tools/bb/cli.mjs stats                 # character overview (money, hack, .
 node tools/bb/cli.mjs terminal "home; scan" # run a terminal command, print its output
 node tools/bb/cli.mjs restart cloudmanager.js # kill + close orphaned tail + relaunch
 node tools/bb/cli.mjs close-tail cloudmanager.js # close a stray/orphaned tail window
-node tools/bb/cli.mjs dismiss                 # close a blocking error/dialog modal
+node tools/bb/cli.mjs dismiss                 # close a blocking error modal or story popup
 node tools/bb/cli.mjs read-tail daemon      # text of the "daemon" tail window
 node tools/bb/cli.mjs aria                   # structured outline of clickable UI
 node tools/bb/cli.mjs locations              # names of every location on the open City map
@@ -43,12 +43,20 @@ unlike screenshot coordinates); run `locations` first to get exact spellings for
 reverts to the filename title); `restart` closes it between kill and relaunch so repeated
 restarts don't pile up stray popups. `tailmanager.js` then re-docks the fresh window.
 
-**Gotcha — error modals block navigation.** A script runtime error (or any Bitburner dialog)
-pops a modal that overlays the whole UI and intercepts clicks, so `goto`/`click`/`restart` time
-out with `waiting for getByRole('button', { name: 'Terminal' })`. Reads (`read-terminal`, `body`,
-`read-tail`, `shot`) still work through it — so read the modal's text to get the error, then
-`dismiss` it. `runCommand` now auto-`dismiss`es before navigating, so `terminal`/`restart`
-self-heal; a bare `goto`/`click` still needs a manual `dismiss` first if a modal is up.
+**Gotcha — error modals and story popups block navigation.** A script runtime error (any
+Bitburner dialog) or a narrative toast (faction-recruit text, "Message received" notifications)
+overlays the whole UI and intercepts clicks, so `goto`/`click`/`restart` time out with `waiting
+for getByRole('button', { name: 'Terminal' })`. Reads (`read-terminal`, `body`, `read-tail`,
+`shot`) still work through it. `goto` (and therefore `terminal`/`restart`, which call it)
+auto-dismisses both kinds before navigating, so this self-heals without a separate step — a bare
+`click`-by-text is the one path that still needs a manual `dismiss` first if something's up.
+
+Error modals close via a named "Close" button (`dismissModal`). Story popups have no such
+button — the whole toast is one nameless click-to-dismiss surface — so they're detected by shape
+instead (`dismissStoryPopup`): it only fires when the *entire* accessible tree is exactly one
+nameless button plus narrative text, nothing else. A real confirm/buy/install dialog always
+exposes multiple/named controls, and a normal game screen always has named nav buttons, so
+neither ever collapses to that shape — the detector can't misfire onto a consequential click.
 
 ## Design note
 
