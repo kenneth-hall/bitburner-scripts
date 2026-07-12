@@ -6,6 +6,30 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
+- **Phase 21 — Grant SF4.3 via save edit (implementation done 2026-07-12, awaiting live sitting).**
+  Deliberate save-file cheat to own Source-File 4 level 3 without playing BN4, unlocking
+  `ns.singularity.*` at 1× RAM. Spec: `phase-21-sf4-grant.spec.md`. **Code side complete and
+  merged to this branch, `npm test` green (20 files / 330 tests incl. `test/savegrant.test.js`'s
+  9): `tools/save/savelib.mjs` (pure transform + guards), `tools/save/sf4grant.mjs` (CLI,
+  `grant`/`describe`), `src/sf4check.js` (one-shot Singularity liveness check, isolated from
+  daemon.js per Singularity RAM-isolation rule), `saves/` consolidated with `INDEX.md` (the two
+  repo-root `.gz` moved in, extraction dirs + scratch `.pretty.json` deleted, `.gitignore`
+  root-anchored so `saves/*.json.gz` is committable while `saves/*.json`/`*.pretty.json` stay
+  ignored).** The `grant` transform was smoke-tested end-to-end against the real BN1x2 save in a
+  scratch copy (not the repo file) — `ALL GUARDS PASSED`, +6 bytes, both `.sf4.json.gz`/`.sf4.json`
+  outputs decompress identically and round-trip losslessly; not committed as a phase artifact since
+  the live sitting's L1 takes its own fresh backup. **Spec-stage S1 note:** the achievements
+  question resolved to "write nothing" — only `SF4.1` exists (one SF achievement per BitNode) and
+  the game self-grants it once the map holds `[4,3]`, so the transform is exactly the one
+  `,[4,3]` insertion, nothing achievement-related to test or ship.
+  **Not done — Kenneth's live sitting (spec's L1–L8, one sitting):** fresh in-game backup → index
+  it → run `grant` on it for real → Import → verify `sf4check.js`'s exported log shows `ownedSF`
+  ⊇ `[4,3]` + a non-throwing singularity probe → `ramcheck.js sf4check.js` corroborates ≈7.65 GB
+  (1× discount) → re-export and confirm the entry survived a load/save cycle → index the three
+  role-tagged artifacts in `saves/INDEX.md`. BACKLOG/CHANGELOG close-out and phase-doc graduation
+  to `docs/phases/` wait until those live checks pass (ship gate: live/log-dependent changes wait
+  on Kenneth's validation).
+
 - **Phase 20 — XP farm — SHELVED 2026-07-11 (spec done, not implementing now).** The 2500 hacking
   gate was cleared before the engine could ship, and the goal has moved to Daedalus rep (see Next Up),
   which XP throughput doesn't serve. `phase-20-xpfarm.spec.md` stays on disk as a ready-to-implement
@@ -76,23 +100,6 @@ instead of deleting it — don't let history pile up here.
   the single-script architecture. No spec, no code. Resume the discussion, don't build from the doc.
 
 ## Next Up
-
-- **Phase 21 — Grant SF4.3 via save edit (features drafted 2026-07-12).** Deliberate save-file cheat
-  to own Source-File 4 level 3 without playing BN4, unlocking `ns.singularity.*` at 1× RAM. Core edit
-  is one substring (`[[1,1]]`→`[[1,1],[4,3]]`) + additive SF4 achievement records; the real weight is
-  the safety harness (minimal-diff invariant, save bookkeeping/`saves/INDEX.md`, 3-layer test plan).
-  Features: `phase-21-sf4-grant.features.md`. **Supersedes
-  the SF4-gated parked backlog** (auto-backdoor, aug-planner execution, TOR ladder, rep watchers) —
-  those become buildable once this lands, each as its own later phase (do NOT fold them into 21).
-  - **Spec stage done (2026-07-12): `phase-21-sf4-grant.spec.md` drafted + cold-reviewed (1 blocker
-    resolved by Kenneth's sign-off: features Decision 6's SF4.1/4.2/4.3 achievement records are
-    unimplementable — only `SF4.1` exists, one achievement per Source-File — and the engine
-    self-grants it once the map holds `[4,3]`, so the transform writes NOTHING to achievements and
-    the edit stays exactly one insertion; fallback if self-grant doesn't fire = follow-up mini-edit
-    with the same tooling). Needle verified to occur exactly once in the real save. 4 should-fixes
-    folded in (RAM reading demoted to corroboration — `ownedSF ⊇ [4,3]` is the gate; expected-RAM
-    derivation fixed at ≈7.65 GB; L6 ownedSF-miss routed to the rollback contingency; the `[[1,1]]`
-    needle assumption stated). **Next: implement (sonnet) on branch `phase21-sf4grant`.**
 
 - **Close out BN1.2 (current goal, launched 2026-07-11).** Fresh BN1 clear for SF1.2; state is
   hacking ~48, no factions, ~$2k, fleet rebuilding — everything below in this item is **clear-#1
@@ -358,6 +365,13 @@ instead of deleting it — don't let history pile up here.
     live-validation follow-up when built, same as the waived fleetupgrade test.
 
 ## Ideas / Backlog
+
+- **`saves/index.mjs` generator (Phase 21's deferred optional tool, 2026-07-12).** Phase 21's spec
+  (S6) explicitly deferred this: a script that scans `saves/`, decodes each file's BN/SF/hacking/
+  money via `tools/save/savelib.mjs`, hashes them, and regenerates `saves/INDEX.md` automatically.
+  `sf4grant.mjs describe` already makes one row cheap to produce by hand, and hand-maintaining
+  ~8 rows doesn't justify a generator yet — revisit once the save count grows enough that manual
+  upkeep starts to hurt.
 
 - **Single condensed dashboard window (Phase 18's deferred Layer 3)** (2026-07-08, deferred
   per Kenneth — "a maybe, at the end"; not started): after Phase 18's Layers 1–2 (self-placing
