@@ -17,8 +17,33 @@ The viteburner process can keep running with a `netstat`-visible `ESTABLISHED` s
 its Remote API port (12525) while the actual file sync to the game is **silently dead** —
 a file "isn't there in-game" or exported logs stop updating, with no crash and no error.
 An `ESTABLISHED` socket is **not** evidence the connection works — treat it as
-inconclusive. Root cause is unconfirmed (suspected: the process's stdin not being a TTY,
-per viteburner's own startup warning); it has recurred across Phases 9, 10, and 12.
+inconclusive. It has recurred across Phases 9, 10, and 12.
+
+### Root cause & why the fix is "restart," not "make the export programmatic"
+
+Investigated 2026-07-12 by reading viteburner 0.5.3's own compiled source
+(`node_modules/viteburner/dist/cli-9c25e960.js`). Findings, so we don't re-derive them:
+
+- **It is a connection-liveness problem, not the export mechanism.** The earlier guesses
+  ("non-TTY stdin" / "the auto-export keypress doesn't survive a reconnect") are **wrong**.
+  The source shows viteburner's `WsManager` re-binds `this.ws` on every reconnect (a
+  persistent `wss.on("connection")` listener), and the keypress listener is attached once
+  and never detached — both already survive reconnects. What's left is the socket itself
+  going **half-open** after sleep: the server never sees a clean close, `connected` still
+  reports `OPEN`, so requests fire into a dead socket and no response ever returns. That
+  matches the observed symptom exactly (`ESTABLISHED` but silently dead). A full restart
+  cures it because both ends rebuild fresh sockets.
+- **It can't be cleanly fixed in-plugin.** The clean primitive (`wsAdapter.fullDownload()`)
+  is bundle-internal — not exported, not reachable from plugin/config code. viteburner also
+  has **no native auto-export** (the `download` block is manual-only). So there is no
+  "swap the hacky keypress for a supported programmatic call" available in 0.5.3; the only
+  reachable handles are the raw WS server (⇒ reimplementing the RPC protocol, a *worse*
+  workaround) or the keypress plumbing we already drive.
+- **Therefore the process restart is the correct lever** (it acts on the layer the bug is
+  actually in), and the `SessionStart` autoheal hook is the right mitigation. Its only gap
+  is a *mid-session* stall. The only "real" fix would be a standalone liveness-aware Remote
+  API client (heartbeat ping → detect the zombie socket → force reconnect) — a separate
+  tool, off the critical path, not worth building for the current payoff.
 
 **Do this pre-emptively, not reactively.** At the start of any phase's RAM-gate or
 live-validation step — the first time this session will ask the user to run something

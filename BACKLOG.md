@@ -24,13 +24,16 @@ do, and what's broken?*
 
 - **viteburner dev-server silently stops auto-exporting** — after hours of clean running (no
   crash, no error), `npm run dev` can stop producing fresh `logs/` downloads while `daemon.js`
-  keeps writing in-game; a full dev-server restart fixes it. Suspected root cause: the
-  auto-export plugin synthesises a `keypress` on a non-TTY `process.stdin` that may not survive
-  a websocket reconnect. **Partly mitigated** by the `SessionStart` autoheal hook (kills+restarts
-  `npm run dev` when `daemon-batch-log.json` is >60s stale), but the underlying silent-stall is
-  unfixed — an unnoticed stall looks like "no income landing." Investigate if it recurs. Related
-  confirmed-and-fixed variant (stale *push* from a `git checkout` under the live watcher) is
-  closed — see `docs/phases/phase-13-consolidation.closeout.md` and the CLAUDE.md rule it produced.
+  keeps writing in-game; a full dev-server restart fixes it. **Root cause corrected 2026-07-12**
+  (viteburner 0.5.3 source read): it's a **connection-liveness problem** (a half-open socket that
+  still reads `ESTABLISHED`/`connected`), **not** the auto-export keypress hack as previously
+  suspected — and it **can't be cleanly fixed in-plugin** (the download API is bundle-internal and
+  there's no native auto-export, so "make the export programmatic instead of a fake keypress" is a
+  dead end). The restart *is* the right lever; the `SessionStart` autoheal hook mitigates it,
+  gap being a mid-session stall. Full diagnosis + verdict + the only "real" fix (a standalone
+  liveness-aware Remote API client, off the critical path): **`docs/dev-server.md` → "Root cause &
+  why the fix is restart"**. Related confirmed-and-fixed variant (stale *push* from a `git checkout`
+  under the live watcher) is closed — see `docs/phases/phase-13-consolidation.closeout.md`.
 
 ## Ideas
 
