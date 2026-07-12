@@ -203,8 +203,18 @@ the same commit as the change it describes, so it doesn't become a separate git 
 `bitburner-scripts2` (sibling folder, branch `worktree-docs`) is a second worktree for
 brainstorming, `BACKLOG.md`/docs edits, and phase-doc drafting — work there when you want to
 touch documentation without risking the live checkout. It has no dev server of its own; it
-must never start or stop `npm run dev` (see the engineering-conventions rule above). Merge its
-branch back to `master` like any other worktree when the docs work is ready.
+must never start or stop `npm run dev` (see the engineering-conventions rule above).
+
+**Merge `worktree-docs` back to `master` at the end of any session that committed to it** —
+not the vague "when the docs work is ready," which never fires. Leaving commits on the branch
+across sessions is how they orphan (three doc commits sat stranded off `master` until a manual
+sweep found them, 2026-07-12). The live worktree (`bitburner-scripts`) performs the merge, on a
+**clean** working tree, since `master` is only ever checked out there.
+
+**Catch orphaned worktree commits early.** At session start (either worktree), run
+`git log --oneline master..worktree-docs`. Any output is docs work stranded off `master` — merge
+it back before it accumulates. This is the net that stops commits piling up unnoticed between
+sessions; run it rather than assuming the branches are level.
 
 **Sync from `master` before touching anything phase work might have changed.** Phase work
 (fixes, close-outs) lands directly on `master` in the main worktree — `worktree-docs` never sees
