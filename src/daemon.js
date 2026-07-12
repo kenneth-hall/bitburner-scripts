@@ -393,7 +393,7 @@ export async function main(ns) {
   let lastHackSample = hackProgress.length ? hackProgress[hackProgress.length - 1].timestamp : 0; // 0 => sample on the first tick
   let useFormulas = false;
   let forcedLegacy = false;
-  let previousMathMode = null; // null until the first refreshCycle, so startup also announces its mode once
+  let previousMathMode = null; // null until the first refreshCycle; startup records its mode to the log but no longer prints it (only real transitions do)
 
   // --- Phase 8 share-allocation state ---
   let shareOff = ns.fileExists(SHARE_OFF_MARKER, "home");
@@ -458,12 +458,19 @@ export async function main(ns) {
     useFormulas = hasFormulas(ns);
     forcedLegacy = isForcedLegacy(ns);
     if (useFormulas !== previousMathMode) {
-      tprintTs(ns, `INFO: math mode ${useFormulas ? "formulas" : forcedLegacy ? "legacy (forced)" : "legacy"}`);
+      // Only announce genuine mid-run transitions (e.g. a Formulas.exe
+      // purchase upgrading legacy->formulas). The first-cycle emission
+      // (previousMathMode starts null) merely restates the mode we booted
+      // into -- steady state for the majority of a run, non-actionable
+      // terminal noise, same call the "new target" prints below got.
+      if (previousMathMode !== null) {
+        tprintTs(ns, `INFO: math mode ${useFormulas ? "formulas" : forcedLegacy ? "legacy (forced)" : "legacy"}`);
+      }
       previousMathMode = useFormulas;
-      // Also fires on the very first refreshCycle (previousMathMode starts
-      // null), so every log file states its mode from the first record and
-      // is self-describing -- the log checker validates against this
-      // recorded config, not whatever the source tree says today. Relies on
+      // recordModeEvent() still fires on the very first refreshCycle, so
+      // every log file states its mode from the first record and is
+      // self-describing -- the log checker validates against this recorded
+      // config, not whatever the source tree says today. Relies on
       // effectiveShareFraction/shareOff already being current for this tick
       // (set at the top of the main loop, before refreshCycle can be called).
       recordModeEvent();
