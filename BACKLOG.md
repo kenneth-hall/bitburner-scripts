@@ -77,6 +77,14 @@ instead of deleting it — don't let history pile up here.
 
 ## Next Up
 
+- **Phase 21 — Grant SF4.3 via save edit (features drafted 2026-07-12).** Deliberate save-file cheat
+  to own Source-File 4 level 3 without playing BN4, unlocking `ns.singularity.*` at 1× RAM. Core edit
+  is one substring (`[[1,1]]`→`[[1,1],[4,3]]`) + additive SF4 achievement records; the real weight is
+  the safety harness (minimal-diff invariant, save bookkeeping/`saves/INDEX.md`, 3-layer test plan).
+  Features: `phase-21-sf4-grant.features.md` → next stage is fable spec + spec-reviewer. **Supersedes
+  the SF4-gated parked backlog** (auto-backdoor, aug-planner execution, TOR ladder, rep watchers) —
+  those become buildable once this lands, each as its own later phase (do NOT fold them into 21).
+
 - **Close out BN1.2 (current goal, launched 2026-07-11).** Fresh BN1 clear for SF1.2; state is
   hacking ~48, no factions, ~$2k, fleet rebuilding — everything below in this item is **clear-#1
   trail (wiped state), NOT current status.** The live, de-duplicated playbook is now the
