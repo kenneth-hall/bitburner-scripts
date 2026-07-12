@@ -65,12 +65,20 @@ do, and what's broken?*
   in-game aug description), (b) whether unfocused daemon work blocks Kenneth's own manual
   player-actions or only yields the screen. **Revisit when** a Singularity rep-grinder is
   actually built. → `[[reference_focus_penalty_and_slot]]`.
-- **XP-farm engine** (Phase 20 — **trigger fired 2026-07-12**, docs refreshed for the BN1.2
-  regime, implementation pending). Dedicated hack-saturation XP engine that coexists with the
-  money batcher on surplus fleet RAM (self-scales: ~0 early, dominant once the fleet outgrows
-  money needs). The shelving trigger ("revisit when a fresh node's XP re-climb becomes the
-  binding constraint") has fired on the BN1.2 re-climb. Ship gate ≥3× exp/sec vs batcher-only
-  A/B. Entry leaves this file at close-out. → `phase-20-xpfarm.spec.md`.
+- **XP-farm engine** (Phase 20 — **trigger fired 2026-07-12**; production rewrite implemented
+  2026-07-12 on branch `phase20-xpfarm`, `npm test` green (381/381), RAM gate clean, live-run
+  smoke-checked (no crashes, batcher unaffected, engine computing correctly) — full A/B
+  ship-gate validation (≥3× exp/sec, security equilibrium tuning) still needs Kenneth's live
+  session). Dedicated hack-saturation XP engine that coexists with the money batcher on surplus
+  fleet RAM (self-scales: ~0 early, dominant once the fleet outgrows money needs). **Live
+  observation to watch during validation:** on this large (~7.4PB) fleet, a fresh restart's
+  first pass saw a huge one-tick surplus and committed nearly all of it as crush-mode weaken
+  against 3 very-high-difficulty targets in a single burst — with no per-pass RAM cap, that
+  burst's own long weakenTime (security-dependent) then held ~6.9PB hostage for an extended
+  stretch with zero further XP launches until it landed. Not a correctness bug (batcher stayed
+  healthy throughout, 0 skips), but worth deciding whether it needs a per-pass thread/RAM cap
+  before calling the equilibrium (S4) settled. Entry leaves this file at close-out. →
+  `phase-20-xpfarm.spec.md`.
 - **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
   carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
   toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset
