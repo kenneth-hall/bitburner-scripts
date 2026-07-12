@@ -13,10 +13,18 @@ fleet's *surplus* RAM (whatever the money batcher and share pool leave unclaimed
 fire-and-forget `hack` workers against the highest-difficulty eligible servers, holding those
 servers at minimum security with a minority weaken allocation. Two new one-shot worker files
 (`xphack.js`/`xpweaken.js` — see S1), an `xpPool` metric in the daemon's snapshot events, and an
-engine-side log export are the observability. The running weaken prototype is retired by the
-cutover itself: rewriting `xpfarm.js` in place doesn't disturb the running process (Bitburner
-processes keep their loaded code), and the ship step's daemon restart sweeps it via
-`killscripts.js` and relaunches the production engine.
+engine-side log export are the observability.
+
+**Regime update (2026-07-12, pre-implementation):** this spec was drafted 2026-07-11 in the
+*old* node's idle-fleet endgame (~26.5 PB, ~98% idle, money dead). The BitNode has since been
+destroyed and re-entered — we are now **early in the BN1.2 run**, exactly the fresh-node
+regime the "durable BN2+ tool" scope was designed for, and the resume trigger fired as
+predicted (the XP re-climb is the binding constraint — see CLAUDE.md's current-goal line).
+Consequences threaded through this spec where marked: the weaken prototype is **no longer
+running** (node destruction killed every process; `src/xpfarm.js` survives only as a dormant
+file, so the rewrite-in-place is uncomplicated and there is no live cutover to choreograph),
+and the live-validation section's testability notes are inverted — fresh-node coexistence is
+now the directly observable case, the idle-endgame extreme is the deferred one.
 
 **Audience note:** the implementer (Sonnet, via Claude Code) does everything marked **[code]**.
 Kenneth does everything marked **[live]**. No [live] step requires editing code; a failed [live]
@@ -26,7 +34,8 @@ check loops back to a [code] fix (constants tuning is a [code] change), as in pr
 
 - `CLAUDE.md` rules apply in full: NS API signatures/RAM costs verified against `markdown/`, no
   community solutions, no game-source reading, no spoilers.
-- **No Singularity calls anywhere in this phase.**
+- **No Singularity calls anywhere in this phase.** (Unchanged by Phase 21's SF4 grant — the
+  engine needs nothing Singularity offers; keep it Singularity-free per the hot-path rule.)
 - **Transactions log: N/A** — nothing here spends money. Stated so the omission is visibly
   deliberate. (The engine *drains* target servers' money as a side effect of hacking; that is
   not a player spend and records nothing.)
@@ -37,7 +46,13 @@ check loops back to a [code] fix (constants tuning is a [code] change), as in pr
   exported constant. Nothing else in the batcher's import graph changes.
 - **Log schema changes are additive only**: `snapshot` events gain `xpPool`; no existing field
   is renamed, removed, or reshaped. `npm run verify:log` gains an `xpPool` shape assertion and
-  must otherwise stay green with zero rule changes.
+  must otherwise stay green with zero checker-rule changes. **Known pre-existing failure
+  (BACKLOG bug, confirmed 2026-07-12):** `test/verify-log.test.js:77`'s `validTypes` set
+  lacks `'rooted'`, so any log containing the daemon's existing `rooted` events fails the
+  format check — and early-BN1.2 logs *will* contain them (rooting is ongoing on a fresh
+  node). Fold the one-line `'rooted'` addition into this phase's `verify-log.test.js` edit
+  (work item 8) as a named pre-existing-bug fix — it is a test-file correction for an event
+  the daemon already emits, not a rule change.
 - **Identifier hygiene (Phase 9/11's lesson):** no new identifier, export, or object key may
   exactly match an ns function/method name. Names this spec assigns — `XP_SCRIPTS`,
   `planXpJobs`, `latestBatcherClaim`, `xpPool`, `XP_RESERVE_FRAC`, `HOLD_WEAKEN_FRAC`,
@@ -56,7 +71,7 @@ check loops back to a [code] fix (constants tuning is a [code] change), as in pr
 - **S1 — Dedicated worker filenames `xphack.js`/`xpweaken.js`, overriding features decision 4
   ("reuse existing workers").** The features file marked its decisions "proposed, for spec
   confirmation"; this one doesn't survive contact with `sampling.js`. `inFlightByTarget`
-  (`src/sampling.js:183`) uses `ramCosts[proc.filename]` as its membership filter and counts
+  (`src/sampling.js:188`) uses `ramCosts[proc.filename]` as its membership filter and counts
   **every `hack.js` process as one in-flight batch** against `proc.args[0]`. XP workers reusing
   the batcher's filenames therefore corrupt the batcher's accounting: XP targets appear as
   phantom perpetual "draining" entries, and if an XP target ever coincides with a batch member
@@ -87,7 +102,7 @@ check loops back to a [code] fix (constants tuning is a [code] change), as in pr
   headroom. A snapshot older than `SNAPSHOT_STALE_MS = 60_000` or a missing/malformed log
   means the daemon isn't running (or just started): claim = 0, no exclusions. A **valid
   snapshot without a `draining` field is the normal steady state, not malformed** — the
-  daemon only attaches `draining` when non-empty (`daemon.js:1023`); absent means empty, and
+  daemon only attaches `draining` when non-empty (`daemon.js:1052`); absent means empty, and
   the claim still computes from `members[]` + share gap (reviewer blocker B2). This makes
   "the batcher keeps first
   claim" a mechanism, not a hope, and it self-scales exactly as the features doc requires:
@@ -97,13 +112,14 @@ check loops back to a [code] fix (constants tuning is a [code] change), as in pr
   (opportunistic prep of non-member targets) — the claim covers members and share only. In a
   fresh node this can slow the money ramp by starving speculative prep. Deliberate: an idle GB
   spent completing hacks is the phase's whole point, member pipelines (the actual income) are
-  protected, and `xp-off.txt` is the escape hatch. Flagged for observation at the next
-  BitNode (structurally untestable in BN1's endgame — see live validation step 7). That
-  deferred observation explicitly includes **fragmentation**: whole-host XP fills can leave no
+  protected, and `xp-off.txt` is the escape hatch. **Directly observable now** (regime update:
+  we are early in a fresh node, the case this trade-off was written for — see live validation
+  step 7, rewritten accordingly). That
+  observation explicitly includes **fragmentation**: whole-host XP fills can leave no
   single host with a slice big enough for one batcher grow job (`assignBatchHosts` needs one
   host per job) even when the fleet-total budget is fine — the 5% per-host reserve is the
-  mitigation, and whether it suffices on a small fleet is part of what next-node observation
-  answers.
+  mitigation, and whether it suffices on a small fleet is part of what this run's coexistence
+  observation answers.
 - **S3 — Target selection (features Q3): top `XP_TOP_N = 3` by required hacking level, refreshed
   every pass, whole-host round-robin assignment.** Eligibility: rooted, `requiredHackingLevel ≤
   player level` (hack — unlike the prototype's weaken — needs the level), `maxMoney > 0`
@@ -159,8 +175,9 @@ check loops back to a [code] fix (constants tuning is a [code] change), as in pr
   default 560×200) so its window is restored/persisted like the other standing dashboards.
   `XP_OFF_MARKER = "xp-off.txt"` on home, checked every pass (`ns.fileExists`, 0 GB): present →
   launch nothing, print `xp: OFF (xp-off.txt)`; in-flight workers decay naturally (bounded by
-  one weaken duration — ~10 min at min sec on today's top target; no kill sweep, matching
-  share's decay-not-kill pattern). No auto-off at 2500 (features Q7, decided there).
+  one weaken duration on the current top target — ~10 min on the old node's endgame targets,
+  shorter on early-node ones; no kill sweep, matching share's decay-not-kill pattern). No
+  auto-off at 2500 (features Q7, decided there).
 - **S7 — Ship-gate multiple: engine-on exp/sec ≥ 3× engine-off, same session (features Q6
   answered by measurement, not guessed).** The features doc requires "a live run showing
   exp/sec rose by the claimed multiple"; this spec claims **≥ 3×** the batcher-only rate as
@@ -176,6 +193,13 @@ check loops back to a [code] fix (constants tuning is a [code] change), as in pr
   underperforms the weaken stopgap it replaced** (equilibrium failed badly) — the stopgap is
   trivially restorable (git holds the prototype), and the features doc's fallback (re-scoring
   the money batcher) comes to the table.
+  **Regime caveat (2026-07-12):** the 3× floor and the 1.4× stopgap reference were both
+  measured in the old node's idle-fleet endgame; the stopgap is no longer running and the A/B
+  now runs on a young BN1.2 fleet where *both* windows differ (B's batcher-only exp/sec is a
+  small young-fleet number, and A's surplus is whatever that fleet leaves free). The floor
+  stands as written — the outcome ladder already routes any sub-3× reading to a discussion
+  rather than a fail — but interpret a surprising multiple against the changed regime (claim
+  size, surplus GB in `xpfarm-log.json`) before blaming the equilibrium.
 
 ## Design
 
@@ -347,14 +371,19 @@ a one-line comment (Phase 20 — security-equilibrium + launch evidence for the 
 - **`test/verify-log.test.js`:** snapshot schema assertion gains
   `xpPool: { hackThreads, weakenThreads, inFlightRamGb }` (all `expect.any(Number)`), plus an
   informational console line (min/avg/max `xpPool.inFlightRamGb`) beside the share summaries.
+  Also add `'rooted'` to the `validTypes` set (line 77) — the pre-existing BACKLOG bug called
+  out in the ground rules; without it live step 8 fails on any fresh-node log. One line,
+  named in the commit as a pre-existing-bug fix.
   No checker-rule (`verify-log-checks.js`) changes — the share/budget/stall/exit invariants
   are untouched by design.
 
 ### Work item 9 — BACKLOG / CHANGELOG bookkeeping [code]
 
-- `BACKLOG.md`: keep the Phase 20 In-Progress entry current; on close-out move a dated,
-  condensed entry (including the measured multiple, per S7) to `docs/phases/CHANGELOG.md` and
-  graduate both phase docs to `docs/phases/`.
+- `BACKLOG.md`: **policy changed since drafting (2026-07-12 de-bloat)** — BACKLOG no longer
+  carries In-Progress entries; it holds ideas/bugs only. On close-out, delete the "XP-farm
+  engine (Phase 20, SHELVED)" idea entry and the `rooted`-validTypes bug entry (fixed in work
+  item 8), and move a dated, condensed entry (including the measured multiple, per S7) to
+  `docs/phases/CHANGELOG.md`; graduate both phase docs to `docs/phases/`.
 - `git rm src/xpprobe.js` at close-out — one-shot probe, job done (Phase 13 precedent); its
   findings are recorded in the features doc.
 - Staged in the same commits as the work they describe.
@@ -368,7 +397,7 @@ changes, re-run after:
 
 | script | expected | why |
 |---|---|---|
-| `daemon.js` | **flat** (16.30 GB baseline) | `getScriptRam`/`exec` already charged; `XP_SCRIPTS` import is pure; snapshot field is data |
+| `daemon.js` | **flat** vs the fresh baseline run (16.30 GB when drafted; daemon edits since — Phases 21–22 companions, print trims — should not have moved it, the baseline run confirms) | `getScriptRam`/`exec` already charged; `XP_SCRIPTS` import is pure; snapshot field is data |
 | `xpfarm.js` | **record actual**; bust if > prototype baseline + 0.3 GB | same ns surface as the prototype ± small deltas (adds `getServerMaxMoney` +0.1, `fileExists` +0.1; drops nothing that was charged) |
 | `xphack.js` | **exactly `hack.js`'s reading** (1.70 GB) | 1.6 base + 0.1 `ns.hack` — S1's no-new-RAM invariant |
 | `xpweaken.js` | **exactly `weaken.js`'s reading** (1.75 GB) | 1.6 base + 0.15 `ns.weaken` |
@@ -378,14 +407,15 @@ Any surprise → identifier-hygiene hunt (`mem`-trace per Phase 9/11) before pro
 
 ## Live validation [live]
 
-`npm run dev` running (restarted at the gate step above). Sequencing note: step 1's daemon
-restart is the prototype cutover — the old weaken farm dies with the sweep and the production
-engine launches.
+`npm run dev` running (restarted at the gate step above). Sequencing note (updated
+2026-07-12): the weaken prototype is **not running** — the BN1.2 node reset killed it — so
+step 1's daemon restart is a plain launch, not a cutover; nothing needs sweeping first.
 
-1. **Cutover + first fill:** restart `daemon.js`. The `xp farm` tail opens (and is placed by
+1. **First fill:** restart `daemon.js`. The `xp farm` tail opens (and is placed by
    `tailmanager.js`); within a few passes it shows up to 3 targets and nonzero +H/+W launches.
    `logs/xpfarm-log.json` starts accumulating records. Fleet utilization in the daemon
-   snapshot climbs back toward ~95%.
+   snapshot rises to near-full — the *level* depends on the young fleet's batcher claim; what
+   matters is `usableGb` in `xpfarm-log.json` being consumed, not a specific percentage.
 2. **Coexistence:** over ≥ 15 min, `logs/daemon-batch-log.json` snapshots show the batcher's
    members still batching — `commitmentPct` in its normal range, no sustained empty-pipeline
    WARN skips that started at cutover — and the `draining` list contains **no XP-only targets**
@@ -410,11 +440,15 @@ engine launches.
    engine tail flips to `xp: OFF (xp-off.txt)` within one pass, `xpfarm-log.json` records
    `off: true` with zero launches, and `xpPool` in daemon snapshots decays toward zero within
    ~10 min; deleting the marker refills within a pass or two.
-7. **Fresh-node coexistence** (the durable-tool premise: busy fleet → near-zero farming,
-   waterfall trade-off acceptable in practice) is structurally untestable in BN1's endgame —
-   record as **observe-at-next-BitNode**, not a sign-off blocker. The claim mechanism itself
-   is unit-tested (work item 8) and its endgame limit (claim ≈ 0 → farm everything) is what
-   steps 1–4 exercise.
+7. **Fresh-node coexistence — now the live case (regime flip, 2026-07-12).** The durable-tool
+   premise (busy fleet → the claim throttles farming; waterfall trade-off acceptable in
+   practice) is directly observable in this early-BN1.2 run: step 2's coexistence window *is*
+   the fresh-node test, and `claimGb` in `xpfarm-log.json` should read nonzero while the
+   batcher is money-constrained. Watch specifically for the S2 waterfall/fragmentation
+   trade-off (slowed money ramp, grow jobs failing to place) and record what's seen. The
+   *opposite* extreme — idle endgame fleet, claim ≈ 0, farm takes ~everything — is what's no
+   longer observable this early; record it as **observe-late-node**, not a sign-off blocker
+   (the claim mechanism's endgame limit is unit-tested in work item 8).
 8. `npm run verify:log` against a fresh export — green, with the `xpPool` schema assertion
    active and zero checker-rule changes.
 
@@ -425,7 +459,8 @@ engine launches.
 - RAM gate per table: `daemon.js`/`hack.js`/`weaken.js` flat, `xphack.js`/`xpweaken.js` exactly
   equal to their counterparts, `xpfarm.js` recorded and within +0.3 GB of the prototype
   baseline; all byte-verified against `dist/src/*`, results in `logs/ramcheck-result.json`.
-- Live steps 1–6 and 8 pass as described; step 7 recorded as observe-at-next-BitNode.
+- Live steps 1–6 and 8 pass as described; step 7's fresh-node coexistence observations
+  recorded (the idle-endgame extreme recorded as observe-late-node).
 - Ship gate (S7): measured exp/sec multiple ≥ 3× from `logs/hacking-progress-log.json`, both
   windows ≥ 30 min, recorded in the CHANGELOG entry with the settled tuning constants.
 - `logs/xpfarm-log.json` demonstrates the equilibrium (step 3) and the toggle (step 6).

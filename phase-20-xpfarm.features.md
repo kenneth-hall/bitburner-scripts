@@ -4,6 +4,19 @@
 spec stage. A throwaway prototype (`src/xpfarm.js`) has been run live to settle the core mechanics —
 its result reshaped this doc (see "What the prototype proved"). Nothing production is built.
 
+> **Status update (2026-07-12, pre-implementation — read before the body).** This doc's
+> snapshot-in-time framing is stale in three ways; the decisions themselves stand. (1) The BitNode
+> was destroyed and re-entered — we are now **early in BN1.2**, so "the 2500 gate" / "idle
+> endgame fleet" context below describes the *old* node; the phase now ships in exactly the
+> fresh-node coexistence regime the scope shift anticipated, and the shelving trigger ("a fresh
+> node's XP re-climb becomes the binding constraint") has fired. (2) The **weaken prototype is no
+> longer running** (node destruction killed all processes; `src/xpfarm.js` remains as a dormant
+> file) — decision 5's "keep it running until the engine ships" is moot, and its 1.4× stopgap
+> baseline is historical. (3) **SF4/Singularity is now available** (Phase 21 save-grant) — this
+> changes nothing here (the engine is deliberately Singularity-free), noted only so the doc's
+> implicit no-Singularity backdrop isn't read as still-binding context. Live-validation deltas are
+> threaded through the spec (`phase-20-xpfarm.spec.md`, regime update in its Context section).
+
 ## Why this phase exists (the goal check)
 
 Sole current goal: **hacking skill ≥ 2500** (the last Daedalus gate). Measured 2026-07-11 post-install:

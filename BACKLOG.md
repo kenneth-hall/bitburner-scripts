@@ -65,11 +65,12 @@ do, and what's broken?*
   in-game aug description), (b) whether unfocused daemon work blocks Kenneth's own manual
   player-actions or only yields the screen. **Revisit when** a Singularity rep-grinder is
   actually built. → `[[reference_focus_penalty_and_slot]]`.
-- **XP-farm engine** (Phase 20, SHELVED — spec ready). Dedicated hack-saturation XP engine that
-  coexists with the money batcher on surplus fleet RAM (self-scales: ~0 early, dominant once the
-  fleet outgrows money needs). Not the BN1 bottleneck (XP climb trivial here) — a pre-BN5
-  investment. **Revisit when** a fresh node's XP re-climb becomes the binding constraint. Ship
-  gate ≥3× exp/sec vs batcher-only A/B. → `phase-20-xpfarm.spec.md`.
+- **XP-farm engine** (Phase 20 — **trigger fired 2026-07-12**, docs refreshed for the BN1.2
+  regime, implementation pending). Dedicated hack-saturation XP engine that coexists with the
+  money batcher on surplus fleet RAM (self-scales: ~0 early, dominant once the fleet outgrows
+  money needs). The shelving trigger ("revisit when a fresh node's XP re-climb becomes the
+  binding constraint") has fired on the BN1.2 re-climb. Ship gate ≥3× exp/sec vs batcher-only
+  A/B. Entry leaves this file at close-out. → `phase-20-xpfarm.spec.md`.
 - **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
   carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
   toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset
