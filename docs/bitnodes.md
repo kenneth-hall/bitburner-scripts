@@ -493,13 +493,53 @@ Hacking Exp **40%** + Server Max Money **11.25%** + `w0r1d_d43m0n` at **300%** d
 (hacking ~9000, not 3000) → both the XP climb and the money to fund augs/servers are far slower
 than BN1. Budget it as a long node, not a quick SF4 grab.
 
+### BN4 timeline model (2026-07-11 analysis + fable cold review — read before re-modelling)
+Worked the "how long is a BN4 clear" question hard; recording the findings + one **corrected error**
+so we don't re-derive (or re-break) it.
+
+- **The 9000 gate is a MULTIPLIER problem, not an exp problem.** Hacking level is
+  `mult × (32·ln(exp) − 200)` (logarithmic in exp). Iso-exp identity: **9000 @ mult 18 needs the
+  *same* exp as 3000 @ mult 6** (both → level/mult = 500 ≈ 3.16e9 exp). So once the mult is there,
+  the climb to 9000 is **days even at BN4's nerfed rate**, not weeks. You cannot out-grind the gate;
+  only the multiplier moves it (below ~mult 15 the required exp re-explodes; above ~18 it's flat).
+- **⚠️ CORRECTED ERROR — NeuroFlux CANNOT bridge the multiplier.** A first pass modelled "stack ~129
+  NFG levels from mult 5→18." **Impossible:** NFG caps at **~30–45 levels/node (~17–18/install)** —
+  the ×1.9/aug in-cycle escalation compounding NFG's own ×1.14/level (already recorded in
+  `docs/endgame-runbook.md` / [[reference_install_resets_money]]-adjacent notes; we ignored our own
+  data). NFG is a **top-off lever (~×1.35–1.56 total), never a 5→18 bridge.**
+- **The real mult bridge is FIXED augs in the corporate factions our catalog excludes** (OmniTek,
+  NWO, Clarke, Fulcrum, ECorp, + Covenant) — ~×2 on the level-mult. Our 11-faction catalog's fixed
+  level-mult product is only **~4.2× (×SF ≈ 5×)**, so **catalog-only BN4 looks INFEASIBLE**; the
+  clearable path is corp-faction augs (→ base ~10) + ~30–45 NFG (→ ~15–16), landing on the feasible
+  frontier. This is why in-node Singularity matters: it **scripts the corp company-work rep grinds**.
+- **What actually drives the clock (in order):** (1) economy ramp under **~2.25% effective hack
+  income** (11.25% max-money × 20% steal) — the true binding constraint, gates fleet size = the exp
+  engine too; (2) scripted corp-faction rep ladder (~1–2 wk, unattended, overlaps 1); (3) ~6–10
+  install cycles, **each paying a fleet-rebuild** (purchased servers wipe on install) at throttled
+  income; (4) the repeated Daedalus endgame (30-aug gate — **BN4's DaedalusAugsRequirement not yet
+  captured, verify on entry**; 150-favor→donation; membership resets per install) + the final
+  ~2–10-day exp climb.
+- **Estimate: ~4–8 weeks wall-clock, MOSTLY UNATTENDED (~days of actual attention).** In-node
+  Singularity scripts the whole loop, so the cost is the computer's time, not yours. The "4–6 week"
+  gut number was accidentally right; a precise-looking model built on the NFG-bridge was *worse* than
+  the vibe. **Dominant remaining uncertainty = BN4 income rate** (bound it: BN1 $/hr × 0.0225).
+- **SF4.1 is likely enough** (don't assume you need the 3-clear SF4.3): the tax-killing calls
+  (join/buy/install/backdoor) are **low-frequency one-shots**, affordable even at 16× RAM as run-once
+  companion scripts on a matured home — *this is fable's claim, verify the RAM budget before betting.*
+- **Decision framing:** the efficiency picture has converged (BN4 ≈ weeks-unattended regardless of
+  detail), so **go/no-go is a fun/motivation call** — "build the automation, then let it grind
+  unattended for a month" — not a math one. And a *trustworthy* timeline needs the **widened aug
+  catalog** (corp/Covenant factions), which is a **Kenneth anti-spoiler decision**, not Claude's.
+
 ## Open questions (BN4, fill in on play)
+- **Widen the aug catalog** to the corp/Covenant/Illuminati factions before trusting any BN4 timeline
+  (anti-spoiler: Kenneth's call). Capture **BN4's DaedalusAugsRequirement** (the 30-aug gate varies
+  per node — BN12/13/15 showed 35/31/20).
+- **Measure BN4 income** to firm the estimate: BN1 $/hr × 0.0225 → the economy-ramp + NFG-topoff clock.
 - Does the daemon/batcher port cleanly, or does 11.25% max-money demand different target
-  selection / more share-farming for rep?
-- Early SF4 has 16× RAM cost — which Singularity calls are worth it at that price before home
-  RAM scales? (keep them out of hot paths regardless — CLAUDE.md rule)
-- Best route to first SF4: rush `w0r1d_d43m0n` on a lean hacking build, or build economy first
-  given the money nerfs?
+  selection / more share-farming for rep? (Mechanic: hack *exp* is money-independent, so the batcher
+  doesn't stall on XP — it just earns ~2.25%; fleet size, hence exp throughput, is what's throttled.)
+- Verify SF4.1's 16× RAM actually covers the install/endgame companion calls on a fresh-node home.
 
 ## Sources
 - In-game **Documentation → BitNodes** page (parsed via CDP) for the list; in-game **BitNode
@@ -510,6 +550,10 @@ than BN1. Budget it as a long node, not a quick SF4 grab.
 - 2026-07-11 — BN4 unlocked; recorded BitNode screen (SF4 tiers + full multiplier table).
 - 2026-07-11 — BN1 cleared (SF1 earned); entered BN4, confirmed in-node Singularity, then
   stepped back out.
+- 2026-07-11 — BN4 timeline model worked + fable cold-reviewed (see "BN4 timeline model" above).
+  Key correction: NFG can't bridge the mult (caps ~30–45/node); corp factions are the real bridge;
+  exp climb is days not the wall; ~4–8 wk mostly-unattended; go/no-go is a motivation call. Topic
+  parked for the day.
 - 2026-07-11 — Repurposed from `bn4.md` to a general BitNodes reference; added the full 15-node
   list parsed from the in-game Documentation page.
 - 2026-07-11 — Added the in-game "Which BitNode next" (short) recommendation guide (parsed via CDP).
