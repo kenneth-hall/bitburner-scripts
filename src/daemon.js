@@ -360,6 +360,12 @@ export async function main(ns) {
   // joins any faction); exits across a level climb only when finished, not
   // on lulls, since nothing relaunches it until the next daemon restart.
   launchDetached(ns, "backdoorfactions.js");
+  // Post-install XP kick: one-shot Singularity companion that throws the
+  // character into Rothman University Computer Science when hacking is still
+  // near level 1 (fresh install), converting post-install dead time into
+  // hacking XP. Self-terminating -- fires (or skips) once and exits, so later
+  // daemon restarts past the level threshold are no-ops.
+  launchDetached(ns, "studybootstrap.js");
   // Phase 18: headless window manager -- restores/persists every dashboard
   // tail's position/size/font so they don't need re-dragging after every
   // restart. Owns no tail of its own.

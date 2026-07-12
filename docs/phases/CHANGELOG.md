@@ -8,6 +8,18 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-12
 
+- **Post-install study kick (`src/studybootstrap.js`) — convert post-install dead time to
+  hacking XP.** After an augment install the character idles at hacking ~1 with a wiped fleet
+  and no port openers, so the batcher/`xpfarm.js` produce ~no XP and the level can sit at 1 for
+  hours (observed live). New one-shot Singularity companion (the `procureprograms.js` isolation
+  model, `launchDetached` from `daemon.js` startup): if `hack < 10`, start Rothman University
+  Computer Science unfocused (`focus:false`), then exit — no stop/handoff (explicitly scoped out
+  as future work). Trigger is `< 10` not `== 1` so a stray bootloop weaken bumping you to 2-3
+  can't make it miss the post-install window. Guards: SF4 active (`getResetInfo().ownedSF`) +
+  try/catch backstop for the Singularity throw, and in-Sector-12 (no `travelToCity` spend — you
+  land there post-install; Rothman is local). Validated: `npm test` (346 pass), live standalone
+  run + live daemon-startup auto-launch both clean-skip at hacking 545; the actual study trigger
+  (`hack < 10`) is inherently live-only, deferred to next install.
 - **Phase 22 — auto-backdoor the four hacking-faction servers, live-validated end-to-end.**
   New self-terminating Singularity fulfiller (`src/backdoorfactions.js`, the
   `procureprograms.js` model): roots + walks + `installBackdoor()`s CSEC/`avmnite-02h`/
