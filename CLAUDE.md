@@ -284,6 +284,12 @@ only), and it was **observed NOT available** at VitaLife/New Tokyo in this build
 (2026-07-11, unlock condition unconfirmed). Read before proposing any grafting-based plan — the
 short version is it doesn't help the BN1 finish.
 
+**In-game settings state** — `docs/user-settings.md` tracks the non-default game **Options**
+toggles Kenneth has changed *that alter what Claude should expect or do* (e.g. **Suppress
+Messages is ON** → story `.msg` messages arrive silently, no popup/terminal line, but the file
+still lands on `home`). Read it before assuming a popup will fire or telling Kenneth to "watch
+for" an in-game notification — a suppressed event has to be *polled* for, not waited on.
+
 **Docs layout:** `docs/` — Bitburner project/task references · `docs/metareference/` —
 non-Bitburner learning material (Claude Code / AI-workflow docs) · `docs/phases/` — archived
 shipped phase docs (index: `CHANGELOG.md`).
