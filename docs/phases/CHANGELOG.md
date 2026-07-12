@@ -6,6 +6,46 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-12
+
+- **Phase 21 — Grant SF4.3 via save edit** → `phase-21-sf4-grant.features.md`,
+  `phase-21-sf4-grant.spec.md`. Deliberate save-file cheat: own Source-File 4 level 3 (1×
+  Singularity RAM) without playing BN4, unlocking `ns.singularity.*` inside the ongoing BN1.2
+  run. Core edit is exactly one substring insertion (`sourceFiles.data` `[[1,1]]` →
+  `[[1,1],[4,3]]`, +6 bytes), derived via `JSON.stringify` so the escaping always matches the
+  save's own format rather than hand-typed backslashes. `tools/save/savelib.mjs` is the pure
+  transform with four hard-fail guards (needle-count, byte-delta, parse-integrity, a structured
+  diff that only permits `sourceFiles.data` to change); `tools/save/sf4grant.mjs` is the CLI
+  (`grant`/`describe`); `src/sf4check.js` is the one-shot Singularity liveness probe, isolated
+  from `daemon.js` per the RAM-isolation rule. `npm test` 330/330 (9 new in
+  `test/savegrant.test.js`, hermetic against an in-code fixture) — the same guard/diff code
+  path is re-run against the real save at apply time, so the fixture tests and the live
+  transform share identical logic. **Spec-stage S1 override (Kenneth signed off):** the
+  features doc's plan to hand-write `SF4.1`/`4.2`/`4.3` achievement records turned out
+  unimplementable — only one SF achievement exists per BitNode (`SF4.1`), and the game
+  self-grants it once the map holds `[4,3]`, confirmed live (achievements page showed `SF4.1`
+  acquired at 8:21:46 AM, between the import and the first liveness check) — so the edit
+  stayed exactly the one insertion, nothing achievement-related to write.
+  `saves/` consolidated with a committed `INDEX.md` (two repo-root `.gz` moved in, extraction
+  dirs + scratch `.pretty.json` deleted, `.gitignore` re-anchored to `/bitburnerSave_*.json.gz`
+  so `saves/*.json.gz` is trackable while the bulky decompressed/pretty forms stay ignored).
+  **Live sitting (L1–L7) run same day, all passed:** fresh Backup Save indexed + committed as
+  `pre-edit-backup` before the transform touched anything; `grant` on the real save reported
+  `ALL GUARDS PASSED`, +6 bytes, summary differing only in `sfLevels`; Import Save accepted the
+  `.gz` cleanly (no fallback ladder needed); `sf4check.js`'s exported log showed
+  `ownedSF: [[1,1],[4,3]]` and a non-throwing `singularityProbe: 4`; `ramcheck.js` measured
+  **7.65 GB**, landing exactly on the 1× derivation (1.6 base + 1.0 `getResetInfo` + 0.05
+  `getHackingLevel` + 5 GB singularity call), nowhere near the 4×/16× bands; a second Backup
+  Save (`post-import-reexport`) confirmed `[4,3]` survives a real load/save cycle — S8's
+  rollback contingency never triggered. **Same-sitting addendum (not originally spec'd):** a
+  narrative toast popup blocked every CDP `goto`/`terminal` click mid-sitting; added
+  `dismissStoryPopup` to `tools/bb/driver.mjs` (fires only when the entire accessible tree is
+  one nameless button + narrative text — can't misfire onto a real confirm/buy/install dialog,
+  which always exposes multiple/named controls) and pre-authorized it in `CLAUDE.md` so future
+  story popups no longer need Kenneth to clear by hand. **Supersedes the SF4-gated backlog**
+  (auto-backdoor, aug-planner execution, TOR ladder, rep watchers) — each becomes its own later
+  phase, none folded into this one.
+
 ## 2026-07-08
 
 - **Phase 18 — readable, self-placing dashboard windows** →

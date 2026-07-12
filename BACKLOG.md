@@ -6,30 +6,6 @@ instead of deleting it — don't let history pile up here.
 
 ## In Progress
 
-- **Phase 21 — Grant SF4.3 via save edit (implementation done 2026-07-12, awaiting live sitting).**
-  Deliberate save-file cheat to own Source-File 4 level 3 without playing BN4, unlocking
-  `ns.singularity.*` at 1× RAM. Spec: `phase-21-sf4-grant.spec.md`. **Code side complete and
-  merged to this branch, `npm test` green (20 files / 330 tests incl. `test/savegrant.test.js`'s
-  9): `tools/save/savelib.mjs` (pure transform + guards), `tools/save/sf4grant.mjs` (CLI,
-  `grant`/`describe`), `src/sf4check.js` (one-shot Singularity liveness check, isolated from
-  daemon.js per Singularity RAM-isolation rule), `saves/` consolidated with `INDEX.md` (the two
-  repo-root `.gz` moved in, extraction dirs + scratch `.pretty.json` deleted, `.gitignore`
-  root-anchored so `saves/*.json.gz` is committable while `saves/*.json`/`*.pretty.json` stay
-  ignored).** The `grant` transform was smoke-tested end-to-end against the real BN1x2 save in a
-  scratch copy (not the repo file) — `ALL GUARDS PASSED`, +6 bytes, both `.sf4.json.gz`/`.sf4.json`
-  outputs decompress identically and round-trip losslessly; not committed as a phase artifact since
-  the live sitting's L1 takes its own fresh backup. **Spec-stage S1 note:** the achievements
-  question resolved to "write nothing" — only `SF4.1` exists (one SF achievement per BitNode) and
-  the game self-grants it once the map holds `[4,3]`, so the transform is exactly the one
-  `,[4,3]` insertion, nothing achievement-related to test or ship.
-  **Not done — Kenneth's live sitting (spec's L1–L8, one sitting):** fresh in-game backup → index
-  it → run `grant` on it for real → Import → verify `sf4check.js`'s exported log shows `ownedSF`
-  ⊇ `[4,3]` + a non-throwing singularity probe → `ramcheck.js sf4check.js` corroborates ≈7.65 GB
-  (1× discount) → re-export and confirm the entry survived a load/save cycle → index the three
-  role-tagged artifacts in `saves/INDEX.md`. BACKLOG/CHANGELOG close-out and phase-doc graduation
-  to `docs/phases/` wait until those live checks pass (ship gate: live/log-dependent changes wait
-  on Kenneth's validation).
-
 - **Phase 20 — XP farm — SHELVED 2026-07-11 (spec done, not implementing now).** The 2500 hacking
   gate was cleared before the engine could ship, and the goal has moved to Daedalus rep (see Next Up),
   which XP throughput doesn't serve. `phase-20-xpfarm.spec.md` stays on disk as a ready-to-implement

@@ -35,9 +35,13 @@ on request — hold to them even when the moment is uncomfortable.
     excludes all three rep-tax killers (gang/sleeves/darknet), so we accept paying the full Daedalus
     tax every clear. Gang (BN2) is a *small* script and the game's designed answer — worth
     reconsidering once the tax bites across multiple clears.
-  - **Note on Singularity:** `ns.singularity.*` is NOT available to us right now (only in-node in BN4,
-    or with SF4). Endgame steps remain manual-UI / CDP-driven until we clear BN4 — the SF4-gated
-    backlog items (auto-backdoor, aug-planner execution, TOR ladder, rep watchers) stay parked.
+  - **Note on Singularity — UPDATED 2026-07-12:** `ns.singularity.*` is now available. Phase 21
+    granted SF4 level 3 via a deliberate save edit (`docs/phases/phase-21-sf4-grant.spec.md`) — a
+    permanent grant on the current save, not tied to this BN1.2 run, so it persists across future
+    installs/resets. The 1× RAM discount is live (confirmed via `sf4check.js` + `ramcheck.js`, ≈7.65
+    GB). The previously-parked SF4-gated backlog items (auto-backdoor, aug-planner execution, TOR
+    ladder, rep watchers) are now buildable — each is still its own future phase, not automatically
+    in scope.
 - **Before agreeing with a plan, lead with its strongest objection and what it costs** — not just the
   upside. Frictionless agreement is a cue to poke harder, not to proceed.
 - **Before building tooling/polish, check it against the goal.** If it doesn't advance the goal, say
