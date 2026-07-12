@@ -16,7 +16,8 @@ import { scanNetwork } from "./common.js";
  */
 export async function main(ns) {
   const callerPid = ns.args[0] !== undefined ? Number(ns.args[0]) : null;
-  const killed = [];
+  let homeKilled = 0;
+  let serversCleared = 0;
 
   for (const proc of ns.ps("home")) {
     if (proc.pid === ns.pid || proc.pid === callerPid) continue;
@@ -28,19 +29,20 @@ export async function main(ns) {
     // bitburner.userinterface.closetail.md).
     ns.ui.closeTail(proc.pid);
     ns.kill(proc.pid);
-    killed.push(`home: ${proc.filename} (pid ${proc.pid})`);
+    homeKilled++;
   }
 
   for (const server of scanNetwork(ns)) {
-    if (ns.killall(server)) {
-      killed.push(`${server}: killall`);
-    }
+    if (ns.killall(server)) serversCleared++;
   }
 
-  ns.tprint("===== killscripts summary =====");
-  if (killed.length === 0) {
-    ns.tprint("Nothing was running.");
+  // One-line summary instead of the former per-process/per-server dump: on a
+  // full fleet that dump was 30-60+ lines of non-actionable terminal noise
+  // every daemon restart. The counts still confirm the cleanup ran (matters on
+  // a manual `run killscripts.js`), just without the wall of detail.
+  if (homeKilled === 0 && serversCleared === 0) {
+    ns.tprint("killscripts: nothing was running.");
   } else {
-    for (const line of killed) ns.tprint(`  ${line}`);
+    ns.tprint(`killscripts: killed ${homeKilled} on home, cleared ${serversCleared} server(s).`);
   }
 }
