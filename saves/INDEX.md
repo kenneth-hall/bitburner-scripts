@@ -31,7 +31,7 @@ Role tags per phase-21-sf4-grant.spec.md S6 / features file:
 
 | file | role | captured (UTC) | BN | ownedSF | hacking | money | augs | sha256 (file) | note |
 |---|---|---|---|---|---|---|---|---|---|
-| _(added during the live sitting — see phase-21-sf4-grant.spec.md "Live procedure")_ | | | | | | | | | |
+| `bitburnerSave_1783861992_BN1x2.json.gz` | pre-edit-backup | 2026-07-12T13:13:12Z | 1 | `[[1,1]]` | 190 | 23893442.376666665 | 4 | `8b5086bddddfc1afadc5f885b29a0e364d7c68a5620ae1c88fad30277b7ec3e7` | L1: fresh Backup Save taken at the start of the live sitting. The rollback — never modified. Sha256 re-verified immediately before Import (L4). |
 
 ## Downloads — not yet consolidated
 
