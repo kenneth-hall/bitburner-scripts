@@ -12,7 +12,8 @@ on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** **re-enter BN1 and clear it once more to reach
   Source-File 1.2** (+8pp to *every* multiplier — the guide's "8 NFG levels" — a permanent, broad,
   cheapest-possible bank). BN1 is already **DONE once** (Red Pill installed, `w0r1d_d43m0n`
-  backdoored → earned SF1.1); we're on the BitVerse selection screen, **not inside any node**. This
+  backdoored → earned SF1.1); we have **re-entered BN1 and are early game in the 1.2 run** (as of
+  2026-07-12 — no longer on the BitVerse selection screen). This
   is the locked near-term goal (decided 2026-07-11). The clear is *low difficulty* (WD 3,000, full
   economy, known playbook) but **not low effort** — favor/rep/augs don't persist across destroying a
   node (only Source-Files, scripts, Intelligence do), so it re-pays the full **Daedalus 2.5m-rep →
