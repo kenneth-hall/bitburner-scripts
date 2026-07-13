@@ -735,3 +735,155 @@ step 2 shows otherwise, that's a new finding, not a known gap.
    above.
 5. **[code]** Close-out: BACKLOG/CHANGELOG entries + `git rm src/xpprobe.js` per work item 9;
    both phase docs (including this amendment) graduate to `docs/phases/`.
+
+## Session checkpoint 2 (2026-07-12, paused after S8 live validation — new finding, pending fix decision)
+
+**Status: resume checklist items 1–3 done and confirmed live; item 4 (live validation) stopped
+partway through step 3 (security equilibrium) because of a new finding below, distinct from the
+lockup S8 fixed. Not merged to `master`. Resume here after Kenneth reviews.**
+
+### What's done this session
+
+- **S8 implemented** in `src/xpfarm.js` (checklist item 1): sized volley
+  (`ceil(gap / WEAKEN_SEC_PER_THREAD * CRUSH_OVERSIZE)`), greedy fill-first-host packing, the
+  `crushUntil` in-memory cooldown ledger, `job.kind: "volley" | "hold"` tagging, hold running on
+  all remaining capacity at whatever security the target currently reads, `"crush-wait"` mode,
+  `volleyThreadsLaunched` per-target log field. `test/xpfarm.test.js`'s pre-S8 "crush sends whole
+  slice" case replaced with five S8 cases (sized volley, greedy packing, crush-wait pure-hold, a
+  too-small-to-cover partial volley, volley+hold coexisting on one host). `npm test`: **385/385
+  green**. Committed: `eb9cf10` "feat(phase-20): implement amendment S8 -- sized, cooldown-gated
+  crush volley" (branch `phase20-xpfarm`, not merged).
+- **RAM gate re-run live** (checklist item 2): dev server killed and restarted fresh first
+  (old PID from the prior session's 6:21 PM incident was still running — replaced with a clean
+  process), byte-verified `dist/src/xpfarm.js`/`dist/src/daemon.js` against `ramcheck.js`'s
+  recorded byte counts (15817 / 54271 bytes — exact match). Result: `xpfarm.js` **5.85GB**,
+  matching S8's mechanical-delta prediction exactly (5.80 baseline + 0.05 `getWeakenTime`);
+  `daemon.js` flat 16.3GB; `hack.js`/`weaken.js` flat; `xphack.js`/`xpweaken.js` exactly equal to
+  their counterparts (1.70/1.75GB). Clean pass, `logs/ramcheck-result.json` written.
+- **Restarted `daemon.js` live** (checklist item 3) via `node tools/bb/cli.mjs restart
+  daemon.js`. Clean process list confirmed (`daemon.js`, `xpfarm.js`, all companions, worker
+  processes). **The specific burst-fix claim is directly confirmed with live data** — multiple
+  full crush cycles observed in `logs/xpfarm-log.json`, e.g.:
+  - `rho-construction` (req499): gap 5.63 (sec 19.63/min 14.00) at 7:22:20 PM → sized volley of
+    **124 threads** (formula: `ceil(5.63/0.05*1.1) = 124`, exact match) → `crush-wait` at
+    7:22:30 PM → `hold` at 7:22:40 PM with sec back at exactly min (14.00). Full cycle in
+    **20 seconds**, versus the pre-S8 bug's ~1.3M threads and 37-minute flat-zero lockup for a
+    comparable gap.
+  - `snap-fitness` (req678, newly rotated into the top-3): gap 39 (sec 58.00/min 19.00) → volley
+    of **859 threads** (formula gives 858; +1 is floating-point rounding on `×1.1`, harmless) —
+    hack threads kept launching every pass during the `crush-wait` window (no lockup).
+  - `syscore` and `alpha-ent` also fired sized (not mega) volleys on their first crush — but see
+    the new finding below for what happened to them *after* that.
+- **Live validation step 2 (coexistence)** observed over a 20-minute window (~7:14–7:34 PM,
+  polled via a background monitor, not manual sleeps): batcher held steady at **17 members**,
+  **`draining` empty throughout** (S1's contamination fix directly confirmed — no XP-only
+  targets ever appeared in `draining`), zero `skip` WARN events. `xpPool` present and large
+  (~9.6M → ~11.6M GB in-flight over the window — this fleet is much larger than the "early
+  BN1.2" framing implied; see the open question below). `claimGb` fluctuated 500K–750K GB,
+  never zero — S2's claim mechanism visibly protecting the batcher's reserve throughout.
+
+### New finding: hold-mode security equilibrium fails for high-req targets (distinct from the S8 lockup)
+
+**Not the pathology S8 fixed — no lockup, exp keeps flowing — but a real miss of live step 3's
+equilibrium acceptance criterion, discovered while checking it.**
+
+`syscore` (req591) fired exactly **one** volley in the entire session (7:15:39 PM, sec 36.4/min
+22.0, gap 14.4, 318 threads — correctly sized) and then sat in `crush-wait` **continuously for
+20+ minutes** while its security climbed **unopposed from 22 to 100 (the server's apparent cap)**
+and never came back down or re-crushed in the observed window. `alpha-ent` (req588) shows the
+same pattern (34.8 → 77.3, still climbing at last observation). `rho-construction` (req499, much
+shorter op time) converges cleanly by contrast: average gap over min 3.15, max 9.02, across 61
+samples in the same window.
+
+**Root cause, diagnosed and confirmed against the log data:** S3's "whole-host round-robin"
+assignment hands an *entire host's* free-RAM slice to whichever single target it's rotated onto,
+for one pass, uncapped. On this fleet (17 batcher members, PB-scale surplus, individual hosts
+apparently very large), single passes launched **200,000–330,000+ hack threads at one target**
+in observed samples (e.g. 274,820 threads at 7:18:39 PM, 324,365 at 7:20:19 PM, 275,104 at
+7:21:09 PM, all against `syscore`). Those threads complete in a synchronized wave ~9+ minutes
+later (`syscore`'s long op time at req591), each adding `+0.002` sec — a single wave of ~275K
+threads adds ~550 sec-equivalents, instantly saturating the server at its 100 cap. Compounding
+this: `ns.getWeakenTime(server)` "is increased by the security level of the target server"
+(`markdown/bitburner.ns.getweakentime.md`), so the `crushUntil` cooldown — sized off the *modest*
+gap (14.4) present when the one volley fired — is itself many minutes long for a req-591 server,
+and hold-mode keeps running against the same crush-wait target throughout that entire cooldown
+(S8 point 3: hold runs everywhere "at any security level"). The single 318-thread volley
+(15.9 sec of correction) is negligible against a single hold-hack wave (~550 sec-equivalents of
+drift) landing a few minutes later — hold's 16% weaken share, itself landing in its own
+synchronized lump ~4× later, can't keep pace with hack lumps this size. **This is a genuinely
+different mechanism than the one S8 targeted**: S8 fixed the crush path committing too much RAM
+into one long weaken; this is the *hold* path committing too much RAM into one target's hack
+allocation, upstream of where crush ever gets a chance to correct it.
+
+**Consequence, measured:** not the S8 lockup (zero completions) — `hacking-progress-log.json`
+shows **225,202 exp/sec over an 18-minute window spanning this finding** (level 670 → 686), so
+the phase's core "completions over occupancy" thesis is intact and the ship-gate's ≥3× multiple
+looks in no danger numerically. But S4's own stated rationale — "the whole 3× speed win of min
+security rides on the hold not slipping" — is being forfeited specifically for `syscore` and
+`alpha-ent`: they're paying full-security (up to sec-100) hack durations, not min-security ones,
+for extended stretches. The measured exp/sec is apparently being carried by raw fleet thread
+volume, not the intended min-sec speed multiplier, for these two targets. Kenneth's framing,
+confirmed correct: **"we overcommit to 1 target"** — a single pass hands too much of one host's
+capacity to one target without any per-target bound.
+
+**Fix directions discussed, not yet decided or implemented:**
+
+1. **(Proposed lead option) Cap hack threads committed to one target per pass**, extending S8's
+   own "size the commitment to what's safe" philosophy to the *source* of drift instead of
+   reacting after the fact: `maxHackThreadsPerTargetPerPass = floor(CRUSH_SEC_GAP /
+   HACK_SEC_PER_THREAD)` (hack adds `0.002` sec/thread per S4's own mechanics derivation → 2,500
+   threads at the current `CRUSH_SEC_GAP = 5`). A host that would overflow this cap on its
+   assigned target spills the excess to weaken (extra holding power) or to the next target in
+   rotation — implementer's call, not yet worked out. Directly bounds wave size below the crush
+   threshold everywhere, not just for targets that happen to have short op times.
+2. **Split each host's slice across all N targets instead of whole-host-per-target** — reduces
+   wave size by roughly N× uniformly, but doesn't hard-bound it (a large enough host still
+   overflows at N× the previous threshold) and is a bigger rework of S3's assignment model than
+   option 1.
+
+Neither is implemented. This needs its own short amendment (S9, mirroring how S8 was written up)
+before coding, per the project's normal spec-then-code discipline — Kenneth asked to pause here
+and pick a direction after reviewing this write-up, rather than have the next session guess.
+
+### Open question surfaced, not investigated
+
+The live fleet observed this session (17 batcher members, PB-scale surplus, `xpPool.inFlightRamGb`
+in the 9.6M–11.6M GB range) is much larger than the "early BN1.2, small fleet" framing this
+spec's regime-update section assumed when describing the resume trigger. Worth a sanity check
+next session (not urgent, doesn't block the S9 fix decision) — confirm this is the expected state
+of the current BN1.2 run's economy at this point in time, not a stale/leftover artifact from
+somewhere else.
+
+### State the live game was left in
+
+- `npm run dev` is running (killed and restarted fresh at the start of this session, before the
+  RAM gate, per the standing rule — PID changed from the prior session's leftover process).
+- `daemon.js` and `xpfarm.js` are both running in-game with S8 live, left as-is (not turned off).
+  No `xp-off.txt`. `syscore`/`alpha-ent` are likely still cycling near/at max security until
+  their (long) cooldowns lapse and a subsequently larger volley fires — this is expected given
+  the finding above, not a new problem to chase; no action needed before the next session.
+- Branch `phase20-xpfarm`: `eb9cf10` (S8 implementation, this session) is the tip, on top of the
+  prior session's `111b61c`. Not merged. This spec-doc checkpoint commit will follow.
+- Live validation progress against the spec's numbered list: step 1 (first fill) and step 2
+  (coexistence) observed and healthy; step 3 (equilibrium) **failed for `syscore`/`alpha-ent`,
+  passed for `rho-construction`** — this is the finding above, not yet resolved; steps 4–8 (the
+  A/B exp/sec ship-gate measurement, toggle test, money-independence, `verify:log`) **not
+  started** — deliberately not begun with equilibrium unresolved, since a fix will change the
+  log data those steps read.
+
+### Resume checklist (next session, pending Kenneth's S9 direction)
+
+1. **[discussion→spec]** Kenneth reviews this checkpoint, picks a fix direction (or a third
+   option); write it up as amendment S9 (decision + mechanical deltas + tests, mirroring S8's
+   format) before coding.
+2. **[code]** Implement S9 in `src/xpfarm.js` + `test/xpfarm.test.js`; `npm test` green.
+3. **[code→live]** Fresh RAM gate if S9 adds any ns calls (none of the options above obviously
+   need one, but confirm).
+4. **[live]** Restart `daemon.js`; re-run the security-equilibrium check (live step 3) — this
+   time expect `syscore`/`alpha-ent` to also hold within ~2 of min like `rho-construction`
+   already does, not just `rho-construction`.
+5. **[live]** Resume live validation at step 4 (the A/B exp/sec ship-gate measurement — ≥30 min
+   engine-on, toggle off, ~10 min decay, ≥30 min engine-off, ≥3× required), then steps 5–8 as
+   written.
+6. **[code]** Close-out per work item 9 (unchanged from before): BACKLOG/CHANGELOG entries +
+   `git rm src/xpprobe.js`; both phase docs (including S8 and S9) graduate to `docs/phases/`.
