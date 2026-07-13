@@ -1198,3 +1198,50 @@ observed); the D2 weaken/hack in-flight ratio decay in `xpPool` (needs 40–60 m
 throughput gate (≥3× the pre-S9 225,202 exp/sec baseline) — all three need a longer unattended
 window than this session covered. **Next:** let the fleet run, then re-check `xpfarm-log.json`
 for `lexo-corp`'s recovery and re-run the A/B per steps 4–8 of the resume checklist above.
+
+### Session checkpoint 4 (2026-07-12 night, ~46 min post-restart, extended live confirmation)
+
+Let the engine run ~46 min unattended (Kenneth authorized continued self-driven testing via CDP)
+and re-sampled `logs/xpfarm-log.json` (275 entries) and `logs/hacking-progress-log.json`.
+
+**Structural fixes fully confirmed, no caveats:**
+- **Zero cap violations across all 1,104 target-records** in the session (`hackThreadsLaunched`
+  never exceeded 2,500).
+- **D2 confirmed numerically**: `(weakenThreadsLaunched − volleyThreadsLaunched) /
+  hackThreadsLaunched` averaged **0.0503** over 342 `hold`-mode records in the last 20 min —
+  matches the target ~0.05 almost exactly (was 0.185 pre-fix, per checkpoint 2's data).
+- **`lexo-corp` fully recovered**: after an initial ~13-minute rough adoption (oscillating
+  20↔67 sec while the cold-start volley's effects and several stacked in-flight hack waves
+  settled — the transient carve-out decision point 2 explicitly allowed for), it settled into a
+  tight, healthy 20↔25 sawtooth around its own min sec and has held there since.
+  `snap-fitness`/`syscore` show the same tight-sawtooth pattern. `zb-institute` (targets[0], the
+  overflow absorber) settled to **holding its own min sec (28.0) while still absorbing
+  100K–437K overflow hack threads/pass** — better than the spec's "expected to ride near 100"
+  prediction, not a problem either way (exp/op is security-independent).
+- **No regressions**: daemon healthy (fleet grew 21→25.43PB during the window, util ~92%,
+  $786.7b earned that day, no stalled members), no runtime-error popups, faction work
+  undisturbed.
+
+**Throughput — recorded, with a caveat the spec didn't anticipate:** exp/sec per ~3-min
+interval from `hacking-progress-log.json` (`231540, 193515, 242320, 232871, 199483, 157204,
+179542, 253444, 201660, 242835, 164438, 207910, 223995, 303811`) is noisy (157K–304K) and
+averages **~215–225K over the full post-restart window — essentially flat against the pre-S9
+225,202 baseline**, not the analytically-predicted +30–40%. Traced the noise to genuine
+external volatility, not an S9 defect: `usableGb` (the XP farm's surplus) swings from ~0 to
+~0.7PB pass-to-pass as the money batcher's own in-flight claim fluctuates (confirmed directly
+in the log; one stretch, 9:18:30–9:20:10, saw usable surplus crater to near-zero for ~2 min,
+exactly the "batcher keeps first claim" design working as intended). **Working theory for why
+the flat reading doesn't contradict the structural fixes**: at this fleet scale (20–25PB),
+overflow's raw hack volume (hundreds of thousands of threads/pass) dwarfs the held-target
+demand (4 targets × ~2,625 threads/pass total) by ~2 orders of magnitude — so D2's fix, which
+only reclaims RAM from the small held-demand slice, is arithmetically too small a fraction of
+total surplus to move the *aggregate* exp/sec much, even though its own ratio is fixed exactly
+as designed. This wasn't modeled in the original D2 estimate (which predated the overflow
+decision). **Not a blocker**: the spec explicitly scoped this comparison as "recorded, not
+gated" — the actual ship gate (S7's ≥3× ON-vs-OFF A/B) is a different, larger comparison
+(toggling `xp-off.txt`) that hasn't been run yet and is unaffected by this finding.
+
+**Open question for Kenneth:** run the formal S7 ON/OFF A/B gate next (needs two comparable
+windows with `xp-off.txt` toggled), or treat the structural confirmation above (cap holds, D2
+ratio correct, targets converge, no regressions) as sufficient to close out S9, given the
+"+30–40%" figure was always a secondary, non-gating estimate?
