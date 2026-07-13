@@ -28,10 +28,10 @@ on request — hold to them even when the moment is uncomfortable.
     engine / no rough penalty" constraints, *despite* its overrated tooling). **BN10 deferred** (its
     ×0.35 hacking-level wall needs in-node Grafting). **BN4 + economy-nerfed nodes deferred** until a
     second engine exists.
-  - **In parallel:** (a) **streamline batcher throughput** — the Phase 20 XP-farm resume trigger (a
-    fresh node's XP re-climb is now the binding constraint); (b) **prototype a second engine** — only
-    **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator + TOR) are buildable now;
-    gang/corp/bladeburner/sleeves are node-locked.
+  - **In parallel:** (a) **Phase 20 XP-farm engine shipped 2026-07-13** (`docs/phases/phase-20-xpfarm.spec.md`)
+    — hack-saturation of surplus fleet RAM, S7 ON/OFF A/B gate measured 5.15× exp/sec; (b) **prototype
+    a second engine** — only **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator +
+    TOR) are buildable now; gang/corp/bladeburner/sleeves are node-locked.
   - **Open strategic Q (surfaced by cold review, not yet decided):** our "no new engine" constraint
     excludes all three rep-tax killers (gang/sleeves/darknet), so we accept paying the full Daedalus
     tax every clear. Gang (BN2) is a *small* script and the game's designed answer — worth

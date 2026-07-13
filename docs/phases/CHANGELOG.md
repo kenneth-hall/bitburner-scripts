@@ -6,6 +6,29 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-13
+
+- **Phase 20 — XP-farm engine, close-out** → `phase-20-xpfarm.features.md`,
+  `phase-20-xpfarm.spec.md`. Dedicated hack-saturation XP engine (`src/xpfarm.js`,
+  `src/xphack.js`, `src/xpweaken.js`) that fills the fleet's surplus RAM — whatever the money
+  batcher and share pool leave unclaimed — with fire-and-forget hack workers against the
+  highest-difficulty eligible servers, self-scaling from ~0 on a busy young fleet to
+  near-total on an idle endgame one. Two amendments landed after the initial ship attempt
+  surfaced live bugs: **S8** (sized, cooldown-gated crush volleys, replacing an unbounded
+  single-pass burst that locked the fleet up on restart) and **S9** (demand-driven packing —
+  volleys → wave-sized held weaken streams → capped 2,500-thread hack waves → an overflow
+  absorber on the highest-reqLevel target — replacing whole-host round-robin, which let
+  per-target hack waves grow unbounded and pinned high-req targets at security 100
+  indefinitely, and a RAM-fraction weaken split that over-delivered security reduction
+  ~4.6×). `npm test` 390/390 green; RAM gate flat 5.85GB (byte-verified, no new ns surface).
+  **Live-confirmed over a multi-hour unattended run:** zero hack-wave-cap violations across
+  1,104+ target-records; D2's weaken/hack ratio measured at 0.0503 (target ~0.05, was 0.185
+  pre-fix); all held targets converged to tight sawtooths around their own min security;
+  money-independence of hack exp confirmed analytically via `Formulas.exe`. **Ship gate
+  (S7, ON/OFF A/B, `xp-off.txt` toggle, ≥30 min/window): engine-on 260,523 exp/sec vs
+  engine-off 50,620 exp/sec — 5.15× (pass, ≥3× required).** `src/xpprobe.js` (brainstorm
+  probe) removed, its findings folded into the features doc.
+
 ## 2026-07-12
 
 - **Auto-buy Formulas.exe (`src/procureformulas.js`) — fulfill the standing reservation SF4

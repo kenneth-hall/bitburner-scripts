@@ -15,7 +15,6 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 | `ramcheck.js [scripts...]` | RAM-gate check via `getScriptRam`, + records in-game byte length as a staleness proof. Defaults to `daemon.js`+`share.js`. |
 | `cloudcosts.js` | Print cloud-server purchase + next-tier upgrade costs. |
 | `sharecurve.js` | Predicted `sharePower` curve across share fractions (needs Formulas.exe). |
-| `xpprobe.js [target]` | Probe hack-exp mechanics (money-independence, exp/time/chance vs security). Phase-20 brainstorm. |
 | `favorprobe.js` | Donation ↔ rep curve probe (Formulas-authoritative; favor is a hand-entered UI read). |
 | `worldprobe.js` | Confirm `w0r1d_d43m0n` has spawned (post-Red-Pill) and read its live gates → log. |
 
@@ -28,7 +27,6 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 | `renamecloudservers.js` | Rename owned cloud servers to the `cloud-<n>` scheme (rename only). |
 | `upgradehomeram.js` | Buy home RAM (Singularity — needs ~74GB free just to launch). |
 | `killscripts.js` | Kill everything (daemon runs it once at startup). |
-| `xpfarm.js` | Fill idle fleet RAM with `weaken` for hacking XP (coexistence-safe with the batcher). Phase-20 MVP. |
 
 ## Core daemon loop (`daemon.js` orchestrates; most are imported, not run)
 | Script | Role |
@@ -46,6 +44,7 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 | Script | Role |
 |---|---|
 | `hack.js` / `grow.js` / `weaken.js` | One-shot batch workers; daemon sets threads + timing. |
+| `xphack.js` / `xpweaken.js` | Fire-and-forget XP-farm workers (distinct filenames keep the batcher's in-flight sweep blind to them). Launched by `xpfarm.js`. |
 | `share.js` | One-cycle faction-share worker; daemon relaunches each tick. |
 | `bootloop.js` | Self-contained cold-start worker (retargets via a re-scp'd control file). |
 
@@ -60,3 +59,4 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 | `targetsmonitor.js` | Live dashboard of every eligible hack target. |
 | `launchmonitor.js` | Live worker-launch history (watches `ns.ps()`). |
 | `tailmanager.js` | Owns dashboard tail-window geometry (headless). |
+| `xpfarm.js` | Hack-saturation XP engine — fills the fleet's surplus RAM (whatever the batcher/share leave unclaimed) with capped, held hack waves plus an overflow absorber; self-scales from ~0 to near-total. Toggle: `xp-off.txt` on home. |

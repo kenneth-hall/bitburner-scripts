@@ -43,13 +43,13 @@ do, and what's broken?*
   `restartScript`, close *all* windows matching the filename **or** its `MANAGED_TAILS` title
   (post-kill they're all dead, so close-all is safe), and make `closeTail` loop instead of
   clicking only the first match.
-- **`verify-log.test.js` doesn't recognize the `rooted` event type** — `npm run verify:log` fails
-  "log format > every event has a valid event type" on any `daemon-batch-log.json` containing a
-  `rooted` event (`hosts.js`'s `getHosts` newlyRooted → daemon logs one "rooted" event per newly
-  rooted batch, an existing feature). The checker's `validTypes` set in
-  `test/verify-log.test.js` was never updated to include it. Pre-existing on `master` (confirmed
-  via `git stash` during Phase 22's live validation, 2026-07-12) — unrelated to that phase, not
-  fixed there to keep scope clean. **Next:** add `'rooted'` to `validTypes` (one-line fix).
+- **`verify-transactions.test.js` doesn't recognize the `auto-formulas` expense source** —
+  `npm run verify:log` fails "log format > every record has a valid type/source" on
+  `transactions-<date>.json` once `procureformulas.js` (Phase-agnostic, auto-buys `Formulas.exe`)
+  has logged its purchase. The checker's `VALID_EXPENSE_SOURCES` set in
+  `test/verify-transactions.test.js` was never updated to include it. Found 2026-07-13 during
+  Phase 20's S9 live validation — unrelated to that phase, not fixed there to keep scope clean.
+  **Next:** add `'auto-formulas'` to `VALID_EXPENSE_SOURCES` (one-line fix).
 
 ## Ideas
 
@@ -74,18 +74,6 @@ do, and what's broken?*
   in-game aug description), (b) whether unfocused daemon work blocks Kenneth's own manual
   player-actions or only yields the screen. **Revisit when** a Singularity rep-grinder is
   actually built. → `[[reference_focus_penalty_and_slot]]`.
-- **XP-farm engine** (Phase 20 — **trigger fired 2026-07-12**; production rewrite implemented
-  2026-07-12 on branch `phase20-xpfarm`). Dedicated hack-saturation XP engine that coexists with
-  the money batcher on surplus fleet RAM (self-scales: ~0 early, dominant once the fleet outgrows
-  money needs). **Status:** S8 (sized, cooldown-gated crush volleys) and S9 (bounded held waves,
-  wave-sized hold streams, overflow absorber on `targets[0]`) are both implemented and
-  live-confirmed (`npm test` 390/390 green; RAM gate flat 5.85GB; live log sample showed the cap
-  holding with zero violations across 40 records, over-gap targets correctly getting zero hack
-  threads, and overflow correctly scoped to `targets[0]` only). **Remaining before close-out:**
-  the S7 A/B ship gate (≥3× exp/sec vs the pre-S9 225,202 baseline) and the D2 weaken/hack ratio
-  decay both need a longer unattended window (tens of minutes) than this session covered — next
-  session should re-check `logs/xpfarm-log.json` after the fleet's run and complete resume
-  checklist steps 4–8. Entry leaves this file at close-out. → `phase-20-xpfarm.spec.md`.
 - **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
   carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
   toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset
