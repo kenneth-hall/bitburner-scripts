@@ -613,10 +613,15 @@ instrumentation — stands as written.**
 1. **Size the volley to the gap.** When a target reads `sec > minSec + CRUSH_SEC_GAP` and no
    volley is in flight for it, launch
    `ceil((sec − minSec) / WEAKEN_SEC_PER_THREAD × CRUSH_OVERSIZE)` weaken threads
-   (`WEAKEN_SEC_PER_THREAD = 0.05`, `CRUSH_OVERSIZE = 1.1`), spread across that target's
-   round-robin hosts *before* any hold split. Scale check from the live finding: syscore's
-   3×-min drift (sec 65, min 22) needs ~860 threads ≈ 1.5TB — the uncapped design spent
-   ~1.3M threads ≈ 2.3PB on it.
+   (`WEAKEN_SEC_PER_THREAD = 0.05`, `CRUSH_OVERSIZE = 1.1`), placed *before* any hold split.
+   **Packing is pinned (reviewer Q4): greedy fill-first-host** — consume the volley starting
+   from the target's first assigned host in round-robin order, spilling to its subsequent
+   hosts only if the first can't fit it; the volley host's leftover slice and all the target's
+   remaining hosts then get the hold split. (Even-spread would behave identically at the
+   target — same total, same landing time — but the tests and the partial-volley path assume
+   a deterministic consumption order, so it's fixed here.) Scale check from the live finding:
+   syscore's 3×-min drift (sec 65, min 22) needs ~860 threads ≈ 1.5TB — the uncapped design
+   spent ~1.3M threads ≈ 2.3PB on it.
 2. **Cooldown ledger.** When a volley actually launches (≥ 1 thread with a nonzero exec pid),
    record `crushUntil[server] = now + ns.getWeakenTime(server) + LOOP_MS`. Until that passes,
    the target is in **crush-wait**: no further crush weakens no matter what `sec` reads — the
@@ -629,12 +634,23 @@ instrumentation — stands as written.**
 3. **Hold runs everywhere else, at any security level.** All remaining capacity — the volley
    hosts' leftover slices, and every host assigned to a crush-wait target — gets the normal
    `HOLD_WEAKEN_FRAC` 84/16 split *at the elevated security*. This is the load-bearing insight:
-   the hold ratio is security-invariant (hack adds +0.002 sec/thread at duration T; weaken
-   removes 0.05/thread at 4T; the balance point W/H = 0.002×4/0.05 = 0.16 has T cancel out),
-   so hold neither fights the volley nor waits for it. XP flows from the first pass — at a
+   the hold balance is security-invariant — hack adds +0.002 sec/thread at duration T, weaken
+   removes 0.05/thread at 4T, so the balance point (W/H = 0.002×4/0.05 = 0.16 **in threads**)
+   has T cancel out and holds at any security level. Precision note (reviewer N5): the
+   implemented `HOLD_WEAKEN_FRAC = 0.16` is a **RAM** fraction, which puts the thread ratio at
+   ~0.185 — deliberately *above* the balance point, exactly S4's "14.1% analytic + margin"
+   framing; above min the surplus slowly weakens the target downward, at min it's a no-op.
+   So hold neither fights the volley nor waits for it. XP flows from the first pass — at a
    reduced rate (ops ~3× longer at drifted sec, hackChance lower), but ≫ the uncapped design's
    *zero completions for 37 minutes* — and the fleet's commitment horizon becomes hack-time
-   (minutes) instead of weaken-at-drifted-sec (37+ min observed).
+   (minutes) instead of weaken-at-drifted-sec (37+ min observed). Caveat (reviewer N6): the
+   invariance argument is a *rate* argument; fire-and-forget launches land in synchronized
+   waves (a pass's hacks all at ~T, its weakens at ~4T), so security can transiently
+   over/undershoot during the first weaken duration. Where the untimed mix actually settles
+   remains S4/features-Q2's declared live unknown — a convergence miss in live step 3 routes
+   to `HOLD_WEAKEN_FRAC`/`CRUSH_SEC_GAP` tuning as that step already says, not to "S8 is
+   broken"; the no-lockup claim doesn't ride on it (exp is granted per completion regardless
+   of where security sits).
 4. **Partial volleys converge.** If the target's hosts this pass can't fit the full volley,
    launch what fits and set the cooldown anyway; the residual gap is re-measured from live
    `sec` after the volley lands and re-volleyed next round. Multiple weaken rounds on a small
@@ -677,16 +693,28 @@ step 2 shows otherwise, that's a new finding, not a known gap.
   `markdown/bitburner.ns.getweakentime.md`). Expected `xpfarm.js` reading: **5.85GB** (the
   checkpoint's recorded 5.80 baseline + 0.05); anything else → identifier hunt per the gate.
 - **Log/tail:** `targets[].mode` gains `"crush-wait"`; `"crush"` now means "volley launched
-  this pass". Engine-internal only — no daemon, sampling, or verify-log changes.
-- **Tests (extends work item 8's `test/xpfarm.test.js`):** volley sized to gap (ceil +
-  oversize), crush-wait target gets pure hold at elevated sec, no volley when `crushOk` is
-  false, partial volley when hosts can't fit it, volley + hold coexisting on one host's slice,
-  hold split unchanged below the gap.
+  this pass". **`targets[]` additionally gains `volleyThreadsLaunched` (reviewer B1):**
+  `weakenThreadsLaunched` sums volley *and* hold weakens, and on any sizable fleet the hold
+  share (16% of the leftover) dwarfs the ~gap/0.05 volley — without a distinct field, the
+  volley-sizing live check below is unreadable from the log. Zero on non-crush passes.
+  Engine-internal only — no daemon, sampling, or verify-log changes.
+- **Tests (work item 8's `test/xpfarm.test.js` — extended AND corrected):** the shipped
+  assertion "crush mode sends a hot target's whole slice to weaken" tests exactly the behavior
+  S8 supersedes — **replace it** (reviewer B3), don't leave it alongside. New cases: volley
+  sized to gap (ceil + oversize), greedy fill-first-host packing, crush-wait target gets pure
+  hold at elevated sec, no volley when `crushOk` is false, partial volley when hosts can't fit
+  it, volley + hold coexisting on the volley host's leftover slice, hold split unchanged below
+  the gap.
 - **Live step 3 reads under S8 as:** `"hold"` entries hold within ~2 of min (as written);
   a drifted target's `"crush-wait"` entries must *transition* to `"hold"` within ~1 weaken
   duration of its volley plus a couple passes — that transition is the new convergence check,
   and `hackThreadsLaunched` should be nonzero from the first post-restart passes (the
-  no-more-lockup check).
+  no-more-lockup check). **`usableGb` reading ≈0 on early passes is expected, not the bug
+  recurring (reviewer B2):** S8 adds no GB cap, so hold legitimately fills the surplus in
+  pass 1. The two states are told apart by *recovery time*: fixed behavior recycles RAM on
+  hack cadence (`usableGb` bounces back within ~1 drifted hackTime — single-digit minutes),
+  the old bug held it flat-zero for ~1 drifted weakenTime (~37 min observed) with zero
+  hack launches.
 
 ### Resume checklist (rewritten under S8)
 
@@ -695,11 +723,13 @@ step 2 shows otherwise, that's a new finding, not a known gap.
 2. **[code→live]** Fresh RAM gate for `xpfarm.js` (dev server kill+restart + `dist/src/*`
    byte-check per standing rule): expect 5.85GB.
 3. **[live]** Restart `daemon.js`. In `logs/xpfarm-log.json` confirm the restart-burst is
-   fixed: volley sizes in the thousands (≈ gap/0.05), `usableGb` does *not* flatline at 0,
-   nonzero `hackThreadsLaunched` from the first passes, drifted targets walk
-   crush → crush-wait → hold within ~1 weaken duration. (Whatever the pre-S8 code left in
-   flight is swept by the restart — no cleanup needed; the 6:21 PM burst self-resolved when it
-   landed ~6:58 PM on 2026-07-12 regardless.)
+   fixed: `volleyThreadsLaunched` in the thousands (≈ gap/0.05 — the dedicated field, since
+   `weakenThreadsLaunched` also carries hold weakens), nonzero `hackThreadsLaunched` from the
+   first passes, drifted targets walk crush → crush-wait → hold within ~1 weaken duration,
+   and `usableGb` — which *will* read ≈0 early (hold fills the surplus by design) — recovers
+   on hack cadence (~single-digit minutes), not weaken cadence (~37 min flat-zero was the
+   bug). (Whatever the pre-S8 code left in flight is swept by the restart — no cleanup
+   needed; the 6:21 PM burst self-resolved when it landed ~6:58 PM on 2026-07-12 regardless.)
 4. **[live]** Resume live validation at step 2 (coexistence) — step 1 (first fill) was
    observed working before the pause; steps 3–8 as written, with step 3 read per the S8 note
    above.
