@@ -845,6 +845,13 @@ Neither is implemented. This needs its own short amendment (S9, mirroring how S8
 before coding, per the project's normal spec-then-code discipline — Kenneth asked to pause here
 and pick a direction after reviewing this write-up, rather than have the next session guess.
 
+**→ Resolved on second-round review (2026-07-12 evening): amendment S9 at the bottom of this
+spec.** Option 1's cap survives as the *held-target* wave cap, but the review found it cannot
+ship alone — on the now-16PB fleet a capped 3-target engine strands ~98% of the surplus (a
+~10× exp/sec regression vs the measured 225K/s) — so S9 pairs it with a deliberate overflow
+absorber, and adds a second, distinct fix (the hold weaken split over-accumulates 4.6× under
+RAM recycling — confirmed live from `xpPool` thread ratios) that this checkpoint hadn't spotted.
+
 ### Open question surfaced, not investigated
 
 The live fleet observed this session (17 batcher members, PB-scale surplus, `xpPool.inFlightRamGb`
@@ -871,7 +878,7 @@ somewhere else.
   started** — deliberately not begun with equilibrium unresolved, since a fix will change the
   log data those steps read.
 
-### Resume checklist (next session, pending Kenneth's S9 direction)
+### Resume checklist (next session, pending Kenneth's S9 direction) — SUPERSEDED by S9's own checklist below
 
 1. **[discussion→spec]** Kenneth reviews this checkpoint, picks a fix direction (or a third
    option); write it up as amendment S9 (decision + mechanical deltas + tests, mirroring S8's
@@ -887,3 +894,264 @@ somewhere else.
    written.
 6. **[code]** Close-out per work item 9 (unchanged from before): BACKLOG/CHANGELOG entries +
    `git rm src/xpprobe.js`; both phase docs (including S8 and S9) graduate to `docs/phases/`.
+
+## Amendment S9 (2026-07-12 evening, second-round review) — bounded held-target waves, wave-sized hold streams, and a deliberate overflow absorber
+
+*(Cold-reviewed by the spec-reviewer subagent 2026-07-12; both blockers — B1: the per-pass
+cap doesn't bound aggregate in-flight drift, criterion needed a transient carve-out; B2: the
+no-hacks rule must key on the sec reading, not the crush/crush-wait mode split — plus Q3/Q4/Q5
+decisions and N6/N7/N8 notes are folded in below, tagged inline.)*
+
+**Supersedes, where they conflict: S3's whole-host round-robin assignment, S4's
+`HOLD_WEAKEN_FRAC` RAM-fraction hold split (and S8 point 3's precision note N5 about it), and
+S8 point 3's "hold runs everywhere" for crush-wait targets. Keeps everything else: S1's worker
+filenames, S2's claim mechanics and reserve order, S3's eligibility filters and per-pass
+re-selection, S8's sized volley + cooldown ledger + greedy packing + partial-volley
+convergence.**
+
+### What the live data shows — two distinct defects, not one
+
+Checkpoint 2 diagnosed the first defect; reviewing its data surfaced a second.
+
+**D1 — per-target hack waves are unbounded (checkpoint 2's finding, quantified).** Whole-host
+round-robin hands one target an entire host's slice per pass with no ceiling. Observed single
+passes committed 200,000–330,000 hack threads to one target (steady recycling still runs
+11K–133K/pass/target). A pass's threads land as one synchronized wave: `+0.002 × N` sec
+essentially at once, so anything above **2,500 threads exceeds the whole `CRUSH_SEC_GAP` in a
+single landing** — and 275K threads is ~110× that. Result in `logs/xpfarm-log.json`:
+`snap-fitness` pinned at sec 100 (the cap) for **176 of 177 samples** (avg gap 66.9);
+`syscore` avg gap 19.2 (max 78); `alpha-ent` 14.2 (max 70.4); only short-op
+`rho-construction` converged (avg 2.8). The sawtooth period is brutal at high req: weakens
+launched against a sec-100 target ride ~40 min (observed: `snap-fitness`'s cohort launched
+~7:15–7:25 PM landed ~8:00–8:01 PM, crashing it 100 → 21.6 for a couple of passes before
+re-pinning). S4's "the whole 3× speed win of min security rides on the hold not slipping" is
+forfeited exactly on the highest-value targets. S8's volley machinery never gets traction:
+one gap-sized volley fires, the cooldown (weakenTime at *drifted* sec, so ~40 min) locks out
+re-crushing, and hold-mode hack waves re-bury the target long before the volley lands.
+
+**D2 — the hold weaken split over-accumulates ~4.6× under RAM recycling (new finding).**
+`HOLD_WEAKEN_FRAC = 0.16` is applied to **each pass's launches**, but a weaken occupies its
+RAM 4× longer than a hack. Under continuous recycling (RAM frees → is re-split 84/16 →
+frees…), the **in-flight** weaken share therefore accumulates to ≈ 4× the launch share:
+in-flight W/H thread ratio → 0.185 × 4 ≈ **0.74**, versus the **0.16 in-flight** ratio that
+S4's own balance analytic (0.002×4/0.05) actually requires. S4's "14.1% of XP RAM" was always
+an *in-flight* share; implementing it as a *per-launch* share over-delivers ~4.6×. (S8's
+precision note N5 called the launch ratio "deliberately above the balance point" — it
+conflated the two bases; corrected here.) **Live confirmation:** `xpPool`'s in-flight thread
+ratio read W/H = 0.565 at 7:53 PM and 0.609 at 8:00 PM, climbing toward the predicted ~0.74
+asymptote — i.e. ~38% of a ~13PB XP pool parked in weakens that deliver ~4.6× more
+sec-reduction than the hacks need offset (floored at min = no-ops) while granting exp at the
+slowest per-GB rate (same exp/op as hack, 4× the duration — features doc line "exp per op ∝
+base difficulty, same for hack/grow/weaken"). Analytically that's ~30–40% of potential exp/sec
+left on the table, independent of D1.
+
+### Why checkpoint 2's option 1 cannot ship alone (the capacity arithmetic)
+
+The proposed cap — `floor(CRUSH_SEC_GAP / 0.002) = 2,500` hack threads/target/pass — bounds a
+held target's *in-flight* hacks to `2,500 × hackTime/LOOP_MS` threads. At `syscore`'s ~190s
+min-sec hackTime that's ~48K threads ≈ **82TB per target; three targets ≈ 250TB. The live
+surplus is ~13PB** — the cap employs ~2% of it. Option 1's two spill ideas both fail: "spill
+to weaken" burns the other 98% on no-op weakens (worse than D2, not better); "spill to the
+next target" exhausts all three capped targets almost immediately and then has no answer. Min
+security buys a 3× op-speed win, but idling 98% of the pool costs ~40×: **strict min-sec
+discipline at this scale is a ≥10× exp/sec regression (~17× by the raw arithmetic: 52× the
+RAM ÷ the 3× speed win)** against the measured 225K exp/sec
+(which, per checkpoint 2, is carried by raw volume). Checkpoint 2's option 2 (split each host
+across N targets) softens waves by ~N× but bounds nothing — a bigger host or fleet re-breaks
+it — and does nothing about D2. The fix has to bound per-target commitment **and** keep the
+surplus employed.
+
+### The decision
+
+1. **Pick `XP_TOP_N = 4` targets (was 3); all get held-target mechanics.** Eligibility,
+   sorting (reqLevel desc), and per-pass re-selection are unchanged from S3. What dies is
+   whole-host round-robin: allocation becomes **demand-driven packing** (point 5).
+2. **Held-target hack waves are capped: at most `HOLD_HACK_WAVE = floor(CRUSH_SEC_GAP /
+   HACK_SEC_PER_THREAD)` = 2,500 hack threads per target per pass, summed across hosts** (a
+   pass's multi-host jobs against one target land as one wave — the cap must bind the sum,
+   not the per-host slice). **Precision (reviewer B1): the cap bounds each *landing wave* to
+   ≤ `CRUSH_SEC_GAP`, not the aggregate in-flight drift** — roughly `hackTime/LOOP_MS` waves
+   (~19 at a 190s hackTime) are in flight before the first one lands and moves the sec
+   reading, so a held target *cold-adopted at min* can transiently accumulate ≈ +5 × 19 ≈
+   +95 sec (pinning a syscore-class target at the 100 cap) before feedback engages.
+   Convergence does **not** ride on the cap alone; it rides on the over-gap rule (point 4)
+   halting further waves the moment the reading crosses the gap, plus the already-launched
+   stream + volley landing — settling within ~1–2 weakenTimes, once, per cold-at-min
+   adoption. That path is rare by construction: post-restart and newly-unlocked targets
+   arrive *drifted* and take the volley/crush-wait path (stream prefills before any hack
+   launches), which has no transient. Steady state per held target: one wave lands per pass
+   (+5), stream lands ~−6.25/pass, net −1.25 → sec grinds to and holds min. Consecutive
+   passes' waves land ≥ LOOP_MS apart (small bunching when durations shift is absorbed by
+   the stream's margin and, at worst, an occasional small volley).
+3. **The hold weaken stream is sized to the wave it must offset, not to RAM** (fixes D2,
+   retires `HOLD_WEAKEN_FRAC`): per target per pass, `w = ceil(h ×
+   HACK_SEC_PER_THREAD / WEAKEN_SEC_PER_THREAD × HOLD_OVERSIZE)` — at a full 2,500-thread
+   wave, `ceil(2500 × 0.04 × 1.25) = 125` weaken threads. **Sizing base, pinned (reviewer
+   Q4): for an under-gap target, `h` is the hack wave actually planned this pass** (a
+   RAM-starved 1,000-thread wave gets `ceil(1000 × 0.05) = 50`); **for an over-gap target
+   (which launches no hacks, point 4), the stream is sized to the full `HOLD_HACK_WAVE`**
+   (= 125) so the weaken pipeline is established by the time hacking resumes. Steady state
+   per held target: hack waves land ≤ +5, stream waves land ≈ −6.25/pass — sec sawtooths
+   within ~gap of min, in-flight W/H ≈ 0.20 (0.16 balance × 1.25 margin), over-delivery
+   floors harmlessly at min.
+4. **Over-gap targets launch no hack waves** (supersedes S8 point 3 for this case). **The
+   rule keys on the security reading — `sec > minSec + CRUSH_SEC_GAP` — not on the
+   crush/crush-wait mode split (reviewer B2):** a target is denied hack waves in the very
+   pass its volley fires (mode `"crush"`) *and* throughout the cooldown (mode
+   `"crush-wait"`); `crushOk` gates only whether a volley also launches. An over-gap held
+   target gets **stream weakens only** (full-wave-sized per point 3); its would-be hack
+   capacity falls through to the overflow absorber. Rationale: checkpoint 2's data shows
+   hold-hacking an over-gap target re-buries it faster than its one volley can correct
+   (~550 sec-equivalents per wave vs a 318-thread volley), and S8 point 3's "XP flows from
+   the first pass" rationale is now preserved *fleet-wide* by overflow instead of
+   per-target. After the first crush-wait cycle the stream is continuous and the target
+   rarely needs another volley in steady state; the cold-adoption transient is ~one-two
+   weakenTimes, mirroring S8's partial-volley "converges over rounds" pattern.
+5. **All remaining capacity — the true surplus after every held demand — goes to `targets[0]`
+   (highest reqLevel = highest exp/op) as a pure-hack overflow, when `XP_OVERFLOW_ENABLED =
+   true`.** Packing order per pass, greedy fill-first-host throughout (S8's packing rule, now
+   global): (a) volleys (S8, unchanged, cooldown-gated), (b) held weaken streams, (c) held
+   hack waves (skipping every over-gap target per point 4), (d) overflow hack on `targets[0]`
+   with everything left. Packing mechanics, restated as requirements so the rewrite doesn't
+   drop them (reviewer N7): every demand spills across hosts (consume the current host, move
+   to the next); a demand the remaining pool can't fully fit launches partially (the volley
+   precedent, now global); hosts whose slice is under one weaken thread are skipped, as the
+   shipped code already does. The overflow deliberately ignores the cap, the crush-wait rule, and the equilibrium
+   criterion: **`targets[0]` is expected to ride at/near sec 100 on a large fleet — that is
+   the design, not the D1 bug recurring** (exp/op is security-independent per features Q1's
+   probe; at 13PB the volume dwarfs the 3× speed loss by ~an order of magnitude, per the
+   arithmetic above). The self-scaling story is preserved *within* the engine: on a small
+   fleet the held demands consume everything and overflow is zero — pure min-sec farming, the
+   durable-BN2+ case; overflow only exists when there is more surplus than min-sec discipline
+   can physically employ. `targets[0]` still runs its held mechanics underneath (a 125-thread
+   stream, occasional ≤ ~1,800-thread volleys — sized `ceil((100−min)/0.05 × 1.1)` at worst
+   since sec caps at 100); against PB overflow they're negligible waste and deliberately left
+   state-free rather than special-cased off.
+   **Fewer than 4 eligible targets (reviewer Q3): the rule is uniform — whatever exists is
+   picked, `targets[0]` is always the absorber, no special case.** The known corner is a
+   *mid-to-large* fleet with exactly one eligible target: overflow saturates it at high sec
+   where a capped-only engine would hold min at 3× speed — by the capacity arithmetic the
+   dump still wins whenever surplus ≳ 3× one target's held capacity (~250TB), and the
+   in-between band is accepted as rare (it needs the batcher to have claimed all but one
+   hackable server *while* the fleet is large) and self-correcting as the level rises. On a
+   small fleet a single eligible target self-scales correctly: its own held demand consumes
+   the fleet, overflow ≈ 0.
+
+**Made explicit, to be measured not assumed:** overflow rides at low hackChance, so its value
+leans on failed hacks granting exp — features Q2's still-open live check. The strongest
+current evidence says they do (225K exp/sec measured *while* `snap-fitness` sat pinned at 100
+holding the largest allocation), but it is confounded, not decomposed. **Decision (reviewer
+Q5, logged): ship with `XP_OVERFLOW_ENABLED = true`.** Confirming failed-hack exp *first*
+would itself need a live session, and the very next live step (the post-restart signature,
+then S7's A/B) measures the same thing with the fix already in place — a hollow overflow
+can't sneak past the ≥3× gate unnoticed. If live validation undershoots, the diagnostic is
+an A/B with `XP_OVERFLOW_ENABLED = false` (surplus idles, held targets only); a hollow
+overflow reading routes to S7's outcome ladder as a re-scope discussion, not a silent
+constant flip.
+
+### Constants (identifier-hygiene pre-checked clean against `NetscriptDefinitions.d.ts`)
+
+```js
+const HACK_SEC_PER_THREAD = 0.002;  // hack's sec-add per thread per completion (S4 mechanics)
+const HOLD_OVERSIZE = 1.25;         // stream margin over exact wave offset; floors at min harmlessly
+const HOLD_HACK_WAVE = Math.floor(CRUSH_SEC_GAP / HACK_SEC_PER_THREAD); // 2,500 -- one wave <= one gap
+const XP_OVERFLOW_ENABLED = true;   // surplus-beyond-held goes to targets[0] as pure hack
+const XP_TOP_N = 4;                 // was 3: one overflow absorber + three fully-held targets
+```
+
+Retired: `HOLD_WEAKEN_FRAC` (delete the constant; nothing else may reference a RAM-fraction
+split). Also pre-checked clean: `overflowHackThreadsLaunched`, `overflowGb`.
+
+### Mechanical deltas for the implementer
+
+- **`planXpJobs` stays pure but is restructured** from per-host round-robin to per-pass
+  demand packing (order above). Requirements, not prescriptions: the per-target cap binds the
+  cross-host sum; crush-wait ⇒ zero hack threads for that target but a full-wave-sized
+  stream; overflow is a distinct job kind or flag (`kind: "overflow"` on hack jobs is
+  suggested) so logging can separate it; deterministic for tests. The caller's `crushOk`
+  ledger interface is unchanged.
+- **No new ns calls.** The whole change is planner logic. `xpfarm.js` RAM gate expectation:
+  **flat 5.85GB** (any movement ⇒ identifier hunt per the standing rule).
+- **Log/tail:** per-target records gain `overflowHackThreadsLaunched` (nonzero only ever on
+  `targets[0]`); `hackThreadsLaunched` now means *capped wave* hacks only, so the cap is
+  directly assertable from the log (`hackThreadsLaunched ≤ 2500` on every record, every
+  target). Top-level record gains `overflowGb` (RAM the overflow consumed this pass). Tail:
+  `targets[0]`'s line gains an ` ovf <n>` suffix when overflow ran. Mode strings unchanged
+  (`hold`/`crush`/`crush-wait`) — overflow is a field, not a mode. Engine-internal only; no
+  daemon, sampling, or verify-log changes (`xpPool`'s schema is untouched).
+- **Tests (`test/xpfarm.test.js`, extended AND corrected again):** S8's volley cases (sizing,
+  cooldown gating, partial volley) survive with packing-model updates; the whole-host
+  round-robin coverage case and the 84/16 RAM-split case test superseded behavior — **replace
+  them**. New cases: cross-host wave cap (a huge host + a second host still sum ≤ 2,500 per
+  target per pass); stream sizing bases per point 3 (`ceil(h × 0.05)` for an actual partial
+  wave; full 125 for any over-gap target); **an over-gap target in mode `"crush"` — volley
+  firing this very pass — gets zero hack threads** (reviewer B2's regression case), as does
+  `"crush-wait"`, and its capacity reaches overflow; overflow absorbs the full remainder as
+  pure hack on `targets[0]` and is tagged; `XP_OVERFLOW_ENABLED = false` leaves the remainder
+  unspent; small-pool degenerate case (held demands consume everything, overflow = 0);
+  single-eligible-target case (it is the absorber and its own held demand); volley precedence
+  over stream/wave/overflow on a tight host; sub-weaken-thread hosts skipped.
+- **Work items touched:** 3 (`xpfarm.js`) and 8 (tests) only.
+
+### Live-validation deltas (step 3 and its S8 reading, rewritten under S9)
+
+The expected post-restart signature, all from `logs/xpfarm-log.json` + snapshots:
+
+1. **Cap holds:** every target record ever logged has `hackThreadsLaunched ≤ 2500`;
+   `overflowHackThreadsLaunched` is large and only on `targets[0]`; `overflowGb` ≈ the pass's
+   usable surplus on a big fleet.
+2. **D1 fixed:** `targets[1..3]` — including high-req ones, the `syscore`/`alpha-ent`
+   criterion that failed — hold within ~2 of min after their first crush-wait completes
+   (~one weakenTime after adoption), and stay there. `targets[0]` is exempt whenever its
+   overflow field is nonzero in the window. **Transient carve-out (reviewer B1): a held
+   target may excurse — even pin at 100 — for up to ~1 hackTime + 1–2 weakenTimes after a
+   cold-at-min adoption** (the in-flight waves launched before the first landing gave
+   feedback; see decision point 2). The pass/fail distinguisher is **recovery**: a healthy
+   target walks back to within ~2 of min within that window and then *stays*, with
+   `hackThreadsLaunched = 0` on every over-gap pass; the D1 bug's signature was the
+   opposite — hack waves continuing while over gap, and no recovery for as long as the
+   allocation persisted (176 consecutive pinned samples). Post-restart adoptions arrive
+   drifted and take the no-transient volley path, so the normal step-3 run shouldn't need
+   the carve-out at all.
+3. **D2 fixed — read it per-target from `xpfarm-log.json`, not from `xpPool` (reviewer N6):**
+   on every under-gap held-target record, `(weakenThreadsLaunched − volleyThreadsLaunched) /
+   hackThreadsLaunched ≈ 0.05` (was 0.185). `xpPool`'s aggregate in-flight W/H falling from
+   ~0.6 toward ≲ 0.05 is the secondary, confounded corroboration (overflow's pure-hack bulk
+   dominates it regardless of the stream fix); allow ~40–60 min after restart for the pre-S9
+   weaken cohorts to decay out of it.
+4. **Throughput:** exp/sec from `hacking-progress-log.json` should meet or beat the pre-S9
+   measured **225,202 exp/sec** (analytic expectation: +30–40% from D2's weaken→hack
+   conversion). Recorded, not gated — the ship gate remains S7's ≥ 3× A/B, unchanged.
+5. **Step 4's window-B decay note:** in-flight decay is now dominated by overflow hacks at
+   sec-100 durations (~10–15 min, longer than the old ~10-min estimate but far below 37-min
+   weakens). Start window B when snapshots show `xpPool.inFlightRamGb` ≈ 0, not on a fixed
+   timer.
+6. **Fragmentation watch, re-scoped (reviewer N8):** overflow consumes ~100% of surplus every
+   pass — a different fragmentation profile from the pre-S9 runs that live steps 1–2 already
+   observed. Live step 7's S2 fragmentation watch (grow jobs failing to place) applies to the
+   *post-S9* engine and should be re-observed, not carried over as already-passed.
+
+### Checkpoint 2's open question (fleet size) — resolved
+
+Confirmed live this session, not a stale artifact: the daemon tail read fleet 7.41PB at
+6:21 PM, 11.02PB at 7:12 PM, and 16.00PB (50 hosts, util ~90%) at 8:11 PM —
+`cloudmanager.js` is compounding ~$5b/min of hacking income into cloud upgrades ($7.2b
+tiers) mid-session. The "early BN1.2, small fleet" framing is simply outdated; the economy
+matured today. (The "util 2.3%" scare during this review was a dead daemon tail frozen at
+6:21:51 PM — every `restart daemon.js` today orphaned its old tail because the close step
+matches title `daemon.js` while `tailmanager.js` re-titles windows to `daemon`; ten stacked
+orphans were closed live. Tooling bug filed in BACKLOG, out of this phase's scope.)
+
+### Resume checklist (rewritten under S9 — replaces checkpoint 2's)
+
+1. **[code]** Implement S9 in `src/xpfarm.js` + `test/xpfarm.test.js` per the deltas above;
+   `npm test` green.
+2. **[code→live]** RAM gate re-run (dev-server kill+restart + `dist/src/*` byte-check per
+   standing rule): `xpfarm.js` expected **flat 5.85GB** (no new ns surface).
+3. **[live]** Restart `daemon.js`; verify the five-point signature above, especially the
+   `syscore`/`alpha-ent`-class convergence (live step 3's criterion, now scoped to
+   `targets[1..3]`).
+4. **[live]** Resume live validation at step 4 (A/B ship gate, with the revised window-B
+   decay check), then steps 5–8 as written.
+5. **[code]** Close-out per work item 9: BACKLOG/CHANGELOG entries + `git rm src/xpprobe.js`;
+   all phase docs (S8 + S9 included) graduate to `docs/phases/`.

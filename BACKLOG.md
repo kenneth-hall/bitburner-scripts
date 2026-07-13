@@ -34,6 +34,15 @@ do, and what's broken?*
   liveness-aware Remote API client, off the critical path): **`docs/dev-server.md` → "Root cause &
   why the fix is restart"**. Related confirmed-and-fixed variant (stale *push* from a `git checkout`
   under the live watcher) is closed — see `docs/phases/phase-13-consolidation.closeout.md`.
+- **`tools/bb` `restart` never closes the daemon's orphaned tail** — `restartScript`
+  (`tools/bb/driver.mjs`) closes the old tail by title = the script *filename* (`daemon.js`), but
+  `tailmanager.js` re-titles managed windows to their display title (`daemon`), so the close never
+  matches and every restart leaks a dead window. Found 2026-07-12: **ten** stacked orphaned
+  `daemon` tails, all docked at the same spot, top one frozen at a 6:21 PM frame — read as a live
+  "util 2.3%" and triggered a false alarm (the live tail underneath read ~90%). **Next:** in
+  `restartScript`, close *all* windows matching the filename **or** its `MANAGED_TAILS` title
+  (post-kill they're all dead, so close-all is safe), and make `closeTail` loop instead of
+  clicking only the first match.
 - **`verify-log.test.js` doesn't recognize the `rooted` event type** — `npm run verify:log` fails
   "log format > every event has a valid event type" on any `daemon-batch-log.json` containing a
   `rooted` event (`hosts.js`'s `getHosts` newlyRooted → daemon logs one "rooted" event per newly
@@ -70,15 +79,12 @@ do, and what's broken?*
   smoke-checked (no crashes, batcher unaffected, engine computing correctly) — full A/B
   ship-gate validation (≥3× exp/sec, security equilibrium tuning) still needs Kenneth's live
   session). Dedicated hack-saturation XP engine that coexists with the money batcher on surplus
-  fleet RAM (self-scales: ~0 early, dominant once the fleet outgrows money needs). **Live
-  observation to watch during validation:** on this large (~7.4PB) fleet, a fresh restart's
-  first pass saw a huge one-tick surplus and committed nearly all of it as crush-mode weaken
-  against 3 very-high-difficulty targets in a single burst — with no per-pass RAM cap, that
-  burst's own long weakenTime (security-dependent) then held ~6.9PB hostage for an extended
-  stretch with zero further XP launches until it landed. Not a correctness bug (batcher stayed
-  healthy throughout, 0 skips), but worth deciding whether it needs a per-pass thread/RAM cap
-  before calling the equilibrium (S4) settled. Entry leaves this file at close-out. →
-  `phase-20-xpfarm.spec.md`.
+  fleet RAM (self-scales: ~0 early, dominant once the fleet outgrows money needs). **Status:**
+  the restart-burst lockup was fixed by spec amendment S8 (sized, cooldown-gated crush volleys —
+  implemented + live-confirmed 2026-07-12); a second live finding (per-target hold overcommit —
+  targets ratcheting to sec 100 — plus a hold-split over-weaken confirmed from `xpPool` ratios)
+  is specced as amendment S9, pending implementation, before the A/B ship gate runs. Entry
+  leaves this file at close-out. → `phase-20-xpfarm.spec.md`.
 - **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
   carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
   toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset
