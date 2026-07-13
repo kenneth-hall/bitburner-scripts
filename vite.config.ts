@@ -66,6 +66,7 @@ export default defineConfig({
       location: (file) => {
         if (file === 'daemon-batch-log.json') return 'logs/daemon-batch-log.json';
         if (file === 'hacking-progress-log.json') return 'logs/hacking-progress-log.json'; // sparse level/XP series for the Daedalus-2500 ETA
+        if (file === 'xpfarm-log.json') return 'logs/xpfarm-log.json'; // Phase 20 -- security-equilibrium + launch evidence for the XP engine
 
         if (/^targets-summary-\d+\.json$/.test(file)) return `logs/${file}`;
         if (/^sharecurve-\d+\.json$/.test(file)) return `logs/${file}`;

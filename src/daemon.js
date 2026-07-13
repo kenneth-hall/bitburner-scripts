@@ -15,6 +15,7 @@ import {
   WORKER_SCRIPTS,
   SHARE_FRACTION,
   SHARE_SCRIPT,
+  XP_SCRIPTS,
   HACK_FRACTION,
   GROW_BUFFER,
   WEAKEN_BUFFER,
@@ -68,6 +69,9 @@ const CYCLE_MS = 10000;
 // boolean (pipelineCostGb > batchBudgetGb -- true iff pickBatchSet's floor
 // rule seated it over-budget). Both additive; the daemon rewrites the whole
 // file on flush, so a restarted session's log is uniformly new-schema.
+// Phase 20 schema change: `snapshot` events gain `xpPool` (parallel to
+// `sharePool`, but with no target/attainedPct -- the XP engine is
+// opportunistic, there's nothing to attain). Additive only.
 const DAEMON_LOG_FILE = "daemon-batch-log.json";
 export const DAEMON_LOG_MAX_ENTRIES = 2000; // raised from 1000 (Phase 7): N members means N x the batch/skip events per tick; exported for trimLog's unit test
 const LOG_FLUSH_INTERVAL_MS = 10000; // lazy-flush cadence for batch/skip/snapshot events; mode/enter/exit flush immediately
@@ -379,6 +383,9 @@ export async function main(ns) {
   // tail's position/size/font so they don't need re-dragging after every
   // restart. Owns no tail of its own.
   launchDetached(ns, "tailmanager.js");
+  // Phase 20: XP engine -- fills surplus RAM with hack workers; self-
+  // suppresses when the fleet is busy (the batcher's claim is senior).
+  launchDetached(ns, "xpfarm.js");
 
   let hosts = [];
   let targets = [];
@@ -481,7 +488,14 @@ export async function main(ns) {
       ns.scp([WORKER_SCRIPTS.hack, WORKER_SCRIPTS.grow, WORKER_SCRIPTS.weaken, SHARE_SCRIPT], host.hostname);
     }
 
-    ramCosts = { ...workerRamCosts(ns), [SHARE_SCRIPT]: ns.getScriptRam(SHARE_SCRIPT, "home") };
+    ramCosts = {
+      ...workerRamCosts(ns),
+      [SHARE_SCRIPT]: ns.getScriptRam(SHARE_SCRIPT, "home"),
+      // Phase 20: priced so inFlightByTarget can bucket the XP engine's
+      // processes into xpPool -- the daemon never launches these itself.
+      [XP_SCRIPTS.hack]: ns.getScriptRam(XP_SCRIPTS.hack, "home"),
+      [XP_SCRIPTS.weaken]: ns.getScriptRam(XP_SCRIPTS.weaken, "home"),
+    };
 
     const currentTargetNames = new Set(targets.map((t) => t.server));
     // "new target" prints were removed as non-actionable terminal noise: they
@@ -1048,6 +1062,10 @@ export async function main(ns) {
           attainedPct: shareAttainedPct,
           sharePower,
         },
+        // Phase 20: from the existing post-launch sweep (no third sweep) --
+        // the daemon never launches XP work itself, so there's nothing to
+        // arithmetic-track between sweeps the way share's post-top-up state is.
+        xpPool: postLaunchInFlight.xpPool,
       };
       if (draining.length > 0) snapshotRecord.draining = draining;
       logEntries = appendLogEvent(logEntries, openSkipRecords, snapshotRecord);

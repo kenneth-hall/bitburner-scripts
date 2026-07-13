@@ -74,7 +74,12 @@ function latestConfigAsOf(index) {
 
 describe('log format', () => {
   it('every event has a valid event type', () => {
-    const validTypes = new Set(['batch', 'skip', 'enter', 'exit', 'mode', 'snapshot', 'xcheck']);
+    // 'rooted' is a pre-existing bug fix (not a Phase 20 schema change): the
+    // daemon has always emitted 'rooted' events (daemon.js's refreshCycle,
+    // logged whenever a new server gets rooted this cycle) but this set never
+    // included it -- any log containing one fails here, which early-BN1.2
+    // sessions (rooting is ongoing) will always do.
+    const validTypes = new Set(['batch', 'skip', 'enter', 'exit', 'mode', 'snapshot', 'xcheck', 'rooted']);
     for (const e of entries) {
       expect(validTypes.has(e.event), `unknown event type: ${e.event}`).toBe(true);
     }
@@ -182,6 +187,13 @@ describe('log format', () => {
             typeof e.sharePool.attainedPct === 'number' || e.sharePool.attainedPct === null,
             `snapshot at ${e.time} has a non-number, non-null sharePool.attainedPct`
           ).toBe(true);
+          // Phase 20: additive xpPool bucket, parallel to sharePool but with
+          // no targetGb/attainedPct (the XP engine is opportunistic).
+          expect(e.xpPool).toMatchObject({
+            hackThreads: expect.any(Number),
+            weakenThreads: expect.any(Number),
+            inFlightRamGb: expect.any(Number),
+          });
           break;
         case 'mode':
           expect(e).toMatchObject({
@@ -409,6 +421,18 @@ describe('soft reports', () => {
         console.log(
           `sharePower across ${sharePowers.length} snapshot(s): min ${Math.min(...sharePowers).toFixed(3)} / ` +
             `avg ${avg(sharePowers).toFixed(3)} / max ${Math.max(...sharePowers).toFixed(3)}`
+        );
+      }
+
+      // Phase 20: informational only, beside the share summaries -- the
+      // xpPool bucket's RAM footprint across the session (evidence, not a
+      // gated invariant; the equilibrium/multiple claims live in
+      // xpfarm-log.json and hacking-progress-log.json instead).
+      const xpPoolRamGbs = snapshots.map((s) => s.xpPool?.inFlightRamGb).filter((v) => typeof v === 'number');
+      if (xpPoolRamGbs.length > 0) {
+        console.log(
+          `xpPool.inFlightRamGb across ${xpPoolRamGbs.length} snapshot(s): min ${Math.min(...xpPoolRamGbs).toFixed(1)} / ` +
+            `avg ${avg(xpPoolRamGbs).toFixed(1)} / max ${Math.max(...xpPoolRamGbs).toFixed(1)} GB`
         );
       }
 

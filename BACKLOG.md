@@ -34,13 +34,22 @@ do, and what's broken?*
   liveness-aware Remote API client, off the critical path): **`docs/dev-server.md` → "Root cause &
   why the fix is restart"**. Related confirmed-and-fixed variant (stale *push* from a `git checkout`
   under the live watcher) is closed — see `docs/phases/phase-13-consolidation.closeout.md`.
-- **`verify-log.test.js` doesn't recognize the `rooted` event type** — `npm run verify:log` fails
-  "log format > every event has a valid event type" on any `daemon-batch-log.json` containing a
-  `rooted` event (`hosts.js`'s `getHosts` newlyRooted → daemon logs one "rooted" event per newly
-  rooted batch, an existing feature). The checker's `validTypes` set in
-  `test/verify-log.test.js` was never updated to include it. Pre-existing on `master` (confirmed
-  via `git stash` during Phase 22's live validation, 2026-07-12) — unrelated to that phase, not
-  fixed there to keep scope clean. **Next:** add `'rooted'` to `validTypes` (one-line fix).
+- **`tools/bb` `restart` never closes the daemon's orphaned tail** — `restartScript`
+  (`tools/bb/driver.mjs`) closes the old tail by title = the script *filename* (`daemon.js`), but
+  `tailmanager.js` re-titles managed windows to their display title (`daemon`), so the close never
+  matches and every restart leaks a dead window. Found 2026-07-12: **ten** stacked orphaned
+  `daemon` tails, all docked at the same spot, top one frozen at a 6:21 PM frame — read as a live
+  "util 2.3%" and triggered a false alarm (the live tail underneath read ~90%). **Next:** in
+  `restartScript`, close *all* windows matching the filename **or** its `MANAGED_TAILS` title
+  (post-kill they're all dead, so close-all is safe), and make `closeTail` loop instead of
+  clicking only the first match.
+- **`verify-transactions.test.js` doesn't recognize the `auto-formulas` expense source** —
+  `npm run verify:log` fails "log format > every record has a valid type/source" on
+  `transactions-<date>.json` once `procureformulas.js` (Phase-agnostic, auto-buys `Formulas.exe`)
+  has logged its purchase. The checker's `VALID_EXPENSE_SOURCES` set in
+  `test/verify-transactions.test.js` was never updated to include it. Found 2026-07-13 during
+  Phase 20's S9 live validation — unrelated to that phase, not fixed there to keep scope clean.
+  **Next:** add `'auto-formulas'` to `VALID_EXPENSE_SOURCES` (one-line fix).
 
 ## Ideas
 
@@ -65,12 +74,6 @@ do, and what's broken?*
   in-game aug description), (b) whether unfocused daemon work blocks Kenneth's own manual
   player-actions or only yields the screen. **Revisit when** a Singularity rep-grinder is
   actually built. → `[[reference_focus_penalty_and_slot]]`.
-- **XP-farm engine** (Phase 20 — **trigger fired 2026-07-12**, docs refreshed for the BN1.2
-  regime, implementation pending). Dedicated hack-saturation XP engine that coexists with the
-  money batcher on surplus fleet RAM (self-scales: ~0 early, dominant once the fleet outgrows
-  money needs). The shelving trigger ("revisit when a fresh node's XP re-climb becomes the
-  binding constraint") has fired on the BN1.2 re-climb. Ship gate ≥3× exp/sec vs batcher-only
-  A/B. Entry leaves this file at close-out. → `phase-20-xpfarm.spec.md`.
 - **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
   carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
   toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset

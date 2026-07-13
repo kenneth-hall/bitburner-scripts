@@ -14,15 +14,17 @@ const POLL_MS = 1000;
 export const TAIL_LAYOUT_FILE = "tail-layout.json";
 export const GEOMETRY_EPSILON_PX = 2;
 
-// Exactly the five standing dashboard companions daemon.js launches at
-// startup. bootstrap.js/procureprograms.js/launchmonitor.js are deliberately
-// excluded -- transient/manual tails, not standing dashboards (features doc).
+// Exactly the standing dashboard companions daemon.js launches at startup
+// (five through Phase 18, plus Phase 20's xpfarm.js). bootstrap.js/
+// procureprograms.js/launchmonitor.js are deliberately excluded --
+// transient/manual tails, not standing dashboards (features doc).
 export const MANAGED_TAILS = [
   { script: "daemon.js", title: "daemon", defaultW: 840, defaultH: 420 },
   { script: "targetsmonitor.js", title: "targets", defaultW: 760, defaultH: 220 },
   { script: "transactionsmonitor.js", title: "transactions", defaultW: 560, defaultH: 180 },
   { script: "cloudmanager.js", title: "cloud manager", defaultW: 560, defaultH: 200 },
   { script: "resourcemanager.js", title: "resource manager", defaultW: 560, defaultH: 180 },
+  { script: "xpfarm.js", title: "xp farm", defaultW: 560, defaultH: 200 },
 ];
 
 const LAYOUT_MARGIN_PX = 8;

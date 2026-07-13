@@ -16,7 +16,7 @@ import {
   isForcedLegacy,
   crossCheckFormulas,
 } from '../src/sampling.js';
-import { SHARE_SCRIPT } from '../src/scheduler.js';
+import { SHARE_SCRIPT, XP_SCRIPTS } from '../src/scheduler.js';
 
 // --- mock ns -----------------------------------------------------------
 
@@ -236,6 +236,53 @@ describe('inFlightByTarget', () => {
     const ns = makeMockNs({ ps: multiTargetPs }); // no share.js processes present
     const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS_WITH_SHARE);
     expect(result.sharePool).toEqual({ threads: 0, ramGb: 0 });
+  });
+
+  // --- Phase 20: xpPool bucket ---------------------------------------------
+
+  it('accumulates XP processes into `xpPool` by filename (hack vs weaken thread split, RAM total), never touching byTarget', () => {
+    const RAM_COSTS_WITH_XP = { ...RAM_COSTS, [XP_SCRIPTS.hack]: 1.7, [XP_SCRIPTS.weaken]: 1.75 };
+    function xpAndBatchPs(hostname) {
+      const byHost = {
+        home: [
+          { filename: 'hack.js', args: ['joesguns'], threads: 3 },
+          { filename: XP_SCRIPTS.hack, args: ['n00dles', 0], threads: 10 },
+          { filename: XP_SCRIPTS.weaken, args: ['n00dles', 1], threads: 2 },
+        ],
+        'pserv-0': [{ filename: XP_SCRIPTS.weaken, args: ['harakiri-sushi', 2], threads: 4 }],
+      };
+      return byHost[hostname] ?? [];
+    }
+    const ns = makeMockNs({ ps: xpAndBatchPs });
+    const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS_WITH_XP);
+    expect(result.xpPool).toEqual({ hackThreads: 10, weakenThreads: 6, inFlightRamGb: 10 * 1.7 + 6 * 1.75 });
+    expect(Object.keys(result.byTarget)).toEqual(['joesguns']); // XP workers never create a byTarget entry, despite carrying a target arg
+  });
+
+  it('yields zero-defaulted xpPool when no XP processes are running', () => {
+    const RAM_COSTS_WITH_XP = { ...RAM_COSTS, [XP_SCRIPTS.hack]: 1.7, [XP_SCRIPTS.weaken]: 1.75 };
+    const ns = makeMockNs({ ps: multiTargetPs });
+    const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS_WITH_XP);
+    expect(result.xpPool).toEqual({ hackThreads: 0, weakenThreads: 0, inFlightRamGb: 0 });
+  });
+
+  it('share and XP buckets coexist in one sweep, independent of each other and of byTarget', () => {
+    const RAM_COSTS_ALL = { ...RAM_COSTS, [SHARE_SCRIPT]: 4, [XP_SCRIPTS.hack]: 1.7, [XP_SCRIPTS.weaken]: 1.75 };
+    function allBucketsPs(hostname) {
+      const byHost = {
+        home: [
+          { filename: 'hack.js', args: ['joesguns'], threads: 3 },
+          { filename: SHARE_SCRIPT, args: [1], threads: 5 },
+          { filename: XP_SCRIPTS.hack, args: ['n00dles', 0], threads: 8 },
+        ],
+      };
+      return byHost[hostname] ?? [];
+    }
+    const ns = makeMockNs({ ps: allBucketsPs });
+    const result = inFlightByTarget(ns, MULTI_TARGET_HOSTS, RAM_COSTS_ALL);
+    expect(result.sharePool).toEqual({ threads: 5, ramGb: 20 });
+    expect(result.xpPool).toEqual({ hackThreads: 8, weakenThreads: 0, inFlightRamGb: 8 * 1.7 });
+    expect(Object.keys(result.byTarget)).toEqual(['joesguns']);
   });
 });
 
