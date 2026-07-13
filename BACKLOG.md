@@ -59,11 +59,6 @@ do, and what's broken?*
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
   first — does `contract.submit()` dodge `attempt`'s 10 GB charge? — it can invalidate the
   single-script architecture. → `phase-19-contracts.features.md`.
-- **Auto-backdoor Tier-2 validation: fresh-node end-to-end** (Phase 22 shipped Tier 1 —
-  `src/backdoorfactions.js` live-validated mid-run: CSEC/avmnite-02h/I.I.I.I all backdoored
-  automatically, zero auto-joins, RAM 11 GB). Tier 2 (reset → climb from level 1 → invite
-  appears on a *brand-new* node) is structurally deferred — can't run before the next
-  install/reset on this node. **Trigger:** the next install/reset on this BitNode.
 - **Install-order calculator** (`tools/install-calc.mjs`, offline node) — the by-eye half
   shipped as `docs/bn1-install-plan.md`; catalog assembled (`docs/aug-catalog*`). Remaining is
   only the thin calc for the one "install-now vs one-more-cycle / how-many-NFG-levels" call.

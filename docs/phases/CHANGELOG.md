@@ -8,6 +8,12 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-13
 
+- **Auto-backdoor Tier-2 validation, closed** — `src/backdoorfactions.js` confirmed live on a
+  genuinely fresh reset (BN1.2 install): all four backdoor targets (CSEC, avmnite-02h, I.I.I.I,
+  run4theh111z) auto-backdoored correctly during the climb from hacking level 1, with zero
+  auto-joins (verified no `joinFaction`/`workForFaction` call exists in `src/`). `logs/backdoor-
+  status.json` shows `allDone: true` at hacking 537. Tier 1 (mid-run backdooring) had already
+  shipped; this closes the deferred fresh-node case.
 - **Phase 20 — XP-farm engine, close-out** → `phase-20-xpfarm.features.md`,
   `phase-20-xpfarm.spec.md`. Dedicated hack-saturation XP engine (`src/xpfarm.js`,
   `src/xphack.js`, `src/xpweaken.js`) that fills the fleet's surplus RAM — whatever the money
