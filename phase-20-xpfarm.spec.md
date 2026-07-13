@@ -1155,3 +1155,46 @@ orphans were closed live. Tooling bug filed in BACKLOG, out of this phase's scop
    decay check), then steps 5–8 as written.
 5. **[code]** Close-out per work item 9: BACKLOG/CHANGELOG entries + `git rm src/xpprobe.js`;
    all phase docs (S8 + S9 included) graduate to `docs/phases/`.
+
+### Session checkpoint 3 (2026-07-12 night, S9 implemented + live-confirmed, A/B gate still open)
+
+**Steps 1–3 of the resume checklist are done this session.** `planXpJobs` rewritten as the
+demand-driven packer described in the decision (volleys → held streams → held hack waves →
+overflow), `HOLD_WEAKEN_FRAC` retired, `XP_TOP_N` → 4, all six new constants added.
+`test/xpfarm.test.js`'s `planXpJobs` suite rewritten: the two superseded S8-era cases (whole-host
+round-robin, 84/16 RAM-split) replaced; one stale S8 assertion (a `~16%` weaken-share check that
+no longer holds once streams are wave-sized instead of RAM-fraction-sized) corrected; nine new S9
+cases added (cross-host wave cap, RAM-starved stream sizing basis, crush-mode zero-hack
+regression, overflow tagging + disabled, small-pool degenerate, single-target, volley precedence,
+sub-thread host skip). `npm test`: 390/390 green.
+
+**RAM gate:** dev server killed+restarted clean (had gone stale — an `ESTABLISHED` socket that
+wasn't actually round-tripping, consistent with the known dev-server liveness bug); `xpfarm.js`
+confirmed **flat 5.85GB** live via `ramcheck.js`, byte-matched against `dist/src/xpfarm.js`
+(19,058 bytes both sides) — no new ns surface, as expected for a planner-only change.
+
+**Live signature, confirmed via CDP (`tools/bb/`), not by hand:** the running `xpfarm.js` was the
+stale pre-S9 build (showing the exact D1 bug in the wild — `zb-institute` pinned at sec 85 vs min
+28 in `crush-wait` while still launching 234,247 hack threads/pass). Kenneth was mid-faction-work
+(Sector-12), which hides the nav bar and blocks `tools/bb`'s `goto`; clicked "Do something else
+simultaneously" (backgrounds the work panel without stopping it, confirmed rep still ticking
+afterward) to free the nav, then `restart xpfarm.js`. Ten passes / 40 target-records sampled
+from `logs/xpfarm-log.json` post-restart:
+- **Cap holds, zero violations**: every `hackThreadsLaunched` ≤ 2500 across all 40 records.
+- **D1 fixed**: `syscore` (a `hold`-mode, min-sec target) pinned exactly at 22.0/22.0 with a
+  clean `2500H/125W` on every single sample — this is the same target class the pre-S9 bug
+  pinned at the sec-100 cap. `snap-fitness` recovered from a drifted cold-adopt (37.0 → 64.8
+  [old in-flight jobs from the killed pre-S9 engine still landing — the transient carve-out] →
+  32.1 → 25.5 → 19.0 = min, `hold` mode) within ~40s.
+- **Over-gap ⇒ zero hack waves, confirmed**: `zb-institute` and `lexo-corp`, both `crush-wait`
+  the entire window, show `hack: 0` on every record — point 4's rule live.
+- **Overflow correctly scoped**: only `zb-institute` (targets[0], reqLevel 726, the highest of
+  the four) ever carries nonzero `overflowHackThreadsLaunched` (up to 176K); the other three are
+  0 on every record.
+
+**Not yet run this session:** `lexo-corp`'s full recovery (still `crush-wait` at sec 100 at the
+end of the ~70s sampled window — expected, its cooldown/weakenTime is far longer than what was
+observed); the D2 weaken/hack in-flight ratio decay in `xpPool` (needs 40–60 min); and the S7 A/B
+throughput gate (≥3× the pre-S9 225,202 exp/sec baseline) — all three need a longer unattended
+window than this session covered. **Next:** let the fleet run, then re-check `xpfarm-log.json`
+for `lexo-corp`'s recovery and re-run the A/B per steps 4–8 of the resume checklist above.

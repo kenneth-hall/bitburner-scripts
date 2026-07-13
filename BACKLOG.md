@@ -75,16 +75,17 @@ do, and what's broken?*
   player-actions or only yields the screen. **Revisit when** a Singularity rep-grinder is
   actually built. → `[[reference_focus_penalty_and_slot]]`.
 - **XP-farm engine** (Phase 20 — **trigger fired 2026-07-12**; production rewrite implemented
-  2026-07-12 on branch `phase20-xpfarm`, `npm test` green (381/381), RAM gate clean, live-run
-  smoke-checked (no crashes, batcher unaffected, engine computing correctly) — full A/B
-  ship-gate validation (≥3× exp/sec, security equilibrium tuning) still needs Kenneth's live
-  session). Dedicated hack-saturation XP engine that coexists with the money batcher on surplus
-  fleet RAM (self-scales: ~0 early, dominant once the fleet outgrows money needs). **Status:**
-  the restart-burst lockup was fixed by spec amendment S8 (sized, cooldown-gated crush volleys —
-  implemented + live-confirmed 2026-07-12); a second live finding (per-target hold overcommit —
-  targets ratcheting to sec 100 — plus a hold-split over-weaken confirmed from `xpPool` ratios)
-  is specced as amendment S9, pending implementation, before the A/B ship gate runs. Entry
-  leaves this file at close-out. → `phase-20-xpfarm.spec.md`.
+  2026-07-12 on branch `phase20-xpfarm`). Dedicated hack-saturation XP engine that coexists with
+  the money batcher on surplus fleet RAM (self-scales: ~0 early, dominant once the fleet outgrows
+  money needs). **Status:** S8 (sized, cooldown-gated crush volleys) and S9 (bounded held waves,
+  wave-sized hold streams, overflow absorber on `targets[0]`) are both implemented and
+  live-confirmed (`npm test` 390/390 green; RAM gate flat 5.85GB; live log sample showed the cap
+  holding with zero violations across 40 records, over-gap targets correctly getting zero hack
+  threads, and overflow correctly scoped to `targets[0]` only). **Remaining before close-out:**
+  the S7 A/B ship gate (≥3× exp/sec vs the pre-S9 225,202 baseline) and the D2 weaken/hack ratio
+  decay both need a longer unattended window (tens of minutes) than this session covered — next
+  session should re-check `logs/xpfarm-log.json` after the fleet's run and complete resume
+  checklist steps 4–8. Entry leaves this file at close-out. → `phase-20-xpfarm.spec.md`.
 - **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
   carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
   toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset

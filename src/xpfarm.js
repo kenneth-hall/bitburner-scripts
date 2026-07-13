@@ -22,11 +22,14 @@ import { XP_SCRIPTS, carveReservation } from "./scheduler.js";
 
 const LOOP_MS = 10_000;
 const XP_RESERVE_FRAC = 0.05; // per-host headroom for the batcher's next-tick launches
-const HOLD_WEAKEN_FRAC = 0.16; // weaken share of each XP allocation (~14.1% analytic + margin)
 const CRUSH_SEC_GAP = 5; // sec above min beyond which a target gets a sized crush volley (S8)
 const WEAKEN_SEC_PER_THREAD = 0.05; // 1-core threads; home's core bonus only over-delivers (harmless)
 const CRUSH_OVERSIZE = 1.1; // volley sizing margin over the measured gap (S8)
-const XP_TOP_N = 3; // simultaneous targets
+const HACK_SEC_PER_THREAD = 0.002; // hack's sec-add per thread per completion (S9)
+const HOLD_OVERSIZE = 1.25; // hold-stream margin over the exact wave offset; floors at min harmlessly (S9)
+const HOLD_HACK_WAVE = Math.floor(CRUSH_SEC_GAP / HACK_SEC_PER_THREAD); // 2,500 -- one landing wave <= one gap (S9)
+const XP_OVERFLOW_ENABLED = true; // surplus beyond every held demand goes to targets[0] as pure hack (S9)
+const XP_TOP_N = 4; // was 3 (S9): one overflow absorber + three fully-held targets
 const SNAPSHOT_STALE_MS = 60_000; // batcher snapshot older than this => daemon not running, claim 0
 const XP_OFF_MARKER = "xp-off.txt";
 const XP_LOG_FILE = "xpfarm-log.json";
@@ -114,87 +117,139 @@ export function pickXpTargets(candidates, claimedServers, topN, playerLevel) {
 }
 
 /**
- * Allocator (S8): assigns each usable host (reserve-netted, claim-carved --
- * `hosts` carries only `{hostname, freeRam}`) wholly to one target,
- * round-robin over `targets`. A target whose current security exceeds
- * `minSec + crushSecGap` AND is not in cooldown (`target.crushOk`) gets a
- * SIZED crush volley -- `ceil((sec - minSec) / weakenSecPerThread *
- * crushOversize)` weaken threads total, consumed greedily starting from the
- * target's first-assigned host and spilling to its later hosts only if the
- * first can't fit it (a partial volley when the fleet can't cover the full
- * size -- converges over subsequent passes, not a bug). A target in
- * cooldown (`crushOk === false`) gets no volley regardless of its sec --
- * the in-flight volley's reduction isn't observable yet. Every remaining
- * slice -- the volley host's leftover RAM, and every host on a crush-wait
- * or under-gap target -- gets the normal `holdWeakenFrac` weaken /
- * remainder hack split AT WHATEVER SECURITY THE TARGET CURRENTLY READS
- * (the hold balance is security-invariant, see spec S8 point 3), floored to
- * whole threads, weaken sized first -- either half drops silently if it
- * floors to 0 threads. Hosts under one weaken thread's RAM are skipped
- * entirely. Weaken jobs carry `kind: "volley" | "hold"` so the caller can
- * tell them apart (only a launched volley sets the cooldown ledger).
+ * Allocator (S9): demand-driven packing across the FULL shared host pool --
+ * no more per-target host assignment. Demands are packed in priority order,
+ * each one greedily from the first host with room, spilling to later hosts
+ * as needed (a demand the pool can't fully cover lands partially --
+ * converges/self-corrects over subsequent passes, not a bug); hosts under
+ * one thread's RAM for a given demand are skipped for it.
+ *
+ * (a) Sized, cooldown-gated crush volleys (S8, unchanged): a target whose
+ *     current security exceeds `minSec + crushSecGap` AND is not in
+ *     cooldown (`target.crushOk`) gets `ceil((sec - minSec) /
+ *     weakenSecPerThread * crushOversize)` weaken threads (kind "volley").
+ * (b) Held weaken streams, sized to the wave they must offset (spec point
+ *     3): for an under-gap target, to the hack wave actually achievable
+ *     this pass (peeked against the post-volley pool, before any stream or
+ *     wave consumes anything -- `min(holdHackWave, capacity)`); for an
+ *     over-gap target (no hack wave this pass -- see (c)), to the FULL
+ *     `holdHackWave`, so its stream is established before its cooldown
+ *     clears. `w = ceil(h * hackSecPerThread / weakenSecPerThread *
+ *     holdOversize)` (kind "hold").
+ * (c) Held hack waves, capped at `holdHackWave` threads per target per
+ *     pass, summed across every host that contributes (spec point 2) --
+ *     an over-gap target gets none, its capacity falls through to (d)
+ *     (spec point 4, keyed on the sec reading, not the crush/crush-wait
+ *     split).
+ * (d) Overflow: when `opts.overflowEnabled`, everything left over goes to
+ *     `targets[0]` (highest reqLevel) as pure hack (kind "overflow"),
+ *     ignoring the cap/gap/cooldown entirely (spec point 5).
+ *
  * Deterministic; no ns.
  * @param {{hostname: string, freeRam: number}[]} hosts
- * @param {{server: string, sec: number, minSec: number, crushOk: boolean}[]} targets
+ * @param {{server: string, sec: number, minSec: number, crushOk: boolean}[]} targets sorted by reqLevel desc; targets[0] is the overflow absorber
  * @param {Record<string, number>} ramCosts keyed by XP_SCRIPTS.hack/weaken
- * @param {{holdWeakenFrac: number, crushSecGap: number, weakenSecPerThread: number, crushOversize: number}} opts
+ * @param {{crushSecGap: number, weakenSecPerThread: number, crushOversize: number, hackSecPerThread: number, holdOversize: number, holdHackWave: number, overflowEnabled: boolean}} opts
  */
 export function planXpJobs(hosts, targets, ramCosts, opts) {
-  const { holdWeakenFrac, crushSecGap, weakenSecPerThread, crushOversize } = opts;
+  const { crushSecGap, weakenSecPerThread, crushOversize, hackSecPerThread, holdOversize, holdHackWave, overflowEnabled } = opts;
   const hackRam = ramCosts[XP_SCRIPTS.hack];
   const weakenRam = ramCosts[XP_SCRIPTS.weaken];
   const jobs = [];
   let hackThreads = 0;
   let weakenThreads = 0;
   let volleyThreads = 0;
+  let overflowHackThreads = 0;
 
-  if (targets.length === 0) return { jobs, hackThreads, weakenThreads, volleyThreads };
+  const empty = { jobs, hackThreads, weakenThreads, volleyThreads, overflowHackThreads };
+  if (targets.length === 0 || hosts.length === 0) return empty;
 
-  // Per-target volley need, computed once up front from the pass-start sec
-  // reading; consumed host-by-host below as the volley is packed.
-  const volleyRemaining = new Map();
+  const pool = hosts.map((h) => ({ hostname: h.hostname, freeRam: h.freeRam }));
+
+  // Packs up to `count` threads of `threadRam` GB each, greedily from the
+  // first host with room, spilling to later ones; mutates the pool. Returns
+  // the actual number of threads placed (< count when the pool runs out).
+  function draw(threadRam, count, emit) {
+    let placed = 0;
+    for (let i = 0; i < pool.length && placed < count; i++) {
+      const host = pool[i];
+      if (host.freeRam < threadRam) continue;
+      const take = Math.min(Math.floor(host.freeRam / threadRam), count - placed);
+      if (take < 1) continue;
+      emit(host.hostname, take);
+      host.freeRam -= take * threadRam;
+      placed += take;
+    }
+    return placed;
+  }
+
+  // Non-mutating read of how many `threadRam`-sized threads the pool could
+  // currently afford, capped at `cap` -- used to size a stream ahead of its
+  // own wave without reserving anything.
+  function peekCapacity(threadRam, cap) {
+    let total = 0;
+    for (const host of pool) {
+      if (total >= cap) break;
+      if (host.freeRam >= threadRam) total += Math.floor(host.freeRam / threadRam);
+    }
+    return Math.min(total, cap);
+  }
+
+  const overGap = new Map(targets.map((t) => [t.server, t.sec > t.minSec + crushSecGap]));
+
+  // (a) sized, cooldown-gated crush volleys
   for (const t of targets) {
-    const overGap = t.sec > t.minSec + crushSecGap;
-    const needed = overGap && t.crushOk ? Math.ceil(((t.sec - t.minSec) / weakenSecPerThread) * crushOversize) : 0;
-    volleyRemaining.set(t.server, needed);
+    if (!overGap.get(t.server) || !t.crushOk) continue;
+    const needed = Math.ceil(((t.sec - t.minSec) / weakenSecPerThread) * crushOversize);
+    if (needed < 1) continue;
+    const placed = draw(weakenRam, needed, (hostname, threads) => {
+      jobs.push({ hostname, script: XP_SCRIPTS.weaken, threads, target: t.server, kind: "volley" });
+    });
+    weakenThreads += placed;
+    volleyThreads += placed;
   }
 
-  let targetIndex = 0;
-  for (const host of hosts) {
-    if (host.freeRam < weakenRam) continue;
-    const target = targets[targetIndex % targets.length];
-    targetIndex++;
-
-    let freeRam = host.freeRam;
-
-    const remaining = volleyRemaining.get(target.server);
-    if (remaining > 0) {
-      const affordable = Math.floor(freeRam / weakenRam);
-      const volleyThreadsForHost = Math.min(affordable, remaining);
-      if (volleyThreadsForHost >= 1) {
-        jobs.push({ hostname: host.hostname, script: XP_SCRIPTS.weaken, threads: volleyThreadsForHost, target: target.server, kind: "volley" });
-        weakenThreads += volleyThreadsForHost;
-        volleyThreads += volleyThreadsForHost;
-        volleyRemaining.set(target.server, remaining - volleyThreadsForHost);
-        freeRam -= volleyThreadsForHost * weakenRam;
-      }
-    }
-
-    const wThreads = Math.floor((freeRam * holdWeakenFrac) / weakenRam);
-    const remainingGb = freeRam - wThreads * weakenRam;
-    const hThreads = Math.floor(remainingGb / hackRam);
-
-    if (wThreads >= 1) {
-      jobs.push({ hostname: host.hostname, script: XP_SCRIPTS.weaken, threads: wThreads, target: target.server, kind: "hold" });
-      weakenThreads += wThreads;
-    }
-    if (hThreads >= 1) {
-      jobs.push({ hostname: host.hostname, script: XP_SCRIPTS.hack, threads: hThreads, target: target.server });
-      hackThreads += hThreads;
-    }
+  // (b) held weaken streams -- sized against the wave each target is about
+  // to receive, peeked from the post-volley pool before any stream/wave
+  // consumes it (all targets peek the same untouched pool; a RAM-starved
+  // multi-target pass slightly over-sizes later targets' streams -- rare,
+  // self-correcting per spec).
+  const plannedWave = new Map();
+  for (const t of targets) {
+    plannedWave.set(t.server, overGap.get(t.server) ? holdHackWave : peekCapacity(hackRam, holdHackWave));
+  }
+  for (const t of targets) {
+    const h = plannedWave.get(t.server);
+    const w = Math.ceil(((h * hackSecPerThread) / weakenSecPerThread) * holdOversize);
+    if (w < 1) continue;
+    const placed = draw(weakenRam, w, (hostname, threads) => {
+      jobs.push({ hostname, script: XP_SCRIPTS.weaken, threads, target: t.server, kind: "hold" });
+    });
+    weakenThreads += placed;
   }
 
-  return { jobs, hackThreads, weakenThreads, volleyThreads };
+  // (c) held hack waves -- over-gap targets get none this pass
+  for (const t of targets) {
+    if (overGap.get(t.server)) continue;
+    const cap = Math.min(holdHackWave, plannedWave.get(t.server));
+    if (cap < 1) continue;
+    const placed = draw(hackRam, cap, (hostname, threads) => {
+      jobs.push({ hostname, script: XP_SCRIPTS.hack, threads, target: t.server });
+    });
+    hackThreads += placed;
+  }
+
+  // (d) overflow -- everything left goes to targets[0] as pure hack
+  if (overflowEnabled) {
+    const absorber = targets[0].server;
+    const placed = draw(hackRam, Infinity, (hostname, threads) => {
+      jobs.push({ hostname, script: XP_SCRIPTS.hack, threads, target: absorber, kind: "overflow" });
+    });
+    hackThreads += placed;
+    overflowHackThreads += placed;
+  }
+
+  return { jobs, hackThreads, weakenThreads, volleyThreads, overflowHackThreads };
 }
 
 /** Ring-trims XP_LOG_FILE's in-memory buffer to XP_LOG_MAX_ENTRIES, no pinning needed (no config record to preserve). */
@@ -288,14 +343,19 @@ export async function main(ns) {
     }));
 
     const plan = planXpJobs(carvedPool, targets, ramCosts, {
-      holdWeakenFrac: HOLD_WEAKEN_FRAC,
       crushSecGap: CRUSH_SEC_GAP,
       weakenSecPerThread: WEAKEN_SEC_PER_THREAD,
       crushOversize: CRUSH_OVERSIZE,
+      hackSecPerThread: HACK_SEC_PER_THREAD,
+      holdOversize: HOLD_OVERSIZE,
+      holdHackWave: HOLD_HACK_WAVE,
+      overflowEnabled: XP_OVERFLOW_ENABLED,
     });
 
     const scpDone = new Set();
-    const perTarget = new Map(targets.map((t) => [t.server, { hackThreadsLaunched: 0, weakenThreadsLaunched: 0, volleyThreadsLaunched: 0 }]));
+    const perTarget = new Map(
+      targets.map((t) => [t.server, { hackThreadsLaunched: 0, weakenThreadsLaunched: 0, volleyThreadsLaunched: 0, overflowHackThreadsLaunched: 0 }])
+    );
     let failedLaunches = 0;
 
     for (const job of plan.jobs) {
@@ -310,7 +370,8 @@ export async function main(ns) {
       }
       const agg = perTarget.get(job.target);
       if (job.script === XP_SCRIPTS.hack) {
-        agg.hackThreadsLaunched += job.threads;
+        if (job.kind === "overflow") agg.overflowHackThreadsLaunched += job.threads;
+        else agg.hackThreadsLaunched += job.threads;
       } else {
         agg.weakenThreadsLaunched += job.threads;
         if (job.kind === "volley") agg.volleyThreadsLaunched += job.threads;
@@ -335,14 +396,17 @@ export async function main(ns) {
     if (failedLaunches > 0) ns.print(`WARN: ${failedLaunches} launch(es) failed (exec returned pid 0)`);
 
     const targetLogEntries = [];
+    let overflowGb = 0;
     for (const target of targets) {
       const overGap = target.sec > target.minSec + CRUSH_SEC_GAP;
       const mode = overGap ? (target.crushOk ? "crush" : "crush-wait") : "hold";
       const agg = perTarget.get(target.server);
+      overflowGb += agg.overflowHackThreadsLaunched * ramCosts[XP_SCRIPTS.hack];
       ns.print(
         `  ${target.server.padEnd(15)} req ${String(target.reqLevel).padStart(5)} ${mode.padEnd(10)} ` +
           `sec ${target.sec.toFixed(1)}/${target.minSec.toFixed(1)} | +${agg.hackThreadsLaunched}H/${agg.weakenThreadsLaunched}W` +
-          (agg.volleyThreadsLaunched > 0 ? ` (vol ${agg.volleyThreadsLaunched})` : "")
+          (agg.volleyThreadsLaunched > 0 ? ` (vol ${agg.volleyThreadsLaunched})` : "") +
+          (agg.overflowHackThreadsLaunched > 0 ? ` ovf ${ns.format.number(agg.overflowHackThreadsLaunched)}` : "")
       );
       targetLogEntries.push({
         server: target.server,
@@ -353,6 +417,7 @@ export async function main(ns) {
         hackThreadsLaunched: agg.hackThreadsLaunched,
         weakenThreadsLaunched: agg.weakenThreadsLaunched,
         volleyThreadsLaunched: agg.volleyThreadsLaunched,
+        overflowHackThreadsLaunched: agg.overflowHackThreadsLaunched,
       });
     }
 
@@ -363,6 +428,7 @@ export async function main(ns) {
       usableGb,
       claimGb: claim.claimGb,
       hackingLevel: playerLevel,
+      overflowGb,
       targets: targetLogEntries,
     });
     ns.write(XP_LOG_FILE, JSON.stringify(logEntries, null, 2), "w");

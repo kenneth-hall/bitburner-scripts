@@ -153,63 +153,31 @@ describe('pickXpTargets', () => {
 
 describe('planXpJobs', () => {
   const RAM_COSTS = { [XP_SCRIPTS.hack]: 1.7, [XP_SCRIPTS.weaken]: 1.75 };
-  const OPTS = { holdWeakenFrac: 0.16, crushSecGap: 5, weakenSecPerThread: 0.05, crushOversize: 1.1 };
+  const HACK_SEC_PER_THREAD = 0.002;
+  const HOLD_HACK_WAVE = Math.floor(5 / HACK_SEC_PER_THREAD); // 2500
+  const OPTS = {
+    crushSecGap: 5,
+    weakenSecPerThread: 0.05,
+    crushOversize: 1.1,
+    hackSecPerThread: HACK_SEC_PER_THREAD,
+    holdOversize: 1.25,
+    holdHackWave: HOLD_HACK_WAVE,
+    overflowEnabled: true,
+  };
+  const EMPTY_RESULT = { jobs: [], hackThreads: 0, weakenThreads: 0, volleyThreads: 0, overflowHackThreads: 0 };
 
-  it('round-robin covers N targets across hosts', () => {
-    const hosts = [
-      { hostname: 'h1', freeRam: 100 },
-      { hostname: 'h2', freeRam: 100 },
-      { hostname: 'h3', freeRam: 100 },
-    ];
-    const targets = [
-      { server: 'a', sec: 10, minSec: 10, crushOk: true },
-      { server: 'b', sec: 10, minSec: 10, crushOk: true },
-    ];
-    const { jobs } = planXpJobs(hosts, targets, RAM_COSTS, OPTS);
-    const targetsHit = new Set(jobs.map((j) => j.target));
-    expect(targetsHit).toEqual(new Set(['a', 'b']));
-    // h1 -> a, h2 -> b, h3 -> a (round-robin wraps)
-    expect(jobs.filter((j) => j.hostname === 'h1').every((j) => j.target === 'a')).toBe(true);
-    expect(jobs.filter((j) => j.hostname === 'h2').every((j) => j.target === 'b')).toBe(true);
-    expect(jobs.filter((j) => j.hostname === 'h3').every((j) => j.target === 'a')).toBe(true);
-  });
-
-  it('hold mode splits ~84/16 hack/weaken in threads, weaken sized first, both >= 1 (below the gap, unchanged by S8)', () => {
-    const hosts = [{ hostname: 'h1', freeRam: 1000 }];
-    const targets = [{ server: 'a', sec: 10, minSec: 10, crushOk: true }]; // gap 0, well under crushSecGap
-    const { jobs, hackThreads, weakenThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS);
-    expect(jobs).toHaveLength(2);
-    const weakenJob = jobs.find((j) => j.script === XP_SCRIPTS.weaken);
-    const hackJob = jobs.find((j) => j.script === XP_SCRIPTS.hack);
-    expect(weakenJob.kind).toBe('hold');
-    expect(weakenJob.threads).toBeGreaterThanOrEqual(1);
-    expect(hackJob.threads).toBeGreaterThanOrEqual(1);
-    // weaken RAM share should be close to 16% of the host's total RAM
-    const weakenGb = weakenThreads * RAM_COSTS[XP_SCRIPTS.weaken];
-    expect(weakenGb / 1000).toBeCloseTo(0.16, 1);
-    expect(hackThreads).toBeGreaterThan(0);
-  });
-
-  it('a slice too small to afford even one weaken thread is dropped (host skipped entirely)', () => {
-    const hosts = [{ hostname: 'tiny', freeRam: 1 }]; // under one weaken thread (1.75 GB)
+  it('a slice too small to afford even one thread of either kind is dropped (host skipped entirely)', () => {
+    const hosts = [{ hostname: 'tiny', freeRam: 1 }]; // under both hackRam (1.7) and weakenRam (1.75)
     const targets = [{ server: 'a', sec: 10, minSec: 10, crushOk: true }];
     const { jobs } = planXpJobs(hosts, targets, RAM_COSTS, OPTS);
     expect(jobs).toEqual([]);
   });
 
-  it('a host slice that affords weaken but not enough left over for a hack thread drops the hack half only', () => {
-    const tightHosts = [{ hostname: 'h2', freeRam: 1.8 }]; // 16% = 0.288 -> 0 weaken threads (dropped); remainder 1.8 -> 1 hack thread
-    const targets = [{ server: 'a', sec: 10, minSec: 10, crushOk: true }];
-    const { jobs: tightJobs } = planXpJobs(tightHosts, targets, RAM_COSTS, OPTS);
-    expect(tightJobs).toHaveLength(1);
-    expect(tightJobs[0].script).toBe(XP_SCRIPTS.hack);
-  });
-
   it('empty hosts or empty targets yields no jobs', () => {
     const targets = [{ server: 'a', sec: 10, minSec: 10, crushOk: true }];
     const hosts = [{ hostname: 'h1', freeRam: 1000 }];
-    expect(planXpJobs([], targets, RAM_COSTS, OPTS)).toEqual({ jobs: [], hackThreads: 0, weakenThreads: 0, volleyThreads: 0 });
-    expect(planXpJobs(hosts, [], RAM_COSTS, OPTS)).toEqual({ jobs: [], hackThreads: 0, weakenThreads: 0, volleyThreads: 0 });
+    expect(planXpJobs([], targets, RAM_COSTS, OPTS)).toEqual(EMPTY_RESULT);
+    expect(planXpJobs(hosts, [], RAM_COSTS, OPTS)).toEqual(EMPTY_RESULT);
   });
 
   // --- S8: sized, cooldown-gated crush volley -----------------------------
@@ -246,17 +214,20 @@ describe('planXpJobs', () => {
     expect(jobs.some((j) => j.hostname === 'h2' && j.script === XP_SCRIPTS.hack)).toBe(true);
   });
 
-  it('a crush-wait target (crushOk: false) over the gap gets pure hold at its elevated security, no volley', () => {
+  it('a crush-wait target (crushOk: false) over the gap gets no volley, a full-wave-sized stream, no hack wave (its capacity falls through to overflow)', () => {
     const hosts = [{ hostname: 'h1', freeRam: 1000 }];
     const targets = [{ server: 'hot', sec: 50, minSec: 10, crushOk: false }]; // gap 40, but cooling down
-    const { jobs, volleyThreads, weakenThreads, hackThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS);
+    const { jobs, volleyThreads, weakenThreads, hackThreads, overflowHackThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS);
     expect(volleyThreads).toBe(0);
     expect(jobs.every((j) => j.kind !== 'volley')).toBe(true);
-    expect(weakenThreads).toBeGreaterThan(0);
-    expect(hackThreads).toBeGreaterThan(0);
-    // same ~84/16 hold split as any other target, just at the elevated sec
-    const weakenGb = weakenThreads * RAM_COSTS[XP_SCRIPTS.weaken];
-    expect(weakenGb / 1000).toBeCloseTo(0.16, 1);
+    // stream sized to the FULL wave (2500), not peeked -- over-gap targets get no hack wave this pass
+    const expectedStream = Math.ceil(HOLD_HACK_WAVE * 0.05); // 125
+    expect(weakenThreads).toBe(expectedStream);
+    expect(jobs.some((j) => j.kind === 'hold' && j.script === XP_SCRIPTS.weaken)).toBe(true);
+    expect(jobs.some((j) => j.script === XP_SCRIPTS.hack && j.kind !== 'overflow')).toBe(false);
+    // this target is also targets[0] -- its capped capacity falls through to overflow
+    expect(overflowHackThreads).toBeGreaterThan(0);
+    expect(hackThreads).toBe(overflowHackThreads); // no capped-wave hack, only overflow
   });
 
   it('a partial volley launches what fits when the fleet cannot cover the full sized volley', () => {
@@ -270,7 +241,7 @@ describe('planXpJobs', () => {
     expect(jobs).toEqual([{ hostname: 'h1', script: XP_SCRIPTS.weaken, threads: 50, target: 'hot', kind: 'volley' }]);
   });
 
-  it('volley and hold coexist on the volley host\'s leftover slice', () => {
+  it('volley and hold coexist on the volley host\'s leftover slice (leftover falls through to this lone target\'s overflow)', () => {
     const weakenRam = RAM_COSTS[XP_SCRIPTS.weaken];
     const volleyNeeded = Math.ceil((6 / 0.05) * 1.1); // gap 6 (just over crushSecGap 5) -> 132 threads
     const hosts = [{ hostname: 'h1', freeRam: volleyNeeded * weakenRam + 1000 }]; // volley fits with plenty left over
@@ -280,5 +251,108 @@ describe('planXpJobs', () => {
     expect(jobs.some((j) => j.kind === 'volley')).toBe(true);
     expect(jobs.some((j) => j.kind === 'hold' && j.script === XP_SCRIPTS.weaken)).toBe(true);
     expect(hackThreads).toBeGreaterThan(0);
+  });
+
+  // --- S9: bounded held waves, wave-sized streams, overflow absorber -----
+
+  const OPTS_NO_OVERFLOW = { ...OPTS, overflowEnabled: false };
+
+  it('cross-host wave cap: a huge host + a second host still sum to <= holdHackWave (2500) hack threads for one target per pass', () => {
+    const hackRam = RAM_COSTS[XP_SCRIPTS.hack];
+    const hosts = [
+      { hostname: 'h1', freeRam: 1500 * hackRam }, // affords 1500 of the 2500-thread wave -- forces spillover
+      { hostname: 'h2', freeRam: 1_000_000 }, // absorbs the rest
+    ];
+    const targets = [{ server: 't', sec: 10, minSec: 10, crushOk: true }]; // gap 0
+    const { jobs, hackThreads, weakenThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS_NO_OVERFLOW);
+    expect(hackThreads).toBe(HOLD_HACK_WAVE);
+    expect(weakenThreads).toBe(Math.ceil(HOLD_HACK_WAVE * 0.05)); // stream sized to the full wave (abundant pool)
+    const hackJobs = jobs.filter((j) => j.script === XP_SCRIPTS.hack);
+    expect(hackJobs.reduce((sum, j) => sum + j.threads, 0)).toBe(HOLD_HACK_WAVE);
+    expect(new Set(hackJobs.map((j) => j.hostname))).toEqual(new Set(['h1', 'h2'])); // spans both hosts
+  });
+
+  it('stream sizing for a RAM-starved partial wave is based on the wave PLANNED before the stream consumes anything (point 3), not the final landed count', () => {
+    const hackRam = RAM_COSTS[XP_SCRIPTS.hack];
+    const hosts = [{ hostname: 'h1', freeRam: 1000 * hackRam }]; // caps the peeked wave at exactly 1000, well under 2500
+    const targets = [{ server: 't', sec: 10, minSec: 10, crushOk: true }];
+    const { hackThreads, weakenThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS_NO_OVERFLOW);
+    expect(weakenThreads).toBe(Math.ceil(1000 * 0.05)); // 50, sized to the 1000-thread peek
+    expect(hackThreads).toBeLessThan(1000); // the stream's own footprint shaves a few threads off the peek
+    expect(hackThreads).toBeGreaterThan(900);
+  });
+
+  it('an over-gap target in mode "crush" (volley firing this very pass) gets zero hack threads (reviewer B2)', () => {
+    const hosts = [{ hostname: 'h1', freeRam: 1_000_000 }];
+    const targets = [{ server: 'hot', sec: 50, minSec: 10, crushOk: true }]; // gap 40 -- volley fires
+    const { jobs, volleyThreads, hackThreads, weakenThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS_NO_OVERFLOW);
+    const expectedVolley = Math.ceil((40 / 0.05) * 1.1); // 880
+    expect(volleyThreads).toBe(expectedVolley);
+    expect(hackThreads).toBe(0);
+    expect(weakenThreads).toBe(expectedVolley + Math.ceil(HOLD_HACK_WAVE * 0.05)); // volley + full-wave-sized stream
+    expect(jobs.every((j) => j.script !== XP_SCRIPTS.hack)).toBe(true);
+  });
+
+  it('overflow absorbs the full remainder as pure hack on targets[0] only, tagged kind "overflow"; other held targets never see it', () => {
+    const hosts = [{ hostname: 'h1', freeRam: 10_000_000 }];
+    const targets = [
+      { server: 'top', sec: 10, minSec: 10, crushOk: true },
+      { server: 'second', sec: 10, minSec: 10, crushOk: true },
+    ];
+    const { jobs, hackThreads, overflowHackThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS);
+    const overflowJobs = jobs.filter((j) => j.kind === 'overflow');
+    expect(overflowJobs.length).toBeGreaterThan(0);
+    expect(overflowJobs.every((j) => j.target === 'top')).toBe(true);
+    expect(jobs.some((j) => j.target === 'second' && j.kind === 'overflow')).toBe(false);
+    expect(overflowHackThreads).toBeGreaterThan(0);
+    expect(hackThreads).toBe(2 * HOLD_HACK_WAVE + overflowHackThreads); // both targets' capped waves + overflow
+  });
+
+  it('overflowEnabled: false leaves the remainder unspent -- exactly the two capped waves, nothing more', () => {
+    const hosts = [{ hostname: 'h1', freeRam: 10_000_000 }];
+    const targets = [
+      { server: 'top', sec: 10, minSec: 10, crushOk: true },
+      { server: 'second', sec: 10, minSec: 10, crushOk: true },
+    ];
+    const { jobs, hackThreads, overflowHackThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS_NO_OVERFLOW);
+    expect(overflowHackThreads).toBe(0);
+    expect(jobs.some((j) => j.kind === 'overflow')).toBe(false);
+    expect(hackThreads).toBe(2 * HOLD_HACK_WAVE);
+  });
+
+  it('small-pool degenerate case: held demand consumes the pool exactly, overflow is 0', () => {
+    const hackRam = RAM_COSTS[XP_SCRIPTS.hack];
+    const weakenRam = RAM_COSTS[XP_SCRIPTS.weaken];
+    const streamThreads = Math.ceil(HOLD_HACK_WAVE * 0.05); // 125
+    const hosts = [{ hostname: 'h1', freeRam: streamThreads * weakenRam + HOLD_HACK_WAVE * hackRam }]; // exact fit
+    const targets = [{ server: 't', sec: 10, minSec: 10, crushOk: true }];
+    const { hackThreads, weakenThreads, overflowHackThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS);
+    expect(hackThreads).toBe(HOLD_HACK_WAVE);
+    expect(weakenThreads).toBe(streamThreads);
+    expect(overflowHackThreads).toBe(0);
+  });
+
+  it('single-eligible-target case: it is both the absorber and its own held demand -- no special-casing needed', () => {
+    const hosts = [{ hostname: 'h1', freeRam: 1_000_000 }];
+    const targets = [{ server: 'solo', sec: 10, minSec: 10, crushOk: true }];
+    const { jobs, weakenThreads, overflowHackThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS);
+    const cappedHackThreads = jobs.filter((j) => j.script === XP_SCRIPTS.hack && j.kind !== 'overflow').reduce((sum, j) => sum + j.threads, 0);
+    expect(cappedHackThreads).toBe(HOLD_HACK_WAVE);
+    expect(weakenThreads).toBe(Math.ceil(HOLD_HACK_WAVE * 0.05));
+    expect(overflowHackThreads).toBeGreaterThan(0);
+    expect(jobs.filter((j) => j.kind === 'overflow').every((j) => j.target === 'solo')).toBe(true);
+  });
+
+  it('volley takes precedence over stream/wave/overflow on a tight host sized exactly for the volley', () => {
+    const weakenRam = RAM_COSTS[XP_SCRIPTS.weaken];
+    const volleyNeeded = Math.ceil((30 / 0.05) * 1.1); // 660 threads, gap 30
+    const hosts = [{ hostname: 'h1', freeRam: volleyNeeded * weakenRam }]; // exactly enough for the volley, nothing more
+    const targets = [{ server: 'hot', sec: 40, minSec: 10, crushOk: true }];
+    const { jobs, volleyThreads, weakenThreads, hackThreads, overflowHackThreads } = planXpJobs(hosts, targets, RAM_COSTS, OPTS);
+    expect(jobs).toEqual([{ hostname: 'h1', script: XP_SCRIPTS.weaken, threads: volleyNeeded, target: 'hot', kind: 'volley' }]);
+    expect(volleyThreads).toBe(volleyNeeded);
+    expect(weakenThreads).toBe(volleyNeeded);
+    expect(hackThreads).toBe(0);
+    expect(overflowHackThreads).toBe(0);
   });
 });
