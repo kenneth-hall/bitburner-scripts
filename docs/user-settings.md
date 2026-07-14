@@ -19,12 +19,15 @@ Governs the `.msg` story/lore messages. With it on:
   one. To catch new story messages, diff `ns.ls("home", ".msg")` against a known set (or just
   `ls home`) — see the "in-game notifier" idea below.
 
-## Suppress Faction Invitations — default (**OFF**), unless changed
+## Suppress Faction Invitations — **ON** (user-reported, 2026-07-13)
 
-A *separate* setting from Suppress Messages — it governs new-**faction** invite popups, which is
-the real "am I missing a new faction?" concern. Left off, so new-faction invites still pop up.
-Even if it were turned on, nothing is lost: outstanding invites always persist on the **Factions**
-page, and you join from there. Recorded here so the distinction from Suppress Messages is explicit.
+A *separate* setting from Suppress Messages — it governs new-**faction** invite popups. Now on,
+so a new invite no longer pops up or blocks the UI. Nothing is lost either way: outstanding
+invites always persist on the **Factions** page (and via `checkFactionInvitations()`), and
+`augfarmer.js` (Phase 23) already drives joins off that API, not the popup — so this toggle has
+**no effect on the farmer's behavior**, only on what Kenneth sees manually. Implication for
+Claude: don't expect an invite popup as a signal that a faction became reachable; read
+`augfarmer-state.json` / `augfarmer-catalog.json` or the Factions page instead.
 
 ## Related idea (not yet built)
 
