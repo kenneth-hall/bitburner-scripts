@@ -430,7 +430,6 @@ function readState(ns) {
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
-  ns.ui.openTail();
 
   const FactionName = ns.enums.FactionName;
   const FACTION_SCOPE = [

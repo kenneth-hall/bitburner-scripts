@@ -35,6 +35,11 @@ const XP_OFF_MARKER = "xp-off.txt";
 const XP_LOG_FILE = "xpfarm-log.json";
 const XP_LOG_MAX_ENTRIES = 2000;
 
+// Phase 24 (S6): dashboard.js's xp panel source -- an overwrite-in-place
+// snapshot of the current pass's record, the same object already appended to
+// XP_LOG_FILE's ring (no new analysis; one extra ns.write per branch).
+const XPFARM_STATE_FILE = "xpfarm-state.json";
+
 // Mirrors daemon.js's own (unexported) DAEMON_LOG_FILE constant -- this
 // engine reads the batcher's log as a plain file, not an import (daemon.js's
 // module has a live main() loop; importing it would run a second daemon).
@@ -262,7 +267,6 @@ function appendXpLog(entries, record) {
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
-  ns.ui.openTail();
 
   const ramCosts = {
     [XP_SCRIPTS.hack]: ns.getScriptRam(XP_SCRIPTS.hack, "home"),
@@ -282,7 +286,7 @@ export async function main(ns) {
     if (off) {
       ns.clearLog();
       ns.print(`xp: OFF (${XP_OFF_MARKER})`);
-      logEntries = appendXpLog(logEntries, {
+      const record = {
         timestamp: Date.now(),
         time: new Date().toLocaleTimeString(),
         off: true,
@@ -290,8 +294,10 @@ export async function main(ns) {
         claimGb: 0,
         hackingLevel: ns.getHackingLevel(),
         targets: [],
-      });
+      };
+      logEntries = appendXpLog(logEntries, record);
       ns.write(XP_LOG_FILE, JSON.stringify(logEntries, null, 2), "w");
+      ns.write(XPFARM_STATE_FILE, JSON.stringify(record), "w");
       await ns.sleep(LOOP_MS);
       continue;
     }
@@ -314,7 +320,7 @@ export async function main(ns) {
       ns.clearLog();
       ns.print(`===== xp farm @ ${new Date().toLocaleTimeString()} =====`);
       ns.print("no eligible XP target");
-      logEntries = appendXpLog(logEntries, {
+      const record = {
         timestamp: Date.now(),
         time: new Date().toLocaleTimeString(),
         off: false,
@@ -322,8 +328,10 @@ export async function main(ns) {
         claimGb: claim.claimGb,
         hackingLevel: playerLevel,
         targets: [],
-      });
+      };
+      logEntries = appendXpLog(logEntries, record);
       ns.write(XP_LOG_FILE, JSON.stringify(logEntries, null, 2), "w");
+      ns.write(XPFARM_STATE_FILE, JSON.stringify(record), "w");
       await ns.sleep(LOOP_MS);
       continue;
     }
@@ -421,7 +429,7 @@ export async function main(ns) {
       });
     }
 
-    logEntries = appendXpLog(logEntries, {
+    const record = {
       timestamp: Date.now(),
       time: new Date().toLocaleTimeString(),
       off: false,
@@ -430,8 +438,10 @@ export async function main(ns) {
       hackingLevel: playerLevel,
       overflowGb,
       targets: targetLogEntries,
-    });
+    };
+    logEntries = appendXpLog(logEntries, record);
     ns.write(XP_LOG_FILE, JSON.stringify(logEntries, null, 2), "w");
+    ns.write(XPFARM_STATE_FILE, JSON.stringify(record), "w");
 
     await ns.sleep(LOOP_MS);
   }

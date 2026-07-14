@@ -41,7 +41,8 @@ unlike screenshot coordinates); run `locations` first to get exact spellings for
 
 `restart` exists because Bitburner leaves a killed script's tail window open (an orphan that
 reverts to the filename title); `restart` closes it between kill and relaunch so repeated
-restarts don't pile up stray popups. `tailmanager.js` then re-docks the fresh window.
+restarts don't pile up stray popups. Since Phase 24, every companion is headless (nothing to
+re-dock) except `dashboard.js`, the single standing tail, which self-closes via `ns.atExit`.
 
 **Gotcha — error modals and story popups block navigation.** A script runtime error (any
 Bitburner dialog) or a narrative toast (faction-recruit text, "Message received" notifications)

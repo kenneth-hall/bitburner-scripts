@@ -44,7 +44,6 @@ export function dayRolledOver(prevFilename, curFilename) {
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
-  ns.ui.openTail();
 
   let baselineHackingIncome = ns.getMoneySources().sinceStart.hacking;
   let todayIncomeTotal = 0;

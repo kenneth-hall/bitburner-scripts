@@ -57,12 +57,20 @@ export default defineConfig({
       // one file per calendar day, written live as income/expenses happen,
       // rotating at the day boundary. finance-log.json (src/resourcemanager.js,
       // renamed from financemanager.js in Phase 11; file name kept as-is) is
-      // a ring-buffered history like daemon-batch-log.json -- finance-state.json
-      // is deliberately NOT exported here, since it's a heartbeat snapshot
-      // already visible live in the tail; the log is the offline evidence.
-      // bootstrap-log.json (src/bootstrap.js, Phase 14) is another
-      // ring-buffered history in the same family, event-driven like
-      // finance-log.json rather than a fixed-cadence write.
+      // a ring-buffered history like daemon-batch-log.json. bootstrap-log.json
+      // (src/bootstrap.js, Phase 14) is another ring-buffered history in the
+      // same family, event-driven like finance-log.json rather than a
+      // fixed-cadence write.
+      //
+      // Phase 24: dashboard.js is now the only standing tail, and its
+      // acceptance criterion ("each panel is validated against its exported
+      // file") needs every renderer source on disk -- daemon-status.json,
+      // targets-ranking.json, cloud-state.json, and xpfarm-state.json are new;
+      // finance-state.json is a precedent reversal (previously unexported as
+      // "already visible live in the tail" -- that tail is gone). tail-layout.json
+      // is retired along with tailmanager.js (Phase 18's geometry-persistence
+      // system has nothing left to manage with one hardcoded, self-asserting
+      // window).
       location: (file) => {
         if (file === 'daemon-batch-log.json') return 'logs/daemon-batch-log.json';
         if (file === 'hacking-progress-log.json') return 'logs/hacking-progress-log.json'; // sparse level/XP series for the Daedalus-2500 ETA
@@ -73,7 +81,6 @@ export default defineConfig({
         if (/^auginfo-\d+\.json$/.test(file)) return `logs/${file}`; // owned-aug + mults dump (src/auginfo.js), one file per run for pre/post-install diffs
         if (/^sf4check-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 21 -- SF/Singularity liveness check, one file per run
 
-        if (file === 'tail-layout.json') return 'logs/tail-layout.json'; // Phase 18 -- persistence is the feature under test, so export it (unlike finance-state.json's heartbeat, which is already visible live)
         if (file === 'backdoor-status.json') return 'logs/backdoor-status.json'; // Phase 22 -- faction-backdoor status snapshot, overwritten in place, written on classification change only
         if (file === 'augfarmer-state.json') return 'logs/augfarmer-state.json'; // Phase 23 -- overwrite-in-place, written on change + a low-frequency heartbeat
         if (file === 'augfarmer-catalog.json') return 'logs/augfarmer-catalog.json'; // Phase 23 -- static per-node catalog, rewritten on rebuild (startup + faction-membership change)
@@ -81,6 +88,14 @@ export default defineConfig({
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';
+
+        // Phase 24 renderer sources -- overwrite-in-place, dashboard.js's
+        // panels are validated against these.
+        if (file === 'daemon-status.json') return 'logs/daemon-status.json';
+        if (file === 'targets-ranking.json') return 'logs/targets-ranking.json';
+        if (file === 'cloud-state.json') return 'logs/cloud-state.json';
+        if (file === 'xpfarm-state.json') return 'logs/xpfarm-state.json';
+        if (file === 'finance-state.json') return 'logs/finance-state.json'; // precedent reversal -- see comment above
         return null;
       },
     },

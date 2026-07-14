@@ -6,6 +6,49 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-14
+
+- **Phase 24 — single condensed dashboard window (`src/dashboard.js`), shipped** →
+  `docs/phases/phase-24-dashboard.features.md`, `docs/phases/phase-24-dashboard.spec.md`.
+  Phase 18 Layer 3: collapses the seven standing companion tails (`daemon`, `targetsmonitor`,
+  `transactionsmonitor`, `cloudmanager`, `resourcemanager`, `xpfarm`, `augfarmer`) into one
+  hardcoded-geometry renderer (891×1262, font 16, re-asserted every poll) reading seven on-disk
+  state files; every companion goes headless (keeps its print block for manual `tail`).
+  `tailmanager.js` + `tail-layout.json` retired in full — nothing left for Phase 18's
+  geometry-persistence system to manage with one self-asserting window. New project convention
+  landed in `CLAUDE.md`: **"use dashboard or logs"** (dashboard space is brainstorm-gated, never
+  ad-hoc). Notable spec-stage/implementation deviations: S6 gave `xpfarm.js` a state-file snapshot
+  beyond the features table's "headless only" (parse-per-poll of its ring log was the alternative);
+  S13 reversed the Phase 11 precedent and exported `finance-state.json` (its live tail is gone, so
+  the panel needed offline evidence); S10's `tailProperties.minimized` fallback was never needed —
+  confirmed live that `resizeTail` does not fight the native collapse in this build. `npm test`
+  488/488 green including new `test/dashboard.test.js`, `test/targetsmonitor.test.js`,
+  `test/verify-dashboard-state.test.js`; `npm run verify:log` green (5 files, 42 checks) against
+  real exported state.
+  **Live validation (same session):** L1 — restart via CDP, exactly one `dashboard.js` tail at the
+  correct geometry; a genuine orphan surfaced and confirmed the bug class the spec anticipated (a
+  leftover `daemon`-titled tail from the now-deleted `tailmanager.js`'s last retitling, pre-existing
+  the deletion — closed by hand once, structurally impossible going forward since nothing retitles
+  anymore). L2 — column budget measured precisely via the ruler (JetBrainsMono 9.6001 px/char at
+  font 16, Paper clientWidth 890px) at **92 chars**, not the features doc's provisional ~88;
+  `COLUMN_BUDGET` updated and re-verified with zero wrap. L3 — dragged the window via CDP mouse
+  events: position persisted across polls (not reasserted, as designed); clicked native
+  minimize/restore: stayed collapsed across 2+ polls, confirming the `tailProperties.minimized`
+  fallback is unnecessary. L4 — two consecutive `restart daemon.js` calls and a manual
+  `kill dashboard.js` (testing the `ns.atExit` self-close directly) both left exactly one window,
+  correctly positioned. L5 — killed `cloudmanager.js` and confirmed its panel alone showed
+  `STALE 53s` in its title line while all six other panels kept rendering live data; relaunched via
+  daemon restart. RAM gate: `dashboard.js` measured 2.6 GB (within the 2–4 GB band) after fixing a
+  **new identifier-hygiene finding** — a `state.share` property access (not a variable
+  declaration) was misread by this build's RAM analyzer as `ns.share()` (a false +2.4 GB, 5 GB
+  measured before the fix); switched to bracket notation (`state["share"]`); daemon.js (16.3 GB)
+  and augfarmer.js (52.7 GB) confirmed flat against their documented baselines. `CLAUDE.md`'s
+  script-writing rules gained a generalized version of this lesson (property-name collisions, not
+  just the previously-known `.exec(` substring case). **Outstanding, left to Kenneth:** the ≥30 min
+  L6 soak and an in-game manual-resize-revert click (L3's other half — position/collapse and
+  RAM/panel/staleness behavior are all confirmed; only the resize-handle drag itself wasn't
+  automatable over CDP).
+
 ## 2026-07-13
 
 - **Phase 23 — auto augmentation farmer (`src/augfarmer.js`), shipped** →

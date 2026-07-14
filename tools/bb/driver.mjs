@@ -170,7 +170,9 @@ export async function closeTail(page, title) {
 }
 
 /** Restart a companion script cleanly: kill it, close its orphaned tail, relaunch.
- * tailmanager.js re-docks/re-titles the fresh window. */
+ * Phase 24: every companion is headless (nothing to re-dock/re-title) except
+ * dashboard.js, which self-closes its own tail via ns.atExit -- `restart
+ * daemon.js` remains the core-loop restart path. */
 export async function restartScript(page, script) {
   await runCommand(page, `home; kill ${script}`);
   const closed = await closeTail(page, script);

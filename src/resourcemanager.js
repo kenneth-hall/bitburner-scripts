@@ -223,7 +223,6 @@ function announceDiff(ns, diff) {
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
-  ns.ui.openTail();
 
   let logEntries = [];
   let previousReservations = null; // null only until the startup poll runs
