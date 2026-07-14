@@ -92,6 +92,37 @@ cap** (the constraint we understand). This dissolves the NFG-rep unknown without
   re-climb is one cycle or needs a second NFG pass. Only reads via `auginfo.js` *after* install #2 — this
   is the designed step-6 checkpoint (≥7 good / ~6 ok / <5.5 = another NFG cycle), not a closeable gap.
 
+## Authoritative in-game formulas (transcribed from the favor/rep ⓘ tooltips, 2026-07-14)
+
+The game's own closed forms, from the info tooltips on the faction Augmentations page —
+authoritative, not derived. Both verified against this doc's numbers.
+
+**Rep → favor** — the favor you'll have *after* an install, where `r` = total reputation
+earned with this faction **across all resets** (not current rep):
+
+```
+favor = log_1.02(1 + r / 25000)
+```
+
+Verified: favor 150 ⇒ `r = 25000·(1.02^150 − 1) = 462,500`, matching `calculateFavorToRep(150)`
+above. Favor is **logarithmic in lifetime rep** — early rep buys favor cheaply, later rep
+barely moves it (why the "grind ~465k, then donate" split exists).
+
+**Favor → rep-gain rate** — tooltip verbatim: *"Faction favor increases the rate at which you
+earn reputation for this faction by 1% per favor. Faction favor is gained whenever you install
+an Augmentation. The amount of favor you gain depends on the total amount of reputation you
+earned with this faction across all resets."* Applied as a flat multiplier on **every** rep
+gain for that faction:
+
+```
+Δr_effective = Δr × (100 + favor) / 100
+```
+
+i.e. the `1 + favor/100` mult referenced elsewhere in this doc. Because it scales *all* rep gain
+for the faction, higher-favor factions accrue rep faster from the same source — including the
+passive rep stream (measured 2026-07-14: joined factions gain rep with no active work and share
+off; favor multiplies it but is not its source — a favor-0 faction still reads ×1.0, not ×0).
+
 ## Key API / formula references (all in `markdown/`)
 
 - `ns.formulas.reputation.calculateFavorToRep(favor)` / `calculateRepToFavor(rep)`
