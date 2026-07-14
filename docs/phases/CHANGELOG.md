@@ -44,10 +44,12 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   measured before the fix); switched to bracket notation (`state["share"]`); daemon.js (16.3 GB)
   and augfarmer.js (52.7 GB) confirmed flat against their documented baselines. `CLAUDE.md`'s
   script-writing rules gained a generalized version of this lesson (property-name collisions, not
-  just the previously-known `.exec(` substring case). **Outstanding, left to Kenneth:** the ≥30 min
-  L6 soak and an in-game manual-resize-revert click (L3's other half — position/collapse and
-  RAM/panel/staleness behavior are all confirmed; only the resize-handle drag itself wasn't
-  automatable over CDP).
+  just the previously-known `.exec(` substring case). L3's resize-handle drag was confirmed by
+  Kenneth in-game (snaps back to 891×1262). L6 — a 4-check, ~32 min unattended soak (background
+  script polling window count/geometry/overflow every ~8 min) confirmed the same PIDs running
+  throughout (zero restarts), exactly one window every check, longest rendered line 78-80 chars
+  (comfortably under the 92-char budget), and no vertical overflow at any check -- no wrap/scroll
+  creep. Every acceptance criterion closed. Merged to `master` and pushed.
 
 ## 2026-07-13
 
