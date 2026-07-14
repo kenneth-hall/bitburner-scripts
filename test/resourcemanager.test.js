@@ -8,7 +8,9 @@ import {
   FORMULAS_COST,
   FORMULAS_HACKING_LEVEL_THRESHOLD,
   PORT_OPENER_COSTS,
+  AUGFARMER_STALE_MS,
   parseManualExtra,
+  parseAugReserve,
   computeReservations,
   computeAvailable,
   diffReservations,
@@ -47,6 +49,55 @@ describe('parseManualExtra', () => {
   it('rejects NaN and Infinity', () => {
     expect(parseManualExtra('NaN')).toEqual({ amount: 0, badContent: true });
     expect(parseManualExtra('Infinity')).toEqual({ amount: 0, badContent: true });
+  });
+});
+
+describe('parseAugReserve', () => {
+  const NOW = 1_000_000;
+
+  it('treats a missing/empty file as nothing to reserve, not bad content', () => {
+    expect(parseAugReserve('', NOW, AUGFARMER_STALE_MS)).toEqual({ amount: 0, aug: null, badContent: false, stale: false });
+    expect(parseAugReserve(undefined, NOW, AUGFARMER_STALE_MS)).toEqual({ amount: 0, aug: null, badContent: false, stale: false });
+    expect(parseAugReserve(null, NOW, AUGFARMER_STALE_MS)).toEqual({ amount: 0, aug: null, badContent: false, stale: false });
+  });
+
+  it('accepts a fresh, valid reservation', () => {
+    const raw = JSON.stringify({ amount: 2_500_000, aug: 'Bionic Arms', faction: 'CyberSec', timestamp: NOW - 1000 });
+    expect(parseAugReserve(raw, NOW, AUGFARMER_STALE_MS)).toEqual({ amount: 2_500_000, aug: 'Bionic Arms', badContent: false, stale: false });
+  });
+
+  it('rejects malformed JSON', () => {
+    expect(parseAugReserve('not-json{', NOW, AUGFARMER_STALE_MS)).toEqual({ amount: 0, aug: null, badContent: true, stale: false });
+  });
+
+  it('rejects a non-finite or negative amount', () => {
+    expect(parseAugReserve(JSON.stringify({ amount: NaN, timestamp: NOW }), NOW, AUGFARMER_STALE_MS)).toEqual({
+      amount: 0,
+      aug: null,
+      badContent: true,
+      stale: false,
+    });
+    expect(parseAugReserve(JSON.stringify({ amount: -5, timestamp: NOW }), NOW, AUGFARMER_STALE_MS)).toEqual({
+      amount: 0,
+      aug: null,
+      badContent: true,
+      stale: false,
+    });
+  });
+
+  it('forces amount to 0 and reports stale once the timestamp exceeds staleMs', () => {
+    const raw = JSON.stringify({ amount: 2_500_000, aug: 'Bionic Arms', timestamp: NOW - AUGFARMER_STALE_MS - 1 });
+    expect(parseAugReserve(raw, NOW, AUGFARMER_STALE_MS)).toEqual({ amount: 0, aug: 'Bionic Arms', badContent: false, stale: true });
+  });
+
+  it('treats a missing/non-finite timestamp as stale (NaN comparisons never satisfy >)', () => {
+    const raw = JSON.stringify({ amount: 2_500_000, aug: 'Bionic Arms' });
+    expect(parseAugReserve(raw, NOW, AUGFARMER_STALE_MS)).toEqual({ amount: 0, aug: 'Bionic Arms', badContent: false, stale: true });
+  });
+
+  it('amount 0 is valid content, not badContent', () => {
+    const raw = JSON.stringify({ amount: 0, aug: null, timestamp: NOW });
+    expect(parseAugReserve(raw, NOW, AUGFARMER_STALE_MS)).toEqual({ amount: 0, aug: null, badContent: false, stale: false });
   });
 });
 
@@ -141,6 +192,20 @@ describe('computeReservations', () => {
 
   it('formulasSuppressed is false by default when formulasDisabled is not set', () => {
     expect(computeReservations({ ...BASE_STATE, hackingLevel: 401, hasFormulas: false }).formulasSuppressed).toBe(false);
+  });
+
+  it('next-aug adds a reservation only when augReserve.amount is positive', () => {
+    expect(computeReservations({ ...BASE_STATE, augReserve: { amount: 0, aug: null } }).reservations.map((r) => r.key)).not.toContain(
+      'next-aug'
+    );
+    const { reservations } = computeReservations({ ...BASE_STATE, augReserve: { amount: 3_500_000, aug: 'Bionic Arms' } });
+    const r = reservations.find((x) => x.key === 'next-aug');
+    expect(r.amount).toBe(3_500_000);
+    expect(r.label).toContain('Bionic Arms');
+  });
+
+  it('next-aug is absent when augReserve is undefined (no farmer running yet)', () => {
+    expect(computeReservations({ ...BASE_STATE }).reservations.map((r) => r.key)).not.toContain('next-aug');
   });
 
   it('manual-extra adds a reservation only when the amount is positive', () => {

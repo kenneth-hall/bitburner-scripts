@@ -75,6 +75,8 @@ export default defineConfig({
 
         if (file === 'tail-layout.json') return 'logs/tail-layout.json'; // Phase 18 -- persistence is the feature under test, so export it (unlike finance-state.json's heartbeat, which is already visible live)
         if (file === 'backdoor-status.json') return 'logs/backdoor-status.json'; // Phase 22 -- faction-backdoor status snapshot, overwritten in place, written on classification change only
+        if (file === 'augfarmer-state.json') return 'logs/augfarmer-state.json'; // Phase 23 -- overwrite-in-place, written on change + a low-frequency heartbeat
+        if (file === 'augfarmer-catalog.json') return 'logs/augfarmer-catalog.json'; // Phase 23 -- static per-node catalog, rewritten on rebuild (startup + faction-membership change)
         if (file === 'ramcheck-result.json') return 'logs/ramcheck-result.json';
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';

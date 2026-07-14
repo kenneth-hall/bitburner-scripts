@@ -8,8 +8,11 @@
 // Deliberately minimal (scoped with Kenneth 2026-07-12): "if hacking is low,
 // join the class -- no leaving." It does NOT stop the class or hand back to the
 // batcher; studying runs indefinitely (it only holds the single player-action
-// slot, which nothing else contends for post-install -- the fleet's scripts run
-// independently). A stop/handoff crossover is explicitly future work.
+// slot -- the fleet's scripts run independently). The stop/handoff crossover
+// this header used to park as future work is now closed by augfarmer.js
+// (Phase 23): once it has a concrete rep target, its S8 slot-etiquette rule
+// takes over from a running university class (workForFaction cancels it
+// cleanly) -- see augfarmer.js's header / phase-23-augfarmer.spec.md S8.
 //
 // Trigger is `hack < HACK_THRESHOLD`, not `== 1`: a stray bootloop weaken can
 // bump you to level 2-3 before this first runs, and an exact-equals-1 check

@@ -43,13 +43,6 @@ do, and what's broken?*
   `restartScript`, close *all* windows matching the filename **or** its `MANAGED_TAILS` title
   (post-kill they're all dead, so close-all is safe), and make `closeTail` loop instead of
   clicking only the first match.
-- **`verify-transactions.test.js` doesn't recognize the `auto-formulas` expense source** —
-  `npm run verify:log` fails "log format > every record has a valid type/source" on
-  `transactions-<date>.json` once `procureformulas.js` (Phase-agnostic, auto-buys `Formulas.exe`)
-  has logged its purchase. The checker's `VALID_EXPENSE_SOURCES` set in
-  `test/verify-transactions.test.js` was never updated to include it. Found 2026-07-13 during
-  Phase 20's S9 live validation — unrelated to that phase, not fixed there to keep scope clean.
-  **Next:** add `'auto-formulas'` to `VALID_EXPENSE_SOURCES` (one-line fix).
 
 ## Ideas
 
@@ -63,21 +56,15 @@ do, and what's broken?*
   shipped as `docs/bn1-install-plan.md`; catalog assembled (`docs/aug-catalog*`). Remaining is
   only the thin calc for the one "install-now vs one-more-cycle / how-many-NFG-levels" call.
   **Build only if** the install cadence proves fiddly by eye.
-- **Focus-penalty / NRMI** — parked. Plan: priority-buy **Neuroreceptor Management Implant**
-  (Tian Di Hui, 75k rep, $550m, no prereq) early, work unfocused after, no interlock. Verify
-  before relying on it: (a) NRMI actually *zeroes* the penalty (non-mult effect — read the
-  in-game aug description), (b) whether unfocused daemon work blocks Kenneth's own manual
-  player-actions or only yields the screen. **Revisit when** a Singularity rep-grinder is
-  actually built. → `[[reference_focus_penalty_and_slot]]`.
 - **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
   carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
   toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset
   fleet). Observed live 2026-07-09. No design yet.
-- **Augment reservation cost model** — `resourcemanager.js`'s `manual-extra` rule
-  (`finance-reserve-extra.txt`) is a stopgap; a real design needs an aug cost/priority model
-  (which augs, in what order, at what price) to become its own reservation rule. This is also the
-  seam the procureprograms close-out flagged — the reservation model coordinates spends but
-  protects only the *immediate-next* one.
+- **Augment breadth-vs-depth for the Daedalus donation buyout** — the aug cost/priority reservation
+  model itself shipped as `resourcemanager.js`'s `next-aug` rule (Phase 23, `augfarmer.js`'s S1
+  deficit-ordered targeting). What's left unaddressed: shallow rep spread across many factions
+  (today's cheapest-rep-first strategy) banks favor slower per-faction than concentrating on one —
+  a *later* tension for the eventual Daedalus donation buyout, not a v1 concern. No design yet.
 - **Core-aware grow/weaken sizing** — SHELVED; `sampling.js` sizes grow/weaken at an implicit 1
   core, but it's a safe overshoot (grow's security bump is core-independent) and only ~1% of
   fleet RAM at home's 2 cores. **Revisit when** home cores get upgraded post-Singularity (needs

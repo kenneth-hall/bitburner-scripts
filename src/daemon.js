@@ -379,6 +379,12 @@ export async function main(ns) {
   // hacking XP. Self-terminating -- fires (or skips) once and exits, so later
   // daemon restarts past the level threshold are no-ops.
   launchDetached(ns, "studybootstrap.js");
+  // Phase 23: always-on Singularity aug farmer -- joins the D11-authorized
+  // faction scope, grinds rep, and buys the next cheapest-rep-deficit aug
+  // forever (install stays Kenneth's). ~53 GB at SF4.3's 1x, so post-install
+  // INFO-skips are expected until home RAM grows back -- see the script's
+  // own header.
+  launchDetached(ns, "augfarmer.js");
   // Phase 18: headless window manager -- restores/persists every dashboard
   // tail's position/size/font so they don't need re-dragging after every
   // restart. Owns no tail of its own.

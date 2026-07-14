@@ -27,6 +27,9 @@ const VALID_EXPENSE_SOURCES = new Set([
   'auto-tor', // procureprograms.js (Phase 11)
   'auto-port-opener', // procureprograms.js (Phase 11)
   'auto-cloud-purchase', // cloudmanager.js (Phase 11)
+  'auto-aug', // augfarmer.js (Phase 23)
+  'auto-travel', // augfarmer.js (Phase 23)
+  'auto-formulas', // procureformulas.js -- pre-existing bug (missing from this whitelist), folded into Phase 23's ship gate
 ]);
 const VALID_INCOME_SOURCES = new Set(['hacking']);
 

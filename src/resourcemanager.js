@@ -44,6 +44,14 @@ const MANUAL_EXTRA_FILE = "finance-reserve-extra.txt";
 export const FORMULAS_DISABLE_FILE = "finance-disable-formulas.txt";
 const LOG_MAX_ENTRIES = 500;
 
+// Phase 23: augfarmer.js's own reservation file -- duplicated as a plain
+// string constant here (not imported) because this script must stay
+// Singularity-free, and augfarmer.js's allowed-import list is deliberately
+// narrow (common.js/translog.js only, see its header) -- neither script
+// imports the other. augfarmer.js owns the write; this script only reads.
+const AUGFARMER_RESERVE_FILE = "augfarmer-reserve.json";
+export const AUGFARMER_STALE_MS = 60_000; // 6 augfarmer polls (POLL_MS=10_000 there)
+
 export const BOOTSTRAP_SERVER_COST = 110_000; // 2GB cloud-server price -- Kenneth hand-buys the first foothold in the UI, not purchasecloudservers.js's 16GB floor
 export const TOR_ROUTER_COST = 200_000;
 export const FORMULAS_COST = 5_000_000_000;
@@ -76,6 +84,32 @@ export function parseManualExtra(raw) {
 }
 
 /**
+ * Pure (Phase 23, S7). Parses augfarmer-reserve.json's raw content: missing/
+ * empty is a quiet zero (nothing running yet), malformed JSON or a
+ * non-finite/negative amount is badContent, and a timestamp older than
+ * `staleMs` (or missing/non-finite -- NaN comparisons never satisfy `>`, so
+ * this must be checked explicitly) forces amount to 0 with stale:true -- a
+ * crashed farmer must not freeze fleet growth forever.
+ */
+export function parseAugReserve(raw, now, staleMs) {
+  if (raw === undefined || raw === null || raw === "") return { amount: 0, aug: null, badContent: false, stale: false };
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { amount: 0, aug: null, badContent: true, stale: false };
+  }
+  if (!parsed || typeof parsed !== "object" || !Number.isFinite(parsed.amount) || parsed.amount < 0) {
+    return { amount: 0, aug: null, badContent: true, stale: false };
+  }
+
+  const stale = !Number.isFinite(parsed.timestamp) || now - parsed.timestamp > staleMs;
+  if (stale) return { amount: 0, aug: parsed.aug ?? null, badContent: false, stale: true };
+  return { amount: parsed.amount, aug: parsed.aug ?? null, badContent: false, stale: false };
+}
+
+/**
  * Pure. Builds the active reservation list from cheap ownership/state facts.
  * Each rule is independent and additive -- see docs/phases/phase-10-finance-cloud.md's
  * "Reservation rules" for the full rationale per rule.
@@ -86,7 +120,7 @@ export function parseManualExtra(raw) {
  * formulasSuppressed so the caller can distinguish "disabled and would have
  * fired" from "disabled but moot" (already owned / level too low).
  */
-export function computeReservations({ serverCount, hasTor, ownedPrograms, hackingLevel, hasFormulas, manualExtraAmount, formulasDisabled }) {
+export function computeReservations({ serverCount, hasTor, ownedPrograms, hackingLevel, hasFormulas, manualExtraAmount, formulasDisabled, augReserve }) {
   const reservations = [];
 
   if (serverCount === 0) {
@@ -115,6 +149,10 @@ export function computeReservations({ serverCount, hasTor, ownedPrograms, hackin
 
   if (manualExtraAmount > 0) {
     reservations.push({ key: "manual-extra", label: `manual reserve (${MANUAL_EXTRA_FILE})`, amount: manualExtraAmount });
+  }
+
+  if (augReserve && augReserve.amount > 0) {
+    reservations.push({ key: "next-aug", label: `next aug: ${augReserve.aug ?? "?"} (augfarmer)`, amount: augReserve.amount });
   }
 
   const totalReserved = reservations.reduce((sum, r) => sum + r.amount, 0);
@@ -191,6 +229,8 @@ export async function main(ns) {
   let previousReservations = null; // null only until the startup poll runs
   let previousFormulasSuppressed = null; // null only until the startup poll runs
   let lastBadManualExtraRaw = null; // tracks the last WARNed-about bad value, so re-warning only happens on a NEW bad value
+  let lastBadAugReserveRaw = null; // same pattern for augfarmer-reserve.json
+  let wasAugReserveStale = false; // tracks the stale->fresh transition so the WARN fires once, not every poll
   let lastChangeTime = null;
 
   while (true) {
@@ -217,6 +257,21 @@ export async function main(ns) {
       lastBadManualExtraRaw = null;
     }
 
+    const augReserveRaw = ns.read(AUGFARMER_RESERVE_FILE);
+    const parsedAugReserve = parseAugReserve(augReserveRaw, Date.now(), AUGFARMER_STALE_MS);
+    if (parsedAugReserve.badContent) {
+      if (augReserveRaw !== lastBadAugReserveRaw) {
+        tprintTs(ns, `WARN: ${AUGFARMER_RESERVE_FILE} exists but doesn't parse to a valid reservation (got "${augReserveRaw}") -- ignoring`);
+        lastBadAugReserveRaw = augReserveRaw;
+      }
+    } else {
+      lastBadAugReserveRaw = null;
+    }
+    if (parsedAugReserve.stale && !wasAugReserveStale) {
+      tprintTs(ns, `WARN: ${AUGFARMER_RESERVE_FILE} is stale -- treating as no reservation until it recovers`);
+    }
+    wasAugReserveStale = parsedAugReserve.stale;
+
     const { reservations, totalReserved, formulasSuppressed } = computeReservations({
       serverCount,
       hasTor,
@@ -225,6 +280,7 @@ export async function main(ns) {
       hasFormulas: hasFormulasExe,
       manualExtraAmount: parsedManualExtra.amount,
       formulasDisabled,
+      augReserve: parsedAugReserve,
     });
     const available = computeAvailable(money, totalReserved);
 

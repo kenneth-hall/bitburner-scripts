@@ -60,3 +60,4 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 | `launchmonitor.js` | Live worker-launch history (watches `ns.ps()`). |
 | `tailmanager.js` | Owns dashboard tail-window geometry (headless). |
 | `xpfarm.js` | Hack-saturation XP engine — fills the fleet's surplus RAM (whatever the batcher/share leave unclaimed) with capped, held hack waves plus an overflow absorber; self-scales from ~0 to near-total. Toggle: `xp-off.txt` on home. |
+| `augfarmer.js` | Always-on Singularity aug farmer — joins factions within a bounded `FACTION_SCOPE` (D11-authorized, see `docs/reset-protocol.md`), grinds rep, buys the next cheapest-rep-deficit augmentation forever. Never installs. Pause: `augfarmer-pause.txt` on home. |

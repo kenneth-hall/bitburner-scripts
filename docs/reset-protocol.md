@@ -22,7 +22,11 @@ bootstrapping *from*:
 | **Source-Files** | — (not earned by installing) | **gained/kept** ✅ (permanent, all future BitNodes) |
 
 \* In-game copies are wiped, but our scripts survive in the git repo and re-push via the dev server,
-so a rebuild is instant.
+so a rebuild is instant. This row also covers **TOR router + the five port openers** (BruteSSH.exe,
+FTPCrack.exe, relaySMTP.exe, HTTPWorm.exe, SQLInject.exe) — none survive an install, so
+`procureprograms.js` re-buys the whole ladder every cycle (top spend priority). Faction
+reachability stages with opener acquisition, since the openers gate the backdoor half of the
+faction-unlock sequence. See [[reference_install_resets_programs_tor]].
 
 - **Soft reset** (this doc's usual case): keeps your augmentations — that's the whole point — and
   loses everything else above. You re-run the faction-unlock sequence below to re-buy the *next*
@@ -83,16 +87,28 @@ bump of 3.55×→3.83× cut the XP-to-2500 ~5× in the 2026-07-11 measurement), 
 reaches *higher* than grinding the un-installed run ever would. Don't hoard levels; install to raise the
 multiplier, then re-climb.
 
-## Core rule: auto-UNLOCK, never auto-JOIN
+## Core rule: auto-UNLOCK always; auto-JOIN only within a bounded, D11-authorized scope
 
 - **Unlock** = make a faction's invitation *available*. For backdoor factions that means: root the
-  server, then install its backdoor — the invite then appears on the Factions screen.
-- **Do NOT auto-join** (don't click "Join!"). Joining can permanently **lock you out of
-  mutually-exclusive factions you still need augmentations from** (the city factions are mutually
-  exclusive; some faction pairs are enemies). Kenneth decides which invites to actually accept.
-- So any automation here roots + backdoors the eligible faction servers and **stops** — leaving
-  every join decision manual. This is the BACKLOG item *"Post-reset auto-backdoor for joinable
-  factions"* (must: backdoor only, never `joinFaction`; re-check state each run; be idempotent).
+  server, then install its backdoor — the invite then appears on the Factions screen. This half is
+  `backdoorfactions.js` (Phase 22) — roots + backdoors the four hacking-faction servers and **never**
+  joins (its own hard rail, `joinFaction` doesn't appear in that file).
+- **Historical rule (superseded 2026-07-13, Phase 23):** this doc used to say "never auto-join" full
+  stop, because nothing enforced the mutually-exclusive-city-faction exclusion except Kenneth's own
+  judgment. That's no longer true — **Kenneth has durably authorized `augfarmer.js` to auto-join and
+  auto-buy unattended**, bounded to a 13-name `FACTION_SCOPE` allow-list (the four backdoor factions +
+  Tian Di Hui + the six city factions + Daedalus/The Covenant/Illuminati "as they unlock"), with the
+  exclusion now enforced *in code*: a live-read enemy-graph guard (`campBlocked`) skips joining any
+  city faction whose enemy is already joined this cycle, replacing the manual stand-in this rule used
+  to require. **Install stays 100% manual** regardless — `augfarmer.js` never calls
+  `installAugmentations` (grep-checked). See `phase-23-augfarmer.spec.md`'s D11 for the full bounds.
+- **What this retires:** Phase 22's grep-for-`joinFaction` rail (asserting `joinFaction` appears
+  nowhere in `src/`) is retired — `augfarmer.js` is now the one script authorized to call it. The
+  replacement rail is two-part: `joinFaction` calls exist only in `augfarmer.js`, and every join site
+  there routes through the `FACTION_SCOPE` check (both grep/test-checked, see the phase's acceptance
+  criteria).
+- Anything **outside** `FACTION_SCOPE` (megacorps, crime/gang factions, Netburners) is still entirely
+  manual — no script joins those.
 
 ## Backdoor-unlocked factions
 
@@ -176,6 +192,10 @@ invite appears (cheap; Hacknet isn't worth it for income, but the unlock is triv
 
 ## Automation status
 
-Not built yet. When built, the auto-unlock companion roots + backdoors the eligible faction servers
-post-reset and never joins. Netburners and Daedalus's non-backdoor gates are out of its scope (no
-server / needs money+stats+augs Kenneth accrues through normal play).
+Built, in two halves (see "Core rule" above): **`backdoorfactions.js`** (Phase 22) roots + backdoors
+the four hacking-faction servers post-reset, never joins. **`augfarmer.js`** (Phase 23) joins (within
+`FACTION_SCOPE`), grinds faction rep, and buys the next cheapest-rep-deficit augmentation, forever —
+install stays manual. Both are always-on Singularity companions launched by `daemon.js` at startup.
+Netburners and Daedalus's non-backdoor gates (money/hacking-skill/aug-count thresholds) are out of
+scope for both — no server to backdoor, and those thresholds are things Kenneth accrues through
+normal play, not something either script drives directly.
