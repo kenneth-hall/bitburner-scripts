@@ -8,6 +8,30 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-13
 
+- **Phase 23 — auto augmentation farmer (`src/augfarmer.js`), implemented + core live checks
+  passed, not yet merged** → `phase-23-augfarmer.features.md`, `phase-23-augfarmer.spec.md`
+  (still in repo root pending the soak below). Always-on Singularity companion that joins
+  factions within a 13-name D11-authorized `FACTION_SCOPE`, grinds rep, and buys the next
+  cheapest-rep-deficit augmentation forever — composes with Phase 22's `backdoorfactions.js`
+  (unlock half); install stays 100% Kenneth's (`installAugmentations` never called, grep-checked).
+  New `next-aug` reservation rule in `resourcemanager.js` (Singularity-free). Notable spec-stage
+  calls: S1 reinterpreted D1's "lowest rep requirement" as rep *deficit* (so an already-rep-met aug
+  in a joined faction always sorts first); S9 added a pause file
+  (`augfarmer-pause.txt`, beyond the features doc); the pre-existing `auto-formulas`
+  verify-transactions gap (BACKLOG) was folded into this phase's ship gate rather than fixed
+  separately. Phase 22's grep-for-`joinFaction` rail is retired (replaced by the
+  `FACTION_SCOPE`-routed rail, both grep/test-checked) — `docs/reset-protocol.md` updated.
+  `npm test` 452/452 green. **Live, same-session:** RAM measured 52.7 GB (S6's 45–60 GB band),
+  `daemon.js` flat at 16.3 GB; catalog-exported camp graph matches the features table exactly
+  (camps A/B/C) with Daedalus enemy-free; first join (4 factions) + first buy (Magnetism
+  Amplifier, $250m, `The Black Hand`) observed within the first restart, `auto-aug` transaction
+  record matches the state file's target; `npm run verify:log` green including the new
+  `auto-aug`/`auto-travel`/`auto-formulas` sources. **Outstanding before merge:** a live sighting
+  of the `next-aug` reservation actually appearing in `finance-state.json` while rep-met-but-
+  unaffordable (the acceptance criterion's "disappears ≤2 polls after the buy" half is
+  code/test-proven but not yet live-observed — the grind hadn't reached a second rep-met target
+  yet this session) and the ≥30 min soak (L6). Branch `phase23-augfarmer`, not merged to `master`.
+
 - **Auto-backdoor Tier-2 validation, closed** — `src/backdoorfactions.js` confirmed live on a
   genuinely fresh reset (BN1.2 install): all four backdoor targets (CSEC, avmnite-02h, I.I.I.I,
   run4theh111z) auto-backdoored correctly during the climb from hacking level 1, with zero

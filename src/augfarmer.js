@@ -22,18 +22,27 @@
 // slot-gated.
 //
 // RAM: derived ~53 GB at SF4.3's 1x multiplier (phase-23-augfarmer.spec.md
-// S6's call-by-call derivation). Measured: TBD GB (ramcheck.js -- fill in
-// post-live). No HOME_RESERVE_GB change -- companions launch before the
-// batcher packs home, so this footprint is already inside usedRam. A
-// mid-session `restart augfarmer.js` may not fit the 32 GB headroom --
-// restart daemon.js instead (pre-authorized, see CLAUDE.md). Post-install
-// INFO-skip (home too small right after a reset) is expected; the farmer
-// joins the party at the first daemon restart after home RAM grows back.
+// S6's call-by-call derivation). Measured 52.7 GB (ramcheck.js, 2026-07-13,
+// logs/ramcheck-result.json) -- lands in S6's 45-60 GB acceptance band;
+// daemon.js read 16.3 GB in the same pass, flat vs. its known baseline
+// (docs/phases/CHANGELOG.md), confirming the one added launchDetached line
+// didn't touch the batcher's own RAM. No HOME_RESERVE_GB change -- companions
+// launch before the batcher packs home, so this footprint is already inside
+// usedRam. A mid-session `restart augfarmer.js` may not fit the 32 GB
+// headroom -- restart daemon.js instead (pre-authorized, see CLAUDE.md).
+// Post-install INFO-skip (home too small right after a reset) is expected;
+// the farmer joins the party at the first daemon restart after home RAM
+// grows back.
 //
 // Task shape (S8's match rule) verified against markdown/bitburner.
 // factionworktask.md / bitburner.studytask.md (type "FACTION"/"CLASS" +
-// factionName/factionWorkType) -- not yet live-probed in this fork; watch
-// item for the close-out per the spec's open questions.
+// factionName/factionWorkType) and confirmed live 2026-07-13: joined 4
+// factions and began unfocused faction work without error on the first
+// restart.
+//
+// Whether getOwnedAugmentations(true) represents multiple queued NFG levels
+// as duplicate entries is unconfirmed (S10's open question -- the
+// lastAugReset-keyed cap doesn't depend on the answer either way).
 
 import { tprintTs } from "./common.js";
 import { recordTransaction } from "./translog.js";
