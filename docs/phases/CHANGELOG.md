@@ -8,29 +8,34 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-13
 
-- **Phase 23 — auto augmentation farmer (`src/augfarmer.js`), implemented + core live checks
-  passed, not yet merged** → `phase-23-augfarmer.features.md`, `phase-23-augfarmer.spec.md`
-  (still in repo root pending the soak below). Always-on Singularity companion that joins
-  factions within a 13-name D11-authorized `FACTION_SCOPE`, grinds rep, and buys the next
-  cheapest-rep-deficit augmentation forever — composes with Phase 22's `backdoorfactions.js`
-  (unlock half); install stays 100% Kenneth's (`installAugmentations` never called, grep-checked).
-  New `next-aug` reservation rule in `resourcemanager.js` (Singularity-free). Notable spec-stage
-  calls: S1 reinterpreted D1's "lowest rep requirement" as rep *deficit* (so an already-rep-met aug
-  in a joined faction always sorts first); S9 added a pause file
-  (`augfarmer-pause.txt`, beyond the features doc); the pre-existing `auto-formulas`
-  verify-transactions gap (BACKLOG) was folded into this phase's ship gate rather than fixed
-  separately. Phase 22's grep-for-`joinFaction` rail is retired (replaced by the
-  `FACTION_SCOPE`-routed rail, both grep/test-checked) — `docs/reset-protocol.md` updated.
-  `npm test` 452/452 green. **Live, same-session:** RAM measured 52.7 GB (S6's 45–60 GB band),
-  `daemon.js` flat at 16.3 GB; catalog-exported camp graph matches the features table exactly
-  (camps A/B/C) with Daedalus enemy-free; first join (4 factions) + first buy (Magnetism
-  Amplifier, $250m, `The Black Hand`) observed within the first restart, `auto-aug` transaction
-  record matches the state file's target; `npm run verify:log` green including the new
-  `auto-aug`/`auto-travel`/`auto-formulas` sources. **Outstanding before merge:** a live sighting
-  of the `next-aug` reservation actually appearing in `finance-state.json` while rep-met-but-
-  unaffordable (the acceptance criterion's "disappears ≤2 polls after the buy" half is
-  code/test-proven but not yet live-observed — the grind hadn't reached a second rep-met target
-  yet this session) and the ≥30 min soak (L6). Branch `phase23-augfarmer`, not merged to `master`.
+- **Phase 23 — auto augmentation farmer (`src/augfarmer.js`), shipped** →
+  `docs/phases/phase-23-augfarmer.features.md`, `docs/phases/phase-23-augfarmer.spec.md`.
+  Always-on Singularity companion that joins factions within a 13-name D11-authorized
+  `FACTION_SCOPE`, grinds rep, and buys the next cheapest-rep-deficit augmentation forever —
+  composes with Phase 22's `backdoorfactions.js` (unlock half); install stays 100% Kenneth's
+  (`installAugmentations` never called, grep-checked). New `next-aug` reservation rule in
+  `resourcemanager.js` (Singularity-free). Notable spec-stage calls: S1 reinterpreted D1's
+  "lowest rep requirement" as rep *deficit* (so an already-rep-met aug in a joined faction always
+  sorts first); S9 added a pause file (`augfarmer-pause.txt`, beyond the features doc); the
+  pre-existing `auto-formulas` verify-transactions gap (BACKLOG) was folded into this phase's ship
+  gate rather than fixed separately. Phase 22's grep-for-`joinFaction` rail is retired (replaced by
+  the `FACTION_SCOPE`-routed rail, both grep/test-checked) — `docs/reset-protocol.md` updated.
+  `npm test` 452/452 green. **Live validation (same session, ~35 min):** RAM measured 52.7 GB
+  (S6's 45–60 GB band), `daemon.js` flat at 16.3 GB; catalog-exported camp graph matches the
+  features table exactly (camps A/B/C) with Daedalus enemy-free; auto-joined 5 factions total
+  (4 on launch + a live mid-run `Tian Di Hui` join once its rep target came up) and 3 augs bought
+  unattended (Magnetism Amplifier $250m, Neural Wit Amplifier $19m, Speech Enhancement $45.125m —
+  `auto-aug` transactions match each state-file target exactly); a live `travelToCity` fired for a
+  city-gap target (`auto-travel`, Chongqing); the ≥30 min soak (L6) passed with zero WARNs/per-poll
+  spam; `npm run verify:log` green throughout, including the new
+  `auto-aug`/`auto-travel`/`auto-formulas` sources. **`next-aug` reservation, explained rather
+  than observed positive:** it never showed a nonzero amount this session — with the batcher
+  running ~$10b+/min income, every rep-met target was instantly affordable, so the buy always
+  landed in the same pass the reservation would have been written, clearing it (S7 finding 4)
+  before `resourcemanager.js`'s next 2s poll could ever see it positive. The mechanism itself
+  (`parseAugReserve`, the reserve/buy gating in `planPass`) is fully unit-tested; the "awaiting
+  money" state it guards just never arose on this money-rich save, which is D8's rationale working
+  as designed, not a gap. Merged to `master` and pushed.
 
 - **Auto-backdoor Tier-2 validation, closed** — `src/backdoorfactions.js` confirmed live on a
   genuinely fresh reset (BN1.2 install): all four backdoor targets (CSEC, avmnite-02h, I.I.I.I,

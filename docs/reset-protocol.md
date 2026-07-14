@@ -101,7 +101,7 @@ multiplier, then re-climb.
   exclusion now enforced *in code*: a live-read enemy-graph guard (`campBlocked`) skips joining any
   city faction whose enemy is already joined this cycle, replacing the manual stand-in this rule used
   to require. **Install stays 100% manual** regardless — `augfarmer.js` never calls
-  `installAugmentations` (grep-checked). See `phase-23-augfarmer.spec.md`'s D11 for the full bounds.
+  `installAugmentations` (grep-checked). See `docs/phases/phase-23-augfarmer.spec.md`'s D11 for the full bounds.
 - **What this retires:** Phase 22's grep-for-`joinFaction` rail (asserting `joinFaction` appears
   nowhere in `src/`) is retired — `augfarmer.js` is now the one script authorized to call it. The
   replacement rail is two-part: `joinFaction` calls exist only in `augfarmer.js`, and every join site
