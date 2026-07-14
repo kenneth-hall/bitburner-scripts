@@ -197,9 +197,11 @@ is pre-authorized; don't checkpoint for it.
   `node tools/bb/cli.mjs restart <script>` — kills it, closes any orphaned tail, then relaunches.
   As of Phase 24 every companion is headless (nothing to re-dock — `dashboard.js` is the only
   standing tail, and it self-closes its own tail via `ns.atExit` on every death the game runs
-  callbacks for); this command still matters for the close-orphan step on scripts that briefly
-  self-tail (`bootstrap.js`, `procureprograms.js`, `procureformulas.js`, `launchmonitor.js`,
-  `backdoorfactions.js`). Prefer this over a raw `kill; run` for exactly that reason.
+  callbacks for); this command still matters for the close-orphan step on scripts that can leave a
+  tail behind — the short-lived self-tailers (`bootstrap.js`, `procureprograms.js`,
+  `launchmonitor.js`) and headless residents whose prior/crashed instance may have orphaned one
+  (`backdoorfactions.js`, `procureformulas.js` — both headless as of Phase 24, they never open a
+  tail themselves). Prefer this over a raw `kill; run` for exactly that reason.
 - **Core loop / imported libraries** (`daemon.js`, `scheduler.js`, `sampling.js`, `targets.js`,
   `hosts.js`, …): `node tools/bb/cli.mjs restart daemon.js` — same clean kill/close/relaunch; the
   daemon re-execs the loop on startup (it takes no launch args). Don't hand-restart the batcher's

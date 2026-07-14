@@ -63,7 +63,13 @@ export function planFormulasPurchase({ hasFormulas, disabled, hacking, hasTor, m
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
-  ns.ui.openTail();
+  // Headless resident companion (Phase 24 single-window convention): no
+  // openTail on launch. This script can sit resident in wait-cash for a long
+  // time (Formulas.exe is $5b, reached long after the post-install re-climb),
+  // so an open tail would stand as a second window indefinitely -- exactly what
+  // dashboard.js exists to avoid. Mirrors backdoorfactions.js, the resident
+  // model this script follows; its FINANCE status is already on the dashboard.
+  // The closeTail() calls below remain as 0 GB no-op guards against an orphan.
 
   let wasStale = true; // starts "stale" so the first real state clears it without a spurious WARN
 
