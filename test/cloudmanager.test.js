@@ -1,10 +1,11 @@
 // Unit tests for src/cloudmanager.js's pure logic (renamed + extended from
-// cloudupgrader.js in Phase 11): planNextUpgrade, shouldBuyGrowthServer, and
-// nextCloudName. isStateStale moved to src/financestate.js (Phase 16, F4) --
+// cloudupgrader.js in Phase 11): planNextUpgrade, shouldBuyGrowthServer,
+// nextCloudName, and buildCloudState (Phase 24, S4 -- the dashboard.js cloud
+// panel source). isStateStale moved to src/financestate.js (Phase 16, F4) --
 // see test/financestate.test.js. The affordability checks themselves stay in
 // the ns glue (live comparisons) -- not tested here.
 import { describe, it, expect } from 'vitest';
-import { planNextUpgrade, shouldBuyGrowthServer, nextCloudName } from '../src/cloudmanager.js';
+import { planNextUpgrade, shouldBuyGrowthServer, nextCloudName, buildCloudState } from '../src/cloudmanager.js';
 
 describe('planNextUpgrade', () => {
   it('picks the lowest-RAM server', () => {
@@ -104,5 +105,44 @@ describe('nextCloudName', () => {
 
   it('handles a mix of cloud-<n> and legacy names', () => {
     expect(nextCloudName(['pserv-4096gb-0', 'cloud-0', 'cloud-1'])).toBe('cloud-2');
+  });
+});
+
+describe('buildCloudState', () => {
+  it('every key is present with defaults on a bare call (the paused/stale early-branch shape)', () => {
+    const state = buildCloudState({ now: 1000, paused: true });
+    expect(state).toMatchObject({
+      timestamp: 1000,
+      paused: true,
+      financeStale: false,
+      available: 0,
+      reserved: 0,
+      fleet: null,
+      next: null,
+      growth: null,
+      lastUpgrade: null,
+      lastBootstrapBuy: null,
+      lastGrowthBuy: null,
+    });
+  });
+
+  it('distinguishes financeStale from paused', () => {
+    const state = buildCloudState({ now: 1, financeStale: true });
+    expect(state.paused).toBe(false);
+    expect(state.financeStale).toBe(true);
+  });
+
+  it('carries the full fleet/next/growth picture on a normal poll', () => {
+    const state = buildCloudState({
+      now: 1,
+      available: 100,
+      reserved: 50,
+      fleet: { count: 3, minRam: 16, maxRam: 64, serverLimit: 25, ramLimit: 1_048_576 },
+      next: { hostname: 'cloud-0', tier: 128, cost: 1000, affordable: true },
+      lastUpgrade: { hostname: 'cloud-0', fromRam: 64, toRam: 128, cost: 1000, time: '10:00:00' },
+    });
+    expect(state.fleet.count).toBe(3);
+    expect(state.next.affordable).toBe(true);
+    expect(state.lastUpgrade.hostname).toBe('cloud-0');
   });
 });

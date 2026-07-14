@@ -103,6 +103,12 @@ const SHARE_OFF_MARKER = "share-off.txt";
 // only way to guarantee the window's header never scrolls out of view.
 const MEMBER_LIST_CAP = 12;
 
+// Phase 24 (S2): a purpose-built status snapshot for dashboard.js -- distinct
+// from DAEMON_LOG_FILE's event ring buffer, which only carries this info
+// once per CYCLE_MS via `snapshot` events and lacks several tail-only fields
+// (math mode, share-OFF flag, per-tick WARNs). Written every tick, 0 GB.
+const DAEMON_STATUS_FILE = "daemon-status.json";
+
 /**
  * Shared free-RAM-check preamble for launchDetached/runAndWait: true iff
  * script fits in home's current free RAM, printing the INFO skip itself when
@@ -285,6 +291,62 @@ export function trimLog(entries, openSkipRecords) {
   return pinned ? [entries[latestModeIndex], ...kept] : kept;
 }
 
+/**
+ * Pure (Phase 24, S2). Assembles the daemon-status.json record from
+ * already-computed display values -- every key present regardless of input
+ * (defaults cover the early "no eligible targets" branch, which calls this
+ * with just the scalars it has), so a fresh node renders a live "no eligible
+ * targets" panel rather than a stale or partially-shaped one.
+ */
+export function buildDaemonStatus({
+  now,
+  useFormulas,
+  forcedLegacy,
+  noTargets = false,
+  totalMaxRam = 0,
+  batchBudgetGb = 0,
+  hostsCount = 0,
+  targetsCount = 0,
+  utilizationPct = 0,
+  members = [],
+  memberCount,
+  draining = [],
+  drainingCount,
+  shareOff,
+  shareTargetGb = 0,
+  shareInFlightRamGb = 0,
+  shareInFlightThreads = 0,
+  shareAttainedPct = null,
+  sharePower = 0,
+  waterfallAvailableGb = 0,
+  prepping = [],
+  stallWarn = false,
+  skipWarnServers = [],
+  failedLaunches = 0,
+}) {
+  return {
+    timestamp: now,
+    time: new Date(now).toLocaleTimeString(),
+    noTargets,
+    mathMode: useFormulas ? "formulas" : forcedLegacy ? "legacy-forced" : "legacy",
+    fleet: { totalMaxRam, batchBudgetGb, hostsCount, targetsCount, utilizationPct },
+    members,
+    memberCount: memberCount ?? members.length,
+    draining,
+    drainingCount: drainingCount ?? draining.length,
+    share: {
+      off: !!shareOff,
+      targetGb: shareTargetGb,
+      inFlightRamGb: shareInFlightRamGb,
+      threads: shareInFlightThreads,
+      attainedPct: shareAttainedPct,
+      sharePower,
+    },
+    waterfall: { availableGb: waterfallAvailableGb, prepping },
+    warns: { stall: !!stallWarn, skipServers: skipWarnServers, failedLaunches },
+  };
+}
+
 /** Pure push+trim, no flush -- flush timing is decided once at end-of-tick. */
 function appendLogEvent(entries, openSkipRecords, record) {
   entries.push(record);
@@ -339,18 +401,17 @@ export async function main(ns) {
   // scrollback -- the daemon's own tprint lines and the pre-restart clutter
   // don't accumulate across sessions.
   ns.ui.clearTerminal();
-  ns.ui.openTail();
 
   // Pass our own pid so killscripts.js protects only *this* daemon.js
   // instance, not every process named daemon.js -- otherwise a stale
   // instance left running from a previous session would never get cleaned
   // up on restart, and would silently compete with the new one for RAM.
   await runAndWait(ns, "killscripts.js", ns.pid);
-  // Companion dashboards: neither calls ns.exec, so they have zero effect on
-  // the worker-RAM pool this daemon competes for -- targetsmonitor.js is
+  // Companions: neither calls ns.exec, so they have zero effect on the
+  // worker-RAM pool this daemon competes for -- targetsmonitor.js is
   // read-only, transactionsmonitor.js writes the day's transactions log
-  // (src/translog.js) as income lands. Each opens its own tail window
-  // itself via ns.ui.openTail().
+  // (src/translog.js) as income lands. Both headless as of Phase 24 --
+  // dashboard.js is the only standing tail.
   launchDetached(ns, "targetsmonitor.js");
   launchDetached(ns, "transactionsmonitor.js");
   // Phase 11: resource manager first, so its state file usually exists by
@@ -385,10 +446,10 @@ export async function main(ns) {
   // INFO-skips are expected until home RAM grows back -- see the script's
   // own header.
   launchDetached(ns, "augfarmer.js");
-  // Phase 18: headless window manager -- restores/persists every dashboard
-  // tail's position/size/font so they don't need re-dragging after every
-  // restart. Owns no tail of its own.
-  launchDetached(ns, "tailmanager.js");
+  // Phase 24: the single standing tail -- renderer only, reads the seven
+  // companions' state files and formats them to a fixed column/row budget.
+  // ~2-4 GB.
+  launchDetached(ns, "dashboard.js");
   // Phase 20: XP engine -- fills surplus RAM with hack workers; self-
   // suppresses when the fleet is busy (the batcher's claim is senior).
   launchDetached(ns, "xpfarm.js");
@@ -602,6 +663,21 @@ export async function main(ns) {
       ns.clearLog();
       ns.print(`===== daemon @ ${new Date().toLocaleTimeString()} =====`);
       ns.print("No eligible targets.");
+      ns.write(
+        DAEMON_STATUS_FILE,
+        JSON.stringify(
+          buildDaemonStatus({
+            now: Date.now(),
+            useFormulas,
+            forcedLegacy,
+            noTargets: true,
+            hostsCount: hosts.length,
+            shareOff,
+            sharePower: ns.getSharePower(),
+          })
+        ),
+        "w"
+      );
       await ns.sleep(BATCH_INTERVAL_MS);
       continue;
     }
@@ -972,6 +1048,70 @@ export async function main(ns) {
       ns.print(`WARN: ${mr.server} skipped this tick -- insufficient RAM even at MIN_HACK_FRACTION (empty pipeline)`);
     }
     if (failedLaunches > 0) ns.print(`WARN: ${failedLaunches} launch(es) failed (exec returned pid 0)`);
+
+    // Phase 24 (S2): dashboard.js's status snapshot -- built from the same
+    // values just displayed above, mapped into buildDaemonStatus's shape.
+    // Carries ALL seated members (the renderer applies the 3-cap; this file
+    // is the offline evidence).
+    const statusMembers = result.members.map((member) => {
+      const info = memberReserve.get(member.server);
+      const liveState = liveStates.get(member.server);
+      const target = targetsByServer.get(member.server);
+      const commitPct = member.pipelineCostGb > 0 ? (info.inFlightRamGb / member.pipelineCostGb) * 100 : 0;
+      return {
+        server: member.server,
+        prepped: member.realPrepped,
+        floor: member.pipelineCostGb > batchBudgetGb,
+        batchesInFlight: info.batchesInFlight,
+        depth: member.depth,
+        commitPct,
+        sec: liveState.currentSecurity,
+        minSec: target.minSecurityLevel,
+        money: liveState.currentMoney,
+        maxMoney: target.maxMoney,
+      };
+    });
+    const statusDraining = drainingServers.map((server) => {
+      const deadline = drainDeadlines.get(server);
+      return {
+        server,
+        batches: postLaunchInFlight.byTarget[server].batches,
+        etaMin: deadline ? Math.max(0, (deadline - Date.now()) / 60000) : null,
+      };
+    });
+    const shareAttainedPct = !shareOff && shareTargetGb > 0 ? (shareInFlightRamGb / shareTargetGb) * 100 : null;
+    const skipWarnServers = memberResults.filter((mr) => mr.kind === "skipped" && !mr.saturated).map((mr) => mr.server);
+    const stallWarn = result.members.length === 0 && candidates.length > 0;
+
+    ns.write(
+      DAEMON_STATUS_FILE,
+      JSON.stringify(
+        buildDaemonStatus({
+          now: Date.now(),
+          useFormulas,
+          forcedLegacy,
+          totalMaxRam,
+          batchBudgetGb,
+          hostsCount: hosts.length,
+          targetsCount: targets.length,
+          utilizationPct: utilization,
+          members: statusMembers,
+          draining: statusDraining,
+          shareOff,
+          shareTargetGb,
+          shareInFlightRamGb,
+          shareInFlightThreads,
+          shareAttainedPct,
+          sharePower,
+          waterfallAvailableGb,
+          prepping: preppedThisTick,
+          stallWarn,
+          skipWarnServers,
+          failedLaunches,
+        })
+      ),
+      "w"
+    );
 
     // Per-member batch/skip events, each self-describing about set size via
     // memberCount. Prep dispatches aren't logged as events (never were --

@@ -98,6 +98,15 @@ Conventions below apply at every stage (spec-reviewer enforces them).
   `logs/daemon-batch-log.json`'s mtime every session start; past 60s stale (or the dev
   server isn't running at all) it kills+restarts `npm run dev` automatically and reports
   one line. No manual "is my computer asleep" debugging should be needed anymore.
+- **Observability convention (Phase 24).** New features emit observations to a **log file**
+  by default — non-lossy and Claude-readable via the viteburner bridge without a paste.
+  **Dashboard space is gated:** a panel, indicator, or status line is added to `dashboard.js`
+  only via a brainstorm decision ("do we get value from surfacing this?"), never silently —
+  the window is a fixed-budget, no-wrap, single-instance surface, so ad-hoc writes would break
+  the very guarantees it exists to provide. Spawning a **new standalone popup** is the
+  anti-pattern this replaces. (A throwaway `tprint` probe during development is fine — it's
+  ephemeral debugging, not a feature emitting observations.) Crisp form: **"use dashboard or
+  logs."**
 
 ## Script writing rules (this is a custom Bitburner build)
 
@@ -112,6 +121,20 @@ site rather than trusting recall.
   **removed** → use **`ns.cloud.*`** (see `cloudmanager.js`).
 - When in doubt, the authoritative signatures for *this* build are in `markdown/bitburner.*.md`;
   the online NS docs describe upstream and will mislead you.
+- **Identifier hygiene — the RAM analyzer misreads names, not just calls.** This build's static
+  RAM calculator isn't purely call-graph-based: a **property access** whose name exactly matches
+  a real, non-zero-cost `ns` method — e.g. `state.share` — gets charged as if it were `ns.share()`
+  (2.4 GB), even when the receiver is plainly unrelated to `ns` and the method is never called.
+  (Earlier-known variant: a literal `.exec(` substring anywhere charges `ns.exec`'s 1.30 GB
+  regardless of receiver — `cloudmanager.js`'s `String.match` lesson.) Confirmed live 2026-07-14:
+  `dashboard.js`'s `daemonPanel` read a JSON field via `state.share` and silently carried a false
+  +2.4 GB (5 GB measured vs. 2.6 GB expected) until switched to bracket notation
+  (`state["share"]`), which the analyzer doesn't flag. **Rule:** before naming a local variable,
+  object key, or destructured property, check it isn't a real `ns.*` method/property name reachable
+  from *anywhere* in the script's namespace (`ns`, `ns.ui`, `ns.cloud`, `ns.singularity`, …); if a
+  field name must match one for schema/readability reasons, access it via bracket notation
+  (`obj["share"]`) rather than dot notation. Always confirm any surprising `ramcheck.js` reading
+  against this class of bug before assuming it's a real cost.
 
 ## Driving the live game (CDP)
 
@@ -171,10 +194,12 @@ restarted, **Claude restarts it automatically over the CDP terminal — without 
 is pre-authorized; don't checkpoint for it.
 
 - **Companion scripts** (`exec`'d by `daemon.js` — e.g. `cloudmanager.js`, `purchasescripts.js`):
-  `node tools/bb/cli.mjs restart <script>` — kills it, **closes the orphaned tail window**
-  (Bitburner leaves a killed script's tail open, reverting its title to the filename), then
-  relaunches; `tailmanager.js` re-docks the fresh window so the screen doesn't accumulate stray
-  popups. Prefer this over a raw `kill; run` for exactly that reason.
+  `node tools/bb/cli.mjs restart <script>` — kills it, closes any orphaned tail, then relaunches.
+  As of Phase 24 every companion is headless (nothing to re-dock — `dashboard.js` is the only
+  standing tail, and it self-closes its own tail via `ns.atExit` on every death the game runs
+  callbacks for); this command still matters for the close-orphan step on scripts that briefly
+  self-tail (`bootstrap.js`, `procureprograms.js`, `procureformulas.js`, `launchmonitor.js`,
+  `backdoorfactions.js`). Prefer this over a raw `kill; run` for exactly that reason.
 - **Core loop / imported libraries** (`daemon.js`, `scheduler.js`, `sampling.js`, `targets.js`,
   `hosts.js`, …): `node tools/bb/cli.mjs restart daemon.js` — same clean kill/close/relaunch; the
   daemon re-execs the loop on startup (it takes no launch args). Don't hand-restart the batcher's

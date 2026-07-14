@@ -34,15 +34,6 @@ do, and what's broken?*
   liveness-aware Remote API client, off the critical path): **`docs/dev-server.md` → "Root cause &
   why the fix is restart"**. Related confirmed-and-fixed variant (stale *push* from a `git checkout`
   under the live watcher) is closed — see `docs/phases/phase-13-consolidation.closeout.md`.
-- **`tools/bb` `restart` never closes the daemon's orphaned tail** — `restartScript`
-  (`tools/bb/driver.mjs`) closes the old tail by title = the script *filename* (`daemon.js`), but
-  `tailmanager.js` re-titles managed windows to their display title (`daemon`), so the close never
-  matches and every restart leaks a dead window. Found 2026-07-12: **ten** stacked orphaned
-  `daemon` tails, all docked at the same spot, top one frozen at a 6:21 PM frame — read as a live
-  "util 2.3%" and triggered a false alarm (the live tail underneath read ~90%). **Next:** in
-  `restartScript`, close *all* windows matching the filename **or** its `MANAGED_TAILS` title
-  (post-kill they're all dead, so close-all is safe), and make `closeTail` loop instead of
-  clicking only the first match.
 
 ## Ideas
 
@@ -90,9 +81,6 @@ do, and what's broken?*
 - **`saves/index.mjs` generator** — scan `saves/`, decode each file's BN/SF/hacking/money via
   `tools/save/savelib.mjs`, regenerate `saves/INDEX.md`. Parked; hand-maintaining ~8 rows is
   fine. **Revisit when** the save count grows enough that manual upkeep hurts.
-- **Single condensed dashboard window** (Phase 18 Layer 3) — a `dashboard.js` renderer reading the
-  other companions' on-disk state, replacing five tail windows. **Revisit only if** five tidy
-  windows still feel like too many. → `phase-18-dashboards.features.md`.
 
 ### Repo & workflow hygiene
 - **Repo decluttering** — root is the low-risk win (viteburner only watches `src/**`, so ~25 loose

@@ -34,6 +34,33 @@ const BOOTSTRAP_RAM = 2;
 const GROWTH_RAM = 16;
 const CLOUD_NAME_PATTERN = /^cloud-(\d+)$/;
 
+// Phase 24 (S4): dashboard.js's cloud panel source, written every poll
+// (including the paused/finance-stale early branches, each with its own flag
+// set so the panel can distinguish "paused" from "dead").
+const CLOUD_STATE_FILE = "cloud-state.json";
+
+/**
+ * Pure (Phase 24, S4). Assembles the cloud-state.json record from
+ * already-computed poll values -- every key present regardless of branch
+ * (paused/stale calls carry mostly defaults, normal calls carry the full
+ * fleet/next/growth picture).
+ */
+export function buildCloudState({
+  now,
+  paused = false,
+  financeStale = false,
+  available = 0,
+  reserved = 0,
+  fleet = null,
+  next = null,
+  growth = null,
+  lastUpgrade = null,
+  lastBootstrapBuy = null,
+  lastGrowthBuy = null,
+}) {
+  return { timestamp: now, time: new Date(now).toLocaleTimeString(), paused, financeStale, available, reserved, fleet, next, growth, lastUpgrade, lastBootstrapBuy, lastGrowthBuy };
+}
+
 /**
  * Pure. Picks the next upgrade: lowest current RAM first, ties broken by
  * list order (the cheapest single move, and it levels the fleet toward
@@ -89,7 +116,6 @@ export function nextCloudName(ownedNames) {
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
-  ns.ui.openTail();
 
   let wasStale = true; // starts "stale" so the very first real state clears it without a spurious WARN
   let lastUpgrade = null; // {hostname, fromRam, toRam, cost, time}
@@ -105,6 +131,7 @@ export async function main(ns) {
       ns.clearLog();
       ns.print(`===== cloud manager @ ${timeLabel} =====`);
       ns.print(`PAUSED (${OFF_MARKER} present)`);
+      ns.write(CLOUD_STATE_FILE, JSON.stringify(buildCloudState({ now: Date.now(), paused: true, lastUpgrade, lastBootstrapBuy, lastGrowthBuy })), "w");
       await ns.sleep(POLL_MS);
       continue;
     }
@@ -118,6 +145,7 @@ export async function main(ns) {
       ns.clearLog();
       ns.print(`===== cloud manager @ ${timeLabel} =====`);
       ns.print(`finance state ${state ? "stale" : "missing"} -- spending nothing`);
+      ns.write(CLOUD_STATE_FILE, JSON.stringify(buildCloudState({ now: Date.now(), financeStale: true, lastUpgrade, lastBootstrapBuy, lastGrowthBuy })), "w");
       await ns.sleep(POLL_MS);
       continue;
     }
@@ -307,6 +335,38 @@ export async function main(ns) {
     if (lastGrowthBuy) {
       ns.print(`last growth buy: ${lastGrowthBuy.hostname}, $${ns.format.number(lastGrowthBuy.cost)} @ ${lastGrowthBuy.time}`);
     }
+
+    ns.write(
+      CLOUD_STATE_FILE,
+      JSON.stringify(
+        buildCloudState({
+          now: Date.now(),
+          available: availableCash,
+          reserved: state.totalReserved,
+          fleet: fleet.length > 0 ? { count: fleet.length, minRam: Math.min(...fleet.map((f) => f.ram)), maxRam: Math.max(...fleet.map((f) => f.ram)), serverLimit, ramLimit } : null,
+          next: nextPlan ? { hostname: nextPlan.hostname, tier: nextPlan.nextTier, cost: nextCost, affordable: nextCost !== null && nextCost <= availableCash } : null,
+          growth:
+            !nextPlan && fleet.length > 0
+              ? {
+                  status:
+                    fleet.length >= serverLimit
+                      ? "at-limit"
+                      : growthStatus?.failing
+                        ? "failing"
+                        : growthStatus?.waiting
+                          ? "waiting"
+                          : growthStatus
+                            ? "bought"
+                            : "available",
+                }
+              : null,
+          lastUpgrade,
+          lastBootstrapBuy,
+          lastGrowthBuy,
+        })
+      ),
+      "w"
+    );
 
     await ns.sleep(POLL_MS);
   }
