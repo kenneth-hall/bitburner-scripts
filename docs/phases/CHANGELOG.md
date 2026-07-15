@@ -6,6 +6,39 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-14 (2)
+
+- **Phase 25 — autonomous aug-ratchet / faction strategy, implementation landed (live validation
+  pending)** → `docs/phases/phase-25-faction-strategy.features.md`,
+  `docs/phases/phase-25-faction-strategy.spec.md`. Upgrades `src/augfarmer.js` (Phase 23's naive
+  cheapest-rep-deficit farmer) into a score-based ratchet controller, and adds `src/installer.js` —
+  **the one file now authorized to call `installAugmentations`**, reversing Phase 23's hard "never"
+  rail (`docs/reset-protocol.md`'s Core rule rewritten, not just relaxed): the call is isolated to
+  `installer.js`, exec'd only from `augfarmer.js`'s auto-mode branch, reachable only when Kenneth
+  hand-writes `auto` into `ratchet-mode.txt` — default (file missing/anything else) is **observe
+  mode: no install, no spend-down, ever.** Landed this pass: S3's score-based aug targeting
+  (`scoreAug` — hacking weight 1, `hacking_exp`/`faction_rep` at a discounted 0.5, replacing D2's
+  10-key filter; `UTILITY_ALLOWLIST` trimmed to just NRMI, dropping CashRoot Starter Kit and The
+  Blade's Simulacrum since the 30-aug Daedalus gate is already met); S4's proactive multi-join +
+  camp commitment (`pickCamp`/`computeCamps` derive the three camps from the live enemy graph's
+  ally-relation connected components, not hard-coded city names — regression-locked by a shuffled-
+  graph unit test); S5's work-slot allocation around `PASSIVE_REP_FACTIONS`; S6's generalized
+  donation route (favor-threshold gated, `Formulas.exe`-guarded, `DONATION_BUFFER`-buffered,
+  Daedalus excluded via the endgame hold); S7's install trigger (`evalTrigger` — a projected-mult
+  gain floor, a 10-minute sustain window, and an auto-mode latch that only Kenneth's two abort
+  levers, the mode file or the pause file, can clear); S8's endgame hold
+  (`joined(Daedalus) || hacking>=2500`); S9's `ratchet-decisions.json` append-only audit-trail
+  ring; S10's auto-mode spend-down (lifts the one-NFG-per-cycle cap, freezes the full-money
+  reserve) + `installer.js` handoff (max home RAM, then cores, then `installAugmentations(
+  "bootstrap.js")`). `npm test` 550/550 green including 115 tests in the rewritten
+  `test/augfarmer.test.js` and the new `test/verify-ratchet.test.js`. **Explicitly not closed by
+  this entry** — S11's phase-close gate needs a real observe-mode `install-ready` fire Kenneth
+  judges, plus one manual install cycle's audit trail verified from exported logs; S12's RAM bands
+  (augfarmer.js 55–70 GB, installer.js 12–22 GB) are unmeasured; L1–L6 of the spec's live procedure
+  are outstanding. BACKLOG gained an S11 "Stage-2 first auto-fire" entry (parked on Kenneth writing
+  `auto`) and resolved/narrowed the install-order-calculator, augment-breadth-vs-depth, and
+  `upgradeHomeRam`-validation entries this phase subsumed.
+
 ## 2026-07-14
 
 - **Phase 24 — single condensed dashboard window (`src/dashboard.js`), shipped** →

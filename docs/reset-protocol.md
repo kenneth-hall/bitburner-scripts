@@ -79,6 +79,13 @@ the re-climbs are.
 Money resets to ~$1k on install, but **home RAM & cores persist** (see table). So the moment you're
 richest — right before installing — is the *only* good time to buy expensive permanent home upgrades.
 Do this **first**, before clicking Install:
+
+**Automated (Phase 25, auto mode only):** `installer.js`'s spend-down sequence implements exactly
+these two steps in this order — max home RAM, then max home cores, then the install call — before
+ever touching `installAugmentations`. `augfarmer.js`'s own spend-down phase (run immediately before
+handing off to `installer.js`) finishes the queued aug buy-list first, including lifting the
+one-NFG-per-cycle cap so the money-capped NFG tail described below gets bought out. Manual runs still
+follow the checklist below by hand.
 1. **Max out home RAM and cores you can afford.** They carry through the install; your money won't.
    (Home RAM has only a handful of tiers, so this is quick and may already be near-capped.)
 2. **Buy every augmentation you intend to take this cycle first** — the price of each queued aug rises
@@ -93,7 +100,8 @@ bump of 3.55×→3.83× cut the XP-to-2500 ~5× in the 2026-07-11 measurement), 
 reaches *higher* than grinding the un-installed run ever would. Don't hoard levels; install to raise the
 multiplier, then re-climb.
 
-## Core rule: auto-UNLOCK always; auto-JOIN only within a bounded, D11-authorized scope
+## Core rule: auto-UNLOCK always; auto-JOIN and (bounded, mode-gated) auto-INSTALL within a
+## D11-authorized scope
 
 - **Unlock** = make a faction's invitation *available*. For backdoor factions that means: root the
   server, then install its backdoor — the invite then appears on the Factions screen. This half is
@@ -106,13 +114,29 @@ multiplier, then re-climb.
   Tian Di Hui + the six city factions + Daedalus/The Covenant/Illuminati "as they unlock"), with the
   exclusion now enforced *in code*: a live-read enemy-graph guard (`campBlocked`) skips joining any
   city faction whose enemy is already joined this cycle, replacing the manual stand-in this rule used
-  to require. **Install stays 100% manual** regardless — `augfarmer.js` never calls
-  `installAugmentations` (grep-checked). See `docs/phases/phase-23-augfarmer.spec.md`'s D11 for the full bounds.
+  to require.
+- **Install rail — REVERSED 2026-07-14 (Phase 25), narrowed not removed.** Phase 23's rule here used
+  to read "install stays 100% manual — `augfarmer.js` never calls `installAugmentations`," asserted by
+  a hard `grep -r installAugmentations src/` rail. Kenneth authorized lifting that this session
+  (`phase-25-faction-strategy.features.md`'s F4), conditioned on comprehensive per-install logging
+  existing first (Slice 0, `ratchetlog.js`, shipped before the controller). The bounded authorization,
+  verbatim from the phase-25 spec: **default is observe mode — no install, no spend-down, ever.**
+  `auto` mode is Kenneth writing the literal string `auto` into `ratchet-mode.txt` by hand, in-game —
+  no code change flips it, and any other file content (including missing) means observe. The
+  `installAugmentations` call itself is isolated to exactly one file, `installer.js`, exec'd from
+  exactly one site (`augfarmer.js`'s auto-mode branch), reachable only when the mode file reads
+  `auto` — so the always-on farmer cannot install even if its trigger logic is buggy in observe mode.
+  The trigger that decides *when* to fire is guarded by a queued-augs-plus-affordable-NFG gain floor,
+  a minimum queued count, a 10-minute sustain window, and an endgame hold (`joined(Daedalus) ||
+  hacking >= 2500`) that hands off to the manual Daedalus runbook below untouched. Every fire is
+  logged to `ratchet-decisions.json` beside `ratchet-log.json`'s per-install audit trail. Full design:
+  `docs/phases/phase-25-faction-strategy.spec.md`.
 - **What this retires:** Phase 22's grep-for-`joinFaction` rail (asserting `joinFaction` appears
   nowhere in `src/`) is retired — `augfarmer.js` is now the one script authorized to call it. The
   replacement rail is two-part: `joinFaction` calls exist only in `augfarmer.js`, and every join site
   there routes through the `FACTION_SCOPE` check (both grep/test-checked, see the phase's acceptance
-  criteria).
+  criteria). Phase 25 retires the *install* rail the same way: `installAugmentations` calls exist only
+  in `installer.js`, gated by `ratchet-mode.txt` reading exactly `auto`.
 - Anything **outside** `FACTION_SCOPE` (megacorps, crime/gang factions, Netburners) is still entirely
   manual — no script joins those.
 
@@ -198,10 +222,17 @@ invite appears (cheap; Hacknet isn't worth it for income, but the unlock is triv
 
 ## Automation status
 
-Built, in two halves (see "Core rule" above): **`backdoorfactions.js`** (Phase 22) roots + backdoors
-the four hacking-faction servers post-reset, never joins. **`augfarmer.js`** (Phase 23) joins (within
-`FACTION_SCOPE`), grinds faction rep, and buys the next cheapest-rep-deficit augmentation, forever —
-install stays manual. Both are always-on Singularity companions launched by `daemon.js` at startup.
+Built, in three pieces (see "Core rule" above): **`backdoorfactions.js`** (Phase 22) roots + backdoors
+the four hacking-faction servers post-reset, never joins. **`augfarmer.js`** (Phase 23, upgraded
+Phase 25) proactively joins every reachable camp-allowed scope faction, targets augs by mult-per-rep
+score, allocates the single work slot around passive-rep factions, donates once a faction's favor
+clears the threshold, and evaluates the install trigger every pass — logging "would install now" in
+observe mode (the default) or, in auto mode only, running the spend-down + `installer.js` handoff.
+**`installer.js`** (Phase 25, new) is the one script authorized to call `installAugmentations` — maxes
+home RAM/cores, then installs with `bootstrap.js` as the post-reset callback. All three are always-on
+(or exec'd-once, for `installer.js`) Singularity companions launched by `daemon.js`/`augfarmer.js`.
 Netburners and Daedalus's non-backdoor gates (money/hacking-skill/aug-count thresholds) are out of
-scope for both — no server to backdoor, and those thresholds are things Kenneth accrues through
-normal play, not something either script drives directly.
+scope for all three — no server to backdoor, and those thresholds are things Kenneth accrues through
+normal play, not something any of these scripts drive directly. Daedalus's donate→Red-Pill→backdoor-WD
+endgame stays the manual runbook above — Phase 25's endgame hold (`joined(Daedalus) || hacking >=
+2500`) explicitly refuses to arm the trigger once that runbook starts.

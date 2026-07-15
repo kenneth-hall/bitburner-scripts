@@ -98,6 +98,7 @@ export default defineConfig({
         if (file === 'finance-state.json') return 'logs/finance-state.json'; // precedent reversal -- see comment above
         if (file === 'ratchet-log.json') return 'logs/ratchet-log.json'; // Phase 25 Slice 0 -- {pre,post} install-cycle records for the aug-ratchet trigger dataset
         if (file === 'ratchet-last.json') return 'logs/ratchet-last.json'; // Phase 25 Slice 0 -- rolling latest snapshot (install-survival state; also handy live view)
+        if (file === 'ratchet-decisions.json') return 'logs/ratchet-decisions.json'; // Phase 25 -- trigger/action audit trail, ring-capped
         return null;
       },
     },

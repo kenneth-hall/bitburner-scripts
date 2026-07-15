@@ -68,6 +68,11 @@ donation buys you nothing on re-climbs either — you'd still re-climb to 2500 a
 rejoin. The donation shortcut still wins because it saves the *rep grind*, not a re-climb.) See
 [reset-protocol.md](reset-protocol.md).
 
+**Automated, non-Daedalus (Phase 25, S6):** `augfarmer.js` now runs this same favor-threshold-then-
+donate route generally, for every scope faction except Daedalus (excluded whenever the endgame hold is
+in force — the Daedalus donate→Red-Pill sequence stays this manual runbook). See
+`docs/phases/phase-25-faction-strategy.spec.md` S6.
+
 ## Donation lock-down (computed 2026-07-11, `favorprobe.js` via Formulas.exe; favor question settled 2026-07-14)
 
 Formulas.exe makes the money↔rep curve **authoritative**, and the favor question is now settled

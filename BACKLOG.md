@@ -43,23 +43,28 @@ do, and what's broken?*
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
   first — does `contract.submit()` dodge `attempt`'s 10 GB charge? — it can invalidate the
   single-script architecture. → `phase-19-contracts.features.md`.
-- **Install-order calculator** (`tools/install-calc.mjs`, offline node) — the by-eye half
-  shipped as `docs/bn1-install-plan.md`; catalog assembled (`docs/aug-catalog*`). Remaining is
-  only the thin calc for the one "install-now vs one-more-cycle / how-many-NFG-levels" call.
-  **Build only if** the install cadence proves fiddly by eye.
 - **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
   carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
   toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset
   fleet). Observed live 2026-07-09. No design yet.
-- **Augment breadth-vs-depth for the Daedalus donation buyout** — the aug cost/priority reservation
-  model itself shipped as `resourcemanager.js`'s `next-aug` rule (Phase 23, `augfarmer.js`'s S1
-  deficit-ordered targeting). What's left unaddressed: shallow rep spread across many factions
-  (today's cheapest-rep-first strategy) banks favor slower per-faction than concentrating on one —
-  a *later* tension for the eventual Daedalus donation buyout, not a v1 concern. No design yet.
+- **Augment breadth-vs-depth, narrowed (Phase 25)** — the original v1 tension (shallow rep spread
+  across many factions banking favor slower than concentrating on one) is now addressed: S4's camp
+  commitment concentrates city-faction joining, and S6's generalized donation route lets a faction
+  banking favor fast buy past a slow grind. What remains, if anything, is Daedalus-endgame-specific
+  (still the manual runbook, `docs/reset-protocol.md`) — parked with that endgame, not a v1 concern.
 - **Core-aware grow/weaken sizing** — SHELVED; `sampling.js` sizes grow/weaken at an implicit 1
   core, but it's a safe overshoot (grow's security bump is core-independent) and only ~1% of
-  fleet RAM at home's 2 cores. **Revisit when** home cores get upgraded post-Singularity (needs
-  `upgradeHomeCores()`); co-scope with core-weighted share placement. → `phase-17-home-cores.features.md`.
+  fleet RAM at home's 2 cores. **Revisit when** home cores get upgraded post-Singularity — now
+  buildable (`installer.js`'s auto-mode `upgradeHomeCores()` calls, Phase 25 S10) but still gated
+  on Kenneth flipping `ratchet-mode.txt` to `auto`; co-scope with core-weighted share placement. →
+  `phase-17-home-cores.features.md`.
+- **Stage-2 first auto-fire (Phase 25 S11/S2)** — dormant until Kenneth hand-writes `auto` into
+  `ratchet-mode.txt` after observe-mode evidence convinces him (not scheduled — his call, may be
+  days-to-weeks out). **When it fires:** watch the full chain per the spec's L7 checklist —
+  spend-down records + fleet-freeze reservation, `installer.js` exec, home RAM/cores transactions,
+  the install itself, `bootstrap.js` relaunch via the `installAugmentations` callback, the
+  `ratchet-log.json` boundary pair. Any deviation demotes the mode file back to observe and reopens
+  the trigger design with the logged data. → `docs/phases/phase-25-faction-strategy.spec.md`.
 
 ### Tooling & infra
 - **CDP driver → MCP server** — wrap `tools/bb/driver.mjs` in an MCP so the helpers become native
@@ -75,9 +80,11 @@ do, and what's broken?*
 - **Per-target logging** — (a) realized income/efficiency per target over time, to sanity-check
   the ranking score against actual outcomes (today `batch` events log *expected* steal only); (b)
   prep-cycle duration (drift→prepped transition), currently invisible once a target is prepped.
-- **Validate `upgradeHomeRam` Singularity call** — the `home-ram-upgrade` buy path has never been
-  watched end-to-end (home RAM was UI-bought). Confirm it live opportunistically next time home
-  RAM is script-bought. (from the 2026-07-12 procureprograms close-out.)
+- **Validate `upgradeHomeRam` Singularity call, RESOLVED into Phase 25's live checklist** — the
+  `home-ram-upgrade` buy path has never been watched end-to-end (home RAM was UI-bought).
+  `installer.js`'s spend-down sequence now calls it (+ the sibling `upgradeHomeCores`) for real; the
+  first observed run is Phase 25's L5 (Stage-1 manual install, RAM only) or L7 (Stage-2 first
+  auto-fire, RAM + cores) checklist — no separate probe needed.
 - **`saves/index.mjs` generator** — scan `saves/`, decode each file's BN/SF/hacking/money via
   `tools/save/savelib.mjs`, regenerate `saves/INDEX.md`. Parked; hand-maintaining ~8 rows is
   fine. **Revisit when** the save count grows enough that manual upkeep hurts.

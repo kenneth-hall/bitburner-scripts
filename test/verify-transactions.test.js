@@ -30,6 +30,8 @@ const VALID_EXPENSE_SOURCES = new Set([
   'auto-aug', // augfarmer.js (Phase 23)
   'auto-travel', // augfarmer.js (Phase 23)
   'auto-formulas', // procureformulas.js -- pre-existing bug (missing from this whitelist), folded into Phase 23's ship gate
+  'auto-donation', // augfarmer.js (Phase 25, S6) -- the generalized donation route
+  'home-cores-upgrade', // installer.js (Phase 25, S10) -- mirrors home-ram-upgrade's shape
 ]);
 const VALID_INCOME_SOURCES = new Set(['hacking']);
 

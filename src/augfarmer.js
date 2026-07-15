@@ -1,38 +1,54 @@
-// Phase 23 -- auto augmentation farmer: the join + grind + buy half of the
-// BN1.2 aug-acquisition loop (Phase 22's backdoorfactions.js is the *unlock*
-// half -- roots + backdoors the four hacking-faction servers, never joins).
-// Always-on Singularity companion, exec'd by filename via daemon.js's
+// Phase 23/25 -- auto augmentation farmer: the join + grind + buy + (Phase 25)
+// score-aware targeting + camp commitment + donation + install-trigger half
+// of the BN1.2 aug-acquisition loop (Phase 22's backdoorfactions.js is the
+// *unlock* half -- roots + backdoors the four hacking-faction servers, never
+// joins). Always-on Singularity companion, exec'd by filename via daemon.js's
 // launchDetached (never imported -- keeps every other script's RAM bundle
 // free of this file's Singularity surface, per CLAUDE.md's hot-path rule).
 //
-// D11 authorization (docs/reset-protocol.md, phase-23-augfarmer.features.md):
-// Kenneth durably authorizes this script to auto-join and auto-buy
-// unattended, bounded to FACTION_SCOPE (built in main() below, 13 names --
-// see S2), never anything that could bar Daedalus (nothing can -- Daedalus
-// has no enemies, confirmed live), and NEVER installAugmentations -- install
-// stays 100% Kenneth's (grep -r installAugmentations src/ must find
-// nothing; this file doesn't call it).
+// D11 authorization, UPDATED Phase 25 (docs/reset-protocol.md,
+// phase-25-faction-strategy.spec.md S1/S2): Kenneth durably authorizes this
+// script to auto-join and auto-buy unattended, bounded to FACTION_SCOPE (13
+// names -- see below), never anything that could bar Daedalus (nothing can --
+// Daedalus has no enemies, confirmed live). The **install rail is relaxed,
+// not removed**: this file itself still never calls installAugmentations
+// (grep -r installAugmentations src/ must find it only in installer.js) --
+// the call is isolated to a dedicated, mode-gated companion. Default
+// (RATCHET_MODE_FILE missing or containing anything but exactly "auto") is
+// **observe mode: no install, no spend-down, ever.** Auto mode is Kenneth
+// writing "auto" into ratchet-mode.txt by hand, in-game, after reviewing
+// observe-mode evidence -- no code change flips it. See S7/S10 below for the
+// trigger + execution shape.
 //
 // S8 slot etiquette: takes the single player-action slot only when idle, mid
 // university class (studybootstrap.js's CS kick -- taking over IS the
 // stop/handoff crossover that script's header explicitly parks as future
 // work), or its own earlier faction-work assignment; yields to anything
 // else (company work, crime, program creation, out-of-scope faction work).
-// join/buy/reserve/travel still fire while yielded -- only "work" is
+// join/buy/reserve/travel/donate still fire while yielded -- only "work" is
 // slot-gated.
 //
-// RAM: derived ~53 GB at SF4.3's 1x multiplier (phase-23-augfarmer.spec.md
-// S6's call-by-call derivation). Measured 52.7 GB (ramcheck.js, 2026-07-13,
-// logs/ramcheck-result.json) -- lands in S6's 45-60 GB acceptance band;
-// daemon.js read 16.3 GB in the same pass, flat vs. its known baseline
-// (docs/phases/CHANGELOG.md), confirming the one added launchDetached line
-// didn't touch the batcher's own RAM. No HOME_RESERVE_GB change -- companions
-// launch before the batcher packs home, so this footprint is already inside
-// usedRam. A mid-session `restart augfarmer.js` may not fit the 32 GB
-// headroom -- restart daemon.js instead (pre-authorized, see CLAUDE.md).
-// Post-install INFO-skip (home too small right after a reset) is expected;
-// the farmer joins the party at the first daemon restart after home RAM
-// grows back.
+// Phase 25 trigger summary (S7, explicitly provisional -- see the decision
+// log, ratchet-decisions.json, which carries every constant in force on
+// every record so observe-mode data can re-derive better ones offline):
+// armed := projected total mult gain (queued augs x affordable NFG tail)
+// clears MIN_TOTAL_GAIN, at least one aug queued, not paused, not endgame
+// hold, and either nothing left to buy (idle-plateau) or the current grind's
+// rep horizon exceeds GRIND_HORIZON_MS. fired := armed continuously for
+// TRIGGER_SUSTAIN_MS. In auto mode fired is a latch (evalTrigger's own
+// shortcut) that only Kenneth's two abort levers (mode file / pause file)
+// clear. Endgame hold (S8): joined(Daedalus) || hacking >= 2500 -- the
+// trigger can't arm there, handing off to the manual Daedalus runbook
+// (docs/reset-protocol.md) untouched.
+//
+// RAM: derived ~60 GB at SF4.3's 1x multiplier (phase-25 spec S12 -- Phase
+// 23's measured 52.7 GB + donateToFaction/getFactionFavor/getFavorToDonate/
+// ns.exec/formulas.reputation.donationForRep). Acceptance band 55-70 GB;
+// measure via `ramcheck.js` and record here once live (S12 gate: a ~4x
+// reading means stop and check for an identifier-hygiene false charge, not
+// "multiplier live"). No HOME_RESERVE_GB change -- companions launch before
+// the batcher packs home. A mid-session `restart augfarmer.js` may not fit
+// the headroom -- restart daemon.js instead (pre-authorized, see CLAUDE.md).
 //
 // Task shape (S8's match rule) verified against markdown/bitburner.
 // factionworktask.md / bitburner.studytask.md (type "FACTION"/"CLASS" +
@@ -56,7 +72,29 @@ export const PAUSE_FILE = "augfarmer-pause.txt";
 export const TRAVEL_COST = 200_000;
 const DAEDALUS_AUG_GATE = 30;
 
-// D2's filter set -- ten keys (charisma counts twice: skill + exp).
+// Phase 25 constants (spec S1/work item 1). Every one of these rides into
+// every decision record (buildDecisionRecord) so observe-mode data can
+// re-derive better values offline -- they are declared provisional by
+// design (open question (d)).
+export const RATCHET_MODE_FILE = "ratchet-mode.txt";
+export const DECISIONS_FILE = "ratchet-decisions.json";
+export const DECISIONS_CAP = 500;
+export const SCORE_W_EXP = 0.5;
+export const SCORE_W_REP = 0.5;
+export const ALLOWLIST_SCORE = 0.25;
+export const MIN_TOTAL_GAIN = 1.1;
+export const GRIND_HORIZON_MS = 8 * 3600_000;
+export const TRIGGER_SUSTAIN_MS = 600_000;
+export const RATE_MIN_SAMPLES = 30;
+export const RATE_EWMA_ALPHA = 0.2;
+export const DONATION_BUFFER = 1.2;
+export const ENDGAME_HACK_LEVEL = 2500;
+export const SPEND_DOWN_BUY_CAP = 50;
+export const NFG_PRICE_LADDER = 1.9; // observed ladder mult, reset-protocol.md
+export const PASSIVE_REP_FACTIONS = new Set(["CyberSec", "NiteSec", "The Black Hand", "BitRunners"]);
+
+// Kept for the fixture helper in test/augfarmer.test.js (statsAllOnes) --
+// scoreAug itself only reads hacking/hacking_exp/faction_rep.
 export const MULT_FILTER_KEYS = [
   "hacking",
   "hacking_exp",
@@ -70,17 +108,34 @@ export const MULT_FILTER_KEYS = [
   "charisma_exp",
 ];
 
-// D2 seed -- curated by aug *description* (getAugmentationStats reads every
-// pure-utility aug as all-1.0, per augcheck.js's documented caveat), not by
-// stats. NRMI is here because it removes this farmer's own unfocused-work
-// penalty (D12) -- high value specifically because this script exists.
-export const UTILITY_ALLOWLIST = ["Neuroreceptor Management Implant", "CashRoot Starter Kit", "The Blade's Simulacrum"];
+// S3: shrunk to the one utility aug that directly raises this farmer's own
+// unfocused rep rate. CashRoot Starter Kit and The Blade's Simulacrum are
+// dropped -- the 30-aug Daedalus gate is already met, so a zero-score aug
+// only delays the plateau signal S7's trigger feeds on (flagged change).
+export const UTILITY_ALLOWLIST = ["Neuroreceptor Management Implant"];
 
 /**
- * Pure (D2). Keeps a name iff it's on `allowlist`, or any MULT_FILTER_KEYS
- * stat differs from 1 (inclusive-OR -- a mixed hacking+combat aug is kept).
- * The Red Pill (all-1.0, not allow-listed) drops here by construction --
- * S2's stated property, not a special case.
+ * Pure (S3). `(hacking-1) + SCORE_W_EXP*(hacking_exp-1) + SCORE_W_REP*(faction_rep-1)`,
+ * except allow-listed names return ALLOWLIST_SCORE flat -- the name
+ * parameter exists for exactly this override, since stats alone can't see
+ * the allowlist (a pure-utility aug reads all-1.0 either way).
+ * @param {string} name
+ * @param {Record<string, number>} stats
+ * @param {Set<string>} allowSet
+ */
+export function scoreAug(name, stats, allowSet) {
+  if (allowSet?.has(name)) return ALLOWLIST_SCORE;
+  const hacking = stats?.hacking ?? 1;
+  const hackingExp = stats?.hacking_exp ?? 1;
+  const factionRep = stats?.faction_rep ?? 1;
+  return hacking - 1 + SCORE_W_EXP * (hackingExp - 1) + SCORE_W_REP * (factionRep - 1);
+}
+
+/**
+ * Pure (S3, reshaped from D2's ten-key filter). Keeps a name iff
+ * scoreAug(...) > 0 -- allow-listed names always score ALLOWLIST_SCORE > 0,
+ * so no separate allowlist branch is needed. The Red Pill (all-1.0, not
+ * allow-listed) drops here by construction -- S2's preserved property.
  * @param {Record<string, Record<string, number>>} augStatsByName
  * @param {string[]} allowlist
  * @returns {Set<string>}
@@ -89,12 +144,7 @@ export function filterAugs(augStatsByName, allowlist) {
   const allowSet = new Set(allowlist);
   const kept = new Set();
   for (const [name, stats] of Object.entries(augStatsByName)) {
-    if (allowSet.has(name)) {
-      kept.add(name);
-      continue;
-    }
-    const relevant = MULT_FILTER_KEYS.some((k) => stats[k] !== undefined && stats[k] !== 1);
-    if (relevant) kept.add(name);
+    if (scoreAug(name, stats, allowSet) > 0) kept.add(name);
   }
   return kept;
 }
@@ -103,8 +153,8 @@ export function filterAugs(augStatsByName, allowlist) {
  * Pure (D6). Walks `candidateName`'s prereq chain against `catalog.augs`
  * (each entry `{prereqs, sellers, ...}`), returning the ordered unowned
  * chain deepest-first, ending in candidateName itself (a no-prereq aug
- * yields a one-element chain). Prereqs bypass the D2 filter by design --
- * this never consults passesFilter. Returns null if any link (including
+ * yields a one-element chain). Prereqs bypass the S3 score filter by design
+ * -- this never consults passesFilter. Returns null if any link (including
  * candidateName) has no in-scope seller -- "no reachable seller" the caller
  * can't work around this cycle.
  * @param {string} candidateName
@@ -133,6 +183,131 @@ export function expandPrereqs(candidateName, catalog, ownedSet) {
 export function campBlocked(faction, enemiesByFaction, joinedSet) {
   const enemies = enemiesByFaction[faction] ?? [];
   return enemies.some((e) => joinedSet.has(e));
+}
+
+/**
+ * Pure (S4). The set of "city" factions in `catalog.factions` -- derived
+ * from the live enemy graph, not hard-coded: any faction with a non-empty
+ * enemies list, plus any faction that appears in another's enemies list
+ * (defensive, in case the graph is asymmetric). The 8 non-conflicting
+ * in-scope factions (4 hacking + Tian Di Hui + Daedalus/Covenant/
+ * Illuminati) have empty enemies both ways and never appear here.
+ * @param {{factions: Record<string, {enemies: string[]}>}} catalog
+ * @returns {string[]}
+ */
+export function cityFactionNames(catalog) {
+  const names = new Set();
+  for (const [f, info] of Object.entries(catalog.factions)) {
+    if ((info.enemies ?? []).length > 0) names.add(f);
+    for (const e of info.enemies ?? []) names.add(e);
+  }
+  return [...names].sort();
+}
+
+/**
+ * Pure (S4). The connected components of the ALLY (non-enemy) relation
+ * among `cityNames` -- the complement of the enemy graph, which is what
+ * actually partitions the cities into camps (the enemy graph itself
+ * connects all six into one component -- the wrong answer, cold review B1).
+ * @param {string[]} cityNames
+ * @param {{factions: Record<string, {enemies: string[]}>}} catalog
+ * @returns {string[][]} each component sorted, components in first-seen order
+ */
+export function computeCamps(cityNames, catalog) {
+  const enemySets = new Map(cityNames.map((f) => [f, new Set(catalog.factions[f]?.enemies ?? [])]));
+  const visited = new Set();
+  const components = [];
+
+  for (const start of cityNames) {
+    if (visited.has(start)) continue;
+    const comp = [];
+    const queue = [start];
+    visited.add(start);
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      comp.push(cur);
+      for (const other of cityNames) {
+        if (visited.has(other)) continue;
+        const enemies = enemySets.get(cur).has(other) || enemySets.get(other).has(cur);
+        if (!enemies) {
+          visited.add(other);
+          queue.push(other);
+        }
+      }
+    }
+    components.push(comp.sort());
+  }
+  return components;
+}
+
+/**
+ * Pure (S4). Picks the camp to commit to this cycle. Reality rule: if any
+ * city faction is already joined, the camp is that faction's component --
+ * commitment can't flip once a city faction is joined. Otherwise scores
+ * each camp by summing scoreAug over unowned, filter-passing (score>0)
+ * augs whose entire in-scope seller set lies inside that camp (an aug also
+ * sold by a non-city faction discriminates nothing, per S4). Ties break by
+ * camp size descending, then first (alphabetical) member name.
+ * @param {{augs: Record<string, {sellers: string[], score: number}>, factions: Record<string, {enemies: string[]}>}} catalog
+ * @param {Set<string>} ownedSet
+ * @param {Set<string>} joinedSet
+ * @returns {{camp: string[], reason: "reality"|"scored", score?: number}|null}
+ */
+export function pickCamp(catalog, ownedSet, joinedSet) {
+  const cityNames = cityFactionNames(catalog);
+  if (cityNames.length === 0) return null;
+  const components = computeCamps(cityNames, catalog);
+
+  const joinedCity = cityNames.find((f) => joinedSet.has(f));
+  if (joinedCity) {
+    const comp = components.find((c) => c.includes(joinedCity));
+    return { camp: comp, reason: "reality" };
+  }
+
+  const scored = components.map((camp) => {
+    const campSet = new Set(camp);
+    let score = 0;
+    for (const [name, info] of Object.entries(catalog.augs)) {
+      if (ownedSet.has(name)) continue;
+      if (!(info.score > 0)) continue;
+      const sellers = info.sellers ?? [];
+      if (sellers.length === 0) continue;
+      if (sellers.every((s) => campSet.has(s))) score += info.score;
+    }
+    return { camp, score };
+  });
+
+  scored.sort((a, b) => {
+    if (a.score !== b.score) return b.score - a.score;
+    if (a.camp.length !== b.camp.length) return b.camp.length - a.camp.length;
+    return a.camp[0] < b.camp[0] ? -1 : a.camp[0] > b.camp[0] ? 1 : 0;
+  });
+
+  return { camp: scored[0].camp, reason: "scored", score: scored[0].score };
+}
+
+/**
+ * Pure (S4). This pass's join set: every invite-pending, in-scope faction
+ * that isn't already joined and, if it's a city faction, is inside
+ * `campChoice`'s camp. Out-of-scope names (not present in catalog.factions)
+ * never appear -- the rail preserved from D11.
+ * @param {{factions: Record<string, unknown>}} catalog
+ * @param {Set<string>|string[]} invites
+ * @param {Set<string>} joinedSet
+ * @param {{camp: string[]}|null} campChoice
+ * @returns {string[]}
+ */
+export function planJoins(catalog, invites, joinedSet, campChoice) {
+  const campSet = new Set(campChoice?.camp ?? []);
+  const cityNames = new Set(cityFactionNames(catalog));
+  const joins = [];
+  for (const faction of invites) {
+    if (!catalog.factions[faction]) continue;
+    if (joinedSet.has(faction)) continue;
+    if (cityNames.has(faction) && !campSet.has(faction)) continue;
+    joins.push(faction);
+  }
+  return joins;
 }
 
 /**
@@ -208,19 +383,20 @@ export function slotAvailable(currentWork, factionScope) {
 }
 
 /**
- * Pure (S1/S4/D5/D6). The whole targeting decision for one pass: expands
- * every unowned, filter-passing, reachable-seller aug to its actionable
- * (deepest-unowned) link, dedupes shared prereqs, sorts by S1's deficit key,
- * and returns the head -- or null on plateau (nothing reachable/affordable
- * left this cycle).
+ * Pure (S1/S3/S4/D5/D6). The whole targeting decision for one pass: expands
+ * every unowned, score-positive (or prereq-linked), reachable-seller aug to
+ * its actionable (deepest-unowned) link, dedupes shared prereqs (keeping the
+ * max inheriting score), and sorts by S3's key: rep-met targets first (score
+ * descending, then price ascending), then deficit>0 targets by
+ * score/deficit descending (tie-break deficit asc, price asc, name asc).
+ * Returns the head target's fields spread at the top level (back-compat with
+ * Phase 23 call sites/tests) plus `candidates`, the full sorted list S5's
+ * pickWorkFaction needs -- or null on plateau.
  *
  * `catalog` is {augs: {[name]: {repReq, price, prereqs, sellers, passesFilter,
- * isNFG}}, factions: {[faction]: {enemies, inviteReqs, workTypes}}}.
+ * isNFG, score, hackingMult}}, factions: {[faction]: {enemies, inviteReqs, workTypes}}}.
  * `playerFacts` extends evaluateInviteReqs's shape with `invites` (Set) and
  * `factionRep` ({[faction]: number}).
- * @returns {{aug: string, faction: string, repReq: number, deficit: number,
- *   wantedFor: string|undefined, status: string, gapCity: string|undefined,
- *   workTypes: string[]}|null}
  */
 export function pickTarget(catalog, playerFacts, joinedSet, ownedSet, nfgCapped) {
   const invites = playerFacts.invites ?? new Set();
@@ -251,7 +427,10 @@ export function pickTarget(catalog, playerFacts, joinedSet, ownedSet, nfgCapped)
     const chain = expandPrereqs(wanted, catalog, ownedSet);
     if (chain === null) continue; // no reachable seller somewhere in the chain
     const actionable = chain[0];
-    if (actionableByName.has(actionable)) continue; // shared-prereq dedupe
+    const wantedScore = catalog.augs[wanted]?.score ?? 0;
+
+    const existing = actionableByName.get(actionable);
+    if (existing && existing.score >= wantedScore) continue; // shared-prereq dedupe: max score wins
 
     const info = catalog.augs[actionable];
     const reachableSellers = info.sellers
@@ -279,6 +458,7 @@ export function pickTarget(catalog, playerFacts, joinedSet, ownedSet, nfgCapped)
       status: chosen.reach.status,
       gapCity: chosen.reach.gapCity,
       workTypes: catalog.factions[chosen.faction]?.workTypes ?? [],
+      score: wantedScore,
     });
   }
 
@@ -286,56 +466,315 @@ export function pickTarget(catalog, playerFacts, joinedSet, ownedSet, nfgCapped)
   if (candidates.length === 0) return null;
 
   candidates.sort((a, b) => {
+    const aMet = a.deficit <= 0;
+    const bMet = b.deficit <= 0;
+    if (aMet !== bMet) return aMet ? -1 : 1;
+    if (aMet) {
+      if (a.score !== b.score) return b.score - a.score;
+      if (a.price !== b.price) return a.price - b.price;
+      return a.aug < b.aug ? -1 : a.aug > b.aug ? 1 : 0;
+    }
+    const aRatio = a.score / a.deficit;
+    const bRatio = b.score / b.deficit;
+    if (aRatio !== bRatio) return bRatio - aRatio;
     if (a.deficit !== b.deficit) return a.deficit - b.deficit;
-    if (a.repReq !== b.repReq) return a.repReq - b.repReq;
     if (a.price !== b.price) return a.price - b.price;
     return a.aug < b.aug ? -1 : a.aug > b.aug ? 1 : 0;
   });
 
   const top = candidates[0];
+  return { ...top, candidates };
+}
+
+/**
+ * Pure (S5). PASSIVE_REP_FACTIONS accrue rep for free (backdoored hacking
+ * factions) -- the single active-work slot should go to the first sorted
+ * candidate whose faction is joined, still needs grinding (deficit>0), isn't
+ * donation-closable (money closes it, not the slot), and isn't passive. If
+ * every grindable candidate's faction is passive, falls back to the head
+ * candidate (today's behavior) -- returns the whole candidate object so the
+ * caller has workTypes without a second lookup, or null if there are none.
+ * @param {object[]} sortedCandidates
+ * @param {Set<string>} joinedSet
+ * @param {Set<string>} passiveSet
+ * @param {Set<string>} donationClosableSet
+ */
+export function pickWorkFaction(sortedCandidates, joinedSet, passiveSet, donationClosableSet) {
+  for (const c of sortedCandidates) {
+    if (!joinedSet.has(c.faction)) continue;
+    if (c.deficit <= 0) continue;
+    if (donationClosableSet?.has(c.faction)) continue;
+    if (passiveSet.has(c.faction)) continue;
+    return c;
+  }
+  return sortedCandidates[0] ?? null;
+}
+
+/**
+ * Pure (S7). EWMA (alpha=RATE_EWMA_ALPHA) tracker of Δrep/Δt per faction.
+ * A faction with no prior rep sample bootstraps quietly (no rate yet --
+ * needs two samples to derive one delta); a faction absent from `reps` this
+ * pass (not currently joined/read) is left untouched in the output.
+ * @param {Record<string, number>} prevRates
+ * @param {Record<string, number>} prevReps
+ * @param {Record<string, number>} reps
+ * @param {number} dtMs
+ */
+export function updateRepRates(prevRates, prevReps, reps, dtMs) {
+  const nextRates = { ...prevRates };
+  if (!(dtMs > 0)) return nextRates;
+  for (const [faction, rep] of Object.entries(reps)) {
+    const prevRep = prevReps?.[faction];
+    if (prevRep === undefined) continue; // first sample for this faction -- bootstrap next pass
+    const instRate = (rep - prevRep) / dtMs;
+    const prevRate = prevRates?.[faction];
+    nextRates[faction] = prevRate === undefined ? instRate : RATE_EWMA_ALPHA * instRate + (1 - RATE_EWMA_ALPHA) * prevRate;
+  }
+  return nextRates;
+}
+
+/**
+ * Pure (S7). The install trigger, explicitly provisional. `inputs`:
+ * {queuedGain, queuedCount, nfgPrice, nfgHackingMult, money, phase,
+ * targetFaction, deficit, repRates, rateSamples, paused, endgameHold, mode,
+ * now}. `priorState` is the previous call's return (or null).
+ *
+ * totalGain = queuedGain (product of stats.hacking over queued-but-
+ * uninstalled augs) x projectedNfgFactor (money-only projection of
+ * additional NFG levels beyond what's already queued, from the live NFG
+ * price and the observed x1.9 ladder -- NFG's rep requirement may bind
+ * first and cut the real count; accepted optimism, logged so observe data
+ * shows the error). armed requires totalGain >= MIN_TOTAL_GAIN, at least
+ * one aug queued, not paused, not endgame-held, and either idle-plateau or
+ * (grinding with a measured (>=RATE_MIN_SAMPLES) rep rate whose deficit
+ * horizon exceeds GRIND_HORIZON_MS). fired := armed continuously for
+ * TRIGGER_SUSTAIN_MS, recomputed fresh each call from priorState's
+ * armedSinceMs -- so in observe mode a lapsed condition naturally clears
+ * fired next call.
+ *
+ * Auto-mode latch (cold review C3): once fired while mode is "auto" and not
+ * paused, subsequent calls short-circuit to the same fired/armed state
+ * without re-deriving it from (by-then-irrelevant) spend-down/installing
+ * phase inputs -- the spend-down phases don't satisfy the arming conditions
+ * and must not self-abort an in-progress install. Only Kenneth's two levers
+ * clear it: changing ratchet-mode.txt away from "auto" (mode stops being
+ * "auto", shortcut no longer applies) or creating the pause file (paused
+ * flows into the shortcut's guard too).
+ */
+export function evalTrigger(inputs, priorState) {
+  const {
+    queuedGain = 1,
+    queuedCount = 0,
+    nfgPrice = 0,
+    nfgHackingMult = 1,
+    money = 0,
+    phase,
+    targetFaction,
+    deficit = 0,
+    repRates = {},
+    rateSamples = {},
+    paused = false,
+    endgameHold = false,
+    mode = "observe",
+    now,
+  } = inputs;
+
+  if (priorState?.fired && mode === "auto" && !paused) {
+    return { ...priorState, latched: true };
+  }
+
+  let nfgLevelsProjected = 0;
+  if (nfgPrice > 0) {
+    const ratio = 1 + (money * 0.9) / nfgPrice;
+    if (ratio > 1) nfgLevelsProjected = Math.max(0, Math.floor(Math.log(ratio) / Math.log(NFG_PRICE_LADDER)));
+  }
+  const projectedNfgFactor = Math.pow(nfgHackingMult, nfgLevelsProjected);
+  const totalGain = queuedGain * projectedNfgFactor;
+
+  const gainArmed = totalGain >= MIN_TOTAL_GAIN && queuedCount >= 1 && !paused && !endgameHold;
+
+  let horizonMs = null;
+  let phaseArmed = false;
+  if (gainArmed) {
+    if (phase === "idle-plateau") {
+      phaseArmed = true;
+    } else if (phase === "grinding" && targetFaction) {
+      const rate = repRates[targetFaction];
+      const samples = rateSamples[targetFaction] ?? 0;
+      if (rate > 0 && samples >= RATE_MIN_SAMPLES) {
+        horizonMs = deficit / rate;
+        phaseArmed = horizonMs > GRIND_HORIZON_MS;
+      }
+    }
+  }
+
+  const armed = gainArmed && phaseArmed;
+  const wasArmedSince = priorState?.armed ? priorState.armedSinceMs : null;
+  const armedSinceMs = armed ? (wasArmedSince ?? now) : null;
+  const sustainedMs = armed ? now - armedSinceMs : 0;
+  const fired = armed && sustainedMs >= TRIGGER_SUSTAIN_MS;
+
   return {
-    aug: top.aug,
-    faction: top.faction,
-    repReq: top.repReq,
-    deficit: top.deficit,
-    wantedFor: top.wantedFor,
-    status: top.status,
-    gapCity: top.gapCity,
-    workTypes: top.workTypes,
+    armed,
+    fired,
+    latched: false,
+    armedSinceMs,
+    sustainedMs,
+    totalGain,
+    projectedNfgFactor,
+    nfgLevelsProjected,
+    horizonMs,
+    reasons: { gainArmed, phaseArmed },
   };
 }
 
 /**
- * Pure. The whole per-pass decision, given a pre-picked `target` (pickTarget's
- * output or null) and this pass's live facts. Returns {actions, reserve, phase}.
- * `actions` entries: {type: "travel"|"join"|"work"|"reserve"|"buy"|"idle"|"yield", ...}.
- * `reserve` is the amount the caller should publish to RESERVE_FILE this pass
- * (0 when nothing rep-met is being bought toward).
+ * Pure (S10 step 1). One pass's spend-down buy list: rep-met discrete augs
+ * first in S3's sorted order (skipping NFG, handled below), then repeated
+ * NFG levels using the observed NFG_PRICE_LADDER escalation from
+ * `nfgState.livePrice`, bounded by SPEND_DOWN_BUY_CAP. `nfgState` is
+ * {livePrice, faction, repMet} -- repMet false suppresses the NFG tail
+ * (money-only affordability can't buy past its own rep requirement).
+ * @param {object[]} sortedCandidates
+ * @param {{augs: Record<string, {price: number}>}} catalog
+ * @param {number} money
+ * @param {{livePrice: number, faction: string, repMet: boolean}|null} nfgState
  */
-export function planPass({ target, currentWork, factionScope, money, livePrice, paused }) {
+export function spendDownPlan(sortedCandidates, catalog, money, nfgState) {
+  const actions = [];
+  let remaining = money;
+
+  for (const c of sortedCandidates) {
+    if (actions.length >= SPEND_DOWN_BUY_CAP) return actions;
+    if (c.aug === NFG_NAME) continue;
+    if (c.deficit > 0) continue;
+    if (c.price > remaining) continue;
+    actions.push({ type: "buy", aug: c.aug, faction: c.faction, price: c.price });
+    remaining -= c.price;
+  }
+
+  if (nfgState?.repMet && nfgState.faction && nfgState.livePrice > 0) {
+    let price = nfgState.livePrice;
+    while (actions.length < SPEND_DOWN_BUY_CAP && price > 0 && price <= remaining) {
+      actions.push({ type: "buy", aug: NFG_NAME, faction: nfgState.faction, price });
+      remaining -= price;
+      price *= NFG_PRICE_LADDER;
+    }
+  }
+
+  return actions;
+}
+
+/** Pure (S9). One ratchet-decisions.json record; `inputs` carries whatever the caller has this pass. */
+export function buildDecisionRecord(kind, inputs) {
+  const now = inputs.now ?? Date.now();
+  return {
+    timestamp: now,
+    time: new Date(now).toLocaleTimeString(),
+    kind,
+    mode: inputs.mode ?? null,
+    phase: inputs.phase ?? null,
+    trigger: inputs.trigger ?? null,
+    target: inputs.target ? { aug: inputs.target.aug, faction: inputs.target.faction, deficit: inputs.target.deficit } : null,
+    queuedCount: inputs.queuedCount ?? null,
+    queuedGain: inputs.queuedGain ?? null,
+    money: inputs.money ?? null,
+    multsHacking: inputs.multsHacking ?? null,
+    detail: inputs.detail ?? null,
+    constants: {
+      SCORE_W_EXP,
+      SCORE_W_REP,
+      ALLOWLIST_SCORE,
+      MIN_TOTAL_GAIN,
+      GRIND_HORIZON_MS,
+      TRIGGER_SUSTAIN_MS,
+      RATE_MIN_SAMPLES,
+      DONATION_BUFFER,
+      ENDGAME_HACK_LEVEL,
+      SPEND_DOWN_BUY_CAP,
+    },
+  };
+}
+
+/**
+ * Pure (S1/S4/S5/S6/S10). The whole per-pass decision.
+ *
+ * `target` is pickTarget's head (spread fields) or null. `joinFactions` is
+ * S4's proactive join list (planJoins' output, independent of `target`).
+ * `travel` is at most one {city, faction} candidate the caller resolved
+ * (current target's city gap first, else any other scope faction's city
+ * gap). `workTarget` is S5's pickWorkFaction result (may differ from
+ * `target`). `favor`/`favorToDonate`/`hasFormulas`/`donationCost` are S6's
+ * inputs for the head target's faction (donationCost is
+ * formulas.reputation.donationForRep(target.deficit, player), precomputed
+ * by the caller since it needs ns.formulas). `fired` is evalTrigger's
+ * latched-or-fresh fired flag for this pass. `installSeq` drives S10's
+ * auto-mode phases -- {phase: "spend-down", actions, execReady} or
+ * {phase: "installing"} -- and is defense-in-depth cleared to null whenever
+ * `mode !== "auto"` so a misused installSeq can never leak a spend-down/
+ * exec/install action in observe mode (the rail test).
+ */
+export function planPass({
+  target,
+  joinFactions = [],
+  travel,
+  currentWork,
+  factionScope,
+  money,
+  livePrice,
+  paused,
+  workTarget,
+  favor,
+  favorToDonate,
+  hasFormulas,
+  donationCost,
+  endgameHold,
+  mode,
+  fired,
+  installSeq,
+}) {
   if (paused) return { actions: [], reserve: 0, phase: "paused" };
-  if (!target) return { actions: [{ type: "idle" }], reserve: 0, phase: "idle-plateau" };
+
+  const seq = mode === "auto" ? installSeq : null;
+
+  if (seq?.phase === "installing") {
+    return { actions: [], reserve: money, phase: "installing" };
+  }
+  if (seq?.phase === "spend-down") {
+    const actions = [...(seq.actions ?? [])];
+    if (seq.execReady) actions.push({ type: "install-exec" });
+    return { actions, reserve: money, phase: "spend-down" };
+  }
+
+  const actions = [];
+  for (const faction of joinFactions) {
+    if (!factionScope.has(faction)) continue; // D11 defense-in-depth, second rail alongside planJoins' own catalog check
+    actions.push({ type: "join", faction });
+  }
+  if (travel) actions.push({ type: "travel", city: travel.city, faction: travel.faction });
+
+  if (fired) {
+    return { actions, reserve: 0, phase: "install-ready" };
+  }
+
+  if (!target) {
+    return { actions, reserve: 0, phase: actions.length > 0 ? "grinding" : "idle-plateau" };
+  }
 
   // D11 defense-in-depth: every join/work/travel site routes through the
   // FACTION_SCOPE check, not just the catalog construction that (today)
   // guarantees pickTarget never returns an out-of-scope faction -- a second
   // rail is cheap and makes this invariant directly testable here.
-  if (!factionScope.has(target.faction)) return { actions: [], reserve: 0, phase: "awaiting-invite" };
+  if (!factionScope.has(target.faction)) return { actions, reserve: 0, phase: "awaiting-invite" };
 
-  if (target.status === "city-gap") {
-    return { actions: [{ type: "travel", city: target.gapCity, faction: target.faction }], reserve: 0, phase: "awaiting-invite" };
-  }
-  if (target.status === "awaiting-invite") {
-    return { actions: [], reserve: 0, phase: "awaiting-invite" };
-  }
-  if (target.status === "invite-pending") {
-    return { actions: [{ type: "join", faction: target.faction }], reserve: 0, phase: "grinding" };
+  if (target.status === "city-gap" || target.status === "awaiting-invite" || target.status === "invite-pending") {
+    return { actions, reserve: 0, phase: target.status === "invite-pending" ? "grinding" : "awaiting-invite" };
   }
 
   // status === "joined"
   const repMet = target.deficit <= 0;
   if (repMet) {
-    const actions = [{ type: "reserve", amount: livePrice, aug: target.aug, faction: target.faction }];
+    actions.push({ type: "reserve", amount: livePrice, aug: target.aug, faction: target.faction });
     if (money >= livePrice) {
       actions.push({ type: "buy", aug: target.aug, faction: target.faction, price: livePrice });
       return { actions, reserve: livePrice, phase: "grinding" };
@@ -343,14 +782,36 @@ export function planPass({ target, currentWork, factionScope, money, livePrice, 
     return { actions, reserve: livePrice, phase: "awaiting-money" };
   }
 
-  const slot = slotAvailable(currentWork, factionScope);
-  if (!slot.available) return { actions: [{ type: "yield" }], reserve: 0, phase: "yielded" };
+  // S6: the donation route, generalized -- eligible once this faction's
+  // favor clears the donate threshold, Formulas.exe is on home, and endgame
+  // hold isn't in force (Daedalus is excluded exactly by this last check
+  // whenever it holds, per S6 -- no separate Daedalus special-case needed).
+  const donationEligible = !endgameHold && hasFormulas && donationCost != null && (favor ?? 0) >= (favorToDonate ?? Infinity);
+  let phase = "grinding";
+  let reserveAmount = 0;
+  if (donationEligible) {
+    const totalCost = donationCost + livePrice;
+    reserveAmount = totalCost;
+    if (money >= DONATION_BUFFER * totalCost) {
+      actions.push({ type: "donate", faction: target.faction, amount: donationCost, deficit: target.deficit });
+      return { actions, reserve: reserveAmount, phase: "grinding" };
+    }
+    phase = "awaiting-money";
+  }
 
-  const workType = pickWorkType(target.workTypes);
-  const alreadyWorking =
-    currentWork?.type === "FACTION" && currentWork.factionName === target.faction && currentWork.factionWorkType === workType;
-  const actions = alreadyWorking ? [] : [{ type: "work", faction: target.faction, workType }];
-  return { actions, reserve: 0, phase: "grinding" };
+  const slot = slotAvailable(currentWork, factionScope);
+  if (!slot.available) {
+    actions.push({ type: "yield" });
+    return { actions, reserve: reserveAmount, phase: "yielded" };
+  }
+
+  if (workTarget?.faction) {
+    const workType = pickWorkType(workTarget.workTypes);
+    const alreadyWorking =
+      currentWork?.type === "FACTION" && currentWork.factionName === workTarget.faction && currentWork.factionWorkType === workType;
+    if (!alreadyWorking) actions.push({ type: "work", faction: workTarget.faction, workType });
+  }
+  return { actions, reserve: reserveAmount, phase };
 }
 
 /** Pure (S7). Shape {amount, aug, faction, timestamp, time}; amount<=0 clears aug/faction to null. */
@@ -365,7 +826,7 @@ export function buildReserveRecord(amount, target, now) {
   };
 }
 
-/** Reads FACTION_SCOPE + augs/factions live and builds the static catalog (S5). */
+/** Reads FACTION_SCOPE + augs/factions live and builds the static catalog (S5/S3). */
 function buildCatalog(ns, factionScope, utilityAllowlist) {
   const factions = {};
   const sellersByAug = {};
@@ -386,6 +847,7 @@ function buildCatalog(ns, factionScope, utilityAllowlist) {
   for (const name of Object.keys(sellersByAug)) {
     statsByName[name] = ns.singularity.getAugmentationStats(name);
   }
+  const allowSet = new Set(utilityAllowlist);
   const keptSet = filterAugs(statsByName, utilityAllowlist);
 
   const augs = {};
@@ -397,6 +859,8 @@ function buildCatalog(ns, factionScope, utilityAllowlist) {
       price: ns.singularity.getAugmentationPrice(name),
       passesFilter: keptSet.has(name),
       isNFG: name === NFG_NAME,
+      score: scoreAug(name, statsByName[name], allowSet),
+      hackingMult: statsByName[name]?.hacking ?? 1,
     };
   }
 
@@ -425,6 +889,39 @@ function readState(ns) {
   } catch {
     return null;
   }
+}
+
+function readJSON(ns, file) {
+  const raw = ns.read(file);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** S9's append-only ring, cap DECISIONS_CAP -- same FIFO-trim pattern as resourcemanager.js's finance log. */
+function appendDecision(ns, kind, inputs) {
+  const record = buildDecisionRecord(kind, inputs);
+  const existing = readJSON(ns, DECISIONS_FILE) ?? [];
+  existing.push(record);
+  while (existing.length > DECISIONS_CAP) existing.shift();
+  ns.write(DECISIONS_FILE, JSON.stringify(existing, null, 2), "w");
+  return record;
+}
+
+/** Multiset difference: elements of `all` not matched by `subtract`'s counts -- the queued-augs computation (S7). */
+function multisetDiff(all, subtract) {
+  const counts = new Map();
+  for (const n of subtract) counts.set(n, (counts.get(n) ?? 0) + 1);
+  const remainder = [];
+  for (const n of all) {
+    const c = counts.get(n) ?? 0;
+    if (c > 0) counts.set(n, c - 1);
+    else remainder.push(n);
+  }
+  return remainder;
 }
 
 /** @param {NS} ns */
@@ -470,10 +967,23 @@ export async function main(ns) {
   let launchedSummary = false;
   let lastStateWrite = 0;
 
+  // Phase 25 loop-local state -- reset on every install-cycle boundary below.
+  let prevFactionRep = {};
+  let repRates = {};
+  let rateSamples = {};
+  let lastRateUpdate = 0;
+  let triggerState = null;
+  let installSeq = null;
+  let previousCampKey = null;
+  let previousEndgameHold = null;
+  let installerExecWarned = false;
+
   while (true) {
     const nowMs = Date.now();
     const timeLabel = new Date(nowMs).toLocaleTimeString();
     const paused = ns.fileExists(PAUSE_FILE, "home");
+    const modeRaw = ns.read(RATCHET_MODE_FILE);
+    const mode = modeRaw?.trim() === "auto" ? "auto" : "observe";
 
     const resetInfo = ns.getResetInfo();
     if (resetInfo.lastAugReset !== lastAugReset) {
@@ -482,6 +992,12 @@ export async function main(ns) {
       boughtThisCycle = [];
       catalog = null;
       previousJoinedKey = null;
+      prevFactionRep = {};
+      repRates = {};
+      rateSamples = {};
+      triggerState = null;
+      installSeq = null;
+      previousCampKey = null;
       tprintTs(ns, "INFO: new install cycle detected (lastAugReset changed) -- resetting NFG cap + bought-this-cycle tracking");
     }
 
@@ -554,9 +1070,13 @@ export async function main(ns) {
     }
 
     const factionRep = {};
+    const favor = {};
     try {
       for (const f of FACTION_SCOPE) {
-        if (joined.has(f)) factionRep[f] = ns.singularity.getFactionRep(f);
+        if (joined.has(f)) {
+          factionRep[f] = ns.singularity.getFactionRep(f);
+          favor[f] = ns.singularity.getFactionFavor(f);
+        }
       }
       singularityProven = true;
     } catch (e) {
@@ -564,8 +1084,27 @@ export async function main(ns) {
         exitSingularityUnavailable(ns, "getFactionRep", e);
         return;
       }
-      tprintTs(ns, `WARN: getFactionRep threw (${e?.message ?? e}) -- retrying next poll`);
+      tprintTs(ns, `WARN: getFactionRep/getFactionFavor threw (${e?.message ?? e}) -- retrying next poll`);
     }
+
+    let favorToDonate = null;
+    try {
+      favorToDonate = ns.getFavorToDonate();
+      singularityProven = true;
+    } catch (e) {
+      tprintTs(ns, `WARN: getFavorToDonate threw (${e?.message ?? e}) -- donation route suspended this pass`);
+    }
+
+    // S7's rep-rate EWMA -- updated once per pass from the factionRep read above.
+    if (lastRateUpdate > 0) {
+      const dt = nowMs - lastRateUpdate;
+      repRates = updateRepRates(repRates, prevFactionRep, factionRep, dt);
+      for (const f of Object.keys(factionRep)) {
+        if (prevFactionRep[f] !== undefined) rateSamples[f] = (rateSamples[f] ?? 0) + 1;
+      }
+    }
+    prevFactionRep = factionRep;
+    lastRateUpdate = nowMs;
 
     const playerFacts = {
       city: player.city,
@@ -579,6 +1118,44 @@ export async function main(ns) {
     };
 
     const target = pickTarget(catalog, playerFacts, joined, ownedSet, nfgBoughtThisCycle);
+
+    const endgameHold = joined.has(FactionName.Daedalus) || player.skills.hacking >= ENDGAME_HACK_LEVEL;
+    if (endgameHold !== previousEndgameHold) {
+      appendDecision(ns, "endgame-hold", { now: nowMs, mode, phase: previousPhase, money: player.money, detail: { endgameHold } });
+      previousEndgameHold = endgameHold;
+    }
+
+    const campChoice = pickCamp(catalog, ownedSet, joined);
+    const campKey = campChoice?.camp?.join(",") ?? null;
+    if (campKey !== previousCampKey) {
+      appendDecision(ns, "camp-choice", { now: nowMs, mode, phase: previousPhase, money: player.money, detail: campChoice });
+      previousCampKey = campKey;
+    }
+
+    const joinFactions = planJoins(catalog, invites, joined, campChoice);
+
+    let travel = null;
+    if (target?.status === "city-gap") {
+      travel = { city: target.gapCity, faction: target.faction };
+    } else {
+      const campSet = new Set(campChoice?.camp ?? []);
+      const cityNames = new Set(cityFactionNames(catalog));
+      for (const faction of FACTION_SCOPE) {
+        if (joined.has(faction)) continue;
+        if (cityNames.has(faction) && !campSet.has(faction)) continue;
+        const info = catalog.factions[faction];
+        const { onlyCityGap, gapCity } = evaluateInviteReqs(info?.inviteReqs ?? [], playerFacts);
+        if (onlyCityGap) {
+          travel = { city: gapCity, faction };
+          break;
+        }
+      }
+    }
+
+    const donationClosableSet = new Set(
+      FACTION_SCOPE.filter((f) => joined.has(f) && !endgameHold && (favor[f] ?? 0) >= (favorToDonate ?? Infinity)),
+    );
+    const workTarget = pickWorkFaction(target?.candidates ?? [], joined, PASSIVE_REP_FACTIONS, donationClosableSet);
 
     let currentWork = null;
     try {
@@ -607,9 +1184,130 @@ export async function main(ns) {
       }
     }
 
-    const plan = planPass({ target, currentWork, factionScope: FACTION_SCOPE_SET, money: player.money, livePrice, paused });
+    // S6: the donation cost for the head target's faction (Formulas-exact,
+    // per resolved open question (b) -- favor-independent). Guarded by
+    // Formulas.exe's presence (donationForRep throws without it).
+    const hasFormulas = ns.fileExists("Formulas.exe", "home");
+    let donationCost = null;
+    if (target && target.deficit > 0 && hasFormulas && !endgameHold && (favor[target.faction] ?? 0) >= (favorToDonate ?? Infinity)) {
+      try {
+        donationCost = ns.formulas.reputation.donationForRep(target.deficit, player);
+        singularityProven = true;
+      } catch (e) {
+        tprintTs(ns, `WARN: donationForRep threw (${e?.message ?? e}) -- donation suspended this pass`);
+      }
+    }
 
-    let boughtThisPass = null;
+    // S7's trigger inputs.
+    const queuedNames = multisetDiff(ownedTrueRaw, ownedInstalled);
+    const queuedGain = queuedNames.reduce((p, n) => p * (catalog.augs[n]?.hackingMult ?? 1), 1);
+    const nfgPrice = catalog.augs[NFG_NAME]?.price ?? 0;
+    const nfgHackingMult = catalog.augs[NFG_NAME]?.hackingMult ?? 1;
+
+    const triggerInputs = {
+      queuedGain,
+      queuedCount: queuedNames.length,
+      nfgPrice,
+      nfgHackingMult,
+      money: player.money,
+      phase: previousPhase,
+      targetFaction: target?.faction,
+      deficit: target?.deficit ?? 0,
+      repRates,
+      rateSamples,
+      paused,
+      endgameHold,
+      mode,
+      now: nowMs,
+    };
+    const prevTrigger = triggerState;
+    triggerState = evalTrigger(triggerInputs, triggerState);
+
+    if (triggerState.armed && !prevTrigger?.armed) {
+      appendDecision(ns, "trigger-arm", {
+        now: nowMs,
+        mode,
+        phase: previousPhase,
+        trigger: triggerState,
+        target,
+        queuedCount: queuedNames.length,
+        queuedGain,
+        money: player.money,
+        multsHacking: player.mults.hacking,
+      });
+    }
+    if (triggerState.fired && !prevTrigger?.fired) {
+      appendDecision(ns, "trigger-fire", {
+        now: nowMs,
+        mode,
+        phase: previousPhase,
+        trigger: triggerState,
+        target,
+        queuedCount: queuedNames.length,
+        queuedGain,
+        money: player.money,
+        multsHacking: player.mults.hacking,
+      });
+      tprintTs(
+        ns,
+        `RATCHET: would install now -- totalGain ${triggerState.totalGain.toFixed(3)}, ${queuedNames.length} queued, ` +
+          `${triggerState.nfgLevelsProjected} projected NFG level(s) (mode: ${mode})`,
+      );
+    }
+    if (!triggerState.armed && prevTrigger?.armed && mode !== "auto") {
+      appendDecision(ns, "trigger-clear", { now: nowMs, mode, phase: previousPhase, trigger: triggerState, money: player.money });
+    }
+
+    // S10: (re)build/advance the auto-mode install sequence. Aborts (mode
+    // left auto, or paused) drop it back to null with a decision record --
+    // Kenneth's two levers.
+    if ((mode !== "auto" || paused) && installSeq !== null) {
+      appendDecision(ns, "install-abort", { now: nowMs, mode, phase: previousPhase, money: player.money, detail: { paused } });
+      installSeq = null;
+      installerExecWarned = false;
+    }
+    if (mode === "auto" && !paused && triggerState.fired && installSeq === null) {
+      installSeq = { phase: "spend-down", actions: [], execReady: false };
+      appendDecision(ns, "spend-down-start", {
+        now: nowMs,
+        mode,
+        phase: previousPhase,
+        trigger: triggerState,
+        money: player.money,
+        multsHacking: player.mults.hacking,
+      });
+    }
+    if (installSeq?.phase === "spend-down") {
+      const nfgState = {
+        livePrice: nfgPrice,
+        faction: catalog.augs[NFG_NAME]?.sellers?.[0],
+        repMet: (catalog.augs[NFG_NAME]?.repReq ?? Infinity) <= (factionRep[catalog.augs[NFG_NAME]?.sellers?.[0]] ?? 0),
+      };
+      installSeq.actions = spendDownPlan(target?.candidates ?? [], catalog, player.money, nfgState);
+      installSeq.execReady = installSeq.actions.length === 0;
+    }
+
+    const plan = planPass({
+      target,
+      joinFactions,
+      travel,
+      currentWork,
+      factionScope: FACTION_SCOPE_SET,
+      money: player.money,
+      livePrice,
+      paused,
+      workTarget,
+      favor: target ? favor[target.faction] : undefined,
+      favorToDonate,
+      hasFormulas,
+      donationCost,
+      endgameHold,
+      mode,
+      fired: triggerState.fired,
+      installSeq,
+    });
+
+    let boughtThisPass = false;
     for (const action of plan.actions) {
       try {
         if (action.type === "travel") {
@@ -652,6 +1350,34 @@ export async function main(ns) {
           } else {
             lastFailureKey = null;
           }
+        } else if (action.type === "donate") {
+          const ok = ns.singularity.donateToFaction(action.faction, action.amount);
+          singularityProven = true;
+          if (ok) {
+            recordTransaction(ns, {
+              type: "expense",
+              source: "auto-donation",
+              faction: action.faction,
+              rep: action.deficit,
+              amount: action.amount,
+              timestamp: Date.now(),
+              time: new Date().toLocaleTimeString(),
+            });
+            tprintTs(ns, `DONATE: $${ns.format.number(action.amount)} to ${action.faction} for ~${Math.round(action.deficit)} rep`);
+            appendDecision(ns, "donation", {
+              now: nowMs,
+              mode,
+              phase: plan.phase,
+              target,
+              money: player.money,
+              detail: { faction: action.faction, amount: action.amount, deficit: action.deficit },
+            });
+            lastFailureKey = null;
+          } else {
+            const key = `donate:${action.faction}`;
+            if (key !== lastFailureKey) tprintTs(ns, `WARN: donateToFaction(${action.faction}) returned false -- retrying next poll`);
+            lastFailureKey = key;
+          }
         } else if (action.type === "buy") {
           const ok = ns.singularity.purchaseAugmentation(action.faction, action.aug);
           singularityProven = true;
@@ -666,7 +1392,7 @@ export async function main(ns) {
               time: new Date().toLocaleTimeString(),
             });
             tprintTs(ns, `BUY: ${action.aug} from ${action.faction} for $${ns.format.number(action.price)}`);
-            boughtThisPass = { aug: action.aug, price: action.price, faction: action.faction };
+            boughtThisPass = true;
             if (action.aug === NFG_NAME) nfgBoughtThisCycle = true;
             boughtThisCycle.push({ aug: action.aug, price: action.price, faction: action.faction, timestamp: Date.now() });
             lastFailureKey = null;
@@ -674,6 +1400,17 @@ export async function main(ns) {
             const key = `buy:${action.faction}:${action.aug}`;
             if (key !== lastFailureKey) tprintTs(ns, `WARN: purchaseAugmentation(${action.faction}, ${action.aug}) returned false -- retrying next poll`);
             lastFailureKey = key;
+          }
+        } else if (action.type === "install-exec") {
+          const pid = ns.exec("installer.js", "home", 1);
+          if (pid > 0) {
+            appendDecision(ns, "installer-exec", { now: nowMs, mode, phase: plan.phase, money: player.money, multsHacking: player.mults.hacking, detail: { pid } });
+            tprintTs(ns, `RATCHET: exec'd installer.js (pid ${pid}) -- handing off the install`);
+            installSeq = { phase: "installing" };
+            installerExecWarned = false;
+          } else if (!installerExecWarned) {
+            tprintTs(ns, "WARN: ns.exec(installer.js) returned 0 (no free RAM?) -- retrying next poll");
+            installerExecWarned = true;
           }
         }
       } catch (e) {
@@ -687,9 +1424,19 @@ export async function main(ns) {
 
     // S7: fresh reservation write every poll; a buy landing this pass clears
     // it immediately (before this write), so the just-bought aug is never
-    // re-reserved for another poll (cold review's finding 4).
-    const reserveAmount = boughtThisPass ? 0 : (plan.reserve ?? 0);
-    const reserveTarget = boughtThisPass ? null : target;
+    // re-reserved for another poll (cold review's finding 4). S10: during
+    // spend-down/installing, the reservation instead freezes the *whole*
+    // balance (fleet/cloud purchases pause -- purchased servers die with
+    // the install while every dollar here converts to mult or hardware).
+    let reserveAmount;
+    let reserveTarget;
+    if (plan.phase === "spend-down" || plan.phase === "installing") {
+      reserveAmount = player.money;
+      reserveTarget = { aug: "install spend-down", faction: null };
+    } else {
+      reserveAmount = boughtThisPass ? 0 : (plan.reserve ?? 0);
+      reserveTarget = boughtThisPass ? null : target;
+    }
     ns.write(RESERVE_FILE, JSON.stringify(buildReserveRecord(reserveAmount, reserveTarget, Date.now())), "w");
 
     if (target?.aug !== previousTargetAug && !boughtThisPass) {
@@ -719,12 +1466,18 @@ export async function main(ns) {
         timestamp: nowMs,
         time: timeLabel,
         phase: plan.phase,
+        mode,
         target: target ? { aug: target.aug, faction: target.faction, repReq: target.repReq, deficit: target.deficit, livePrice } : null,
         joinedFactions: [...joined].filter((f) => FACTION_SCOPE_SET.has(f)),
         campLocksInForce: FACTION_SCOPE.filter((f) => !joined.has(f) && campBlocked(f, Object.fromEntries(FACTION_SCOPE.map((ff) => [ff, catalog.factions[ff]?.enemies ?? []])), joined)),
+        campChoice,
+        workFaction: workTarget?.faction ?? null,
+        favor,
         boughtThisCycle,
         nfg: { level: ownedTrueRaw.filter((a) => a === NFG_NAME).length, cappedThisCycle: nfgBoughtThisCycle },
         daedalusGate: { installed: ownedInstalled.length, queued: ownedTrueRaw.length - ownedInstalled.length, target: DAEDALUS_AUG_GATE },
+        trigger: triggerState,
+        endgameHold,
         lastAugReset,
         nfgBoughtThisCycle,
       };
@@ -733,19 +1486,20 @@ export async function main(ns) {
     }
 
     if (!launchedSummary) {
-      tprintTs(ns, `LAUNCH: augfarmer running -- ${joined.size} faction(s) joined, ${target ? `targeting ${target.aug} (${target.faction})` : "no target yet"}`);
+      tprintTs(ns, `LAUNCH: augfarmer running -- ${joined.size} faction(s) joined, mode ${mode}, ${target ? `targeting ${target.aug} (${target.faction})` : "no target yet"}`);
       launchedSummary = true;
     }
 
     ns.clearLog();
     ns.print(`===== aug farmer @ ${timeLabel} =====`);
-    ns.print(`phase: ${plan.phase}${paused ? " (PAUSED)" : ""}`);
+    ns.print(`phase: ${plan.phase}${paused ? " (PAUSED)" : ""} | mode: ${mode}`);
     if (target) {
       ns.print(`target: ${target.aug} via ${target.faction} -- rep ${target.repReq} (deficit ${Math.round(target.deficit)}) | price $${livePrice !== null ? ns.format.number(livePrice) : "?"}`);
     } else {
       ns.print("target: none (plateau)");
     }
     ns.print(`bought this cycle: ${boughtThisCycle.length} | joined: ${joined.size}/${FACTION_SCOPE.length}`);
+    ns.print(`trigger: armed=${triggerState.armed} fired=${triggerState.fired} gain=${triggerState.totalGain.toFixed(3)}`);
 
     await ns.sleep(POLL_MS);
   }
