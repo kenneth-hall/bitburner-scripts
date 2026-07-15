@@ -82,6 +82,8 @@ export const DECISIONS_FILE = "ratchet-decisions.json";
 export const DECISIONS_CAP = 500;
 export const SCORE_W_EXP = 0.5;
 export const SCORE_W_REP = 0.5;
+export const SCORE_W_MONEY = 0.15;
+export const SCORE_W_SPEED = 0.15;
 export const ALLOWLIST_SCORE = 0.25;
 export const MIN_TOTAL_GAIN = 1.1;
 export const GRIND_HORIZON_MS = 8 * 3600_000;
@@ -93,6 +95,7 @@ export const ENDGAME_HACK_LEVEL = 2500;
 export const SPEND_DOWN_BUY_CAP = 50;
 export const NFG_PRICE_LADDER = 1.9; // observed ladder mult, reset-protocol.md
 export const PASSIVE_REP_FACTIONS = new Set(["CyberSec", "NiteSec", "The Black Hand", "BitRunners"]);
+export const RED_PILL_NAME = "The Red Pill";
 
 // Kept for the fixture helper in test/augfarmer.test.js (statsAllOnes) --
 // scoreAug itself only reads hacking/hacking_exp/faction_rep.
@@ -110,16 +113,36 @@ export const MULT_FILTER_KEYS = [
 ];
 
 // S3: shrunk to the one utility aug that directly raises this farmer's own
-// unfocused rep rate. CashRoot Starter Kit and The Blade's Simulacrum are
-// dropped -- the 30-aug Daedalus gate is already met, so a zero-score aug
-// only delays the plateau signal S7's trigger feeds on (flagged change).
-export const UTILITY_ALLOWLIST = ["Neuroreceptor Management Implant"];
+// unfocused rep rate. The Blade's Simulacrum stays dropped -- the 30-aug
+// Daedalus gate is already met, so a zero-score aug only delays the
+// plateau signal S7's trigger feeds on (flagged change). CashRoot Starter
+// Kit re-added 2026-07-15 (Kenneth's ask, "utility augs that contribute to
+// our build") -- its stats read all-1.0 like any pure-utility aug
+// (augcheck.js's documented caveat), but its real effect ($1M + BruteSSH.exe
+// granted on every future install, confirmed live via augcheck.js) speeds
+// up post-install bootstrap recovery every single cycle, unlike the combat/
+// charisma/company-only augs this allowlist deliberately excludes.
+//
+// The Red Pill added 2026-07-15 (Kenneth's explicit ask, after being told
+// this REVERSES the S2/S3 "drops by construction" property that every
+// prior phase preserved deliberately). No longer a special case: once
+// Daedalus rep clears 2.5m (donated automatically per the S6-generalized
+// Daedalus route, also added this session), it's just another allow-listed
+// $0 buy that fires through the normal pipeline.
+export const UTILITY_ALLOWLIST = ["Neuroreceptor Management Implant", "CashRoot Starter Kit", "The Red Pill"];
 
 /**
- * Pure (S3). `(hacking-1) + SCORE_W_EXP*(hacking_exp-1) + SCORE_W_REP*(faction_rep-1)`,
+ * Pure (S3, amended 2026-07-15 at Kenneth's request). `(hacking-1) +
+ * SCORE_W_EXP*(hacking_exp-1) + SCORE_W_REP*(faction_rep-1) +
+ * SCORE_W_MONEY*(hacking_money-1) + SCORE_W_SPEED*(hacking_speed-1)`,
  * except allow-listed names return ALLOWLIST_SCORE flat -- the name
  * parameter exists for exactly this override, since stats alone can't see
  * the allowlist (a pure-utility aug reads all-1.0 either way).
+ * money/speed are weighted well below exp/rep -- they don't move hack
+ * *level* (this strategy's bottleneck) at all, only income rate, which
+ * only helps indirectly (faster NFG/donation funding). hacking_chance and
+ * hacking_grow remain unweighted (0 toward score) -- Kenneth's ask was
+ * specifically money/speed, not the full ten-key set D2 originally used.
  * @param {string} name
  * @param {Record<string, number>} stats
  * @param {Set<string>} allowSet
@@ -129,14 +152,25 @@ export function scoreAug(name, stats, allowSet) {
   const hacking = stats?.hacking ?? 1;
   const hackingExp = stats?.hacking_exp ?? 1;
   const factionRep = stats?.faction_rep ?? 1;
-  return hacking - 1 + SCORE_W_EXP * (hackingExp - 1) + SCORE_W_REP * (factionRep - 1);
+  const hackingMoney = stats?.hacking_money ?? 1;
+  const hackingSpeed = stats?.hacking_speed ?? 1;
+  return (
+    hacking -
+    1 +
+    SCORE_W_EXP * (hackingExp - 1) +
+    SCORE_W_REP * (factionRep - 1) +
+    SCORE_W_MONEY * (hackingMoney - 1) +
+    SCORE_W_SPEED * (hackingSpeed - 1)
+  );
 }
 
 /**
  * Pure (S3, reshaped from D2's ten-key filter). Keeps a name iff
  * scoreAug(...) > 0 -- allow-listed names always score ALLOWLIST_SCORE > 0,
- * so no separate allowlist branch is needed. The Red Pill (all-1.0, not
- * allow-listed) drops here by construction -- S2's preserved property.
+ * so no separate allowlist branch is needed. Any other all-1.0 utility aug
+ * not on UTILITY_ALLOWLIST still drops here by construction (The Red Pill
+ * used to be the canonical example of this until it was allow-listed
+ * 2026-07-15 -- see that constant's header).
  * @param {Record<string, Record<string, number>>} augStatsByName
  * @param {string[]} allowlist
  * @returns {Set<string>}
@@ -415,17 +449,30 @@ export function pickTarget(catalog, playerFacts, joinedSet, ownedSet, nfgCapped)
     return { status: "unreachable" };
   }
 
+  // NFG is repeatable -- owning a level (installed from a prior cycle, or
+  // queued this one) must NOT drop it out of "wanted" the way owning a
+  // discrete aug does. nfgCapped (the D3 one-per-cycle cap in normal
+  // phases; lifted during S10 spend-down) does NOT exclude it from
+  // wantedNames either -- that would stop rep grinding, not just buying,
+  // and rep costs nothing while money is almost always NFG's real ceiling
+  // (reset-protocol.md's ~17-18 levels/install figure). It's instead
+  // recorded per-candidate below as `buyBlocked`, so grinding continues
+  // (repReq live-refreshes to the next level's higher requirement the
+  // moment a purchase lands, so this banks rep ahead for the next cycle's
+  // spend-down) while the purchase itself stays suppressed.
   const wantedNames = Object.keys(catalog.augs).filter((name) => {
     const info = catalog.augs[name];
     if (!info.passesFilter) return false;
-    if (ownedSet.has(name)) return false;
-    if (info.isNFG && nfgCapped) return false;
+    if (!info.isNFG && ownedSet.has(name)) return false;
     return true;
   });
 
   const actionableByName = new Map();
   for (const wanted of wantedNames) {
-    const chain = expandPrereqs(wanted, catalog, ownedSet);
+    // NFG has no prereqs and, per the above, may already be in ownedSet --
+    // expandPrereqs' owned-shortcut would treat it as already-satisfied and
+    // return an empty chain, so it's resolved directly instead.
+    const chain = catalog.augs[wanted]?.isNFG ? [wanted] : expandPrereqs(wanted, catalog, ownedSet);
     if (chain === null) continue; // no reachable seller somewhere in the chain
     const actionable = chain[0];
     const wantedScore = catalog.augs[wanted]?.score ?? 0;
@@ -460,6 +507,7 @@ export function pickTarget(catalog, playerFacts, joinedSet, ownedSet, nfgCapped)
       gapCity: chosen.reach.gapCity,
       workTypes: catalog.factions[chosen.faction]?.workTypes ?? [],
       score: wantedScore,
+      buyBlocked: info.isNFG && nfgCapped,
     });
   }
 
@@ -666,6 +714,62 @@ export function spendDownPlan(sortedCandidates, catalog, money, nfgState) {
   return actions;
 }
 
+/**
+ * Pure (2026-07-15 amendment, Kenneth's ask). $ reservation protecting the
+ * Daedalus INVITE'S own money gate -- read live from the catalog's
+ * inviteReqs (not hard-coded), so it tracks this BitNode's actual
+ * multiplier instead of assuming the vanilla $100b. Only meaningful once
+ * not yet joined; the caller gates this on endgameHold (hack>=2500) so it
+ * doesn't start protecting a huge sum from the very start of a fresh
+ * cycle, which would stall cloud-fleet growth for the entire early climb
+ * for no benefit -- the invite is unreachable until hack clears 2500
+ * anyway, so nothing is lost by waiting for that same signal.
+ * @param {{factions: Record<string, {inviteReqs: object[]}>}} catalog
+ */
+export function daedalusInviteReserve(catalog) {
+  const reqs = catalog.factions?.Daedalus?.inviteReqs ?? [];
+  const moneyReq = reqs.find((r) => r.type === "money");
+  return moneyReq?.money ?? 0;
+}
+
+/**
+ * Pure (2026-07-15 amendment). $ reservation for the Daedalus donation
+ * buyout, once joined -- a moving target that shrinks as rep grinds toward
+ * The Red Pill's own rep requirement (read live from the catalog, not
+ * hard-coded to 2.5m). Zero whenever: the requirement is unreadable, rep
+ * already clears it (Red Pill is $0 -- nothing left to reserve), favor
+ * hasn't cleared the donate threshold yet (donating isn't actionable, so
+ * nothing to protect), or Formulas.exe is absent (donationForRep throws
+ * without it -- same guard as S6's generalized donation route).
+ * `donationCost` is the caller's live `formulas.reputation.donationForRep(
+ * deficit, player)` result for the CURRENT deficit -- needs ns.formulas,
+ * so it's computed by the caller, not here.
+ * @param {{redPillRepReq: number|null, daedalusRep: number, daedalusFavor: number,
+ *   favorToDonate: number, hasFormulas: boolean, donationCost: number|null}} inputs
+ */
+export function daedalusDonationReserve({ redPillRepReq, daedalusRep, daedalusFavor, favorToDonate, hasFormulas, donationCost }) {
+  if (redPillRepReq == null) return 0;
+  const deficit = Math.max(0, redPillRepReq - (daedalusRep ?? 0));
+  if (deficit <= 0) return 0;
+  if (!hasFormulas || (daedalusFavor ?? 0) < (favorToDonate ?? Infinity)) return 0;
+  return donationCost ?? 0;
+}
+
+/**
+ * Pure (2026-07-15 amendment, Kenneth's ask: "auto donate to Daedalus for
+ * the 2.5m rep"). True iff daedalusDonationReserve's amount is actionable
+ * this pass -- same DONATION_BUFFER shape as S6's generalized route, just
+ * no longer excluded for Daedalus. This only covers the donate call itself
+ * -- buying The Red Pill (now allow-listed, see UTILITY_ALLOWLIST) flows
+ * through the normal pickTarget/planPass buy pipeline once rep clears, and
+ * installing is a separate concern gated behind ratchet-mode.txt.
+ * @param {number} daedalusReserveAmount
+ * @param {number} money
+ */
+export function shouldDonateToDaedalus(daedalusReserveAmount, money) {
+  return daedalusReserveAmount > 0 && money >= DONATION_BUFFER * daedalusReserveAmount;
+}
+
 /** Pure (S9). One ratchet-decisions.json record; `inputs` carries whatever the caller has this pass. */
 export function buildDecisionRecord(kind, inputs) {
   const now = inputs.now ?? Date.now();
@@ -772,8 +876,11 @@ export function planPass({
     return { actions, reserve: 0, phase: target.status === "invite-pending" ? "grinding" : "awaiting-invite" };
   }
 
-  // status === "joined"
-  const repMet = target.deficit <= 0;
+  // status === "joined". buyBlocked (NFG's D3 cap) forces the grind branch
+  // even when this level's rep is already met -- no buy/reserve is emitted,
+  // and repReq live-refreshes to the next level's requirement on the next
+  // poll, so the work slot keeps banking rep ahead of the next spend-down.
+  const repMet = target.deficit <= 0 && !target.buyBlocked;
   if (repMet) {
     actions.push({ type: "reserve", amount: livePrice, aug: target.aug, faction: target.faction });
     if (money >= livePrice) {
@@ -1199,6 +1306,82 @@ export async function main(ns) {
       }
     }
 
+    // 2026-07-15 amendment (Kenneth's ask): Daedalus-endgame $ reservation
+    // -- protects the invite's money gate before joining, then the live
+    // donation cost for the shrinking Red Pill rep deficit after joining.
+    // Only active once endgameHold holds (hack>=2500) -- see
+    // daedalusInviteReserve's header for why gating on that signal, not
+    // "always", avoids stalling early-cycle cloud growth for nothing.
+    let daedalusReserveAmount = 0;
+    let daedalusReserveLabel = null;
+    if (endgameHold) {
+      if (!joined.has(FactionName.Daedalus)) {
+        daedalusReserveAmount = daedalusInviteReserve(catalog);
+        daedalusReserveLabel = "Daedalus invite ($ gate)";
+      } else {
+        const redPillRepReq = catalog.augs[RED_PILL_NAME]?.repReq ?? null;
+        const daedalusRep = factionRep[FactionName.Daedalus] ?? 0;
+        const daedalusFavor = favor[FactionName.Daedalus] ?? 0;
+        const daedalusDeficit = redPillRepReq != null ? Math.max(0, redPillRepReq - daedalusRep) : 0;
+        let daedalusDonationCost = null;
+        if (daedalusDeficit > 0 && hasFormulas && daedalusFavor >= (favorToDonate ?? Infinity)) {
+          try {
+            daedalusDonationCost = ns.formulas.reputation.donationForRep(daedalusDeficit, player);
+            singularityProven = true;
+          } catch (e) {
+            tprintTs(ns, `WARN: donationForRep(Daedalus) threw (${e?.message ?? e}) -- reservation suspended this pass`);
+          }
+        }
+        daedalusReserveAmount = daedalusDonationReserve({
+          redPillRepReq,
+          daedalusRep,
+          daedalusFavor,
+          favorToDonate,
+          hasFormulas,
+          donationCost: daedalusDonationCost,
+        });
+        daedalusReserveLabel = "Daedalus donation buyout";
+      }
+    }
+
+    // 2026-07-15 amendment (Kenneth's ask): auto-donate to Daedalus once
+    // affordable -- same DONATION_BUFFER-gated shape as S6's generalized
+    // route, just no longer excluded for Daedalus. Fires unconditional of
+    // mode (same as every other faction's donation route) but respects
+    // the pause file. On success the reservation is zeroed immediately
+    // (S7's cold-review fix: a landed spend must not still be reserved for
+    // another poll) before the final reserve write below.
+    if (!paused && daedalusReserveLabel === "Daedalus donation buyout" && shouldDonateToDaedalus(daedalusReserveAmount, player.money)) {
+      try {
+        const ok = ns.singularity.donateToFaction(FactionName.Daedalus, daedalusReserveAmount);
+        singularityProven = true;
+        if (ok) {
+          recordTransaction(ns, {
+            type: "expense",
+            source: "auto-donation",
+            faction: FactionName.Daedalus,
+            rep: catalog.augs[RED_PILL_NAME]?.repReq ?? null,
+            amount: daedalusReserveAmount,
+            timestamp: Date.now(),
+            time: new Date().toLocaleTimeString(),
+          });
+          tprintTs(ns, `DONATE: $${ns.format.number(daedalusReserveAmount)} to Daedalus -- clears the Red Pill's rep requirement`);
+          appendDecision(ns, "donation", {
+            now: nowMs,
+            mode,
+            phase: previousPhase,
+            money: player.money,
+            detail: { faction: "Daedalus", amount: daedalusReserveAmount },
+          });
+          daedalusReserveAmount = 0; // spent -- don't re-reserve it this same pass
+        } else {
+          tprintTs(ns, "WARN: donateToFaction(Daedalus) returned false -- retrying next poll");
+        }
+      } catch (e) {
+        tprintTs(ns, `WARN: donateToFaction(Daedalus) threw (${e?.message ?? e}) -- retrying next poll`);
+      }
+    }
+
     // S7's trigger inputs.
     const queuedNames = multisetDiff(ownedTrueRaw, ownedInstalled);
     const queuedGain = queuedNames.reduce((p, n) => p * (catalog.augs[n]?.hackingMult ?? 1), 1);
@@ -1437,6 +1620,14 @@ export async function main(ns) {
     } else {
       reserveAmount = boughtThisPass ? 0 : (plan.reserve ?? 0);
       reserveTarget = boughtThisPass ? null : target;
+    }
+    // 2026-07-15 amendment: the Daedalus-endgame reservation always wins if
+    // it's bigger -- it can't co-occur with spend-down/installing anyway
+    // (S7's gainArmed requires !endgameHold), so this only ever raises the
+    // normal per-target reserve, never overrides a real spend-down freeze.
+    if (daedalusReserveAmount > reserveAmount) {
+      reserveAmount = daedalusReserveAmount;
+      reserveTarget = { aug: daedalusReserveLabel, faction: "Daedalus" };
     }
     ns.write(RESERVE_FILE, JSON.stringify(buildReserveRecord(reserveAmount, reserveTarget, Date.now())), "w");
 

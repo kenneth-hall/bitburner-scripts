@@ -210,6 +210,14 @@ function announceDiff(ns, diff) {
     tprintTs(ns, `FINANCE: reserved $${ns.format.number(r.amount)} -- ${r.key} (${r.label})`);
   }
   for (const c of diff.changed) {
+    // 2026-07-15 fix: a moving-target reservation (e.g. augfarmer's live
+    // Daedalus-donation cost, which shrinks every poll as rep grinds
+    // toward it) keeps the same label while the dollar figure drifts --
+    // that's not a meaningful transition worth a terminal line every 10s,
+    // unlike the port-opener ladder's each-step label change. Still
+    // recorded in the finance log either way (diffReservations' own
+    // `changed` set, untouched) -- only the announce is suppressed.
+    if (c.fromLabel === c.toLabel) continue;
     tprintTs(
       ns,
       `FINANCE: released ${c.key} (${c.fromLabel}) -- now reserving $${ns.format.number(c.toAmount)} for ${c.toLabel}`

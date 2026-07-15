@@ -1,8 +1,8 @@
 // Unit tests for src/augfarmer.js's pure decision functions (Phase 23/25).
 // Fixtures use fictional faction/aug names except where a specific real name
-// is the point of the assertion (e.g. "The Red Pill" must drop from the
-// score filter by name, per S3's preserved property; the real six-city
-// enemy graph is the point of the pickCamp fixtures).
+// is the point of the assertion (e.g. "The Red Pill" is allow-listed as of
+// 2026-07-15 -- Kenneth's explicit ask; the real six-city enemy graph is
+// the point of the pickCamp fixtures).
 import { describe, it, expect } from 'vitest';
 import {
   MULT_FILTER_KEYS,
@@ -10,6 +10,8 @@ import {
   NFG_NAME,
   SCORE_W_EXP,
   SCORE_W_REP,
+  SCORE_W_MONEY,
+  SCORE_W_SPEED,
   ALLOWLIST_SCORE,
   MIN_TOTAL_GAIN,
   GRIND_HORIZON_MS,
@@ -33,6 +35,9 @@ import {
   updateRepRates,
   evalTrigger,
   spendDownPlan,
+  daedalusInviteReserve,
+  daedalusDonationReserve,
+  shouldDonateToDaedalus,
   buildDecisionRecord,
   planPass,
   buildReserveRecord,
@@ -72,10 +77,18 @@ describe('scoreAug', () => {
     expect(scoreAug('Neuroreceptor Management Implant', statsAllOnes({ hacking: 5 }), allowSet)).toBe(ALLOWLIST_SCORE);
   });
 
-  it('ignores non-hacking mult keys entirely (money/speed/chance/grow/charisma/company)', () => {
+  it('money-only: discounted by SCORE_W_MONEY (2026-07-15 amendment)', () => {
+    expect(scoreAug('X', statsAllOnes({ hacking_money: 1.4 }), new Set())).toBeCloseTo(SCORE_W_MONEY * 0.4, 6);
+  });
+
+  it('speed-only: discounted by SCORE_W_SPEED (2026-07-15 amendment)', () => {
+    expect(scoreAug('X', statsAllOnes({ hacking_speed: 1.1 }), new Set())).toBeCloseTo(SCORE_W_SPEED * 0.1, 6);
+  });
+
+  it('ignores chance/grow/charisma/company entirely -- Kenneth\'s amendment was specifically money/speed', () => {
     const score = scoreAug(
       'X',
-      statsAllOnes({ hacking_money: 2, hacking_speed: 2, hacking_chance: 2, hacking_grow: 2, charisma: 2, charisma_exp: 2, company_rep: 2 }),
+      statsAllOnes({ hacking_chance: 2, hacking_grow: 2, charisma: 2, charisma_exp: 2, company_rep: 2 }),
       new Set(),
     );
     expect(score).toBe(0);
@@ -93,12 +106,17 @@ describe('filterAugs', () => {
     expect(kept.has('CombatAug')).toBe(false);
   });
 
-  it('drops a money/speed/chance/grow/charisma/company-only aug -- the old ten-key set members that no longer qualify', () => {
+  it('drops a chance/grow/charisma/company-only aug -- still unweighted', () => {
     const kept = filterAugs(
-      { UtilityAug: statsAllOnes({ hacking_money: 1.5, hacking_speed: 1.5, hacking_chance: 1.5, hacking_grow: 1.5, charisma: 1.5, company_rep: 1.5 }) },
+      { UtilityAug: statsAllOnes({ hacking_chance: 1.5, hacking_grow: 1.5, charisma: 1.5, company_rep: 1.5 }) },
       [],
     );
     expect(kept.has('UtilityAug')).toBe(false);
+  });
+
+  it('keeps a money/speed-only aug -- 2026-07-15 amendment (ENM Analyze Engine/DMA Upgrade class)', () => {
+    const kept = filterAugs({ MoneySpeedAug: statsAllOnes({ hacking_money: 1.4, hacking_speed: 1.1 }) }, []);
+    expect(kept.has('MoneySpeedAug')).toBe(true);
   });
 
   it('keeps a mixed hacking+combat aug (inclusive OR via a positive score)', () => {
@@ -111,23 +129,23 @@ describe('filterAugs', () => {
     expect(kept.has('UtilAug')).toBe(false);
   });
 
-  it('keeps NRMI (allow-listed, S3\'s shrunk one-name list)', () => {
-    const kept = filterAugs({ 'Neuroreceptor Management Implant': statsAllOnes() }, UTILITY_ALLOWLIST);
-    expect(kept.has('Neuroreceptor Management Implant')).toBe(true);
-  });
-
-  it('drops CashRoot Starter Kit and The Blade\'s Simulacrum -- S3\'s flagged allowlist trim', () => {
+  it('keeps NRMI and CashRoot Starter Kit (allow-listed)', () => {
     const kept = filterAugs(
-      { 'CashRoot Starter Kit': statsAllOnes(), "The Blade's Simulacrum": statsAllOnes() },
+      { 'Neuroreceptor Management Implant': statsAllOnes(), 'CashRoot Starter Kit': statsAllOnes() },
       UTILITY_ALLOWLIST,
     );
-    expect(kept.has('CashRoot Starter Kit')).toBe(false);
+    expect(kept.has('Neuroreceptor Management Implant')).toBe(true);
+    expect(kept.has('CashRoot Starter Kit')).toBe(true);
+  });
+
+  it("drops The Blade's Simulacrum -- S3's flagged allowlist trim, still stands", () => {
+    const kept = filterAugs({ "The Blade's Simulacrum": statsAllOnes() }, UTILITY_ALLOWLIST);
     expect(kept.has("The Blade's Simulacrum")).toBe(false);
   });
 
-  it('drops The Red Pill (all-1.0, not allow-listed) -- preserved property', () => {
+  it('keeps The Red Pill -- allow-listed 2026-07-15 (Kenneth\'s explicit ask, reverses the prior "drops by construction" property)', () => {
     const kept = filterAugs({ 'The Red Pill': statsAllOnes() }, UTILITY_ALLOWLIST);
-    expect(kept.has('The Red Pill')).toBe(false);
+    expect(kept.has('The Red Pill')).toBe(true);
   });
 });
 
@@ -451,9 +469,36 @@ describe('pickTarget', () => {
     expect(target.aug).toBe(NFG_NAME);
   });
 
-  it('excludes NFG from the sort when capped this cycle', () => {
+  it('NFG stays targetable even when a level is already owned -- repeatable, unlike a discrete aug (regression)', () => {
     const catalog = { augs: { [NFG_NAME]: augFx({ sellers: ['F1'], repReq: 100, isNFG: true }) }, factions: { F1: faction() } };
-    expect(pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), true)).toBeNull();
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set([NFG_NAME]), false);
+    expect(target.aug).toBe(NFG_NAME);
+    expect(target.deficit).toBe(100);
+  });
+
+  it('a genuinely-owned discrete aug (non-NFG) is still excluded, unaffected by the NFG carve-out', () => {
+    const catalog = {
+      augs: {
+        Owned: augFx({ sellers: ['F1'], repReq: 100 }),
+        [NFG_NAME]: augFx({ sellers: ['F1'], repReq: 500, isNFG: true }),
+      },
+      factions: { F1: faction() },
+    };
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(['Owned']), false);
+    expect(target.aug).toBe(NFG_NAME);
+  });
+
+  it('capped this cycle keeps NFG as a grind target (buyBlocked), not excluded -- rep costs nothing and banks ahead for the next spend-down', () => {
+    const catalog = { augs: { [NFG_NAME]: augFx({ sellers: ['F1'], repReq: 100, isNFG: true }) }, factions: { F1: faction() } };
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), true);
+    expect(target.aug).toBe(NFG_NAME);
+    expect(target.buyBlocked).toBe(true);
+  });
+
+  it('uncapped NFG is not buyBlocked', () => {
+    const catalog = { augs: { [NFG_NAME]: augFx({ sellers: ['F1'], repReq: 100, isNFG: true }) }, factions: { F1: faction() } };
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), false);
+    expect(target.buyBlocked).toBe(false);
   });
 
   it('skips a camp-blocked candidate and takes the next reachable one (D5: skip, dont stall)', () => {
@@ -749,6 +794,63 @@ describe('spendDownPlan', () => {
   });
 });
 
+describe('daedalusInviteReserve', () => {
+  it('reads the money requirement live from inviteReqs', () => {
+    const catalog = { factions: { Daedalus: { inviteReqs: [{ type: 'skills', skills: { hacking: 2500 } }, { type: 'money', money: 100_000_000_000 }] } } };
+    expect(daedalusInviteReserve(catalog)).toBe(100_000_000_000);
+  });
+
+  it('is 0 when there is no money requirement (or no Daedalus entry)', () => {
+    expect(daedalusInviteReserve({ factions: { Daedalus: { inviteReqs: [{ type: 'skills', skills: {} }] } } })).toBe(0);
+    expect(daedalusInviteReserve({ factions: {} })).toBe(0);
+  });
+});
+
+describe('daedalusDonationReserve', () => {
+  const base = { redPillRepReq: 2_500_000, daedalusRep: 0, daedalusFavor: 200, favorToDonate: 150, hasFormulas: true, donationCost: 1_500_000_000_000 };
+
+  it('reserves the live donation cost once favor clears the threshold and rep is short', () => {
+    expect(daedalusDonationReserve(base)).toBe(1_500_000_000_000);
+  });
+
+  it('is 0 once rep already meets the requirement -- Red Pill is $0, nothing to reserve', () => {
+    expect(daedalusDonationReserve({ ...base, daedalusRep: 2_500_000 })).toBe(0);
+    expect(daedalusDonationReserve({ ...base, daedalusRep: 3_000_000 })).toBe(0);
+  });
+
+  it('is 0 below the favor threshold -- donating is not actionable yet', () => {
+    expect(daedalusDonationReserve({ ...base, daedalusFavor: 100 })).toBe(0);
+  });
+
+  it('is 0 without Formulas.exe', () => {
+    expect(daedalusDonationReserve({ ...base, hasFormulas: false })).toBe(0);
+  });
+
+  it('is 0 when the rep requirement is unreadable', () => {
+    expect(daedalusDonationReserve({ ...base, redPillRepReq: null })).toBe(0);
+  });
+
+  it('shrinks as rep grinds toward the requirement -- a moving target (caller supplies the live cost each time)', () => {
+    const early = daedalusDonationReserve({ ...base, daedalusRep: 0, donationCost: 1_500_000_000_000 });
+    const later = daedalusDonationReserve({ ...base, daedalusRep: 2_000_000, donationCost: 300_000_000_000 });
+    expect(later).toBeLessThan(early);
+  });
+});
+
+describe('shouldDonateToDaedalus', () => {
+  it('false when there is no reservation (nothing to donate for)', () => {
+    expect(shouldDonateToDaedalus(0, 1_000_000_000_000)).toBe(false);
+  });
+
+  it('false below DONATION_BUFFER x the reserved amount', () => {
+    expect(shouldDonateToDaedalus(1_000_000_000_000, 1_100_000_000_000)).toBe(false);
+  });
+
+  it('true once money clears DONATION_BUFFER x the reserved amount', () => {
+    expect(shouldDonateToDaedalus(1_000_000_000_000, 1_200_000_000_000)).toBe(true);
+  });
+});
+
 describe('buildDecisionRecord', () => {
   it('carries kind/mode/phase/timestamp and the constants in force', () => {
     const record = buildDecisionRecord('trigger-fire', { now: 12345, mode: 'observe', phase: 'idle-plateau', trigger: { armed: true }, money: 100 });
@@ -813,6 +915,14 @@ describe('planPass', () => {
     it('buy/reserve actions still fire while yielded (only work is slot-gated)', () => {
       const plan = planPass({ target: metTarget, currentWork: { type: 'COMPANY' }, factionScope: scope, money: 500, livePrice: 500, paused: false });
       expect(plan.actions.some((a) => a.type === 'buy')).toBe(true);
+    });
+
+    it('a buyBlocked target (NFG capped) never buys/reserves even when rep-met -- falls through to grind/work instead', () => {
+      const cappedNfgTarget = { ...metTarget, aug: 'NeuroFlux Governor', buyBlocked: true, workTypes: ['hacking'] };
+      const plan = planPass({ target: cappedNfgTarget, workTarget: cappedNfgTarget, currentWork: null, factionScope: scope, money: 1_000_000, livePrice: 500, paused: false });
+      expect(plan.actions.some((a) => a.type === 'buy')).toBe(false);
+      expect(plan.actions.some((a) => a.type === 'reserve')).toBe(false);
+      expect(plan.actions).toContainEqual({ type: 'work', faction: 'F1', workType: 'hacking' });
     });
   });
 
