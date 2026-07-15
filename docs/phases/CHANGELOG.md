@@ -31,13 +31,27 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   ring; S10's auto-mode spend-down (lifts the one-NFG-per-cycle cap, freezes the full-money
   reserve) + `installer.js` handoff (max home RAM, then cores, then `installAugmentations(
   "bootstrap.js")`). `npm test` 550/550 green including 115 tests in the rewritten
-  `test/augfarmer.test.js` and the new `test/verify-ratchet.test.js`. **Explicitly not closed by
-  this entry** — S11's phase-close gate needs a real observe-mode `install-ready` fire Kenneth
-  judges, plus one manual install cycle's audit trail verified from exported logs; S12's RAM bands
-  (augfarmer.js 55–70 GB, installer.js 12–22 GB) are unmeasured; L1–L6 of the spec's live procedure
-  are outstanding. BACKLOG gained an S11 "Stage-2 first auto-fire" entry (parked on Kenneth writing
-  `auto`) and resolved/narrowed the install-order-calculator, augment-breadth-vs-depth, and
-  `upgradeHomeRam`-validation entries this phase subsumed.
+  `test/augfarmer.test.js` and the new `test/verify-ratchet.test.js`; `npm run verify:log` green.
+  **Live smoke-test (same session, Claude-driven over CDP, L1–L3 of the spec's procedure):**
+  restarted `daemon.js`; `ramcheck.js` measured **augfarmer.js 64.1 GB** and **installer.js
+  18.15 GB** (both inside S12's 55–70/12–22 GB bands; `daemon.js` flat at 16.3 GB, confirming no
+  leak into the batcher core) — recorded in both files' headers. Within the first poll: two
+  proactive joins fired in one pass (Sector-12, The Black Hand), a proactive travel landed, and
+  `campChoice` read `{Aevum, Sector-12}` via the reality rule (Aevum already joined this cycle) —
+  `campLocksInForce` correctly listed the other camp as blocked. `ratchet-decisions.json` exported
+  correctly after a dev-server restart (needed to pick up the new `vite.config.ts` line) with
+  well-formed `endgame-hold`/`camp-choice` records carrying the full constants block.
+  `augfarmer-state.json` showed a sane `trigger` object (`gainArmed: true, phaseArmed: false` —
+  correctly not yet armed, since `RATE_MIN_SAMPLES` hadn't accumulated on a freshly restarted
+  farmer) and `workFaction` correctly falling back to the head target per S5 (every grindable
+  candidate that pass was in `PASSIVE_REP_FACTIONS`). `dashboard.js`'s AUG FARMER panel rendered
+  the new phase/state with zero wrap, confirming the "no dashboard changes needed" design bet.
+  **Explicitly not closed by this entry** — S11's phase-close gate still needs a real observe-mode
+  `install-ready` fire Kenneth judges, plus one manual install cycle's audit trail verified from
+  exported logs (L4–L6 of the live procedure, plus a longer L6 soak). BACKLOG gained an S11
+  "Stage-2 first auto-fire" entry (parked on Kenneth writing `auto`) and resolved/narrowed the
+  install-order-calculator, augment-breadth-vs-depth, and `upgradeHomeRam`-validation entries this
+  phase subsumed.
 
 ## 2026-07-14
 

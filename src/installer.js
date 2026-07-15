@@ -23,8 +23,8 @@
 //
 // RAM: derived ~16 GB at SF4.3's 1x multiplier (spec S12: base 1.6 +
 // installAugmentations 5 + RAM/cores upgrade set (~9) + getPlayer 0.5 +
-// read/write 0). Acceptance band 12-22 GB -- measure via `ramcheck.js` and
-// record here once live.
+// read/write 0). Acceptance band 12-22 GB -- measured 18.15 GB
+// (ramcheck.js, 2026-07-14, logs/ramcheck-result.json), inside the band.
 
 import { tprintTs } from "./common.js";
 import { recordTransaction } from "./translog.js";

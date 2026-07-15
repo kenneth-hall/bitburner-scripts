@@ -44,9 +44,10 @@
 // RAM: derived ~60 GB at SF4.3's 1x multiplier (phase-25 spec S12 -- Phase
 // 23's measured 52.7 GB + donateToFaction/getFactionFavor/getFavorToDonate/
 // ns.exec/formulas.reputation.donationForRep). Acceptance band 55-70 GB;
-// measure via `ramcheck.js` and record here once live (S12 gate: a ~4x
-// reading means stop and check for an identifier-hygiene false charge, not
-// "multiplier live"). No HOME_RESERVE_GB change -- companions launch before
+// measured 64.1 GB (ramcheck.js, 2026-07-14, logs/ramcheck-result.json) --
+// lands inside the band (S12 gate: a ~4x reading means stop and check for
+// an identifier-hygiene false charge, not "multiplier live"). No
+// HOME_RESERVE_GB change -- companions launch before
 // the batcher packs home. A mid-session `restart augfarmer.js` may not fit
 // the headroom -- restart daemon.js instead (pre-authorized, see CLAUDE.md).
 //
