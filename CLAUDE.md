@@ -9,30 +9,28 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **BN1.2 CLEARED 2026-07-15** — `w0r1d_d43m0n`
-  backdoored (confirmed live via a BitVerse-selection-screen screenshot; SF1.2 grant itself not yet
-  independently re-verified via a save/aug-info read, but the backdoor firing + landing back on the
-  BitVerse screen is strong evidence it landed). This clear was also the live debut of Phase 25's
-  aug-ratchet controller (`docs/phases/phase-25-faction-strategy.spec.md`) plus same-day extensions
-  Kenneth authorized live: auto-donate to Daedalus, auto-buy The Red Pill, and a new
-  `src/backdoorwd.js` that auto-backdoors WD — see that spec's "Close-out (2026-07-15)" section for
-  the full done-vs-left record (auto-*install* specifically is still unexercised, deliberately
-  skipped for this run's final install). Currently **sitting on the BitVerse/BitNode-selection
-  screen** — no node re-entered yet. **Next-node choice is now the live decision, not a future
-  note** — the plan already on file (below, decided 2026-07-11, not yet re-confirmed against this
-  session's new automation) says the next *extending* node is BN5; confirm with Kenneth before
-  entering anything. Full plan + all 15 nodes' multiplier tables + reasoning: **`docs/bitnodes.md` →
-  "Our next-node plan (mature batcher)"** (read before any node choice).
-  - **Why 1.2 and stop there (not 1.3):** 1.2→1.3 is only +4pp for another *entire* endgame — poor
-    ROI at our full manual rep-tax. Revisit 1.3+ only after a rep-tax-killer (Sleeves/gang) makes
-    re-farming BN1 cheap. (Historical note, may be worth revisiting now that Phase 25 cut manual
-    attention substantially on this last clear.)
-  - **After 1.2 — the next *extending* node is BN5** (re-priced by cold review: a **2–3 install
-    mult grind**, not a quick clear — its 4,500 gate is a multiplier problem and its 200%-aug-cost /
-    15%-steal economy throttles the mult lever; picked as the least-bad option under our "no new
-    engine / no rough penalty" constraints, *despite* its overrated tooling). **BN10 deferred** (its
-    ×0.35 hacking-level wall needs in-node Grafting). **BN4 + economy-nerfed nodes deferred** until a
-    second engine exists.
+- **Current goal (keep this line current):** **Clearing BN1.3** (decided 2026-07-15, this session) —
+  reversing the earlier "stop at 1.2 / go to BN5 next" plan. The reversal isn't against the old
+  reasoning; it's that reasoning's own escape clause firing — the prior note said 1.3 was worth
+  revisiting "now that Phase 25 cut manual attention substantially," and Phase 25's automation is
+  exactly what makes re-farming BN1 cheap enough to justify the +4pp. BN1 clear mechanics are
+  identical for 1.3 as 1.2, so the whole existing bootstrap/aug-ratchet toolchain applies unchanged.
+  - **BN1.2 was cleared 2026-07-15** — `w0r1d_d43m0n` backdoored (confirmed live via a
+    BitVerse-selection-screen screenshot; SF1.2 grant itself not yet independently re-verified via a
+    save/aug-info read, but the backdoor firing + landing back on the BitVerse screen is strong
+    evidence it landed). That clear was the live debut of Phase 25's aug-ratchet controller
+    (`docs/phases/phase-25-faction-strategy.spec.md`) plus same-day extensions Kenneth authorized
+    live: auto-donate to Daedalus, auto-buy The Red Pill, and a new `src/backdoorwd.js` that
+    auto-backdoors WD — see that spec's "Close-out (2026-07-15)" section for the full done-vs-left
+    record (auto-*install* specifically is still unexercised, deliberately skipped for that run's
+    final install).
+  - **[SUPERSEDED 2026-07-15 — kept as Phase 26 doc-audit triage/archive input, do not act on]** The
+    prior plan was to **stop at 1.2** and make **BN5** the next *extending* node — reasoning: 1.2→1.3
+    is only +4pp for another entire endgame (poor ROI at full manual rep-tax); BN5 re-priced by cold
+    review as a 2–3-install mult grind, least-bad under a "no new engine" constraint; BN10 deferred
+    (×0.35 hacking-level wall needs in-node Grafting); BN4 + economy-nerfed nodes deferred until a
+    second engine exists. Full prior reasoning + all 15 nodes' multiplier tables lives in
+    `docs/bitnodes.md` → "Our next-node plan (mature batcher)" and in git history.
   - **In parallel:** (a) **Phase 20 XP-farm engine shipped 2026-07-13** (`docs/phases/phase-20-xpfarm.spec.md`)
     — hack-saturation of surplus fleet RAM, S7 ON/OFF A/B gate measured 5.15× exp/sec; (b) **prototype
     a second engine** — only **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator +
