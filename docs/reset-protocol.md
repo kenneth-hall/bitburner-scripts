@@ -17,16 +17,22 @@ bootstrapping *from*:
 | **Home RAM & cores** | **kept** ✅ | reset ❌ |
 | Skills + XP (hacking, combat, etc.) | reset | reset |
 | Faction membership & rep | reset | reset |
-| Created programs, in-game scripts | reset* | reset* |
+| Created/bought programs (TOR router, port-opener `.exe`s) | reset* | reset* |
+| **In-game scripts (`.js` on home)** | **kept** ✅ | **kept** ✅ |
 | **Installed augmentations** | **kept** ✅ | **lost** ❌ |
 | **Source-Files** | — (not earned by installing) | **gained/kept** ✅ (permanent, all future BitNodes) |
 
-\* In-game copies are wiped, but our scripts survive in the git repo and re-push via the dev server,
-so a rebuild is instant. This row also covers **TOR router + the five port openers** (BruteSSH.exe,
-FTPCrack.exe, relaySMTP.exe, HTTPWorm.exe, SQLInject.exe) — none survive an install, so
-`procureprograms.js` re-buys the whole ladder every cycle (top spend priority). Faction
-reachability stages with opener acquisition, since the openers gate the backdoor half of the
-faction-unlock sequence. See [[reference_install_resets_programs_tor]].
+\* **Correction 2026-07-14 (Phase 25 spec review):** earlier drafts lumped scripts and created
+programs into one wiped row — wrong. **Scripts on home survive both reset types** (Kenneth
+confirmed the install case 2026-07-14; the hard-reset case is demonstrated by this BN1.2 re-entry
+running the same library) — which matters beyond convenience: it's what makes
+`installAugmentations(cbScript)`-style post-install relaunch possible. (The git repo + dev-server
+re-push would make a wipe recoverable anyway, but survival means recovery needs no re-push at
+all.) What *does* reset every cycle is this row: **TOR router + the five port openers**
+(BruteSSH.exe, FTPCrack.exe, relaySMTP.exe, HTTPWorm.exe, SQLInject.exe) — `procureprograms.js`
+re-buys the whole ladder every cycle (top spend priority). Faction reachability stages with
+opener acquisition, since the openers gate the backdoor half of the faction-unlock sequence.
+See [[reference_install_resets_programs_tor]].
 
 - **Soft reset** (this doc's usual case): keeps your augmentations — that's the whole point — and
   loses everything else above. You re-run the faction-unlock sequence below to re-buy the *next*

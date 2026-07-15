@@ -164,9 +164,11 @@ pre-authorizes Claude to do over CDP. No [live] step requires editing code.
   before `procureformulas.js` re-buys it the route would otherwise burn silently into the
   two-tier catch; while absent, donation is suppressed and the target grinds normally — the
   cold review's C6): compute `donationCost =
-  formulas.reputation.donationForRep(deficit, player)` (baseline, favor-agnostic — if the
-  game's donate path additionally applies the `1 + favor/100` multiplier we overshoot rep,
-  which is harmless; noted as an open observation for the first live donation) and emit a
+  formulas.reputation.donationForRep(deficit, player)` (**exact, not conservative** —
+  settled 2026-07-14 from upstream `bitburner-src` `donation.ts`, Kenneth-authorized:
+  `donate()` credits `repFromDonation` with no favor term; favor only gates access.
+  `docs/reputation-favor.md`'s lock-down section corrected accordingly. Residual check: the
+  first live donation confirms the fork matches upstream — L4) and emit a
   `donate` action **only when `money ≥ DONATION_BUFFER × (donationCost + livePrice)`**
   (`DONATION_BUFFER = 1.2`) so the buy lands immediately after; below that the pass is
   `awaiting-money` with the reservation covering **both** (`reserve = donationCost +
@@ -230,13 +232,11 @@ pre-authorizes Claude to do over CDP. No [live] step requires editing code.
   `mults.hacking`. This — beside `ratchet-log.json` (Slice 0), `augfarmer-state.json`, and
   the transactions log — is F4(a)'s non-negotiable audit trail: augs bought (transactions),
   mult before/after (ratchet-log), why/when the trigger acted (this file). One
-  `vite.config.ts` export line. **Durability across the reset (the cold review's C5):** the
-  audit requirement does not ride on in-game file survival — the dev-server bridge exports
-  each write to `logs/` at write time, so the repo-side copy retains the trail up to and
-  including `installer.js`'s final pre-install record even if the soft reset wipes home files
-  (open question a). It does ride on the dev server being connected at install time; observe
-  mode installs are Kenneth-attended by definition, and the L7 checklist verifies the
-  exported trail explicitly for the first auto fire.
+  `vite.config.ts` export line. **Durability across the reset (the cold review's C5):**
+  belt-and-braces — home files survive the soft reset (open question a, resolved), *and* the
+  dev-server bridge exports each write to `logs/` at write time, so the repo-side copy
+  independently retains the trail up to and including `installer.js`'s final pre-install
+  record. The L7 checklist verifies the exported trail explicitly for the first auto fire.
 - **S10 — Auto-mode execution (dormant until Kenneth flips S2's file).** On `fired` in auto
   mode the farmer runs the cycle end-game as phases, all logged per S9:
   1. **`spend-down`:** lift the NFG cap; loop buys of rep-met, affordable targets — discrete
@@ -434,26 +434,25 @@ check on both scripts.
 - **L4 — Donation (opportunistic, non-blocking).** Fires only when a non-Daedalus faction
   crosses 150 favor with a deficit target — may not occur this cycle. If it does:
   `auto-donation` transaction, deficit collapses next pass, buy follows. Unit tests carry the
-  logic either way; first live occurrence noted in CHANGELOG (including whether favor
-  discounted the cost vs `donationForRep`'s baseline — the S6 open observation).
+  logic either way; first live occurrence noted in CHANGELOG (sanity-check the credited rep
+  equals `repFromDonation`'s prediction — the S6 fork-vs-upstream residual).
 - **L5 — The observe-mode install cycle (the phase-close gate, S11).** On the trigger's first
   `install-ready`: Kenneth reads the tprint + decision record and judges it (too early / about
   right / too late — his judgment is the validation datum; log it in the close-out). Then he
   runs his normal manual install runbook. Post-install verify: `ratchet-log.json` gained the
-  paired boundary record; decision log coherent; farmer reset cycle state; **script-survival
-  probe:** immediately post-install, check whether `src` scripts (esp. `bootstrap.js`) are
-  still on home *before* the dev server re-pushes (reads: `ls` over CDP terminal, or simply
-  whether a cbScript-style relaunch would have found its file) — this decides how much
-  unattended recovery S10's `cbScript` actually buys (see open question a).
+  paired boundary record; decision log coherent; farmer reset cycle state; passively confirm
+  `bootstrap.js` (and the library) is still on home post-install — expected, since open
+  question (a) is resolved as "scripts survive"; this is a free spot-check, not a
+  decision-bearing probe.
 - **L6 — Soak.** ≥30 min: no per-poll terminal chatter; `npm run verify:log` green including
   `verify-ratchet` + the new expense sources; no out-of-scope join, no cross-camp join, no
   reservation staleness WARNs.
 - **L7 — Stage-2 first fire (post-close-out, from the BACKLOG entry — not a phase gate).**
   When Kenneth writes `auto` into `ratchet-mode.txt`: observe the full chain once —
   spend-down records + fleet-freeze reservation, installer exec, home RAM/cores transactions,
-  install fires, `bootstrap.js` relaunch (or its documented failure if L5's probe said
-  scripts are wiped), ratchet-log boundary pair. Any deviation demotes the mode file back to
-  observe and reopens the trigger design with the logged data.
+  install fires, `bootstrap.js` relaunch via cbScript, ratchet-log boundary pair. Any
+  deviation demotes the mode file back to observe and reopens the trigger design with the
+  logged data.
 
 ## Acceptance criteria
 
@@ -493,18 +492,20 @@ the manual utility; `installer.js` owns the automated path), the batcher core, `
 
 ## Open questions
 
-- **(a) Do home scripts survive a soft reset in this fork?** `reset-protocol.md`'s table says
-  wiped (asterisked row), vanilla behavior says scripts persist (only created programs/TOR
-  die). S10's `cbScript = "bootstrap.js"` only buys unattended recovery if they survive, and
-  the same assumption underlies any *in-game* copy of the decision log and Slice 0's
-  `ratchet-last.json` boundary-recovery read (though the audit trail itself is durable via
-  the `logs/` export — see S9). Not resolvable from docs — **L5's probe answers it**; if
-  wiped, auto mode still installs correctly but recovery waits for the dev-server re-push +
-  a manual/next-session launch, and that limitation gets documented in `installer.js`'s
-  header and the BACKLOG L7 entry.
-- **(b) Does `donateToFaction` apply the favor multiplier on top of `donationForRep`'s
-  baseline?** Overshoot is harmless (S6 donates the baseline amount); first live donation
-  (L4) records the answer.
+- **(a) RESOLVED 2026-07-14 (Kenneth): home scripts survive the soft reset.**
+  `reset-protocol.md`'s persistence table said wiped — corrected the same day (scripts kept
+  across both reset types; only created/bought programs + TOR reset). Consequences stand as
+  designed: `cbScript = "bootstrap.js"` delivers unattended recovery, Slice 0's
+  `ratchet-last.json` boundary read works, and the in-game decision log persists (the
+  `logs/` export was already the durable copy regardless — S9). L5 keeps a free passive
+  spot-check only.
+- **(b) RESOLVED 2026-07-14: favor does NOT multiply donation rep.** Read from upstream
+  `bitburner-src` dev `src/Faction/formulas/donation.ts` (Kenneth-authorized): `donate()`
+  credits exactly `repFromDonation` — divisor × `faction_rep` mult × BitNode mult, no favor
+  term; favor only gates access at ≥150. So S6's `donationForRep(deficit)` is the exact
+  cost, and `docs/reputation-favor.md`'s ×2.60-discount table was corrected to
+  favor-independent costs (donate-to-20m now reads ~$11.8t, still trivial). Residual: L4
+  sanity-checks the fork matches upstream on the first live donation.
 - **(c) Full-auto vs prep-and-notify** — parked by the features file until observe-mode
   evidence exists (S2); observe's tprint + `install-ready` phase serves as the interim notify.
 - **(d) S3's weights and S7's constants are provisional by design** — the decision log carries

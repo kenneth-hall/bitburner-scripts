@@ -68,21 +68,28 @@ donation buys you nothing on re-climbs either — you'd still re-climb to 2500 a
 rejoin. The donation shortcut still wins because it saves the *rep grind*, not a re-climb.) See
 [reset-protocol.md](reset-protocol.md).
 
-## Donation lock-down (computed 2026-07-11, `favorprobe.js` via Formulas.exe)
+## Donation lock-down (computed 2026-07-11, `favorprobe.js` via Formulas.exe; favor question settled 2026-07-14)
 
-Formulas.exe makes the money↔rep curve **authoritative** (it is favor-agnostic; the probe applies the
-`1 + favor/100` bonus itself — assumed favor 160 → ×2.60, **confirm at the Donate UI**). At `faction_rep`
+Formulas.exe makes the money↔rep curve **authoritative**, and the favor question is now settled
+from the game source (upstream `bitburner-src` dev branch, `src/Faction/formulas/donation.ts`,
+read 2026-07-14 with Kenneth's authorization): **favor does NOT multiply donation rep.** `donate()`
+credits exactly `repFromDonation(amt) = amt / DonateMoneyToRepDivisor × faction_rep mult ×
+BitNode FactionWorkRepGain` — no favor term; favor's only donation role is the ≥150 access gate
+(`favorNeededToDonate`), and the `1 + favor/100` multiplier applies to *work* rep only. An earlier
+draft of this section assumed a ×2.60 favor discount — wrong; the baseline column is the real
+cost. (Our fork could in principle diverge from upstream here — sanity-check the first live
+donation's credited rep against `repFromDonation`, but expect baseline.) At `faction_rep`
 mult 1.697:
 
-| Rep target | Baseline ($, favor 0) | With favor 160 (×2.60) | Clears |
-|---|---|---|---|
-| 2.5m | $1.47t | $0.57t | Red Pill + all 3 ENM augs (≤1.75m) |
-| 5m | $2.95t | $1.13t | + headroom |
-| **20m** | **$11.8t** | **$4.5t** | **removes rep as an NFG constraint entirely** |
-| 50m | $29.5t | $11.3t | overkill |
+| Rep target | $ cost (favor-independent) | Clears |
+|---|---|---|
+| 2.5m | $1.47t | Red Pill + all 3 ENM augs (≤1.75m) |
+| 5m | $2.95t | + headroom |
+| **20m** | **$11.8t** | **removes rep as an NFG constraint entirely** |
+| 50m | $29.5t | overkill |
 
-**Recommendation — over-donate to ~20m rep (~$4.5t, or ~$11.8t if favor doesn't discount donations;
-both trivial vs. the ~$35t pile).** Rep is *cheap* relative to money here, so brute-force it: at 20m
+**Recommendation — over-donate to ~20m rep (~$11.8t; trivial vs. the ~$35t pile).** Rep is
+*cheap* relative to money here, so brute-force it: at 20m
 rep the NFG **rep** requirement stops binding at any level you'd reach, collapsing NFG to a pure **money
 cap** (the constraint we understand). This dissolves the NFG-rep unknown without needing SF4.
 
