@@ -215,11 +215,6 @@ is pre-authorized; don't checkpoint for it.
   be running/connected), *then* restart. viteburner polls fast, so it's usually immediate; if a
   restart loads stale behavior, the push hadn't landed — restart again.
 
-**Scope:** this blanket authorization covers **restarting scripts Claude just changed**, nothing
-more. Other consequential in-game writes — buying augmentations, donating/spending money,
-installing augmentations, joining factions, anything that alters game progression — still
-require confirmation per the general "confirm outward-facing actions" rule.
-
 ## Tracking work
 Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas). On
 completion, move a dated, condensed entry to `docs/phases/CHANGELOG.md` — keep history out
