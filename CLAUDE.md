@@ -9,19 +9,24 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **re-enter BN1 and clear it once more to reach
-  Source-File 1.2** (+8pp to *every* multiplier — the guide's "8 NFG levels" — a permanent, broad,
-  cheapest-possible bank). BN1 is already **DONE once** (Red Pill installed, `w0r1d_d43m0n`
-  backdoored → earned SF1.1); we have **re-entered BN1 and are early game in the 1.2 run** (as of
-  2026-07-12 — no longer on the BitVerse selection screen). This
-  is the locked near-term goal (decided 2026-07-11). The clear is *low difficulty* (WD 3,000, full
-  economy, known playbook) but **not low effort** — favor/rep/augs don't persist across destroying a
-  node (only Source-Files, scripts, Intelligence do), so it re-pays the full **Daedalus 2.5m-rep →
-  Red Pill → backdoor WD** endgame. Full plan + all 15 nodes' multiplier tables + reasoning:
-  **`docs/bitnodes.md` → "Our next-node plan (mature batcher)"** (read before any node choice).
+- **Current goal (keep this line current):** **BN1.2 CLEARED 2026-07-15** — `w0r1d_d43m0n`
+  backdoored (confirmed live via a BitVerse-selection-screen screenshot; SF1.2 grant itself not yet
+  independently re-verified via a save/aug-info read, but the backdoor firing + landing back on the
+  BitVerse screen is strong evidence it landed). This clear was also the live debut of Phase 25's
+  aug-ratchet controller (`docs/phases/phase-25-faction-strategy.spec.md`) plus same-day extensions
+  Kenneth authorized live: auto-donate to Daedalus, auto-buy The Red Pill, and a new
+  `src/backdoorwd.js` that auto-backdoors WD — see that spec's "Close-out (2026-07-15)" section for
+  the full done-vs-left record (auto-*install* specifically is still unexercised, deliberately
+  skipped for this run's final install). Currently **sitting on the BitVerse/BitNode-selection
+  screen** — no node re-entered yet. **Next-node choice is now the live decision, not a future
+  note** — the plan already on file (below, decided 2026-07-11, not yet re-confirmed against this
+  session's new automation) says the next *extending* node is BN5; confirm with Kenneth before
+  entering anything. Full plan + all 15 nodes' multiplier tables + reasoning: **`docs/bitnodes.md` →
+  "Our next-node plan (mature batcher)"** (read before any node choice).
   - **Why 1.2 and stop there (not 1.3):** 1.2→1.3 is only +4pp for another *entire* endgame — poor
     ROI at our full manual rep-tax. Revisit 1.3+ only after a rep-tax-killer (Sleeves/gang) makes
-    re-farming BN1 cheap.
+    re-farming BN1 cheap. (Historical note, may be worth revisiting now that Phase 25 cut manual
+    attention substantially on this last clear.)
   - **After 1.2 — the next *extending* node is BN5** (re-priced by cold review: a **2–3 install
     mult grind**, not a quick clear — its 4,500 gate is a multiplier problem and its 200%-aug-cost /
     15%-steal economy throttles the mult lever; picked as the least-bad option under our "no new

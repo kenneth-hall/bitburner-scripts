@@ -484,9 +484,9 @@ mode gate is extracted pure).
 `docs/reputation-favor.md` (one pointer), `docs/scripts.md`, `BACKLOG.md`,
 `docs/phases/CHANGELOG.md`.
 
-**Deliberately untouched:** `src/ratchetlog.js` (Slice 0, shipped), `src/dashboard.js` (phase
-strings flow through `augPanel`), `src/resourcemanager.js` (the reserve file just carries
-bigger numbers), `src/daemon.js` (launch lines already exist), `src/upgradehomeram.js` (stays
+**Deliberately untouched (at spec-drafting time — see the 2026-07-15 close-out section for
+what actually changed live that same day):** `src/ratchetlog.js` (Slice 0, shipped),
+`src/dashboard.js` (phase strings flow through `augPanel`), `src/upgradehomeram.js` (stays
 the manual utility; `installer.js` owns the automated path), the batcher core, `bootstrap.js`
 (already the cold-start entry `cbScript` names).
 
@@ -511,3 +511,90 @@ the manual utility; `installer.js` owns the automated path), the batcher core, `
 - **(d) S3's weights and S7's constants are provisional by design** — the decision log carries
   them precisely so the first cycles of data can re-derive better values offline; expect a
   small follow-up tuning change, not a redesign.
+
+## Close-out (2026-07-15) — done vs. left
+
+Everything below happened in one continuous live session, on the same BN1.2 save this spec
+was designed for. **The clear succeeded** — `w0r1d_d43m0n` backdoored, confirmed via a
+BitVerse-selection-screen screenshot. This section is the honest record of what actually
+shipped and validated vs. what's still open, superseding the "Files touched" section's
+`resourcemanager.js`/`daemon.js` "deliberately untouched" claim (both were touched, for
+reasons below — that claim held at spec-drafting time, not by the end of the day).
+
+### Done and live-validated
+
+- **Everything in the original design** (S1–S13): score-based targeting, camp commitment
+  (live-confirmed against the real six-city enemy graph), work-slot allocation, the
+  generalized donation route, the install trigger (armed once for real — see "left" below),
+  the endgame hold, the decision log, S12's RAM bands (augfarmer.js 64.1 GB, installer.js
+  18.15 GB, both in-band; daemon.js flat at 16.3 GB).
+- **Two real bugs found and fixed same-day**, both in `pickTarget`'s `wantedNames` filter:
+  NFG was excluded from targeting entirely once any level was owned (it's repeatable, the
+  filter didn't know that), and separately the one-NFG-per-cycle buy cap was also excluding
+  it from *grinding* rep toward the next level (now decoupled via a `buyBlocked` flag —
+  capped-for-buying no longer means capped-for-targeting). Both confirmed fixed live.
+- **Scoring amendment**: `SCORE_W_MONEY`/`SCORE_W_SPEED` (0.15 each) added after ENM Analyze
+  Engine/DMA Upgrade were found scoring 0 despite real income value — the original S3 design
+  deliberately dropped `hacking_money`/`hacking_speed` entirely; Kenneth's live call was to
+  weight them in at a discount, not drop them.
+- **`UTILITY_ALLOWLIST` amendments**: CashRoot Starter Kit re-added (its $1M+BruteSSH.exe
+  grant speeds up every future post-install bootstrap — a case S3's original trim didn't
+  weigh); **The Red Pill added** — this is the big one, see "scope amendments" below.
+- **A new Daedalus-endgame money reservation** (`daedalusInviteReserve`/
+  `daedalusDonationReserve`, in `resourcemanager.js`'s `announceDiff` + `augfarmer.js`) —
+  protects the $100b invite money gate before joining, then the live, shrinking donation
+  cost after, without stalling early-cycle cloud growth (gated on `endgameHold`). Not in the
+  original spec at all — added live when Kenneth found cloud-fleet growth was actively
+  delaying the Daedalus rejoin.
+- **`resourcemanager.js`'s reservation-change announce fixed** to stop spamming the terminal
+  on amount-only drift (a moving-target reservation, which didn't exist before the Daedalus
+  reservation, changes its dollar figure every poll by design — only label changes are a
+  real transition worth a line).
+
+### Scope amendments beyond the original spec (Kenneth's explicit, same-day authorization)
+
+The original spec's "Decided-parked" section explicitly excluded Daedalus-endgame automation
+("its own chunk, and we're not ready to test it"), and S3 explicitly preserved "The Red Pill
+drops by construction" as a tested invariant across three phases. Both were reversed live,
+in this order, each named individually before Kenneth authorized it:
+
+1. **Auto-donate to Daedalus** (`shouldDonateToDaedalus`) — extends S6's already-live
+   donation route to Daedalus specifically (previously excluded whenever `endgameHold`
+   held). Confirmed live: fired autonomously the instant it was affordable ($914.3b).
+2. **The Red Pill added to `UTILITY_ALLOWLIST`** — now auto-buys through the normal
+   pipeline once rep clears, like any allow-listed aug. Confirmed live: bought for $0
+   immediately after the donation landed.
+3. **`src/backdoorwd.js` (new)** — auto-backdoors `w0r1d_d43m0n` once it exists and hacking
+   clears its requirement, via the same `installBackdoor()` mechanism
+   `backdoorfactions.js` already used for the four faction servers. Deliberately its own
+   file (blast-radius isolation, same reasoning as splitting `installer.js` out of
+   `augfarmer.js`) — this is the single most consequential automated action in the project,
+   it ends the BitNode. Launched by `daemon.js` at startup. Confirmed live: fired
+   unattended and ended the run correctly.
+
+Auto-*install* (`ratchet-mode.txt` → `auto`, the spend-down + `installer.js` path) was
+**deliberately left alone** for this run's final install — Kenneth installed manually, on
+the reasoning that combining "first-ever live test of the untested auto-install path" with
+"the run-ending install" was worse risk-adjusted than two separate manual installs already
+proven to work. That path stays fully dormant and unexercised.
+
+### Left — genuinely open, carries to the next BitNode/cycle
+
+- **S11's phase-close gate, strictly read, is not fully met.** The trigger *armed* once
+  (idle-plateau, gain 2.427×) but never sustained the full `TRIGGER_SUSTAIN_MS` (10 min)
+  before Kenneth installed — it came within ~3 minutes. No `install-ready` *fire* was ever
+  observed. Kenneth's manual timing judgment is the closest available substitute, informally
+  captured in this session's conversation, not a decision record review as S11 specifies.
+- **Auto-install (spend-down + `installer.js`) has never fired, at all, in any form.**
+  Every other new/changed code path got at least one live rep today; this one didn't, by
+  deliberate choice (see above). This is the standing open item for the next cycle.
+- **`backdoorwd.js` has exactly one live data point** (this run) — correct on the first try,
+  but "worked once" isn't the same confidence level as the rest of the controller, which
+  found two bugs on its own first day.
+- **S3/S7's constants remain provisional** (open question (d)) — one day of data, including
+  today's amendments, isn't enough to re-derive them with confidence yet.
+
+**Bottom line:** the phase is functionally complete and shipped a full, successful,
+increasingly-automated BN1.2 clear — but calling S11's gate "met" would overstate what was
+actually observed. Treat auto-install specifically as still unvalidated going into whatever
+run comes next.

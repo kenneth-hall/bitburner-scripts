@@ -58,13 +58,15 @@ do, and what's broken?*
   buildable (`installer.js`'s auto-mode `upgradeHomeCores()` calls, Phase 25 S10) but still gated
   on Kenneth flipping `ratchet-mode.txt` to `auto`; co-scope with core-weighted share placement. →
   `phase-17-home-cores.features.md`.
-- **Stage-2 first auto-fire (Phase 25 S11/S2)** — dormant until Kenneth hand-writes `auto` into
-  `ratchet-mode.txt` after observe-mode evidence convinces him (not scheduled — his call, may be
-  days-to-weeks out). **When it fires:** watch the full chain per the spec's L7 checklist —
-  spend-down records + fleet-freeze reservation, `installer.js` exec, home RAM/cores transactions,
-  the install itself, `bootstrap.js` relaunch via the `installAugmentations` callback, the
-  `ratchet-log.json` boundary pair. Any deviation demotes the mode file back to observe and reopens
-  the trigger design with the logged data. → `docs/phases/phase-25-faction-strategy.spec.md`.
+- **Stage-2 first auto-fire (Phase 25 S11/S2)** — still fully dormant/unexercised as of the
+  2026-07-15 BN1.2 clear (deliberately skipped for that run's final install — see the spec's
+  close-out section). Dormant until Kenneth hand-writes `auto` into `ratchet-mode.txt` on
+  whatever node/cycle comes next (not scheduled — his call). **When it fires:** watch the full
+  chain per the spec's L7 checklist — spend-down records + fleet-freeze reservation,
+  `installer.js` exec, home RAM/cores transactions, the install itself, `bootstrap.js` relaunch
+  via the `installAugmentations` callback, the `ratchet-log.json` boundary pair. Any deviation
+  demotes the mode file back to observe and reopens the trigger design with the logged data. →
+  `docs/phases/phase-25-faction-strategy.spec.md`.
 
 ### Tooling & infra
 - **CDP driver → MCP server** — wrap `tools/bb/driver.mjs` in an MCP so the helpers become native

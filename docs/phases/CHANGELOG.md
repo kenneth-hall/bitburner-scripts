@@ -6,6 +6,36 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-15
+
+- **Phase 25 close-out — BN1.2 CLEARED, live-debugged in one continuous session** →
+  `docs/phases/phase-25-faction-strategy.spec.md`'s "Close-out (2026-07-15)" section has the
+  full record. The aug-ratchet controller shipped 2026-07-14 got its first real live use this
+  session and found two genuine bugs same-day: NFG dropped out of targeting entirely once any
+  level was owned (repeatable augs need different "owned" handling than discrete ones), and
+  separately the one-NFG-per-cycle buy cap was also blocking *grinding* toward it (fixed via a
+  `buyBlocked` flag that decouples "can't buy this cycle" from "stop targeting"). Live use also
+  drove three amendments beyond the original spec: `scoreAug` gained `SCORE_W_MONEY`/
+  `SCORE_W_SPEED` (ENM Analyze Engine/DMA Upgrade were scoring 0 despite real income value);
+  `UTILITY_ALLOWLIST` gained CashRoot Starter Kit (speeds up post-install bootstrap) and — the
+  big one — **The Red Pill**, reversing three phases' worth of "drops by construction" by
+  Kenneth's explicit same-day authorization; a new Daedalus-endgame $ reservation
+  (`daedalusInviteReserve`/`daedalusDonationReserve`) protects the $100b invite gate and then
+  the live, shrinking donation cost, after cloud-fleet growth was found actively delaying the
+  Daedalus rejoin. Kenneth then explicitly asked to "remove all" remaining manual endgame
+  gates: auto-donate to Daedalus (`shouldDonateToDaedalus`, extends S6's route to Daedalus,
+  previously excluded), and a new `src/backdoorwd.js` that auto-backdoors `w0r1d_d43m0n` once
+  it exists and hacking clears its requirement (deliberately its own file, not folded into
+  `backdoorfactions.js` — the single most consequential automated action in the project, ends
+  the BitNode). The full chain fired unattended and correctly on the first attempt: Red Pill
+  auto-bought, Kenneth installed manually (auto-*install* itself deliberately left untested for
+  the run-ending install), hacking re-climbed, `backdoorwd.js` backdoored WD — confirmed live
+  via a BitVerse-selection-screen screenshot. `npm test` 568/568 green throughout. **Left open,
+  carries to the next node/cycle:** auto-install has never fired in any form; the trigger armed
+  once but never sustained long enough to fire; `backdoorwd.js` has exactly one live data
+  point. `CLAUDE.md`'s current-goal line updated — BN1.2 done, next-node choice (BN5 per the
+  existing plan) awaits reconfirmation.
+
 ## 2026-07-14 (2)
 
 - **Phase 25 — autonomous aug-ratchet / faction strategy, implementation landed (live validation
