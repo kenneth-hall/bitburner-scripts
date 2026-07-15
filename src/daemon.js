@@ -458,6 +458,12 @@ export async function main(ns) {
   // built from measured data. Disk-persisted, so it reconciles the boundary
   // the install itself killed it across. Tiny; skipped if home can't fit it.
   launchDetached(ns, "ratchetlog.js");
+  // 2026-07-15 amendment (Kenneth's explicit ask): auto-backdoors
+  // w0r1d_d43m0n -- ends the BitNode. Harmless before Red Pill is bought
+  // (WD doesn't exist yet, every poll is a silent no-op); self-terminates
+  // the instant it fires. See the script's own header for why this is a
+  // separate file from backdoorfactions.js, not folded into it.
+  launchDetached(ns, "backdoorwd.js");
 
   let hosts = [];
   let targets = [];
