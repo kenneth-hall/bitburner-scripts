@@ -96,6 +96,8 @@ export default defineConfig({
         if (file === 'cloud-state.json') return 'logs/cloud-state.json';
         if (file === 'xpfarm-state.json') return 'logs/xpfarm-state.json';
         if (file === 'finance-state.json') return 'logs/finance-state.json'; // precedent reversal -- see comment above
+        if (file === 'ratchet-log.json') return 'logs/ratchet-log.json'; // Phase 25 Slice 0 -- {pre,post} install-cycle records for the aug-ratchet trigger dataset
+        if (file === 'ratchet-last.json') return 'logs/ratchet-last.json'; // Phase 25 Slice 0 -- rolling latest snapshot (install-survival state; also handy live view)
         return null;
       },
     },

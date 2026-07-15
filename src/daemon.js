@@ -453,6 +453,11 @@ export async function main(ns) {
   // Phase 20: XP engine -- fills surplus RAM with hack workers; self-
   // suppresses when the fleet is busy (the batcher's claim is senior).
   launchDetached(ns, "xpfarm.js");
+  // Phase 25 Slice 0: headless aug-ratchet instrumentation -- records a
+  // {pre, post} snapshot on every install boundary so the install-trigger is
+  // built from measured data. Disk-persisted, so it reconciles the boundary
+  // the install itself killed it across. Tiny; skipped if home can't fit it.
+  launchDetached(ns, "ratchetlog.js");
 
   let hosts = [];
   let targets = [];
