@@ -585,6 +585,21 @@ proven to work. That path stays fully dormant and unexercised.
   before Kenneth installed — it came within ~3 minutes. No `install-ready` *fire* was ever
   observed. Kenneth's manual timing judgment is the closest available substitute, informally
   captured in this session's conversation, not a decision record review as S11 specifies.
+  - **RESOLVED 2026-07-16 — S11's gate is now MET, but the record above needs correcting
+    twice over.** (a) *Two* arms were logged that day, not one: 10:42:33Z at gain 2.427
+    (pre-install) and 11:05:52Z at gain 1.116 (post-install); this entry conflated them,
+    taking the gain from the first and the ~3-min-short sustain from the second. (b) More
+    seriously, **the trigger was structurally dead from `9a6643c` onward** — the same-day NFG
+    `buyBlocked` fix celebrated above made NFG a permanent candidate, and since the horizon
+    read `pickTarget`'s always-rep-met head, `phaseArmed` could never be true again. Both arms
+    on record predate the fix that broke it; `idle-plateau` (the only path that ever armed) was
+    the bug working. So "auto-install never fired" was not merely a deliberate skip — it was
+    unreachable code. Fixed by `pickHorizonGrind` (`aeeb632`, reshaped in `3feb4b4` to count
+    passive factions, which the first cut still missed). **Datum finally collected:** arm
+    2026-07-16T22:32:14Z at horizon 55.47h (threshold 8h), gain 1.370, 8 augs queued, ~$1.47T
+    idle and nothing buyable; `install-ready` fire at 22:42:14Z on a clean 600s sustain — the
+    first ever observed. Kenneth's verdict on the timing: **"about right."** Known residue: the
+    fire self-clears in observe mode (auto's latch masks it) — logged in `BACKLOG.md`.
 - **Auto-install (spend-down + `installer.js`) has never fired, at all, in any form.**
   Every other new/changed code path got at least one live rep today; this one didn't, by
   deliberate choice (see above). This is the standing open item for the next cycle.

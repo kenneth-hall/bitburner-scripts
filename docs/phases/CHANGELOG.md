@@ -6,6 +6,28 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-16
+
+- **Install trigger revived — it had been structurally dead, and S11's gate is now MET.** Two
+  wiring bugs, both variants of one confusion: `evalTrigger`'s grind horizon answered "what do we
+  buy next" instead of "how long until the next aug is reachable". (1) The horizon read
+  `pickTarget`'s **head**, but Phase 25's own same-day `buyBlocked` fix (`9a6643c`) made NFG a
+  permanent candidate — and the head is always NFG, rep-met at deficit 0 — so the horizon was
+  always `0/rate = 0` and `phaseArmed` could never be true. `idle-plateau` was unreachable for the
+  same reason. **No arm was possible in any cycle**; `ratchet-mode.txt` → `auto` would have been a
+  no-op. (2) Routing it through `pickWorkFaction` fixed only the actively-worked case — that skips
+  PASSIVE_REP_FACTIONS and falls back to the rep-met head, so a passive-only plateau still could
+  not arm. `pickHorizonGrind` now takes the sorted candidates and returns the highest-priority one
+  still owed rep: `pickWorkFaction`'s filter minus the passive skip, no head fallback.
+  **Live result:** first arm ever via the horizon path (22:32:14Z, horizon 55.47h vs the 8h
+  threshold, gain 1.370, 8 augs queued, ~$1.47T idle) and the **first `install-ready` fire ever
+  observed** (22:42:14Z, a clean 600s sustain). Kenneth judged the timing **"about right"** —
+  which is exactly S11's validation datum, never collected until now. Also: `dashboard.js` now
+  shows the work faction alongside the head target (the panel had read "grinding for NFG at
+  CyberSec" while the slot ground Sector-12 — Kenneth spotted it, and it is how the dead trigger
+  stayed invisible). → `aeeb632`, `b5b654d`, `3feb4b4`; open items in
+  [`BACKLOG.md`](../../BACKLOG.md).
+
 ## 2026-07-15
 
 - **Phase 25 close-out — BN1.2 CLEARED, live-debugged in one continuous session** →

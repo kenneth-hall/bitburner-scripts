@@ -36,21 +36,16 @@ do, and what's broken?*
   this — but it shares the same fragility, and its call site already guards with a "no free RAM?"
   WARN.
 
-- **Install trigger was structurally dead (FIXED 2026-07-16, awaiting live soak)** — `evalTrigger`'s
-  grind-horizon input was `pickTarget`'s *head* target, but since Phase 25's same-day `buyBlocked`
-  decoupling (`9a6643c`) made NFG a permanent candidate, the head is always NFG: rep-met, deficit 0.
-  So the horizon was always `0/rate = 0`, never exceeded `GRIND_HORIZON_MS`, and `phaseArmed` could
-  never be true. The `idle-plateau` path (`target == null`) was likewise unreachable — whenever a
-  seller is reachable NFG is a candidate; when none is, `queuedCount` is 0 and `gainArmed` fails. Net:
-  **no arm was possible in any cycle**, so `ratchet-mode.txt` → `auto` would have done nothing. Every
-  arm on record (2026-07-15T10:42Z, 11:05Z) predates the fix that broke it. Fixed via
-  `pickHorizonGrind` (feeds `pickWorkFaction`'s pick instead). **Left:** observe-mode soak — does it
-  arm when Kenneth would install by hand? Two known gaps that soak must inform: (a) `idle-plateau`
-  still means "no candidates", which NFG makes near-unreachable — harmless today (the horizon path
-  covers a live cycle) but the semantics are now wrong; (b) the 11:05Z arm was a **post-install false
-  arm** (gain 1.116, armed because nothing was reachable yet at hacking 5, not because the cycle was
-  done) — in auto mode a sustained arm there re-installs immediately. Constants stay provisional
-  (Phase 25 open question (d)).
+- **Observe-mode trigger flap: a fire self-clears, then re-fires every ~10 min** — firing sets
+  `phase: "install-ready"`, but that is not an arming phase (`evalTrigger` arms only on
+  `idle-plateau`/`grinding`), so the next poll clears the fire, the phase reverts to `grinding`, and
+  it re-arms → re-fires on a `TRIGGER_SUSTAIN_MS` loop. Observed live 2026-07-16: fire 22:42:14Z →
+  clear 22:42:24Z → re-arm 22:42:34Z. **Auto mode masks it** — `evalTrigger`'s latch is gated on
+  `mode === "auto"`, so a real install proceeds off the first fire. Impact is therefore observe-only:
+  `install-ready` never sits still to be read, and the decision log fills with arm/fire/clear
+  triples. Same `phase` overloading as the two wiring bugs (`3feb4b4`). **Fix candidate:** treat
+  `install-ready` as arm-preserving, or latch on `fired` regardless of mode. Low priority — but it
+  degrades exactly the observe-mode evidence the constants (open question (d)) need.
 
 - **viteburner dev-server silently stops auto-exporting** — after hours of clean running (no
   crash, no error), `npm run dev` can stop producing fresh `logs/` downloads while `daemon.js`
@@ -90,11 +85,15 @@ do, and what's broken?*
   `phase-17-home-cores.features.md`.
 - **Stage-2 first auto-fire (Phase 25 S11/S2)** — still fully dormant/unexercised as of the
   2026-07-15 BN1.2 clear (deliberately skipped for that run's final install — see the spec's
-  close-out section). **Blocked until the trigger fix above clears its observe soak** — until
-  2026-07-16 this entry read as "dormant, waiting on Kenneth", which was wrong: the trigger
-  could not arm at all, so flipping the mode file would have been a no-op. Then Kenneth
-  hand-writes `auto` into `ratchet-mode.txt` on whatever node/cycle comes next (not scheduled —
-  his call). **When it fires:** watch the full
+  close-out section). **No longer blocked by the trigger** (fixed + live-validated 2026-07-16;
+  S11's timing datum collected — Kenneth judged the 55.47h/1.370-gain arm "about right"). What
+  remains before flipping, cheapest first: (a) hand-run `upgradehomeram.js` during a manual
+  spend-down to exercise `upgradeHomeRam` with no irreversible step (see its entry below);
+  (b) take a save immediately before the first flip; (c) first fire **mid-cycle, never on a
+  run-ending install** (Kenneth's BN1.2 reasoning, still sound); (d) note `MIN_TOTAL_GAIN` (1.1)
+  is an unproven degenerate-loop guard — the one real arm that ever touched it cleared at 1.116.
+  Then Kenneth hand-writes `auto` into `ratchet-mode.txt` (not scheduled — his call).
+  **When it fires:** watch the full
   chain per the spec's L7 checklist — spend-down records + fleet-freeze reservation,
   `installer.js` exec, home RAM/cores transactions, the install itself, `bootstrap.js` relaunch
   via the `installAugmentations` callback, the `ratchet-log.json` boundary pair. Any deviation
