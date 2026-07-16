@@ -22,6 +22,22 @@ do, and what's broken?*
 
 ## Bugs
 
+- **Install trigger was structurally dead (FIXED 2026-07-16, awaiting live soak)** — `evalTrigger`'s
+  grind-horizon input was `pickTarget`'s *head* target, but since Phase 25's same-day `buyBlocked`
+  decoupling (`9a6643c`) made NFG a permanent candidate, the head is always NFG: rep-met, deficit 0.
+  So the horizon was always `0/rate = 0`, never exceeded `GRIND_HORIZON_MS`, and `phaseArmed` could
+  never be true. The `idle-plateau` path (`target == null`) was likewise unreachable — whenever a
+  seller is reachable NFG is a candidate; when none is, `queuedCount` is 0 and `gainArmed` fails. Net:
+  **no arm was possible in any cycle**, so `ratchet-mode.txt` → `auto` would have done nothing. Every
+  arm on record (2026-07-15T10:42Z, 11:05Z) predates the fix that broke it. Fixed via
+  `pickHorizonGrind` (feeds `pickWorkFaction`'s pick instead). **Left:** observe-mode soak — does it
+  arm when Kenneth would install by hand? Two known gaps that soak must inform: (a) `idle-plateau`
+  still means "no candidates", which NFG makes near-unreachable — harmless today (the horizon path
+  covers a live cycle) but the semantics are now wrong; (b) the 11:05Z arm was a **post-install false
+  arm** (gain 1.116, armed because nothing was reachable yet at hacking 5, not because the cycle was
+  done) — in auto mode a sustained arm there re-installs immediately. Constants stay provisional
+  (Phase 25 open question (d)).
+
 - **viteburner dev-server silently stops auto-exporting** — after hours of clean running (no
   crash, no error), `npm run dev` can stop producing fresh `logs/` downloads while `daemon.js`
   keeps writing in-game; a full dev-server restart fixes it. **Root cause corrected 2026-07-12**
@@ -60,8 +76,11 @@ do, and what's broken?*
   `phase-17-home-cores.features.md`.
 - **Stage-2 first auto-fire (Phase 25 S11/S2)** — still fully dormant/unexercised as of the
   2026-07-15 BN1.2 clear (deliberately skipped for that run's final install — see the spec's
-  close-out section). Dormant until Kenneth hand-writes `auto` into `ratchet-mode.txt` on
-  whatever node/cycle comes next (not scheduled — his call). **When it fires:** watch the full
+  close-out section). **Blocked until the trigger fix above clears its observe soak** — until
+  2026-07-16 this entry read as "dormant, waiting on Kenneth", which was wrong: the trigger
+  could not arm at all, so flipping the mode file would have been a no-op. Then Kenneth
+  hand-writes `auto` into `ratchet-mode.txt` on whatever node/cycle comes next (not scheduled —
+  his call). **When it fires:** watch the full
   chain per the spec's L7 checklist — spend-down records + fleet-freeze reservation,
   `installer.js` exec, home RAM/cores transactions, the install itself, `bootstrap.js` relaunch
   via the `installAugmentations` callback, the `ratchet-log.json` boundary pair. Any deviation
@@ -82,11 +101,15 @@ do, and what's broken?*
 - **Per-target logging** — (a) realized income/efficiency per target over time, to sanity-check
   the ranking score against actual outcomes (today `batch` events log *expected* steal only); (b)
   prep-cycle duration (drift→prepped transition), currently invisible once a target is prepped.
-- **Validate `upgradeHomeRam` Singularity call, RESOLVED into Phase 25's live checklist** — the
-  `home-ram-upgrade` buy path has never been watched end-to-end (home RAM was UI-bought).
-  `installer.js`'s spend-down sequence now calls it (+ the sibling `upgradeHomeCores`) for real; the
-  first observed run is Phase 25's L5 (Stage-1 manual install, RAM only) or L7 (Stage-2 first
-  auto-fire, RAM + cores) checklist — no separate probe needed.
+- **Validate `upgradeHomeRam` Singularity call — STILL OPEN** — the `home-ram-upgrade` buy path has
+  never been watched end-to-end (home RAM was UI-bought). Was marked "RESOLVED into Phase 25's live
+  checklist"; corrected 2026-07-16 — that resolved the *plan*, not the observation. Confirmed never
+  fired: no `home-ram-upgrade` among the distinct transaction `source` values across all of
+  `logs/transactions-*.json` (07-04 → 07-16). `installer.js:67` only runs in auto mode, so L7 is the
+  only checklist that can cover it. **Cheaper alternative:** `src/upgradehomeram.js` is a hand-run
+  utility exercising the same call + transaction source, independent of auto mode — but it loops
+  `while money >= cost` with **no reserve awareness**, so it drains the balance; don't run it while
+  the farmer is banking for a target (e.g. CashRoot at ~$3.1b).
 - **`saves/index.mjs` generator** — scan `saves/`, decode each file's BN/SF/hacking/money via
   `tools/save/savelib.mjs`, regenerate `saves/INDEX.md`. Parked; hand-maintaining ~8 rows is
   fine. **Revisit when** the save count grows enough that manual upkeep hurts.
