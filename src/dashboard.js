@@ -378,6 +378,21 @@ export function augPanel(state, now) {
   lines.push(`phase: ${state.phase ?? "?"}`);
   const target = state.target;
   lines.push(target ? `target: ${target.aug ?? "?"} via ${target.faction ?? "?"} (deficit ${Math.round(target.deficit ?? 0)})` : "target: none");
+  // `target` is what we buy next; `work` is what the action slot is actually
+  // grinding. They routinely differ (a rep-met NFG heads the sort at deficit
+  // 0 while the slot grinds another faction), and showing only the former
+  // reads as "grinding for <target>" -- which is wrong, and hid a dead
+  // install trigger for a day. Space authorized by Kenneth 2026-07-16.
+  const work = state.workTarget;
+  if (work?.faction) {
+    lines.push(
+      work.deficit > 0
+        ? `work: ${work.faction} -> ${work.aug ?? "?"} (deficit ${Math.round(work.deficit)})`
+        : `work: ${work.faction} (no grind -- rep met)`,
+    );
+  } else {
+    lines.push("work: none");
+  }
   const bought = state.boughtThisCycle ?? [];
   const joined = state.joinedFactions ?? [];
   lines.push(`bought ${bought.length} | joined ${joined.length}`);

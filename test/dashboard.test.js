@@ -328,6 +328,39 @@ describe('augPanel', () => {
     const lines = augPanel({ timestamp: NOW, phase: 'idle-plateau', target: null, boughtThisCycle: [], joinedFactions: [] }, NOW);
     expect(lines.some((l) => l.includes('target: none'))).toBe(true);
   });
+
+  it('shows the work faction separately from the head target (the live 2026-07-16 shape)', () => {
+    // A rep-met NFG heads the sort at deficit 0 while the slot grinds
+    // Sector-12 for CashRoot. Showing only `target` reads as "grinding for
+    // NFG at CyberSec", which is what Kenneth saw and correctly disbelieved.
+    const lines = augPanel(
+      {
+        timestamp: NOW,
+        phase: 'grinding',
+        target: { aug: 'NeuroFlux Governor', faction: 'CyberSec', deficit: 0 },
+        workTarget: { aug: 'CashRoot Starter Kit', faction: 'Sector-12', deficit: 11914 },
+        boughtThisCycle: [1, 2, 3, 4, 5],
+        joinedFactions: ['CyberSec', 'Sector-12'],
+      },
+      NOW
+    );
+    const work = lines.find((l) => l.startsWith('work:'));
+    expect(work).toBe('work: Sector-12 -> CashRoot Starter Kit (deficit 11914)');
+    expect(lines.some((l) => l.includes('target: NeuroFlux Governor via CyberSec (deficit 0)'))).toBe(true);
+  });
+
+  it('calls out pickWorkFaction\'s rep-met fallback rather than implying a grind', () => {
+    const lines = augPanel(
+      { timestamp: NOW, phase: 'grinding', target: { aug: 'NeuroFlux Governor', faction: 'CyberSec', deficit: 0 }, workTarget: { aug: 'NeuroFlux Governor', faction: 'CyberSec', deficit: 0 }, boughtThisCycle: [], joinedFactions: [] },
+      NOW
+    );
+    expect(lines.some((l) => l === 'work: CyberSec (no grind -- rep met)')).toBe(true);
+  });
+
+  it('renders "work: none" when there are no candidates at all', () => {
+    const lines = augPanel({ timestamp: NOW, phase: 'idle-plateau', target: null, workTarget: null, boughtThisCycle: [], joinedFactions: [] }, NOW);
+    expect(lines.some((l) => l === 'work: none')).toBe(true);
+  });
 });
 
 // --- renderAll ---------------------------------------------------------------

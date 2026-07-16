@@ -1690,7 +1690,15 @@ export async function main(ns) {
         joinedFactions: [...joined].filter((f) => FACTION_SCOPE_SET.has(f)),
         campLocksInForce: FACTION_SCOPE.filter((f) => !joined.has(f) && campBlocked(f, Object.fromEntries(FACTION_SCOPE.map((ff) => [ff, catalog.factions[ff]?.enemies ?? []])), joined)),
         campChoice,
-        workFaction: workTarget?.faction ?? null,
+        // Replaces the bare `workFaction` string (2026-07-16): the head
+        // `target` above answers "what do we buy next", which is NOT what the
+        // work slot is grinding -- the head is routinely rep-met (NFG, deficit
+        // 0) while the real grind is elsewhere. Publishing the aug + deficit
+        // lets the dashboard say so instead of leaving the reader to infer
+        // "grinding for <head>", which is how a dead trigger stayed invisible
+        // for a day. deficit 0 means pickWorkFaction fell back to the head and
+        // there is no real grind, even though the slot still works that faction.
+        workTarget: workTarget ? { aug: workTarget.aug, faction: workTarget.faction, deficit: workTarget.deficit } : null,
         favor,
         boughtThisCycle,
         nfg: { level: ownedTrueRaw.filter((a) => a === NFG_NAME).length, cappedThisCycle: nfgBoughtThisCycle },

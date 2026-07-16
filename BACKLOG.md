@@ -22,6 +22,20 @@ do, and what's broken?*
 
 ## Bugs
 
+- **`augfarmer.js` cannot be restarted once home saturates — `HOME_RESERVE_GB` (32) < its 64.1 GB**
+  — `daemon.js:448` only launches it at startup, when home is empty and it fits. Afterwards the
+  batcher fills home (observed 98.3% used, 34.75 GB free), and the 32 GB reserve (`hosts.js:7`)
+  cannot cover a 64.1 GB relaunch: `run augfarmer.js` fails with "requires 64.10GB of RAM". **The
+  only recovery is a full `daemon.js` restart**, which interrupts the batcher. Hit live 2026-07-16
+  (a CDP restart killed it and lost the RAM race to the batcher; augfarmer was down ~19 min).
+  **Why it matters beyond the restart annoyance:** if augfarmer dies on its own mid-cycle, the aug
+  ratchet stops **silently** and stays stopped — no self-heal. That is a poor property to carry into
+  auto-install. Options (undecided): raise `HOME_RESERVE_GB` past augfarmer's RAM; have `daemon.js`
+  detect-and-relaunch a dead augfarmer; or shrink augfarmer's footprint. Note `installer.js` (18.15
+  GB) does currently fit in the reserve headroom, so the auto-install `ns.exec` is not blocked by
+  this — but it shares the same fragility, and its call site already guards with a "no free RAM?"
+  WARN.
+
 - **Install trigger was structurally dead (FIXED 2026-07-16, awaiting live soak)** — `evalTrigger`'s
   grind-horizon input was `pickTarget`'s *head* target, but since Phase 25's same-day `buyBlocked`
   decoupling (`9a6643c`) made NFG a permanent candidate, the head is always NFG: rep-met, deficit 0.
