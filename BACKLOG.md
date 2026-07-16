@@ -24,17 +24,20 @@ do, and what's broken?*
 
 - **`augfarmer.js` cannot be restarted once home saturates — `HOME_RESERVE_GB` (32) < its 64.1 GB**
   — `daemon.js:448` only launches it at startup, when home is empty and it fits. Afterwards the
-  batcher fills home (observed 98.3% used, 34.75 GB free), and the 32 GB reserve (`hosts.js:7`)
-  cannot cover a 64.1 GB relaunch: `run augfarmer.js` fails with "requires 64.10GB of RAM". **The
-  only recovery is a full `daemon.js` restart**, which interrupts the batcher. Hit live 2026-07-16
-  (a CDP restart killed it and lost the RAM race to the batcher; augfarmer was down ~19 min).
-  **Why it matters beyond the restart annoyance:** if augfarmer dies on its own mid-cycle, the aug
-  ratchet stops **silently** and stays stopped — no self-heal. That is a poor property to carry into
-  auto-install. Options (undecided): raise `HOME_RESERVE_GB` past augfarmer's RAM; have `daemon.js`
-  detect-and-relaunch a dead augfarmer; or shrink augfarmer's footprint. Note `installer.js` (18.15
-  GB) does currently fit in the reserve headroom, so the auto-install `ns.exec` is not blocked by
-  this — but it shares the same fragility, and its call site already guards with a "no free RAM?"
-  WARN.
+  batcher fills home and the 32 GB reserve (`hosts.js:7`) cannot cover a 64.1 GB relaunch: `run
+  augfarmer.js` fails with "requires 64.10GB of RAM". **Only recovery is a full `daemon.js`
+  restart**, which interrupts the batcher. Hit live 2026-07-16 (a CDP restart killed it and lost the
+  RAM race; augfarmer was down ~19 min).
+  - **Confirmed STRUCTURAL 2026-07-16 — "buy more RAM" is not a fix.** Home went **2.05 TB → 65.54
+    TB** (32×, $1.46T) and free RAM went *down*: 34.75 GB → **32.00 GB**, i.e. pinned to exactly
+    `HOME_RESERVE_GB`. The batcher fills to `maxRam - HOME_RESERVE_GB` at any home size, so the
+    64.1 GB relaunch never fits regardless of how much RAM is bought.
+  - **Why it matters beyond the annoyance:** if augfarmer dies on its own mid-cycle, the aug ratchet
+    stops **silently** and stays stopped — no self-heal. Poor property to carry into auto-install.
+    Options (undecided): raise `HOME_RESERVE_GB` past augfarmer's RAM; have `daemon.js`
+    detect-and-relaunch a dead augfarmer; or shrink augfarmer's footprint. `installer.js` (18.15 GB)
+    does fit the reserve, so the auto-install `ns.exec` is not blocked — but it shares the fragility,
+    and its call site already guards with a "no free RAM?" WARN.
 
 - **Observe-mode trigger flap: a fire self-clears, then re-fires every ~10 min** — firing sets
   `phase: "install-ready"`, but that is not an arming phase (`evalTrigger` arms only on
@@ -87,11 +90,12 @@ do, and what's broken?*
   2026-07-15 BN1.2 clear (deliberately skipped for that run's final install — see the spec's
   close-out section). **No longer blocked by the trigger** (fixed + live-validated 2026-07-16;
   S11's timing datum collected — Kenneth judged the 55.47h/1.370-gain arm "about right"). What
-  remains before flipping, cheapest first: (a) hand-run `upgradehomeram.js` during a manual
-  spend-down to exercise `upgradeHomeRam` with no irreversible step (see its entry below);
+  remains before flipping: (a) ~~hand-run `upgradehomeram.js`~~ **done 2026-07-16, validated**;
   (b) take a save immediately before the first flip; (c) first fire **mid-cycle, never on a
-  run-ending install** (Kenneth's BN1.2 reasoning, still sound); (d) note `MIN_TOTAL_GAIN` (1.1)
-  is an unproven degenerate-loop guard — the one real arm that ever touched it cleared at 1.116.
+  run-ending install** (Kenneth's BN1.2 reasoning, still sound); (d) `MIN_TOTAL_GAIN` (1.1) is an
+  unproven degenerate-loop guard — the one real arm that ever touched it cleared at 1.116;
+  (e) `upgradeHomeCores` stays cold — no hand-run path exists, so the first auto fire is its
+  first execution.
   Then Kenneth hand-writes `auto` into `ratchet-mode.txt` (not scheduled — his call).
   **When it fires:** watch the full
   chain per the spec's L7 checklist — spend-down records + fleet-freeze reservation,
@@ -114,15 +118,13 @@ do, and what's broken?*
 - **Per-target logging** — (a) realized income/efficiency per target over time, to sanity-check
   the ranking score against actual outcomes (today `batch` events log *expected* steal only); (b)
   prep-cycle duration (drift→prepped transition), currently invisible once a target is prepped.
-- **Validate `upgradeHomeRam` Singularity call — STILL OPEN** — the `home-ram-upgrade` buy path has
-  never been watched end-to-end (home RAM was UI-bought). Was marked "RESOLVED into Phase 25's live
-  checklist"; corrected 2026-07-16 — that resolved the *plan*, not the observation. Confirmed never
-  fired: no `home-ram-upgrade` among the distinct transaction `source` values across all of
-  `logs/transactions-*.json` (07-04 → 07-16). `installer.js:67` only runs in auto mode, so L7 is the
-  only checklist that can cover it. **Cheaper alternative:** `src/upgradehomeram.js` is a hand-run
-  utility exercising the same call + transaction source, independent of auto mode — but it loops
-  `while money >= cost` with **no reserve awareness**, so it drains the balance; don't run it while
-  the farmer is banking for a target (e.g. CashRoot at ~$3.1b).
+- **Validate `upgradeHomeCores` Singularity call — STILL OPEN** — `installer.js:86` is the **only**
+  call site and it runs in auto mode only, so no hand-run shortcut exists (unlike RAM, there is no
+  `upgradehomecores.js`). The first auto fire exercises it cold; watch for a `home-cores-upgrade`
+  transaction on Phase 25's L7 checklist. Sibling `upgradeHomeRam` **validated 2026-07-16** — 5
+  `home-ram-upgrade` records, $1.46T, home 2 TB → 64 TB, via a hand-run `upgradehomeram.js` during
+  a manual spend-down (its no-reserve `while money >= cost` drain is harmless exactly there, since
+  an install wipes money anyway — don't run it while the farmer is banking for a target).
 - **`saves/index.mjs` generator** — scan `saves/`, decode each file's BN/SF/hacking/money via
   `tools/save/savelib.mjs`, regenerate `saves/INDEX.md`. Parked; hand-maintaining ~8 rows is
   fine. **Revisit when** the save count grows enough that manual upkeep hurts.
