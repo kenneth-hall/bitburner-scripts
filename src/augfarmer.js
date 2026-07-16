@@ -560,26 +560,42 @@ export function pickWorkFaction(sortedCandidates, joinedSet, passiveSet, donatio
 }
 
 /**
- * Pure (S7, added 2026-07-16). The grind-horizon input for evalTrigger: the
- * faction whose rep we are actually waiting on -- pickWorkFaction's pick --
- * but only when it is a real grind (deficit > 0). pickWorkFaction falls back
- * to the head candidate when nothing is grindable, and the head is always
- * rep-met, so that fallback must read as "no horizon" rather than a
- * zero-length one.
+ * Pure (S7, added 2026-07-16, reshaped same day). The grind-horizon input for
+ * evalTrigger: the highest-priority candidate whose rep we are still waiting
+ * on. Deliberately the same filter as pickWorkFaction -- joined, deficit > 0,
+ * not donation-closable (money closes those, not time) -- **minus the passive
+ * skip, and with no fallback to the head**.
  *
- * Exists because the call site previously passed pickTarget's *head* as the
- * trigger's faction/deficit. Once the buyBlocked decoupling made NFG a
- * permanent candidate, the head was always NFG -- rep-met, deficit 0 -- so
- * the horizon was always 0/rate = 0, phaseArmed could never be true, and the
- * install trigger was structurally dead (no arm between the fix landing
- * 2026-07-15 and its discovery 2026-07-16). The head answers "what do we buy
- * next", which is not the same question as "what are we waiting on".
- * @param {object|null} workTarget pickWorkFaction's result
+ * That one difference is the whole point, and it is not an oversight in
+ * either direction. pickWorkFaction skips PASSIVE_REP_FACTIONS because the
+ * single action slot must not be spent on rep that accrues for free; it then
+ * falls back to the head so the slot always has *somewhere* to go. But
+ * passive rep still takes *time*, so a passive faction has a perfectly real
+ * horizon -- and the head is always rep-met (deficit 0), so a fallback would
+ * report a zero-length one. "What should the slot work" and "how long until
+ * the next aug is reachable" are different questions.
+ *
+ * Two live bugs came from conflating them. First the call site passed
+ * pickTarget's *head*: once the buyBlocked decoupling made NFG a permanent
+ * candidate the head was always NFG (rep-met, deficit 0), the horizon was
+ * always 0, and the trigger was structurally dead. Then routing it through
+ * pickWorkFaction fixed only the actively-worked case -- observed live
+ * 2026-07-16 with every remaining grind on passive factions (NiteSec/The
+ * Black Hand/BitRunners), so the pick fell back to the rep-met head and the
+ * trigger still could not arm, while $1.47T sat idle at a real plateau.
+ * @param {object[]} sortedCandidates pickTarget's `candidates`
+ * @param {Set<string>} joinedSet
+ * @param {Set<string>} donationClosableSet
  * @returns {{faction: string|undefined, deficit: number}}
  */
-export function pickHorizonGrind(workTarget) {
-  if (!workTarget || !(workTarget.deficit > 0)) return { faction: undefined, deficit: 0 };
-  return { faction: workTarget.faction, deficit: workTarget.deficit };
+export function pickHorizonGrind(sortedCandidates, joinedSet, donationClosableSet) {
+  for (const c of sortedCandidates ?? []) {
+    if (!joinedSet?.has(c.faction)) continue;
+    if (!(c.deficit > 0)) continue;
+    if (donationClosableSet?.has(c.faction)) continue;
+    return { faction: c.faction, deficit: c.deficit };
+  }
+  return { faction: undefined, deficit: 0 };
 }
 
 /**
@@ -1411,10 +1427,11 @@ export async function main(ns) {
     const nfgPrice = catalog.augs[NFG_NAME]?.price ?? 0;
     const nfgHackingMult = catalog.augs[NFG_NAME]?.hackingMult ?? 1;
 
-    // The horizon measures the faction we're grinding (workTarget), NOT
-    // pickTarget's head -- see pickHorizonGrind's header for why the head is
-    // always deficit 0 and silently killed the trigger.
-    const horizonGrind = pickHorizonGrind(workTarget);
+    // The horizon measures the best candidate we're still waiting on rep for
+    // -- NOT pickTarget's head (always rep-met, deficit 0) and NOT
+    // workTarget (skips passive factions, then falls back to that same
+    // rep-met head). See pickHorizonGrind's header: both mistakes shipped.
+    const horizonGrind = pickHorizonGrind(target?.candidates ?? [], joined, donationClosableSet);
     const triggerInputs = {
       queuedGain,
       queuedCount: queuedNames.length,

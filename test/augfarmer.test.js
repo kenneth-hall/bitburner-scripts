@@ -653,76 +653,82 @@ describe('updateRepRates', () => {
 });
 
 describe('pickHorizonGrind', () => {
-  it('returns the work faction and its deficit when there is a real grind', () => {
-    expect(pickHorizonGrind({ aug: 'CashRoot Starter Kit', faction: 'Sector-12', deficit: 11_914 })).toEqual({
-      faction: 'Sector-12',
-      deficit: 11_914,
-    });
+  const joined = new Set(['CyberSec', 'NiteSec', 'Sector-12', 'Aevum']);
+
+  it('returns the highest-priority candidate still owed rep', () => {
+    const candidates = [
+      { aug: NFG_NAME, faction: 'CyberSec', deficit: 0 },
+      { aug: 'CashRoot Starter Kit', faction: 'Sector-12', deficit: 11_914 },
+      { aug: 'CRTX42-AA Gene Modification', faction: 'NiteSec', deficit: 42_579 },
+    ];
+    expect(pickHorizonGrind(candidates, joined, new Set())).toEqual({ faction: 'Sector-12', deficit: 11_914 });
   });
 
-  it('reads pickWorkFaction\'s rep-met fallback as "no horizon", not a zero-length one', () => {
-    // pickWorkFaction falls back to the head candidate when nothing is
-    // grindable; the head is always rep-met, so deficit 0 must not present
-    // as an instantly-elapsed horizon.
-    expect(pickHorizonGrind({ aug: NFG_NAME, faction: 'CyberSec', deficit: 0 })).toEqual({ faction: undefined, deficit: 0 });
+  it('skips rep-met candidates rather than reporting a zero-length horizon', () => {
+    const candidates = [{ aug: NFG_NAME, faction: 'CyberSec', deficit: 0 }];
+    expect(pickHorizonGrind(candidates, joined, new Set())).toEqual({ faction: undefined, deficit: 0 });
+  });
+
+  it('skips factions we have not joined (their rep cannot accrue)', () => {
+    const candidates = [{ aug: 'Enhanced Myelin Sheathing', faction: 'The Black Hand', deficit: 97_578 }];
+    expect(pickHorizonGrind(candidates, joined, new Set())).toEqual({ faction: undefined, deficit: 0 });
+  });
+
+  it('skips donation-closable factions -- money closes those, not time', () => {
+    const candidates = [{ aug: 'CashRoot Starter Kit', faction: 'Sector-12', deficit: 11_914 }];
+    expect(pickHorizonGrind(candidates, joined, new Set(['Sector-12']))).toEqual({ faction: undefined, deficit: 0 });
   });
 
   it('handles no candidates at all', () => {
-    expect(pickHorizonGrind(null)).toEqual({ faction: undefined, deficit: 0 });
+    expect(pickHorizonGrind([], joined, new Set())).toEqual({ faction: undefined, deficit: 0 });
+    expect(pickHorizonGrind(null, joined, new Set())).toEqual({ faction: undefined, deficit: 0 });
   });
 
-  it('regression: a rep-met NFG head does not starve the trigger of the real grind horizon', () => {
-    // The live 2026-07-16 shape: NFG sorts head (rep-met, deficit 0, and
-    // buyBlocked by the one-per-cycle cap) while the actual grind is
-    // Sector-12 rep toward CashRoot. Feeding the head's deficit to
-    // evalTrigger made the horizon 0/rate = 0 -- never > GRIND_HORIZON_MS --
-    // so the install trigger could never arm. Wire the whole chain here, not
-    // just evalTrigger in isolation: the bug was in the wiring, and
-    // evalTrigger's own unit tests passed throughout.
+  it('counts PASSIVE factions, unlike pickWorkFaction -- passive rep still takes time', () => {
+    // The live 2026-07-16 plateau: every remaining grind is passive, so
+    // pickWorkFaction has nothing to work and falls back to the rep-met head.
+    // The horizon must NOT follow it there -- passive rep accrues slowly, so
+    // NiteSec's 42.6k deficit is exactly the wait the trigger exists to
+    // measure. This divergence is the fix.
+    const candidates = [
+      { aug: NFG_NAME, faction: 'CyberSec', deficit: 0, score: 0.023 },
+      { aug: 'CRTX42-AA Gene Modification', faction: 'NiteSec', deficit: 42_579, score: 0.155 },
+    ];
+    const workTarget = pickWorkFaction(candidates, joined, PASSIVE_REP_FACTIONS, new Set());
+    expect(workTarget.deficit).toBe(0); // fell back to the rep-met head: nothing to actively work
+
+    expect(pickHorizonGrind(candidates, joined, new Set())).toEqual({ faction: 'NiteSec', deficit: 42_579 });
+  });
+
+  it('regression: the passive-only plateau arms the trigger instead of deadlocking it', () => {
+    // Wire the real chain, not evalTrigger in isolation -- both live bugs
+    // were in this wiring while evalTrigger's own unit tests stayed green.
     const candidates = [
       { aug: NFG_NAME, faction: 'CyberSec', deficit: 0, score: 0.023, buyBlocked: true },
-      { aug: 'Synaptic Enhancement Implant', faction: 'CyberSec', deficit: 0, score: 0.0045 },
-      { aug: 'CashRoot Starter Kit', faction: 'Sector-12', deficit: 11_914, score: 0.25 },
+      { aug: 'CRTX42-AA Gene Modification', faction: 'NiteSec', deficit: 42_579, score: 0.155 },
     ];
-    const joined = new Set(['CyberSec', 'Sector-12']);
-    const workTarget = pickWorkFaction(candidates, joined, PASSIVE_REP_FACTIONS, new Set());
-    expect(workTarget.faction).toBe('Sector-12');
+    const donationClosable = new Set();
+    // ~0.9 rep/s passive => NiteSec is ~13h out, past the 8h threshold.
+    const rate = 0.9 / 1000;
+    const inputs = (grind) => ({
+      queuedGain: 1.37,
+      queuedCount: 8,
+      phase: 'grinding',
+      targetFaction: grind.faction,
+      deficit: grind.deficit,
+      repRates: { NiteSec: rate, CyberSec: rate },
+      rateSamples: { NiteSec: 40, CyberSec: 40 },
+      now: 1_000_000,
+    });
 
-    const horizonGrind = pickHorizonGrind(workTarget);
-    expect(horizonGrind).toEqual({ faction: 'Sector-12', deficit: 11_914 });
+    const fixed = pickHorizonGrind(candidates, joined, donationClosable);
+    expect(evalTrigger(inputs(fixed), null).armed).toBe(true);
 
-    // A rep rate slow enough to put CashRoot two GRIND_HORIZON_MS away.
-    const rate = 11_914 / (GRIND_HORIZON_MS * 2);
-    const armed = evalTrigger(
-      {
-        queuedGain: 2,
-        queuedCount: 3,
-        phase: 'grinding',
-        targetFaction: horizonGrind.faction,
-        deficit: horizonGrind.deficit,
-        repRates: { 'Sector-12': rate },
-        rateSamples: { 'Sector-12': 40 },
-        now: 1_000_000,
-      },
-      null,
-    );
-    expect(armed.armed).toBe(true);
-
-    // ...and the pre-fix wiring (head's faction/deficit) proves the deadlock.
-    const deadlocked = evalTrigger(
-      {
-        queuedGain: 2,
-        queuedCount: 3,
-        phase: 'grinding',
-        targetFaction: candidates[0].faction,
-        deficit: candidates[0].deficit,
-        repRates: { 'Sector-12': rate, CyberSec: rate },
-        rateSamples: { 'Sector-12': 40, CyberSec: 40 },
-        now: 1_000_000,
-      },
-      null,
-    );
-    expect(deadlocked.armed).toBe(false);
+    // The superseded wiring (follow pickWorkFaction) fell back to the rep-met
+    // head and could never arm -- the live plateau, reproduced.
+    const viaWorkFaction = pickWorkFaction(candidates, joined, PASSIVE_REP_FACTIONS, donationClosable);
+    const stale = { faction: viaWorkFaction.deficit > 0 ? viaWorkFaction.faction : undefined, deficit: viaWorkFaction.deficit > 0 ? viaWorkFaction.deficit : 0 };
+    expect(evalTrigger(inputs(stale), null).armed).toBe(false);
   });
 });
 
