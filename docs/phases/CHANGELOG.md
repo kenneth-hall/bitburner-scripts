@@ -25,8 +25,8 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   which is exactly S11's validation datum, never collected until now. Also: `dashboard.js` now
   shows the work faction alongside the head target (the panel had read "grinding for NFG at
   CyberSec" while the slot ground Sector-12 — Kenneth spotted it, and it is how the dead trigger
-  stayed invisible). → `aeeb632`, `b5b654d`, `3feb4b4`; open items in
-  [`BACKLOG.md`](../../BACKLOG.md).
+  stayed invisible). → `aeeb632`, `b5b654d`, `3feb4b4`; **handoff + all open items:**
+  [`phase-25-faction-strategy.closeout.md`](phase-25-faction-strategy.closeout.md).
 
 ## 2026-07-15
 

@@ -15,6 +15,14 @@ on request — hold to them even when the moment is uncomfortable.
   revisiting "now that Phase 25 cut manual attention substantially," and Phase 25's automation is
   exactly what makes re-farming BN1 cheap enough to justify the +4pp. BN1 clear mechanics are
   identical for 1.3 as 1.2, so the whole existing bootstrap/aug-ratchet toolchain applies unchanged.
+  - **NEXT ACTION (set 2026-07-16) — the Stage-2 first auto fire (Phase 25 L7).** The single open
+    test; everything else is behind it or optional. **Act when `logs/augfarmer-state.json` shows
+    `trigger.armed: true`:** save → hand-write `auto` into `ratchet-mode.txt` → watch the L7 chain.
+    Nothing to do until it arms (post-install the cycle must rebuild; 0 queued augs ⇒ `gainArmed`
+    false). **Read `docs/phases/phase-25-faction-strategy.closeout.md` first** — it's the handoff:
+    proven-vs-never-run table, watch list, abort levers, blast radius, open gaps. Context: the
+    install trigger was **structurally dead** from `9a6643c` until 2026-07-16 (three bugs, one
+    confusion — head target vs. work slot vs. what we're waiting on); S11's gate is now met.
   - **BN1.2 was cleared 2026-07-15** — `w0r1d_d43m0n` backdoored (confirmed live via a
     BitVerse-selection-screen screenshot; SF1.2 grant itself not yet independently re-verified via a
     save/aug-info read, but the backdoor firing + landing back on the BitVerse screen is strong

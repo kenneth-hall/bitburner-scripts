@@ -514,6 +514,12 @@ the manual utility; `installer.js` owns the automated path), the batcher core, `
 
 ## Close-out (2026-07-15) — done vs. left
 
+> **Superseded in part — read `phase-25-faction-strategy.closeout.md` first.** That doc is the
+> current handoff: it records S11's gate as **met** (2026-07-16), corrects this section's claim
+> that auto-install was merely "deliberately skipped" (it was **unreachable** — the trigger was
+> dead code from `9a6643c` onward), and carries the one remaining action. This section stays as
+> the BN1.2-clear record.
+
 Everything below happened in one continuous live session, on the same BN1.2 save this spec
 was designed for. **The clear succeeded** — `w0r1d_d43m0n` backdoored, confirmed via a
 BitVerse-selection-screen screenshot. This section is the honest record of what actually

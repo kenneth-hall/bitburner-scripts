@@ -22,50 +22,30 @@ do, and what's broken?*
 
 ## Bugs
 
-- **`augfarmer.js` cannot be restarted once home saturates — `HOME_RESERVE_GB` (32) < its 64.1 GB**
-  — `daemon.js:448` only launches it at startup, when home is empty and it fits. Afterwards the
-  batcher fills home and the 32 GB reserve (`hosts.js:7`) cannot cover a 64.1 GB relaunch: `run
-  augfarmer.js` fails with "requires 64.10GB of RAM". **Only recovery is a full `daemon.js`
-  restart**, which interrupts the batcher. Hit live 2026-07-16 (a CDP restart killed it and lost the
-  RAM race; augfarmer was down ~19 min).
-  - **Confirmed STRUCTURAL 2026-07-16 — "buy more RAM" is not a fix.** Home went **2.05 TB → 65.54
-    TB** (32×, $1.46T) and free RAM went *down*: 34.75 GB → **32.00 GB**, i.e. pinned to exactly
-    `HOME_RESERVE_GB`. The batcher fills to `maxRam - HOME_RESERVE_GB` at any home size, so the
-    64.1 GB relaunch never fits regardless of how much RAM is bought.
-  - **Why it matters beyond the annoyance:** if augfarmer dies on its own mid-cycle, the aug ratchet
-    stops **silently** and stays stopped — no self-heal. Poor property to carry into auto-install.
-    Options (undecided): raise `HOME_RESERVE_GB` past augfarmer's RAM; have `daemon.js`
-    detect-and-relaunch a dead augfarmer; or shrink augfarmer's footprint. `installer.js` (18.15 GB)
-    does fit the reserve, so the auto-install `ns.exec` is not blocked — but it shares the fragility,
-    and its call site already guards with a "no free RAM?" WARN.
+- **No supervision + `HOME_RESERVE_GB` (32) < augfarmer's 64.1 GB** — companions launch once at
+  `daemon.js:415-455`, *before* the loop at 626; nothing monitors or relaunches them, so any
+  companion death is a **silent permanent stop**, and `augfarmer.js` can't be relaunched at all
+  (batcher fills home to `maxRam - reserve`, pinning free RAM at 32 GB). Confirmed **structural**:
+  home 2 TB → 64 TB and free RAM went *down* (34.75 → 32.00 GB), so "buy more RAM" is not a fix.
+  Recovery today is `restart daemon.js`. Doesn't block the first auto fire (you're watching); does
+  block genuinely-unattended running, which is the real prize. **Fix is supervisor + reserve bump
+  together, or neither.** Note Phase 25 deliberately declined the bump, correctly for the case it
+  weighed. → close-out doc, "Open gaps" (4).
 
-- **NFG level counting: `nfg.level` misreports, and `daedalusGate` may undercount** — observed at
-  install #5 (2026-07-16). Six hand-bought NFG levels took the queue 8 → 14, but post-install
-  `getOwnedAugmentations(false)` returned **8** and the NFG count in `getOwnedAugmentations(true)`
-  collapsed to **1**. So queued NFG levels duplicate as list entries; installed ones do not — the
-  level lives outside the aug list. This **answers S10's open question** (annotated in
-  `augfarmer.js`'s header); the `lastAugReset`-keyed buy cap is unaffected, as S10 predicted.
-  - **Cosmetic:** `nfg.level` in the state record counts list entries, so it reads 1 forever
-    regardless of true level. Wrong, low stakes, wants `ns.singularity.getAugmentationLevel`-ish
-    sourcing or a note that it is a distinct-count not a level.
-  - **Possibly not cosmetic:** `daedalusGate.installed` counts distinct installed augs (8/30 now).
-    **Unverified:** whether Daedalus's real 30-augmentation requirement counts NFG levels
-    individually. If it does, we undercount the gate and the farmer over-grinds toward a target it
-    has already partly met. **Next:** read the in-game Daedalus requirement text (or
-    `docs/reset-protocol.md`) and confirm before this shapes the BN1.3 aug plan — do not assume
-    from the aug-list count either way. Prior data point: the 2026-07-15 clear reached Daedalus at
-    33 distinct installed, which is consistent with *both* readings and so settles nothing.
+- **NFG counting: `nfg.level` misreports, `daedalusGate` may undercount** — install #5 answered
+  S10's open question (queued NFG levels duplicate in `getOwnedAugmentations(true)`, installed ones
+  collapse to one entry; annotated in `augfarmer.js`'s header). `nfg.level` reads 1 forever
+  (cosmetic). **Unverified and load-bearing:** whether Daedalus's real 30-aug gate counts NFG levels
+  individually — if it does we undercount (8/30 now) and over-grind. Confirm against the in-game
+  requirement before it shapes the BN1.3 plan. → close-out doc, "Open gaps" (3).
 
 - **Observe-mode trigger flap: a fire self-clears, then re-fires every ~10 min** — firing sets
-  `phase: "install-ready"`, but that is not an arming phase (`evalTrigger` arms only on
-  `idle-plateau`/`grinding`), so the next poll clears the fire, the phase reverts to `grinding`, and
-  it re-arms → re-fires on a `TRIGGER_SUSTAIN_MS` loop. Observed live 2026-07-16: fire 22:42:14Z →
-  clear 22:42:24Z → re-arm 22:42:34Z. **Auto mode masks it** — `evalTrigger`'s latch is gated on
-  `mode === "auto"`, so a real install proceeds off the first fire. Impact is therefore observe-only:
-  `install-ready` never sits still to be read, and the decision log fills with arm/fire/clear
-  triples. Same `phase` overloading as the two wiring bugs (`3feb4b4`). **Fix candidate:** treat
-  `install-ready` as arm-preserving, or latch on `fired` regardless of mode. Low priority — but it
-  degrades exactly the observe-mode evidence the constants (open question (d)) need.
+  `phase: "install-ready"`, which is not an arming phase, so the next poll clears it → re-arms →
+  re-fires on a `TRIGGER_SUSTAIN_MS` loop (observed 22:42:14Z fire → :24 clear → :34 re-arm).
+  **Auto mode masks it** (the latch is gated on `mode === "auto"`), so it can't affect the first
+  auto fire — but it degrades the observe-mode evidence the provisional constants need. Fix
+  candidate: treat `install-ready` as arm-preserving, or latch on `fired` regardless of mode.
+  → close-out doc, "Open gaps" (2).
 
 - **viteburner dev-server silently stops auto-exporting** — after hours of clean running (no
   crash, no error), `npm run dev` can stop producing fresh `logs/` downloads while `daemon.js`
@@ -103,23 +83,13 @@ do, and what's broken?*
   buildable (`installer.js`'s auto-mode `upgradeHomeCores()` calls, Phase 25 S10) but still gated
   on Kenneth flipping `ratchet-mode.txt` to `auto`; co-scope with core-weighted share placement. →
   `phase-17-home-cores.features.md`.
-- **Stage-2 first auto-fire (Phase 25 S11/S2)** — still fully dormant/unexercised as of the
-  2026-07-15 BN1.2 clear (deliberately skipped for that run's final install — see the spec's
-  close-out section). **No longer blocked by the trigger** (fixed + live-validated 2026-07-16;
-  S11's timing datum collected — Kenneth judged the 55.47h/1.370-gain arm "about right"). What
-  remains before flipping: (a) ~~hand-run `upgradehomeram.js`~~ **done 2026-07-16, validated**;
-  (b) take a save immediately before the first flip; (c) first fire **mid-cycle, never on a
-  run-ending install** (Kenneth's BN1.2 reasoning, still sound); (d) `MIN_TOTAL_GAIN` (1.1) is an
-  unproven degenerate-loop guard — the one real arm that ever touched it cleared at 1.116;
-  (e) `upgradeHomeCores` stays cold — no hand-run path exists, so the first auto fire is its
-  first execution.
-  Then Kenneth hand-writes `auto` into `ratchet-mode.txt` (not scheduled — his call).
-  **When it fires:** watch the full
-  chain per the spec's L7 checklist — spend-down records + fleet-freeze reservation,
-  `installer.js` exec, home RAM/cores transactions, the install itself, `bootstrap.js` relaunch
-  via the `installAugmentations` callback, the `ratchet-log.json` boundary pair. Any deviation
-  demotes the mode file back to observe and reopens the trigger design with the logged data. →
-  `docs/phases/phase-25-faction-strategy.spec.md`.
+- **Stage-2 first auto-fire (Phase 25 S11/S2) — THE ACTIVE ITEM.** Auto-install has never run in
+  any form; the trigger no longer blocks it (fixed + live-validated 2026-07-16, S11's gate met).
+  **Act when `logs/augfarmer-state.json` shows `trigger.armed: true`:** save → write `auto` into
+  `ratchet-mode.txt` → watch the L7 chain. Full handoff — proven-vs-never-run table, watch list,
+  abort levers, blast radius, every open gap — →
+  **[`docs/phases/phase-25-faction-strategy.closeout.md`](docs/phases/phase-25-faction-strategy.closeout.md)**.
+  Don't re-derive it here.
 
 ### Tooling & infra
 - **CDP driver → MCP server** — wrap `tools/bb/driver.mjs` in an MCP so the helpers become native
