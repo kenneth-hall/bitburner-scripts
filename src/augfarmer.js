@@ -57,9 +57,24 @@
 // factions and began unfocused faction work without error on the first
 // restart.
 //
-// Whether getOwnedAugmentations(true) represents multiple queued NFG levels
-// as duplicate entries is unconfirmed (S10's open question -- the
-// lastAugReset-keyed cap doesn't depend on the answer either way).
+// S10's open question -- whether getOwnedAugmentations(true) represents
+// multiple queued NFG levels as duplicate entries -- ANSWERED live at
+// install #5 (2026-07-16, logs/ratchet-log.json): **yes while queued, no
+// once installed.** Six hand-bought NFG levels took the queue from 8 to 14
+// (so `true` does duplicate queued levels, and augsActivated read 14), but
+// post-install getOwnedAugmentations(false) returned 8 and the NFG count in
+// `true` collapsed to 1 -- installed NFG is a single entry whose level lives
+// outside the aug list.
+//
+// The lastAugReset-keyed buy cap still doesn't depend on this (as predicted).
+// Two things do:
+//   - `nfg.level` (state record) counts list entries, so it reads 1 forever
+//     regardless of real level. Misreport, cosmetic -- see BACKLOG.
+//   - `daedalusGate.installed` counts ownedInstalled.length, i.e. distinct
+//     augs. Whether Daedalus's real 30-aug gate counts NFG levels
+//     individually is NOT established -- if it does, we undercount and
+//     over-grind. Confirm against the in-game requirement before this shapes
+//     a plan. See BACKLOG.
 
 import { tprintTs } from "./common.js";
 import { recordTransaction } from "./translog.js";

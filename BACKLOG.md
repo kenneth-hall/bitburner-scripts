@@ -39,6 +39,23 @@ do, and what's broken?*
     does fit the reserve, so the auto-install `ns.exec` is not blocked — but it shares the fragility,
     and its call site already guards with a "no free RAM?" WARN.
 
+- **NFG level counting: `nfg.level` misreports, and `daedalusGate` may undercount** — observed at
+  install #5 (2026-07-16). Six hand-bought NFG levels took the queue 8 → 14, but post-install
+  `getOwnedAugmentations(false)` returned **8** and the NFG count in `getOwnedAugmentations(true)`
+  collapsed to **1**. So queued NFG levels duplicate as list entries; installed ones do not — the
+  level lives outside the aug list. This **answers S10's open question** (annotated in
+  `augfarmer.js`'s header); the `lastAugReset`-keyed buy cap is unaffected, as S10 predicted.
+  - **Cosmetic:** `nfg.level` in the state record counts list entries, so it reads 1 forever
+    regardless of true level. Wrong, low stakes, wants `ns.singularity.getAugmentationLevel`-ish
+    sourcing or a note that it is a distinct-count not a level.
+  - **Possibly not cosmetic:** `daedalusGate.installed` counts distinct installed augs (8/30 now).
+    **Unverified:** whether Daedalus's real 30-augmentation requirement counts NFG levels
+    individually. If it does, we undercount the gate and the farmer over-grinds toward a target it
+    has already partly met. **Next:** read the in-game Daedalus requirement text (or
+    `docs/reset-protocol.md`) and confirm before this shapes the BN1.3 aug plan — do not assume
+    from the aug-list count either way. Prior data point: the 2026-07-15 clear reached Daedalus at
+    33 distinct installed, which is consistent with *both* readings and so settles nothing.
+
 - **Observe-mode trigger flap: a fire self-clears, then re-fires every ~10 min** — firing sets
   `phase: "install-ready"`, but that is not an arming phase (`evalTrigger` arms only on
   `idle-plateau`/`grinding`), so the next poll clears the fire, the phase reverts to `grinding`, and
