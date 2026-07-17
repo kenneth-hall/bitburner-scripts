@@ -108,7 +108,14 @@ export const RATE_EWMA_ALPHA = 0.2;
 export const DONATION_BUFFER = 1.2;
 export const ENDGAME_HACK_LEVEL = 2500;
 export const SPEND_DOWN_BUY_CAP = 50;
-export const NFG_PRICE_LADDER = 1.9; // observed ladder mult, reset-protocol.md
+// NeuroFlux Governor's per-level price multiplier. MEASURED 2026-07-17 from
+// install #8's 11-level spend-down run (The Black Hand): the paid-price ratio
+// was a dead-constant 2.166 across every level (logs/transactions-2026-07-17.json,
+// which carries paid vs projected since the gap-5 fix). The prior 1.9 was an
+// eyeball estimate and ran ~14% low, which compounds -- it under-logged and
+// under-projected every level past the first. If a future node re-prices NFG,
+// re-measure the same way.
+export const NFG_PRICE_LADDER = 2.166;
 export const PASSIVE_REP_FACTIONS = new Set(["CyberSec", "NiteSec", "The Black Hand", "BitRunners"]);
 export const RED_PILL_NAME = "The Red Pill";
 
@@ -688,7 +695,14 @@ export function evalTrigger(inputs, priorState) {
 
   let nfgLevelsProjected = 0;
   if (nfgPrice > 0) {
-    const ratio = 1 + (money * 0.9) / nfgPrice;
+    // How many NFG levels `money` can buy when each costs NFG_PRICE_LADDER (L)
+    // times the previous, starting from nfgPrice (p). Geometric closed form:
+    // sum_{i=0}^{k-1} p*L^i <= money  =>  k = floor(log(1 + money*(L-1)/p) / log L).
+    // The (L-1) numerator factor MUST track the ladder -- it was previously the
+    // literal 0.9, which was exactly (1.9 - 1) and silently went stale when a
+    // real 2.166 ladder was measured (2026-07-17). Validated against install #8:
+    // predicts 11, which is what spend-down actually bought.
+    const ratio = 1 + (money * (NFG_PRICE_LADDER - 1)) / nfgPrice;
     if (ratio > 1) nfgLevelsProjected = Math.max(0, Math.floor(Math.log(ratio) / Math.log(NFG_PRICE_LADDER)));
   }
   const projectedNfgFactor = Math.pow(nfgHackingMult, nfgLevelsProjected);
