@@ -8,6 +8,7 @@ import {
   MULT_FILTER_KEYS,
   UTILITY_ALLOWLIST,
   NFG_NAME,
+  pickNfgSeller,
   SCORE_W_EXP,
   SCORE_W_REP,
   SCORE_W_MONEY,
@@ -832,6 +833,39 @@ describe('evalTrigger', () => {
     const expectedN = Math.floor(Math.log(expectedRatio) / Math.log(NFG_PRICE_LADDER));
     expect(result.nfgLevelsProjected).toBe(expectedN);
     expect(result.projectedNfgFactor).toBeCloseTo(Math.pow(1.05, expectedN), 6);
+  });
+});
+
+describe('pickNfgSeller', () => {
+  it('picks the joined seller with the MOST rep, not catalog order', () => {
+    // The gap-6 regression, with install #6's real shape: catalog order put
+    // CyberSec first, but Chongqing held 4x the rep.
+    const sellers = ['CyberSec', 'NiteSec', 'Chongqing'];
+    const rep = { CyberSec: 54_690, NiteSec: 7_328, Chongqing: 226_822 };
+    expect(pickNfgSeller(sellers, rep, 10_181)).toBe('Chongqing');
+  });
+
+  it('ignores sellers we have not joined (absent from factionRep)', () => {
+    const sellers = ['Illuminati', 'CyberSec'];
+    expect(pickNfgSeller(sellers, { CyberSec: 54_690 }, 10_181)).toBe('CyberSec');
+  });
+
+  it('ignores a seller that has not cleared repReq', () => {
+    const rep = { CyberSec: 9_000, NiteSec: 12_000 };
+    expect(pickNfgSeller(['CyberSec', 'NiteSec'], rep, 10_181)).toBe('NiteSec');
+  });
+
+  it('returns null when no joined seller clears repReq -- caller suppresses the tail', () => {
+    expect(pickNfgSeller(['CyberSec'], { CyberSec: 9_000 }, 10_181)).toBeNull();
+  });
+
+  it('returns null for no sellers at all', () => {
+    expect(pickNfgSeller([], { CyberSec: 99_999 }, 10_181)).toBeNull();
+    expect(pickNfgSeller(undefined, { CyberSec: 99_999 }, 10_181)).toBeNull();
+  });
+
+  it('treats exactly-met rep as met (boundary)', () => {
+    expect(pickNfgSeller(['CyberSec'], { CyberSec: 10_181 }, 10_181)).toBe('CyberSec');
   });
 });
 

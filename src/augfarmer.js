@@ -732,6 +732,45 @@ export function evalTrigger(inputs, priorState) {
 }
 
 /**
+ * Pure (Phase 25 gap 6, 2026-07-17). Which faction to buy NeuroFlux Governor
+ * from: the JOINED seller we hold the most rep with, or null if none of them
+ * clears `repReq`.
+ *
+ * NFG's rep requirement is identical whoever sells it -- you just need that
+ * much rep with whoever you buy from -- so the most-rep seller is strictly
+ * best: it's the only pick that can't suppress the NFG tail, and rep is what
+ * caps how many levels a spend-down can take.
+ *
+ * This replaces `sellers[0]`, which answered "who sells it" (catalog order)
+ * rather than "who can we actually buy from" -- the fourth instance of the
+ * faction-identity confusion tracked in phase-25-faction-strategy.closeout.md.
+ * It mattered: install #6 bought from CyberSec (54,690 rep) while Chongqing
+ * sat at 226,822, and only worked because CyberSec happened to clear the
+ * requirement. Since installing resets rep to 0, that's a fresh coin-flip
+ * every cycle, and losing it wastes the entire bank on an install.
+ *
+ * `factionRep` holds joined factions only, so an absent key means not joined.
+ * @param {string[]} sellers factions selling NFG, in catalog order
+ * @param {Record<string, number>} factionRep rep by JOINED faction
+ * @param {number} repReq NFG's current rep requirement
+ * @returns {string|null}
+ */
+export function pickNfgSeller(sellers, factionRep, repReq) {
+  let best = null;
+  let bestRep = -Infinity;
+  for (const faction of sellers ?? []) {
+    const rep = factionRep?.[faction];
+    if (rep === undefined) continue; // not joined -- can't buy from them
+    if (rep < repReq) continue; // rep gate not cleared
+    if (rep > bestRep) {
+      best = faction;
+      bestRep = rep;
+    }
+  }
+  return best;
+}
+
+/**
  * Pure (S10 step 1). One pass's spend-down buy list: rep-met discrete augs
  * first in S3's sorted order (skipping NFG, handled below), then repeated
  * NFG levels using the observed NFG_PRICE_LADDER escalation from
@@ -1521,10 +1560,17 @@ export async function main(ns) {
       });
     }
     if (installSeq?.phase === "spend-down") {
+      // Buy NFG from the joined faction we have the MOST rep with, not from
+      // catalog order -- pickNfgSeller's docblock has the why (gap 6).
+      const nfgSeller = pickNfgSeller(
+        catalog.augs[NFG_NAME]?.sellers,
+        factionRep,
+        catalog.augs[NFG_NAME]?.repReq ?? Infinity
+      );
       const nfgState = {
         livePrice: nfgPrice,
-        faction: catalog.augs[NFG_NAME]?.sellers?.[0],
-        repMet: (catalog.augs[NFG_NAME]?.repReq ?? Infinity) <= (factionRep[catalog.augs[NFG_NAME]?.sellers?.[0]] ?? 0),
+        faction: nfgSeller,
+        repMet: nfgSeller !== null,
       };
       installSeq.actions = spendDownPlan(target?.candidates ?? [], catalog, player.money, nfgState);
       installSeq.execReady = installSeq.actions.length === 0;
@@ -1622,6 +1668,20 @@ export async function main(ns) {
             lastFailureKey = key;
           }
         } else if (action.type === "buy") {
+          // `action.price` is a PROJECTION -- spendDownPlan ladders NFG_PRICE_LADDER
+          // (1.9) forward from one live read, but the game's own escalation is
+          // steeper (~2.28x observed), so the projection drifts low and compounds
+          // across a run of NFG levels. Logging it understated install #6's 11
+          // levels ~5-6x ($417.7b logged vs ~$2.2-2.7t real). Read the live price
+          // immediately before buying so the transaction log records what was
+          // actually charged (Phase 25 gap 5). This is also how the real ladder
+          // gets measured -- the log becomes the dataset.
+          let paid = action.price;
+          try {
+            paid = ns.singularity.getAugmentationPrice(action.aug);
+          } catch (e) {
+            tprintTs(ns, `WARN: getAugmentationPrice(${action.aug}) threw (${e?.message ?? e}) -- logging the projection instead`);
+          }
           const ok = ns.singularity.purchaseAugmentation(action.faction, action.aug);
           singularityProven = true;
           if (ok) {
@@ -1630,14 +1690,15 @@ export async function main(ns) {
               source: "auto-aug",
               aug: action.aug,
               faction: action.faction,
-              amount: action.price,
+              amount: paid,
+              projected: action.price,
               timestamp: Date.now(),
               time: new Date().toLocaleTimeString(),
             });
-            tprintTs(ns, `BUY: ${action.aug} from ${action.faction} for $${ns.format.number(action.price)}`);
+            tprintTs(ns, `BUY: ${action.aug} from ${action.faction} for $${ns.format.number(paid)}`);
             boughtThisPass = true;
             if (action.aug === NFG_NAME) nfgBoughtThisCycle = true;
-            boughtThisCycle.push({ aug: action.aug, price: action.price, faction: action.faction, timestamp: Date.now() });
+            boughtThisCycle.push({ aug: action.aug, price: paid, faction: action.faction, timestamp: Date.now() });
             lastFailureKey = null;
           } else {
             const key = `buy:${action.faction}:${action.aug}`;
