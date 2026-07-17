@@ -31,6 +31,19 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   tests pass (6 new, incl. install #6's shape as a regression fixture); augfarmer RAM unchanged at
   64.10 GB; shipped live mid-cycle via `restart daemon.js`, since the spend-down the fix protects
   runs in the already-running augfarmer.
+- **NFG price ladder measured and the projection corrected (`fix/nfg-ladder-measured`).** With
+  gap 5 logging paid-vs-projected, installs #7-#8 ran unattended and install #8's 11-level
+  spend-down revealed the true ladder: a dead-constant **2.166** (the old 1.9 was an eyeball
+  estimate ~14% low, compounding). `NFG_PRICE_LADDER` set to 2.166. Bumping it alone would have
+  been wrong: `evalTrigger`'s `nfgLevelsProjected` is the geometric closed form
+  `k = floor(log(1 + money*(L-1)/p) / log L)`, but the `(L-1)` factor had been written as the
+  literal 0.9 — exactly `1.9 - 1`, silently coupled to the old ladder — so it's now
+  `(NFG_PRICE_LADDER - 1)` and both track together. Validated against reality: predicts 11 levels
+  for install #8, matching what spend-down bought (old formula over-projected 13); the live
+  projection dropped 17 → 14 on the restart. This was gap 1's root cause — the over-projection
+  inflated `totalGain`, making `MIN_TOTAL_GAIN` less conservative than it read; it's now honest.
+  Also confirmed gap 6 live: installs #7/#8 bought NFG from NiteSec / The Black Hand (highest
+  rep), not CyberSec. 584 tests; shipped mid-cycle via `restart daemon.js`.
 
 ## 2026-07-16
 

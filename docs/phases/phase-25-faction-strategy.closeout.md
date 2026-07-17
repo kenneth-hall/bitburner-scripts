@@ -7,7 +7,8 @@ section is the BN1.2-clear record. This doc is the *handoff*.
 **Status:** shipped 2026-07-14 · cleared BN1.2 2026-07-15 · S11's gate met 2026-07-16 ·
 **L7 PASSED 2026-07-17 — the last open item. Every step of the cycle has now executed at
 least once.** The phase has no open tests. Reading L7's logs turned up two bugs (gaps 5 and
-6); both were fixed the same day. **Two gaps remain open — 3 and 4 — and neither is new.
+6); both fixed the same day, and the NFG price ladder they exposed is now measured (2.166)
+and the projection corrected. **Two gaps remain open — 3 and 4 — and neither is new.
 Gap 4 (no supervision) is the one that matters:** it is now the only thing between here and
 unattended running.
 
@@ -199,12 +200,13 @@ relaunch would have meant the next fire using the buggy code. **Gap 5 is validat
 ### Resolved by L7 itself
 
 1. ~~**`MIN_TOTAL_GAIN` (1.1) is an unproven degenerate-loop guard.**~~ Still not stress-tested
-   at the boundary, but the premise it rested on is now **confirmed**: install #6 armed at
-   1.173 and delivered 1.127 actual (1.632 → 1.839). The projection **over-estimates** —
-   `nfgLevelsProjected` (15) is money-only and ignores that each NFG level's price escalates,
-   so 15 was never purchasable; 11 was. A fire is therefore *less* productive than the gain
-   figure claims, which makes 1.1 **less** conservative than it reads. Revisit once the real
-   ladder is measured — that over-projection is the same root cause as gap 5.
+   at the boundary, but its root cause is **fixed**. install #6 armed at 1.173 and delivered
+   1.127 actual (1.632 → 1.839): the projection over-estimated because `nfgLevelsProjected`
+   used a stale 1.9 ladder (and a `(L-1)` factor pinned to it), projecting 15 levels where 11
+   were purchasable. Now that the ladder is measured (2.166) and the factor tracks it, the
+   projection is honest — so `totalGain` no longer overstates a fire, and 1.1 means what it
+   says. The remaining boundary question (does the guard actually stop a degenerate loop) still
+   wants a real low-gain arm to exercise it, but that's a smaller open item than it was.
 2. ~~**Observe-mode trigger flap.**~~ Confirmed live at a **10:21 cadence** and confirmed
    harmless under `auto` (the latch pre-empts it). Still degrades observe-mode evidence; the
    cheap fix is to treat `install-ready` as an arming phase in observe.
@@ -219,24 +221,32 @@ always strands up to one level's price. **Do not "fix" this.**
 
 ## What to do next
 
-Phase 25 has no open tests, and gaps (5) and (6) are fixed. What's left:
+Phase 25 has no open tests. Gaps 5 and 6 are fixed, and the NFG ladder they exposed is now
+measured and the projection corrected. **Only gap 4 is left.**
 
-1. **Watch the next fire (~4-8h) — it's the first run of the gap 5/6 fixes.** `auto` is **on**.
-   Two things to read out of it, both from `logs/transactions-2026-07-17.json`:
-   - **The real NFG ladder, finally measured.** Each `auto-aug` record now carries `amount`
-     (actually paid) beside `projected` (`NFG_PRICE_LADDER`'s 1.9 guess). The ratio across a
-     spend-down's NFG run *is* the answer to "what is the true ladder" — take it and set
-     `NFG_PRICE_LADDER` from data rather than the current ~2.28 inference.
-   - **Which faction NFG got bought from.** Should be the camp faction being actively worked
-     (highest rep), not CyberSec.
-2. **Fix `nfgLevelsProjected` once the ladder is known.** It's money-only and ignores price
-   escalation entirely, which is why install #6 projected 15 levels and bought 11. That
-   over-projection is what makes `MIN_TOTAL_GAIN` less conservative than it reads (gap 1).
-3. **Gap (4), the supervisor + reserve bump** — the big one, and now the **only** thing between
-   here and unattended 24/7 running, which is the actual prize.
+1. **Gap 4 — the supervisor + reserve bump.** The big one, and the **only** thing between here
+   and unattended 24/7 running (the actual prize; sleep ≈ no progress, 24/7 is a free ~2×).
+   Fix is supervisor + reserve bump together or neither — see the gap-4 write-up above.
+2. **Gap 3 — confirm Daedalus's 30-aug gate counts NFG levels.** Cheap, and it shapes the
+   BN1.3 endgame timing. Do it before the gate matters.
 
 **Abort levers, unchanged:** set `ratchet-mode.txt` to anything but `auto`, or create
 `augfarmer-pause.txt`.
+
+### Done since the first fire (2026-07-17 afternoon, installs #7-#8)
+
+- **Two more auto-installs ran unattended, clean.** `mult.hacking` 1.839 → 2.482 (#7) → 3.555
+  (#8); gate 15 → 24/30. Both fixes exercised: gap 6 bought NFG from **NiteSec** (#7) and **The
+  Black Hand** (#8), not CyberSec — proving it now tracks the highest-rep faction cycle to cycle.
+- **NFG ladder measured and set (`NFG_PRICE_LADDER` 1.9 → 2.166).** Install #8's 11-level run
+  logged a dead-constant paid ratio of 2.166. The gap-5 fix's `projected` field made this a
+  direct read: level 11 had been under-logged 3.71× (paid $2,150b vs projected $580b).
+- **`nfgLevelsProjected` corrected (gap 1's root cause).** The projection's `(L-1)` numerator
+  factor was the literal 0.9 — silently coupled to the old 1.9 ladder — so bumping the constant
+  alone would have mis-projected; it's now `(NFG_PRICE_LADDER - 1)`. Validated: predicts 11 for
+  install #8, matching reality (old formula said 13). Live projection dropped 17 → 14 on the
+  restart, confirming the over-projection is gone. This makes `totalGain` honest, which makes
+  `MIN_TOTAL_GAIN` behave as intended. Shipped mid-cycle via `restart daemon.js`; 584 tests pass.
 
 ## Pointers
 

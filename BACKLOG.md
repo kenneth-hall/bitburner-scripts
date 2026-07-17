@@ -96,14 +96,15 @@ do, and what's broken?*
   `projected`). 584 tests pass; augfarmer RAM unchanged at 64.10 GB; shipped live mid-cycle via
   `restart daemon.js`. (5) is validated live; **(6) is unproven until the next fire** — it only
   runs during spend-down.
-- **Measure the real NFG price ladder, then fix `nfgLevelsProjected` — NEXT UP, needs one fire.**
-  `NFG_PRICE_LADDER` is 1.9; install #6's money delta implies **~2.28**. Gap 5's fix makes the
-  next spend-down measure it for us: each `auto-aug` record now carries `amount` (paid) beside
-  `projected` (the 1.9 guess), so the ratio across the NFG run is the answer. Then set the
-  constant from data and fix `nfgLevelsProjected`, which is money-only and ignores escalation
-  entirely — it projected 15 levels where 11 were purchasable. That over-projection is why
-  `MIN_TOTAL_GAIN` (1.1) is **less** conservative than it reads: a fire delivers less than the
-  gain figure claims (#6 armed at 1.173, delivered 1.127).
+- **~~Measure the real NFG price ladder, then fix `nfgLevelsProjected`~~ — DONE 2026-07-17
+  (`fix/nfg-ladder-measured`).** Install #8's 11-level spend-down logged a dead-constant paid
+  ratio of **2.166** (not the old eyeball 1.9, nor my ~2.28 guess); `NFG_PRICE_LADDER` is set to
+  it. `nfgLevelsProjected`'s `(L-1)` numerator factor had been the literal 0.9 — coupled to the
+  old ladder — so it now reads `(NFG_PRICE_LADDER - 1)` and both move together. Validated:
+  predicts 11 for install #8 (old formula said 13); live projection dropped 17 → 14 on the
+  restart. That was gap 1's root cause — `totalGain` is now honest, so `MIN_TOTAL_GAIN` behaves
+  as intended. 584 tests; shipped live via `restart daemon.js`. (Boundary stress-test of the
+  guard still wants a real low-gain arm, but that's all that's left of gap 1.)
 
 ### Tooling & infra
 - **CDP driver → MCP server** — wrap `tools/bb/driver.mjs` in an MCP so the helpers become native
