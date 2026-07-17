@@ -829,7 +829,7 @@ describe('evalTrigger', () => {
 
   it('NFG projection: n derived from the price ladder vs money (money-only, S7 boundary rule)', () => {
     const result = evalTrigger(baseInputs({ queuedGain: 1, queuedCount: 1, nfgPrice: 100_000, nfgHackingMult: 1.05, money: 1_000_000 }), null);
-    const expectedRatio = 1 + (1_000_000 * 0.9) / 100_000;
+    const expectedRatio = 1 + (1_000_000 * (NFG_PRICE_LADDER - 1)) / 100_000;
     const expectedN = Math.floor(Math.log(expectedRatio) / Math.log(NFG_PRICE_LADDER));
     expect(result.nfgLevelsProjected).toBe(expectedN);
     expect(result.projectedNfgFactor).toBeCloseTo(Math.pow(1.05, expectedN), 6);
@@ -892,10 +892,12 @@ describe('spendDownPlan', () => {
 
   it('repeats NFG buys along the observed price ladder until unaffordable', () => {
     const nfgState = { livePrice: 100, faction: 'BitRunners', repMet: true };
-    const actions = spendDownPlan([], { augs: {} }, 100 * (1 + NFG_PRICE_LADDER), nfgState);
+    // Budget funds exactly two levels (100 + 100*L) with $1 of slack, so the
+    // assertion tests the ladder, not float equality on the affordability edge.
+    const actions = spendDownPlan([], { augs: {} }, 100 + 100 * NFG_PRICE_LADDER + 1, nfgState);
     expect(actions.length).toBe(2);
     expect(actions[0]).toMatchObject({ aug: NFG_NAME, faction: 'BitRunners', price: 100 });
-    expect(actions[1]).toMatchObject({ aug: NFG_NAME, faction: 'BitRunners', price: 190 });
+    expect(actions[1]).toMatchObject({ aug: NFG_NAME, faction: 'BitRunners', price: 100 * NFG_PRICE_LADDER });
   });
 
   it("suppresses the NFG tail when its rep requirement isn't yet met (repMet:false)", () => {
