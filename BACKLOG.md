@@ -90,24 +90,20 @@ do, and what's broken?*
   gate 8 → 15/30; recovery rejoined 7 factions and hit hacking 494 within 5 min. **`auto` is
   still ON** — it fires again every cycle (~4-8h) unattended; decide whether to leave it.
   → **[`docs/phases/phase-25-faction-strategy.closeout.md`](docs/phases/phase-25-faction-strategy.closeout.md)**.
-- **Spend-down logs PROJECTED prices, not actual (Phase 25 gap 5) — NEXT UP.** `augfarmer.js:1633`
-  records `amount: action.price`, which is `spendDownPlan`'s own `NFG_PRICE_LADDER` (1.9)
-  projection; the real ladder is steeper (~2.28×), so NFG levels are under-logged and the error
-  compounds. Install #6 logged **$417.7b** for 11 levels against a real spend near **$2.2-2.7t**.
-  Gameplay is unaffected (the game charges correctly) — but it silently corrupts
-  `transactions-*.json`, the file the conventions say to validate against. Fix: record the live
-  price read before the buy, or reconcile `getPlayer().money` across the call; **measure the real
-  ladder while you're in there** (ours is inferred from a money delta, not measured).
-- **NFG seller is `sellers[0]`, not the highest-rep faction (Phase 25 gap 6).**
-  `augfarmer.js:1526` takes catalog order (CyberSec) instead of the joined faction with the most
-  rep. NFG's rep req is the same whoever sells it, so highest-rep is strictly right. Install #6
-  bought from CyberSec (54,690 rep) while Chongqing sat at 226,822. It only worked because
-  CyberSec cleared NFG's 10,180 req — had it not, `repMet` goes false and the **entire NFG tail is
-  suppressed, wasting the whole bank on an install.** Worked by luck; cheap to fix. Fourth
-  instance of the recurring faction-identity confusion (*"who sells it" ≠ "who we have rep with"*).
-  **It's a fresh coin-flip each cycle:** rep resets to 0 on install, so CyberSec must re-earn
-  10,181 before every fire or the bank converts to nothing. (Not escalating, though — NFG's rep
-  req does *not* climb with level: catalog read 10,181 both sides of install #6's 12 levels.)
+- **~~Spend-down logs projected prices / NFG seller by catalog order (Phase 25 gaps 5+6)~~ — FIXED
+  2026-07-17 (`4b80da4`).** `pickNfgSeller()` now picks the joined seller with the most rep, and
+  the buy path logs the live price read immediately before purchase (keeping the projection as
+  `projected`). 584 tests pass; augfarmer RAM unchanged at 64.10 GB; shipped live mid-cycle via
+  `restart daemon.js`. (5) is validated live; **(6) is unproven until the next fire** — it only
+  runs during spend-down.
+- **Measure the real NFG price ladder, then fix `nfgLevelsProjected` — NEXT UP, needs one fire.**
+  `NFG_PRICE_LADDER` is 1.9; install #6's money delta implies **~2.28**. Gap 5's fix makes the
+  next spend-down measure it for us: each `auto-aug` record now carries `amount` (paid) beside
+  `projected` (the 1.9 guess), so the ratio across the NFG run is the answer. Then set the
+  constant from data and fix `nfgLevelsProjected`, which is money-only and ignores escalation
+  entirely — it projected 15 levels where 11 were purchasable. That over-projection is why
+  `MIN_TOTAL_GAIN` (1.1) is **less** conservative than it reads: a fire delivers less than the
+  gain figure claims (#6 armed at 1.173, delivered 1.127).
 
 ### Tooling & infra
 - **CDP driver → MCP server** — wrap `tools/bb/driver.mjs` in an MCP so the helpers become native

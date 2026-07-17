@@ -21,6 +21,16 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   bugs, neither blocking: spend-down logs *projected* prices rather than actual (~5-6×
   under-logged), and the NFG seller is picked by catalog order rather than by rep (worked by
   luck). → `phase-25-faction-strategy.closeout.md`.
+- **Both L7 bugs fixed the same day (`4b80da4`).** `pickNfgSeller()` replaces `sellers[0]`: NFG's
+  rep requirement is identical whoever sells it, so the joined faction with the *most* rep is
+  strictly best — it's the only pick that can't suppress the whole NFG tail, and rep is what caps
+  how many levels a spend-down takes. (Rep resets to 0 on install, so the old catalog-order pick
+  was a coin-flip re-tossed every cycle; losing it wastes the entire bank.) The buy path now logs
+  the live price read immediately before purchase, keeping the 1.9-ladder projection alongside as
+  `projected` — so the next spend-down *measures* the real ladder instead of us inferring it. 584
+  tests pass (6 new, incl. install #6's shape as a regression fixture); augfarmer RAM unchanged at
+  64.10 GB; shipped live mid-cycle via `restart daemon.js`, since the spend-down the fix protects
+  runs in the already-running augfarmer.
 
 ## 2026-07-16
 

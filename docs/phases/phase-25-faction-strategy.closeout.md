@@ -123,8 +123,17 @@ was the main auto-mode risk carried out of the BN1.2 clear.
 
 ## Open gaps
 
-All tracked in `BACKLOG.md`; listed here so the handoff is self-contained. **(5) and (6) are
-new, found by reading L7's logs — neither blocked the run.**
+All tracked in `BACKLOG.md`; listed here so the handoff is self-contained. **(5) and (6) were
+found by reading L7's logs and are now FIXED (2026-07-17, `4b80da4`) — neither blocked the run.
+Their descriptions are kept below because they're the record of what the fix is for.**
+
+**Fix status:** 584 tests pass (6 new `pickNfgSeller` cases, incl. install #6's exact shape as a
+regression fixture). `augfarmer.js` RAM **unchanged at 64.10 GB** (`getAugmentationPrice` was
+already charged). Shipped live mid-cycle via `restart daemon.js` — necessary, because the
+spend-down that (6) protects runs in the *currently-running* augfarmer, so waiting for the next
+install's relaunch would have meant the next fire used the buggy code. **(5) is validated live**
+(`auto-aug` records now carry `projected` beside `amount`). **(6) is not yet exercised** —
+`pickNfgSeller` only runs during spend-down, so it stays unproven until the next fire.
 
 5. **`recordTransaction` logs the PROJECTED price, not the price actually paid.**
    `augfarmer.js:1633` records `amount: action.price`, but `action.price` comes from
@@ -213,18 +222,24 @@ always strands up to one level's price. **Do not "fix" this.**
 
 ## What to do next
 
-Phase 25 has no open tests. In rough priority order:
+Phase 25 has no open tests, and gaps (5) and (6) are fixed. What's left:
 
-1. **Decide whether `auto` stays on.** It is **on right now** and will fire again each cycle
-   (~4-8h) unattended. L7 says the chain is sound; gap (4) says a companion death mid-cycle is
-   a silent permanent stop. Abort levers unchanged: set `ratchet-mode.txt` to anything but
-   `auto`, or create `augfarmer-pause.txt`.
-2. **Fix gap (5)** — the projected-price logging bug. Cheap, self-contained, and it corrupts
-   the financial record every cycle it runs. Measure the real NFG ladder while fixing.
-3. **Fix gap (6)** — pick the highest-rep seller. Also cheap; removes a latent
-   whole-bank-wasting failure.
-4. **Gap (4), the supervisor + reserve bump** — the big one, and the only thing between here
-   and unattended 24/7 running.
+1. **Watch the next fire (~4-8h) — it's the first run of the gap 5/6 fixes.** `auto` is **on**.
+   Two things to read out of it, both from `logs/transactions-2026-07-17.json`:
+   - **The real NFG ladder, finally measured.** Each `auto-aug` record now carries `amount`
+     (actually paid) beside `projected` (`NFG_PRICE_LADDER`'s 1.9 guess). The ratio across a
+     spend-down's NFG run *is* the answer to "what is the true ladder" — take it and set
+     `NFG_PRICE_LADDER` from data rather than the current ~2.28 inference.
+   - **Which faction NFG got bought from.** Should be the camp faction being actively worked
+     (highest rep), not CyberSec.
+2. **Fix `nfgLevelsProjected` once the ladder is known.** It's money-only and ignores price
+   escalation entirely, which is why install #6 projected 15 levels and bought 11. That
+   over-projection is what makes `MIN_TOTAL_GAIN` less conservative than it reads (gap 1).
+3. **Gap (4), the supervisor + reserve bump** — the big one, and now the **only** thing between
+   here and unattended 24/7 running, which is the actual prize.
+
+**Abort levers, unchanged:** set `ratchet-mode.txt` to anything but `auto`, or create
+`augfarmer-pause.txt`.
 
 ## Pointers
 
