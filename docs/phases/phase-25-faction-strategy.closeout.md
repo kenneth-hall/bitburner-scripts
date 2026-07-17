@@ -165,20 +165,21 @@ original numbers and the list reads out of order. Everything else is under "Clos
 fixture). `augfarmer.js` RAM **unchanged at 64.10 GB** (`getAugmentationPrice` was already
 charged). Shipped live mid-cycle via `restart daemon.js` — necessary, because the spend-down
 gap 6 protects runs in the *already-running* augfarmer, so waiting for the next install's
-relaunch would have meant the next fire using the buggy code. **Gap 5 is validated live**
-(`auto-aug` records now carry `projected` beside `amount`); **gap 6 is not yet exercised** —
-`pickNfgSeller` only runs during spend-down, so it stays unproven until the next fire.
+relaunch would have meant the next fire using the buggy code. **Both are now validated live:**
+gap 5 by the `projected` field appearing on every `auto-aug` record, and gap 6 by installs #7
+and #8 buying NFG from NiteSec and The Black Hand (highest rep) rather than CyberSec — see
+"Done", below.
 
 5. ~~**`recordTransaction` logged the PROJECTED price, not the price actually paid.**~~ The buy
    path recorded `amount: action.price`, which came from `spendDownPlan`'s own
    `price *= NFG_PRICE_LADDER` (1.9) projection rather than from the game. The real escalation
-   is steeper (~2.28× inferred), so **every NFG level after the first was under-logged, and the
-   error compounded**: install #6's 11 levels logged **$417.7b** against a real spend of roughly
-   **$2.2-2.7t**, a ~5-6× understatement. Money left the account correctly — only the *record*
-   was wrong — but it silently corrupted `transactions-*.json`, the file the conventions say to
-   validate against. **Fixed** by reading the live price immediately before the buy and logging
-   that, keeping the projection alongside as `projected`. The real ladder is still *inferred*
-   from a money delta rather than measured; the fix is what makes the next fire measure it.
+   is steeper (**since measured at 2.166**, see "Done" below), so **every NFG level after the
+   first was under-logged, and the error compounded**: install #6's 11 levels logged **$417.7b**
+   against a real spend of roughly **$2.2-2.7t**, a ~5-6× understatement. Money left the account
+   correctly — only the *record* was wrong — but it silently corrupted `transactions-*.json`, the
+   file the conventions say to validate against. **Fixed** by reading the live price immediately
+   before the buy and logging that, keeping the projection alongside as `projected` — and it's
+   exactly that `projected`-vs-`amount` pair that let the next fire measure the true ladder.
 6. ~~**`nfgState.faction` picked `sellers[0]`, not the faction we hold the most rep with.**~~
    It took `catalog.augs[NFG].sellers[0]` — catalog order, i.e. CyberSec. NFG's rep requirement
    is the same whoever sells it, so the right pick is the joined faction with the **highest**
@@ -256,7 +257,8 @@ measured and the projection corrected. **Only gap 4 is left.**
 - Live bugs/ideas → `BACKLOG.md`.
 - Commits: `aeeb632` (horizon ← head), `b5b654d` (dashboard work line), `3feb4b4` (horizon
   counts passive), `902849a` (S11 record), `eb2a853` (reserve gap structural), `1e6d793`
-  (NFG counting), `4b80da4` (gaps 5+6 fixed).
+  (NFG counting), `4b80da4` (gaps 5+6 fixed), `3439434` (NFG ladder measured 2.166 + projection
+  fix).
 - L7's raw evidence, install #6: `logs/ratchet-log.json` (last record — the `{pre, post}`
   pair), `logs/ratchet-decisions.json` (the `trigger-fire` → `install` chain),
   `logs/transactions-2026-07-17.json` (the 11 NFG buys).
