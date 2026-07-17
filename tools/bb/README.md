@@ -52,6 +52,28 @@ for getByRole('button', { name: 'Terminal' })`. Reads (`read-terminal`, `body`, 
 auto-dismisses both kinds before navigating, so this self-heals without a separate step — a bare
 `click`-by-text is the one path that still needs a manual `dismiss` first if something's up.
 
+**Gotcha — native OS dialogs are invisible, and clicking their trigger strands the game.**
+CDP attaches to the game's *renderer*; a Windows file picker is not in the DOM. **Backup Save /
+Export Game / Import Game open a native picker that Claude cannot see, fill, or cancel** — and
+clicking one leaves a modal dialog blocking the whole game with no way to clear it from here.
+Taking or restoring a save is **Kenneth's step**; ask, don't click. (The same reasoning says
+prefer clicking a button over sending an accelerator like Ctrl+S: if the app didn't capture the
+keystroke, Electron may raise a native dialog with the same result.)
+
+**Gotcha — accessible name ≠ visible text when `aria-label` is set.** The script editor's Save
+button reads "Save" on screen but carries `aria-label="Ctrl + S or ⊞ + S"`, which *overrides*
+its accessible name — so `getByRole('button', {name: 'Save'})` times out forever. `aria` output
+shows the accessible name, so a button can be plainly visible and still unreachable by the name
+you can see. When a by-name click times out on an element that obviously exists, dump the
+element's `aria-label` before assuming the click is blocked; match on visible text
+(`page.locator('button').filter({ hasText: /^Save$/ })`) instead.
+
+**Gotcha — `cat <file>.txt` prints nothing.** In this build `cat` on a `.txt` produces *no
+terminal output at all* — no error, no modal, no content, even when the file exists and is
+non-empty. It is indistinguishable from an empty file and will send you chasing a phantom
+write bug (it did, 2026-07-17). To prove a file exists use `ls --grep <name>`; to prove its
+*content*, read the consuming script's own exported state rather than the terminal.
+
 Error modals close via a named "Close" button (`dismissModal`). Story popups have no such
 button — the whole toast is one nameless click-to-dismiss surface — so they're detected by shape
 instead (`dismissStoryPopup`): it only fires when the *entire* accessible tree is exactly one
