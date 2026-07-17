@@ -105,6 +105,9 @@ do, and what's broken?*
   CyberSec cleared NFG's 10,180 req — had it not, `repMet` goes false and the **entire NFG tail is
   suppressed, wasting the whole bank on an install.** Worked by luck; cheap to fix. Fourth
   instance of the recurring faction-identity confusion (*"who sells it" ≠ "who we have rep with"*).
+  **It's a fresh coin-flip each cycle:** rep resets to 0 on install, so CyberSec must re-earn
+  10,181 before every fire or the bank converts to nothing. (Not escalating, though — NFG's rep
+  req does *not* climb with level: catalog read 10,181 both sides of install #6's 12 levels.)
 
 ### Tooling & infra
 - **CDP driver → MCP server** — wrap `tools/bb/driver.mjs` in an MCP so the helpers become native

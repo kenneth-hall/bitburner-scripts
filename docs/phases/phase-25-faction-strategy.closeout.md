@@ -147,6 +147,16 @@ new, found by reading L7's logs — neither blocked the run.**
    NFG tail suppressed, wasting the whole $5.5t bank on an install. **Low impact, high
    variance: it worked by luck.** This is a fourth instance of the doc's own recurring
    confusion — *"who sells it" ≠ "who we have rep with"*.
+   - **It's a fresh coin-flip every cycle, not a one-off.** Installing resets faction rep to
+     zero, so CyberSec must *re-earn* 10,181 rep before every fire for the NFG tail to work at
+     all. Fire early in a cycle, or in any cycle where the grind doesn't route through CyberSec,
+     and the whole bank converts to nothing. The highest-rep faction is the camp one being
+     actively worked (Chongqing: 226,822 vs CyberSec's 54,690 at install #6), so picking by rep
+     both removes the failure mode and buys more levels.
+   - Checked and **not** a factor: NFG's rep requirement does *not* climb with level. The
+     catalog read 10,181 both before install #6 and after (fresh rebuild at 06:21:48), despite
+     12 levels going in — so this doesn't get worse each cycle, it's just unguarded. (NFG's
+     *price* does scale: the catalog's base went ~×4.23 ≈ 1.14¹¹ across the same install.)
 
 3. **NFG counting / `daedalusGate`.** — see below, unchanged by L7.
 4. **No supervision — the Level-2 gap.** — see below. **Now the phase's most important open
