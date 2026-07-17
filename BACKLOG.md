@@ -83,13 +83,28 @@ do, and what's broken?*
   buildable (`installer.js`'s auto-mode `upgradeHomeCores()` calls, Phase 25 S10) but still gated
   on Kenneth flipping `ratchet-mode.txt` to `auto`; co-scope with core-weighted share placement. →
   `phase-17-home-cores.features.md`.
-- **Stage-2 first auto-fire (Phase 25 S11/S2) — THE ACTIVE ITEM.** Auto-install has never run in
-  any form; the trigger no longer blocks it (fixed + live-validated 2026-07-16, S11's gate met).
-  **Act when `logs/augfarmer-state.json` shows `trigger.armed: true`:** save → write `auto` into
-  `ratchet-mode.txt` → watch the L7 chain. Full handoff — proven-vs-never-run table, watch list,
-  abort levers, blast radius, every open gap — →
-  **[`docs/phases/phase-25-faction-strategy.closeout.md`](docs/phases/phase-25-faction-strategy.closeout.md)**.
-  Don't re-derive it here.
+- **~~Stage-2 first auto-fire (Phase 25 S11/S2)~~ — DONE 2026-07-17, install #6.** Ran
+  end-to-end unmodified on the first attempt; every step of the cycle is now proven, including
+  the three that had never run in any form (spend-down, `installer.js` exec, the install itself)
+  plus home-cores (1 → 4). `mults.hacking` 1.632 → 1.839, `hacking_exp` 1.704 → 2.823, Daedalus
+  gate 8 → 15/30; recovery rejoined 7 factions and hit hacking 494 within 5 min. **`auto` is
+  still ON** — it fires again every cycle (~4-8h) unattended; decide whether to leave it.
+  → **[`docs/phases/phase-25-faction-strategy.closeout.md`](docs/phases/phase-25-faction-strategy.closeout.md)**.
+- **Spend-down logs PROJECTED prices, not actual (Phase 25 gap 5) — NEXT UP.** `augfarmer.js:1633`
+  records `amount: action.price`, which is `spendDownPlan`'s own `NFG_PRICE_LADDER` (1.9)
+  projection; the real ladder is steeper (~2.28×), so NFG levels are under-logged and the error
+  compounds. Install #6 logged **$417.7b** for 11 levels against a real spend near **$2.2-2.7t**.
+  Gameplay is unaffected (the game charges correctly) — but it silently corrupts
+  `transactions-*.json`, the file the conventions say to validate against. Fix: record the live
+  price read before the buy, or reconcile `getPlayer().money` across the call; **measure the real
+  ladder while you're in there** (ours is inferred from a money delta, not measured).
+- **NFG seller is `sellers[0]`, not the highest-rep faction (Phase 25 gap 6).**
+  `augfarmer.js:1526` takes catalog order (CyberSec) instead of the joined faction with the most
+  rep. NFG's rep req is the same whoever sells it, so highest-rep is strictly right. Install #6
+  bought from CyberSec (54,690 rep) while Chongqing sat at 226,822. It only worked because
+  CyberSec cleared NFG's 10,180 req — had it not, `repMet` goes false and the **entire NFG tail is
+  suppressed, wasting the whole bank on an install.** Worked by luck; cheap to fix. Fourth
+  instance of the recurring faction-identity confusion (*"who sells it" ≠ "who we have rep with"*).
 
 ### Tooling & infra
 - **CDP driver → MCP server** — wrap `tools/bb/driver.mjs` in an MCP so the helpers become native

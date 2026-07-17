@@ -1,74 +1,79 @@
-# Phase 25 — close-out handoff (2026-07-16)
+# Phase 25 — close-out handoff (2026-07-16, L7 closed 2026-07-17)
 
 **Read this first if you're picking up Phase 25 cold.** The spec
 (`phase-25-faction-strategy.spec.md`) is the design record and its "Close-out (2026-07-15)"
-section is the BN1.2-clear record. This doc is the *handoff*: where the phase actually
-stands after 2026-07-16, and the one action left.
+section is the BN1.2-clear record. This doc is the *handoff*.
 
-**Status:** shipped 2026-07-14 · cleared BN1.2 2026-07-15 · **S11's phase-close gate MET
-2026-07-16** (see "S11" below) · **one item open: the Stage-2 first auto fire.**
+**Status:** shipped 2026-07-14 · cleared BN1.2 2026-07-15 · S11's gate met 2026-07-16 ·
+**L7 PASSED 2026-07-17 — the last open item. Every step of the cycle has now executed at
+least once.** The phase has no open tests. What remains is two logged bugs (below), neither
+of which blocked the run.
 
 ---
 
-## The next action (this is the whole checklist)
+## L7 — the first auto fire (2026-07-17, install #6)
 
-**Test:** L7 — the first auto fire. Nothing else is pending; everything else in this doc is
-either done, or optional work that sits behind it.
+Ran end-to-end, unmodified, on the first attempt. **`auto` is still set** — the next fire
+comes when the cycle rebuilds (~4-8h).
 
-**Wait for:** `logs/augfarmer-state.json` → `trigger.armed: true`.
-Nothing to do until then — after an install the cycle needs to rebuild (0 augs queued ⇒
-`gainArmed` false ⇒ the trigger cannot arm). Expect **~4-8h of awake time** per cycle; the
-bottleneck is **rep**, which no amount of home RAM speeds up.
+Sequence, all inside 11 seconds:
 
-**Then:**
-1. Take a save (`saves/`).
-2. Write `auto` into `ratchet-mode.txt` (in-game, by hand — no code change flips it).
-3. Watch the chain:
-   - spend-down decision records + the fleet-freeze reservation
-   - `ns.exec("installer.js")`
-   - `home-ram-upgrade` transactions (proven) **and `home-cores-upgrade` (never run)**
-   - the install itself
-   - `bootstrap.js` relaunch via the `installAugmentations` cbScript
-   - the `ratchet-log.json` `{pre, post}` boundary pair
+```
+6:09:00  trigger-fire      sustained 600.9s/600s, gain 1.173, 7 queued, 15 NFG projected
+6:09:00  spend-down-start  buys Synaptic Enhancement Implant + 11 NFG levels
+6:09:10  installer-exec    pid 1766424
+6:09:10  install           ramTiers 0 (already maxed), coreTiers 3 -> 4 cores, $485.6b
+6:09:11  install fires     mult.hacking 1.632 -> 1.839, level 857 -> 1, 7 augs activated
+6:09:11  bootstrap.js relaunched via cbScript -- studybootstrap/procureprograms/cloudmanager up
+```
 
-**Abort levers (either one, any time):** set `ratchet-mode.txt` to anything but `auto`, or
-create `augfarmer-pause.txt`. Any deviation from the chain above → demote to observe and
-reopen the trigger design with the logged data.
+What install #6 bought:
 
-**Do it mid-cycle, never on a run-ending install** — Kenneth's BN1.2 reasoning (don't combine
-"first-ever test of an untested path" with "the install that ends the run"), still sound.
+| | pre (6:08:43) | post (6:09:11) | |
+|---|---|---|---|
+| `mults.hacking` | 1.632 | **1.839** | +12.7% |
+| `mults.hacking_exp` | 1.704 | **2.823** | +65.7% |
+| `mults.faction_rep` | 1.491 | **2.125** | +42.5% |
+| augs installed | 8 | **15** | Daedalus gate 15/30 |
+| home cores | 1 | **4** | step 12's first-ever run |
+
+**Recovery was clean and fast.** Within 5 minutes: 7 factions rejoined, hacking 1 → 494,
+`phase: grinding`. The **post-install false arm did not recur** (`gainArmed: false`, 0
+queued) — the main auto-mode risk carried out of the BN1.2 clear, now settled on real data.
+
+**Two predictions confirmed:** the observe-mode flap is real and ran at a **10:21 cadence**
+(`would install now` at 5:27:36 / 5:37:57 / 5:48:18 / 5:58:39) right up until the flip; and
+the latch works as specced — `evalTrigger` checks `priorState.fired && mode === "auto"`
+*before* recomputing, so flipping to `auto` with sustain already complete fired immediately
+and the flap could not abort it.
 
 ---
 
 ## Where the automation actually stands
 
-The cycle repeats ~15-25× per BN1 clear. Steps 9-13 have **never executed, in any form**.
+The cycle repeats ~15-25× per BN1 clear. **Every step is now proven.**
 
 | # | Step | Owner | Status |
 |---|------|-------|--------|
-| 1 | Reset → cold start | `installAugmentations("bootstrap.js")` | **never run** |
+| 1 | Reset → cold start | `installAugmentations("bootstrap.js")` | **proven 2026-07-17** |
 | 2 | Fleet + batcher up | `bootstrap.js` → `daemon.js` | proven |
 | 3 | CS-class kick (hacking 1 → climb) | `studybootstrap.js` | proven |
 | 4 | Buy fleet | `cloudmanager.js` | proven |
 | 5 | TOR + 5 port openers | `procureprograms.js` | proven |
 | 6 | Backdoor faction servers | `backdoorfactions.js` | proven |
 | 7 | Join, grind rep, buy augs + 1 NFG | `augfarmer.js` | proven |
-| 8 | Trigger arms → fires | `evalTrigger` | **proven 2026-07-16** |
-| 9 | Spend-down (NFG cap lifts, fleet freezes) | `augfarmer.js` auto branch | **never run** |
-| 10 | `ns.exec("installer.js")` | `augfarmer.js` | **never run** |
-| 11 | Max home RAM | `installer.js:64` | proven by hand 2026-07-16 |
-| 12 | Max home cores | `installer.js:83` | **never run** |
-| 13 | Install → back to 1 | `installer.js:113` | **never run** |
+| 8 | Trigger arms → fires | `evalTrigger` | proven 2026-07-16 |
+| 9 | Spend-down (NFG cap lifts, fleet freezes) | `augfarmer.js` auto branch | **proven 2026-07-17** |
+| 10 | `ns.exec("installer.js")` | `augfarmer.js` | **proven 2026-07-17** |
+| 11 | Max home RAM | `installer.js:64` | proven by hand 2026-07-16 (no-op at 64 TB) |
+| 12 | Max home cores | `installer.js:83` | **proven 2026-07-17** (1 → 4) |
+| 13 | Install → back to 1 | `installer.js:113` | **proven 2026-07-17** |
 
 Endgame (once per clear) — Daedalus reserve → join → donate → The Red Pill → `backdoorwd.js`
 — all fired live 2026-07-15, **one rep each**.
 
-**Blast radius is smaller than it feels.** `installer.js` is 118 lines and refuses to act
-unless `ratchet-mode.txt` reads exactly `auto`. `upgradeHomeCores` failing just breaks its
-loop. The irreversible call is `installAugmentations("bootstrap.js")`, whose worst realistic
-failure is the cbScript not firing — leaving you post-reset with nothing running, recovered
-by `run bootstrap.js` by hand. A premature install is wasteful, not fatal (spend-down
-converts money to mults first). You're doing 15-25 installs anyway.
+**Blast radius was as estimated.** `installer.js` refuses to act unless `ratchet-mode.txt`
+reads exactly `auto`; the cbScript fired; nothing needed a hand-recovery.
 
 ---
 
@@ -95,7 +100,10 @@ code**, and every arm on record predates the fix that killed it.
   spotted it; that panel is how the dead trigger stayed invisible for a day.
 
 All three are one confusion: **"what do we buy next" ≠ "what are we waiting on" ≠ "what
-should the slot work."** Expect this to keep biting; it has three times.
+should the slot work."** Expect this to keep biting; it has now bitten **four** times — gap
+(6) below is the same shape again (*"who sells it" ≠ "who we have rep with"*), found
+2026-07-17. Whenever this code names a faction, ask which of these four questions it is
+actually answering.
 
 **The datum, finally collected:**
 
@@ -113,19 +121,61 @@ was the main auto-mode risk carried out of the BN1.2 clear.
 
 ---
 
-## Open gaps (none block L7)
+## Open gaps
 
-All tracked in `BACKLOG.md`; listed here so the handoff is self-contained.
+All tracked in `BACKLOG.md`; listed here so the handoff is self-contained. **(5) and (6) are
+new, found by reading L7's logs — neither blocked the run.**
 
-1. **`MIN_TOTAL_GAIN` (1.1) is an unproven degenerate-loop guard.** The only real arm that
-   ever touched it cleared at **1.116**. `nfgHackingMult` is 1.01, so ~$1.8b with a single
-   queued aug projects ~10 NFG levels ≈ 1.105 gain — over the floor on *money alone*.
-   Mitigating: spend-down converts money to mults before installing, so a premature fire is
-   wasteful, not catastrophic. **Needs arm data, which only now exists.**
-2. **Observe-mode trigger flap.** A fire sets `phase: "install-ready"`, which is not an
-   arming phase, so the next poll clears it → re-arms → re-fires every ~10 min. **Auto masks
-   it** (`evalTrigger`'s latch is gated on `mode === "auto"`), so it cannot affect L7 — but it
-   degrades exactly the observe evidence gap (1) depends on.
+5. **`recordTransaction` logs the PROJECTED price, not the price actually paid.**
+   `augfarmer.js:1633` records `amount: action.price`, but `action.price` comes from
+   `spendDownPlan`'s own `price *= NFG_PRICE_LADDER` (1.9) projection — not from the game.
+   The real escalation is steeper (~2.28×, since each queued aug raises subsequent aug prices
+   *and* NFG's own level multiplier compounds on top), so **every NFG level after the first is
+   under-logged, and the error compounds.** Install #6's 11 levels logged **$417.7b** against
+   a real spend of roughly **$2.2-2.7t** — a ~5-6× understatement. Money left the account
+   correctly; only the *record* is wrong, so this is a log-integrity bug, not a gameplay one —
+   but it silently corrupts `transactions-*.json`, which is the thing the conventions say to
+   validate against. Fix: record the live price (read before the buy), or reconcile
+   `getPlayer().money` across the call. The exact real ladder is inferred from a money delta,
+   not measured — measure it as part of the fix.
+6. **`nfgState.faction` picks `sellers[0]`, not the faction we have the most rep with.**
+   `augfarmer.js:1526` takes `catalog.augs[NFG].sellers[0]`, which is catalog order — CyberSec.
+   NFG's rep requirement is the same whoever sells it, so the right pick is the joined faction
+   with the **highest** rep. At install #6 that was **Chongqing (226,822 rep)** but it bought
+   from **CyberSec (54,690)**. It worked *this time* only because CyberSec's rep happened to
+   clear NFG's 10,180 requirement — had it not, `repMet` would have been false and the entire
+   NFG tail suppressed, wasting the whole $5.5t bank on an install. **Low impact, high
+   variance: it worked by luck.** This is a fourth instance of the doc's own recurring
+   confusion — *"who sells it" ≠ "who we have rep with"*.
+
+3. **NFG counting / `daedalusGate`.** — see below, unchanged by L7.
+4. **No supervision — the Level-2 gap.** — see below. **Now the phase's most important open
+   item:** L7 removed the last reason to sit and watch, so the only thing still standing
+   between here and genuinely-unattended running is companion supervision.
+
+**Resolved by L7:**
+
+1. ~~**`MIN_TOTAL_GAIN` (1.1) is an unproven degenerate-loop guard.**~~ Still not stress-tested
+   at the boundary, but the premise it rested on is now **confirmed**: install #6 armed at
+   1.173 and delivered 1.127 actual (1.632 → 1.839). The projection **over-estimates** —
+   `nfgLevelsProjected` (15) is money-only and ignores that each NFG level's price escalates
+   ~2.28×, so 15 was never purchasable; 11 was. A fire is therefore *less* productive than the
+   gain figure claims, which makes 1.1 **less** conservative than it reads. Worth revisiting
+   with (5) fixed, since (5) is why the projection is wrong.
+2. ~~**Observe-mode trigger flap.**~~ Confirmed live at a **10:21 cadence** and confirmed
+   harmless under `auto` (the latch pre-empts it). Still degrades observe-mode evidence; the
+   cheap fix is to treat `install-ready` as an arming phase in observe.
+
+**Also settled — the stranded money is inherent, not a bug.** The install wiped **$2.455t**
+unspent, which looks alarming and isn't: spend-down stops when the next NFG level costs more
+than the remaining bank (live price had escalated past $2.94t), and every discrete aug left
+had `deficit > 0` (rep not met), so there was genuinely nothing to buy. An exponential ladder
+always strands up to one level's price. **Do not "fix" this.**
+
+---
+
+## The two open gaps in full
+
 3. **NFG counting / `daedalusGate`.** Install #5 answered S10's open question: queued NFG
    levels duplicate in `getOwnedAugmentations(true)` (queue 8 → 14), installed ones collapse
    to one entry. So `nfg.level` reads 1 forever (cosmetic), and `daedalusGate.installed`
@@ -139,9 +189,10 @@ All tracked in `BACKLOG.md`; listed here so the handoff is self-contained.
    all: the batcher fills home to `maxRam - HOME_RESERVE_GB`, so free RAM is pinned at 32 GB
    while it needs 64.1. Confirmed structural — home went **2 TB → 64 TB** and free RAM went
    *down* (34.75 GB → 32.00 GB), so "buy more RAM" is not a fix.
-   - **This does not block L7** (you're watching; `restart daemon.js` recovers).
+   - It did not block L7 (Kenneth was watching; `restart daemon.js` recovers).
    - It *does* block genuinely-unattended running, which is the actual prize (sleep ≈ no
-     progress; 24/7 is a free ~2× lever).
+     progress; 24/7 is a free ~2× lever) — **and with L7 closed, this is now the only thing
+     blocking it.**
    - **Fix is supervisor + reserve bump together, or neither.** The bump alone only helps a
      *human* relaunch. A supervisor alone would detect the death and then fail on RAM. Note
      Phase 25 deliberately declined the bump ("companions launch before the batcher packs
@@ -150,12 +201,50 @@ All tracked in `BACKLOG.md`; listed here so the handoff is self-contained.
 
 ---
 
+## What to do next
+
+Phase 25 has no open tests. In rough priority order:
+
+1. **Decide whether `auto` stays on.** It is **on right now** and will fire again each cycle
+   (~4-8h) unattended. L7 says the chain is sound; gap (4) says a companion death mid-cycle is
+   a silent permanent stop. Abort levers unchanged: set `ratchet-mode.txt` to anything but
+   `auto`, or create `augfarmer-pause.txt`.
+2. **Fix gap (5)** — the projected-price logging bug. Cheap, self-contained, and it corrupts
+   the financial record every cycle it runs. Measure the real NFG ladder while fixing.
+3. **Fix gap (6)** — pick the highest-rep seller. Also cheap; removes a latent
+   whole-bank-wasting failure.
+4. **Gap (4), the supervisor + reserve bump** — the big one, and the only thing between here
+   and unattended 24/7 running.
+
 ## Pointers
 
-- Design record + BN1.2 close-out → `phase-25-faction-strategy.spec.md` (L7 checklist lives
-  in its "Live validation" section; the S11 correction is in its close-out).
-- Condensed history → `CHANGELOG.md` (2026-07-16).
+- Design record + BN1.2 close-out → `phase-25-faction-strategy.spec.md` (the S11 correction is
+  in its close-out; its "Live validation" section holds the original L7 checklist, now passed).
+- Condensed history → `CHANGELOG.md` (2026-07-17).
 - Live bugs/ideas → `BACKLOG.md`.
 - Commits: `aeeb632` (horizon ← head), `b5b654d` (dashboard work line), `3feb4b4` (horizon
   counts passive), `902849a` (S11 record), `eb2a853` (reserve gap structural), `1e6d793`
   (NFG counting).
+- L7's raw evidence, install #6: `logs/ratchet-log.json` (last record — the `{pre, post}`
+  pair), `logs/ratchet-decisions.json` (the `trigger-fire` → `install` chain),
+  `logs/transactions-2026-07-17.json` (the 11 NFG buys — with gap (5)'s caveat that the
+  amounts are projections).
+
+## Tooling notes from the L7 sitting (2026-07-17)
+
+Three things cost time here; none are obvious from the outside.
+
+- **`cat <file>.txt` prints nothing in this build.** Not an error, not a modal — silently no
+  output, even for a file with content. It reads exactly like an empty file and sent this
+  session chasing a nonexistent save bug. Use `ls --grep <name>` to prove existence, and the
+  consuming script's own state export to prove content.
+- **The editor's Save button can't be reached by name.** It carries
+  `aria-label="Ctrl + S or ⊞ + S"`, which *overrides* its accessible name, so
+  `getByRole('button', {name: 'Save'})` never matches despite the visible text reading "Save".
+  Match on visible text instead. (Prefer clicking it over sending Ctrl+S: if the app didn't
+  capture the keystroke, Electron could raise a native save dialog, which CDP cannot see or
+  dismiss — see the next point.)
+- **Native OS dialogs are invisible to CDP.** Backup Save / Export Game open a Windows file
+  picker, which is not in the DOM. Claude cannot see, fill, or cancel it — and clicking the
+  button would leave a modal dialog blocking the game with no way to clear it. **Taking a save
+  is Kenneth's step, not Claude's.**

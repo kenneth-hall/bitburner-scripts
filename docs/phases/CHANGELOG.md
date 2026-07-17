@@ -6,6 +6,22 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-17
+
+- **Phase 25's last open item closed: the first auto fire (L7) passed — install #6.** The
+  aug-ratchet installed itself, unmodified, on the first attempt. Three steps that had never run
+  in any form all fired: spend-down (bought 1 aug + 11 NFG levels), `ns.exec("installer.js")`,
+  and `installAugmentations("bootstrap.js")` itself — plus home-cores 1 → 4 ($485.6b). Fire to
+  reset took 11 seconds; `mults.hacking` 1.632 → 1.839, `hacking_exp` 1.704 → 2.823,
+  `faction_rep` 1.491 → 2.125, Daedalus gate 8 → 15/30. Recovery via the cbScript was clean —
+  7 factions rejoined and hacking 1 → 494 within 5 minutes — and the post-install false arm did
+  **not** recur, settling the main risk carried out of the BN1.2 clear. Two predictions held:
+  the observe-mode flap is real (10:21 cadence) and the `auto` latch pre-empts it. **Every step
+  of the cycle is now proven; the phase has no open tests.** Reading L7's logs turned up two new
+  bugs, neither blocking: spend-down logs *projected* prices rather than actual (~5-6×
+  under-logged), and the NFG seller is picked by catalog order rather than by rep (worked by
+  luck). → `phase-25-faction-strategy.closeout.md`.
+
 ## 2026-07-16
 
 - **Install trigger revived — it had been structurally dead, and S11's gate is now MET.** Two
