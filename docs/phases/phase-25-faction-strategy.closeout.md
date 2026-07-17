@@ -6,8 +6,10 @@ section is the BN1.2-clear record. This doc is the *handoff*.
 
 **Status:** shipped 2026-07-14 · cleared BN1.2 2026-07-15 · S11's gate met 2026-07-16 ·
 **L7 PASSED 2026-07-17 — the last open item. Every step of the cycle has now executed at
-least once.** The phase has no open tests. What remains is two logged bugs (below), neither
-of which blocked the run.
+least once.** The phase has no open tests. Reading L7's logs turned up two bugs (gaps 5 and
+6); both were fixed the same day. **Two gaps remain open — 3 and 4 — and neither is new.
+Gap 4 (no supervision) is the one that matters:** it is now the only thing between here and
+unattended running.
 
 ---
 
@@ -121,66 +123,88 @@ was the main auto-mode risk carried out of the BN1.2 clear.
 
 ---
 
-## Open gaps
+## Open gaps — two left
 
-All tracked in `BACKLOG.md`; listed here so the handoff is self-contained. **(5) and (6) were
-found by reading L7's logs and are now FIXED (2026-07-17, `4b80da4`) — neither blocked the run.
-Their descriptions are kept below because they're the record of what the fix is for.**
+All tracked in `BACKLOG.md`; repeated here so the handoff is self-contained. **Gap numbers are
+stable IDs** (`BACKLOG.md`, `CHANGELOG.md` and CLAUDE.md all cite them), so they keep their
+original numbers and the list reads out of order. Everything else is under "Closed" below.
 
-**Fix status:** 584 tests pass (6 new `pickNfgSeller` cases, incl. install #6's exact shape as a
-regression fixture). `augfarmer.js` RAM **unchanged at 64.10 GB** (`getAugmentationPrice` was
-already charged). Shipped live mid-cycle via `restart daemon.js` — necessary, because the
-spend-down that (6) protects runs in the *currently-running* augfarmer, so waiting for the next
-install's relaunch would have meant the next fire used the buggy code. **(5) is validated live**
-(`auto-aug` records now carry `projected` beside `amount`). **(6) is not yet exercised** —
+4. **No supervision — the Level-2 gap. THE ONE THAT MATTERS.** Companions launch at
+   `daemon.js:415-455`, **before** the `while (true)` at 626. They launch once; nothing monitors
+   or relaunches them. Any companion death is a **silent permanent stop**. And `augfarmer.js`
+   can't be relaunched on its own: the batcher fills home to `maxRam - HOME_RESERVE_GB`, so free
+   RAM is pinned at 32 GB while it needs 64.1. Confirmed structural — home went **2 TB → 64 TB**
+   and free RAM went *down* (34.75 GB → 32.00 GB), so "buy more RAM" is not a fix.
+   - It did not block L7 (Kenneth was watching; `restart daemon.js` recovers — and that's
+     exactly how the gap 5/6 fixes shipped mid-cycle).
+   - It *does* block genuinely-unattended running, which is the actual prize (sleep ≈ no
+     progress; 24/7 is a free ~2× lever). **With L7 closed, this is the only thing blocking it.**
+   - **Fix is supervisor + reserve bump together, or neither.** The bump alone only helps a
+     *human* relaunch. A supervisor alone would detect the death and then fail on RAM. Note
+     Phase 25 deliberately declined the bump ("companions launch before the batcher packs
+     home — restart daemon.js instead"), which was correct for the problem it addressed; the
+     unattended-death case is what it didn't weigh.
+3. **NFG counting / `daedalusGate`.** Install #5 answered S10's open question: queued NFG
+   levels duplicate in `getOwnedAugmentations(true)` (queue 8 → 14), installed ones collapse
+   to one entry. So `nfg.level` reads 1 forever (cosmetic), and `daedalusGate.installed`
+   counts distinct augs. **Unverified:** whether Daedalus's real 30-aug gate counts NFG
+   levels individually. If it does we undercount and over-grind. Confirm against the in-game
+   requirement before it shapes the BN1.3 plan — the 2026-07-15 clear reaching Daedalus at 33
+   distinct installed is consistent with *both* readings and settles nothing. (Install #6 is
+   another instance of the same ambiguity, not a tiebreak: 12 NFG levels went in and the
+   distinct count moved 8 → 15, i.e. +7 discrete augs and no new NFG entry.)
+
+---
+
+## Closed
+
+### Gaps 5 and 6 — found by reading L7's logs, fixed the same day (`4b80da4`)
+
+584 tests pass (6 new `pickNfgSeller` cases, incl. install #6's exact shape as a regression
+fixture). `augfarmer.js` RAM **unchanged at 64.10 GB** (`getAugmentationPrice` was already
+charged). Shipped live mid-cycle via `restart daemon.js` — necessary, because the spend-down
+gap 6 protects runs in the *already-running* augfarmer, so waiting for the next install's
+relaunch would have meant the next fire using the buggy code. **Gap 5 is validated live**
+(`auto-aug` records now carry `projected` beside `amount`); **gap 6 is not yet exercised** —
 `pickNfgSeller` only runs during spend-down, so it stays unproven until the next fire.
 
-5. **`recordTransaction` logs the PROJECTED price, not the price actually paid.**
-   `augfarmer.js:1633` records `amount: action.price`, but `action.price` comes from
-   `spendDownPlan`'s own `price *= NFG_PRICE_LADDER` (1.9) projection — not from the game.
-   The real escalation is steeper (~2.28×, since each queued aug raises subsequent aug prices
-   *and* NFG's own level multiplier compounds on top), so **every NFG level after the first is
-   under-logged, and the error compounds.** Install #6's 11 levels logged **$417.7b** against
-   a real spend of roughly **$2.2-2.7t** — a ~5-6× understatement. Money left the account
-   correctly; only the *record* is wrong, so this is a log-integrity bug, not a gameplay one —
-   but it silently corrupts `transactions-*.json`, which is the thing the conventions say to
-   validate against. Fix: record the live price (read before the buy), or reconcile
-   `getPlayer().money` across the call. The exact real ladder is inferred from a money delta,
-   not measured — measure it as part of the fix.
-6. **`nfgState.faction` picks `sellers[0]`, not the faction we have the most rep with.**
-   `augfarmer.js:1526` takes `catalog.augs[NFG].sellers[0]`, which is catalog order — CyberSec.
-   NFG's rep requirement is the same whoever sells it, so the right pick is the joined faction
-   with the **highest** rep. At install #6 that was **Chongqing (226,822 rep)** but it bought
-   from **CyberSec (54,690)**. It worked *this time* only because CyberSec's rep happened to
-   clear NFG's 10,180 requirement — had it not, `repMet` would have been false and the entire
-   NFG tail suppressed, wasting the whole $5.5t bank on an install. **Low impact, high
-   variance: it worked by luck.** This is a fourth instance of the doc's own recurring
-   confusion — *"who sells it" ≠ "who we have rep with"*.
-   - **It's a fresh coin-flip every cycle, not a one-off.** Installing resets faction rep to
-     zero, so CyberSec must *re-earn* 10,181 rep before every fire for the NFG tail to work at
-     all. Fire early in a cycle, or in any cycle where the grind doesn't route through CyberSec,
-     and the whole bank converts to nothing. The highest-rep faction is the camp one being
-     actively worked (Chongqing: 226,822 vs CyberSec's 54,690 at install #6), so picking by rep
-     both removes the failure mode and buys more levels.
+5. ~~**`recordTransaction` logged the PROJECTED price, not the price actually paid.**~~ The buy
+   path recorded `amount: action.price`, which came from `spendDownPlan`'s own
+   `price *= NFG_PRICE_LADDER` (1.9) projection rather than from the game. The real escalation
+   is steeper (~2.28× inferred), so **every NFG level after the first was under-logged, and the
+   error compounded**: install #6's 11 levels logged **$417.7b** against a real spend of roughly
+   **$2.2-2.7t**, a ~5-6× understatement. Money left the account correctly — only the *record*
+   was wrong — but it silently corrupted `transactions-*.json`, the file the conventions say to
+   validate against. **Fixed** by reading the live price immediately before the buy and logging
+   that, keeping the projection alongside as `projected`. The real ladder is still *inferred*
+   from a money delta rather than measured; the fix is what makes the next fire measure it.
+6. ~~**`nfgState.faction` picked `sellers[0]`, not the faction we hold the most rep with.**~~
+   It took `catalog.augs[NFG].sellers[0]` — catalog order, i.e. CyberSec. NFG's rep requirement
+   is the same whoever sells it, so the right pick is the joined faction with the **highest**
+   rep. At install #6 that was **Chongqing (226,822)** but it bought from **CyberSec (54,690)**.
+   It worked *that time* only because CyberSec's rep happened to clear NFG's 10,181 requirement —
+   had it not, `repMet` would have been false, the entire NFG tail suppressed, and the whole
+   $5.5t bank wasted on an install. **It worked by luck.** Fourth instance of this doc's
+   recurring confusion — *"who sells it" ≠ "who we have rep with"*. **Fixed** by `pickNfgSeller`.
+   - **It was a fresh coin-flip every cycle, not a one-off.** Installing resets faction rep to
+     zero, so CyberSec had to *re-earn* 10,181 before every fire for the NFG tail to work at all.
+     Fire early in a cycle, or in a cycle whose grind doesn't route through CyberSec, and the
+     bank converts to nothing. The highest-rep faction is the camp one being actively worked, so
+     picking by rep both removes the failure mode and buys more levels.
    - Checked and **not** a factor: NFG's rep requirement does *not* climb with level. The
      catalog read 10,181 both before install #6 and after (fresh rebuild at 06:21:48), despite
-     12 levels going in — so this doesn't get worse each cycle, it's just unguarded. (NFG's
-     *price* does scale: the catalog's base went ~×4.23 ≈ 1.14¹¹ across the same install.)
+     12 levels going in — so this was unguarded rather than worsening. (NFG's *price* does
+     scale: the catalog's base moved ~×4.23 ≈ 1.14¹¹ across the same install.)
 
-3. **NFG counting / `daedalusGate`.** — see below, unchanged by L7.
-4. **No supervision — the Level-2 gap.** — see below. **Now the phase's most important open
-   item:** L7 removed the last reason to sit and watch, so the only thing still standing
-   between here and genuinely-unattended running is companion supervision.
-
-**Resolved by L7:**
+### Resolved by L7 itself
 
 1. ~~**`MIN_TOTAL_GAIN` (1.1) is an unproven degenerate-loop guard.**~~ Still not stress-tested
    at the boundary, but the premise it rested on is now **confirmed**: install #6 armed at
    1.173 and delivered 1.127 actual (1.632 → 1.839). The projection **over-estimates** —
-   `nfgLevelsProjected` (15) is money-only and ignores that each NFG level's price escalates
-   ~2.28×, so 15 was never purchasable; 11 was. A fire is therefore *less* productive than the
-   gain figure claims, which makes 1.1 **less** conservative than it reads. Worth revisiting
-   with (5) fixed, since (5) is why the projection is wrong.
+   `nfgLevelsProjected` (15) is money-only and ignores that each NFG level's price escalates,
+   so 15 was never purchasable; 11 was. A fire is therefore *less* productive than the gain
+   figure claims, which makes 1.1 **less** conservative than it reads. Revisit once the real
+   ladder is measured — that over-projection is the same root cause as gap 5.
 2. ~~**Observe-mode trigger flap.**~~ Confirmed live at a **10:21 cadence** and confirmed
    harmless under `auto` (the latch pre-empts it). Still degrades observe-mode evidence; the
    cheap fix is to treat `install-ready` as an arming phase in observe.
@@ -190,33 +214,6 @@ unspent, which looks alarming and isn't: spend-down stops when the next NFG leve
 than the remaining bank (live price had escalated past $2.94t), and every discrete aug left
 had `deficit > 0` (rep not met), so there was genuinely nothing to buy. An exponential ladder
 always strands up to one level's price. **Do not "fix" this.**
-
----
-
-## The two open gaps in full
-
-3. **NFG counting / `daedalusGate`.** Install #5 answered S10's open question: queued NFG
-   levels duplicate in `getOwnedAugmentations(true)` (queue 8 → 14), installed ones collapse
-   to one entry. So `nfg.level` reads 1 forever (cosmetic), and `daedalusGate.installed`
-   counts distinct augs (8/30). **Unverified:** whether Daedalus's real 30-aug gate counts NFG
-   levels individually. If it does we undercount and over-grind. Confirm against the in-game
-   requirement before it shapes the BN1.3 plan — the 2026-07-15 clear reaching Daedalus at 33
-   distinct installed is consistent with *both* readings and settles nothing.
-4. **No supervision — the Level-2 gap.** Companions launch at `daemon.js:415-455`, **before**
-   the `while (true)` at 626. They launch once; nothing monitors or relaunches them. Any
-   companion death is a **silent permanent stop**. And `augfarmer.js` can't be relaunched at
-   all: the batcher fills home to `maxRam - HOME_RESERVE_GB`, so free RAM is pinned at 32 GB
-   while it needs 64.1. Confirmed structural — home went **2 TB → 64 TB** and free RAM went
-   *down* (34.75 GB → 32.00 GB), so "buy more RAM" is not a fix.
-   - It did not block L7 (Kenneth was watching; `restart daemon.js` recovers).
-   - It *does* block genuinely-unattended running, which is the actual prize (sleep ≈ no
-     progress; 24/7 is a free ~2× lever) — **and with L7 closed, this is now the only thing
-     blocking it.**
-   - **Fix is supervisor + reserve bump together, or neither.** The bump alone only helps a
-     *human* relaunch. A supervisor alone would detect the death and then fail on RAM. Note
-     Phase 25 deliberately declined the bump ("companions launch before the batcher packs
-     home — restart daemon.js instead"), which was correct for the problem it addressed; the
-     unattended-death case is what it didn't weigh.
 
 ---
 
@@ -249,11 +246,18 @@ Phase 25 has no open tests, and gaps (5) and (6) are fixed. What's left:
 - Live bugs/ideas → `BACKLOG.md`.
 - Commits: `aeeb632` (horizon ← head), `b5b654d` (dashboard work line), `3feb4b4` (horizon
   counts passive), `902849a` (S11 record), `eb2a853` (reserve gap structural), `1e6d793`
-  (NFG counting).
+  (NFG counting), `4b80da4` (gaps 5+6 fixed).
 - L7's raw evidence, install #6: `logs/ratchet-log.json` (last record — the `{pre, post}`
   pair), `logs/ratchet-decisions.json` (the `trigger-fire` → `install` chain),
-  `logs/transactions-2026-07-17.json` (the 11 NFG buys — with gap (5)'s caveat that the
-  amounts are projections).
+  `logs/transactions-2026-07-17.json` (the 11 NFG buys).
+  - **Reading that transaction file correctly matters.** Records written *before* 6:29 on
+    2026-07-17 carry gap 5's bug — their `amount` is a projection, so install #6's NFG buys
+    understate what was really paid by ~5-6×. Records from 6:29 onward carry a `projected`
+    field beside `amount`; those are trustworthy, and the presence of that field is how you
+    tell the two apart. Don't sum the file across that boundary and expect a real number.
+  - The buys land in `transactions-*.json`, **not** in `ratchet-decisions.json` — decisions
+    only record `spend-down-start`. Reading decisions alone makes a working spend-down look
+    like it bought nothing; that misread cost this session a while.
 
 ## Tooling notes from the L7 sitting (2026-07-17)
 
