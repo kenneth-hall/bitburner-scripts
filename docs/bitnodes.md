@@ -186,6 +186,72 @@ in-node via UI + API.)
 - **Special:** BN12 (do after unlocking all mechanics).
 - **Bad:** BN11 (do last, for completion).
 
+## General clearing order — the counter map (analysis 2026-07-18)
+
+**Question:** is there a general optimal order that "negates" each node's penalties by
+sequencing boons? **Answer: yes, mostly — because almost every node's dominant penalty has a
+designed counter that is another node's Source-File.** The optimal order is a topological sort
+of "acquire the counter before entering the node it counters."
+
+**Framing correction first — what ordering can and can't negate.** Ordering negates
+**cross-node problems** (the Daedalus rep tax, the install wipe, hacking-gate walls) because
+those are countered by carried-in tools. It does **not** negate **in-node economy nerfs** —
+BN9's 1% max money is 1% regardless of what you carry in. What the right order buys there is a
+*different engine* (gang income, Bladeburner win path, corp money) so the nerf stops being on
+the critical path. The operating principle: **never enter a node whose main penalty targets
+your only engine** — not "stack multipliers until penalties cancel."
+
+### Penalty → counter map (from the panel tables above)
+
+| Penalty class | Nodes that punish it | Counter SF |
+|---|---|---|
+| Daedalus 2.5m-rep tax / aug-count gate | every clear, everywhere | **SF2** (gang sells Red Pill) · **SF15.1** (darknet Red Pill, all nodes except BN8) · SF10 (sleeves grind rep in parallel) |
+| Install wipes progress | BN8 especially (market capital); every install-cycle grind | **SF10** (grafting = augs with no reset) |
+| Hacking-level walls (BN6/7 ×0.35, BN9 ×0.5, BN10 ×0.35, BN13 ×0.25, BN14 ×0.4) | the whole back half | **SF6/7** (Bladeburner alt-destroy — the hacking gate becomes optional) + grafting + a big SF1 stack |
+| Slow karma for gangs | using SF2 outside BN2 | **SF10** sleeves |
+| Money starvation | BN2/3/9/11/13 economies | **SF3** corp or SF2 gang income (engines that ignore server money) |
+| RAM-tight fresh starts | every node entry | **SF9.2** (128GB home start) |
+| Manual-play tax | everywhere | **SF4** (held: 4.3 via Phase 21 grant) |
+| Everything, a little | — | SF1 · SF5 · SF12's free NFG |
+
+### The order that falls out
+
+1. **BN1 (repeat)** — no penalties, broad buff. *Done: SF1.3 held.*
+2. **BN2 (gang)** — highest-leverage early pick: SF2 removes the recurring cost every
+   subsequent clear pays (Red Pill from your own gang, no Daedalus grind). Its own penalties
+   (80% hack level, 8% max money) are mild; gang income routes around the economy nerf.
+3. **BN5** — hacking mults + Formulas; modest penalties; compounds everything after.
+4. **BN4 → SF4.3** — automation. *Already held via the Phase 21 save-edit grant — skip.*
+5. **BN6 then BN7** — the Bladeburner alt-win path; the key that defangs the harsh back half.
+   Their own ×0.35 hacking nerf doesn't matter because Bladeburner *is* the in-node path.
+6. **BN10** — sleeves + grafting. After SF1 is stacked (its ×0.35 wall is countered by in-node
+   grafting); sleeves retroactively supercharge gang karma and Bladeburner ops.
+7. **Harsh nodes, now defanged:** BN9 + BN13 via Bladeburner (the guide says this explicitly),
+   **BN8 only after BN10.1** (graft instead of installing — never liquidate market positions),
+   BN3 (corp optional — beatable with the stack), BN14, BN15.
+8. **BN12** — anytime after all mechanics exist, repeatedly, as a background NFG ratchet.
+9. **BN11** — last; the one node whose reward counters nothing.
+
+**Hard sequencing constraints (explicit in the in-game guide):** BN10.1 before BN8 · accept
+Stanek's Gift before joining Bladeburner once SF7.3 is held · don't create a gang too early
+in-node (income/territory timing) · chronological 1→2→3→… is the classic mistake (it puts
+BN3 — a weeks-long scripting project in a starved economy — third).
+
+### Implication for our plan (unresolved — feeds the open question above)
+
+This analysis doesn't stay neutral: the general order puts **BN2 next, not BN5**. That's the
+same conclusion as the open strategic question in "Our next-node plan" — the "no new engine"
+constraint excludes all three rep-tax killers, while the game's designed order picks one up
+*second*. BN5's case was "least-bad under the no-new-engine constraint"; the constraint itself
+is what the general order rejects. BN5-before-BN2 orders the +8% ahead of the tool that makes
+every later clear cheaper.
+
+**The honest counterargument:** BN2's 8% max money benches the batcher for the whole node
+(gang carries it), while BN5 keeps the batcher the star — so BN2 is the bigger playstyle
+departure. If the goal is "keep improving the batcher," BN2 delays it; if the goal is "clear
+the BitVerse efficiently," BN2 comes first. That's the actual decision — a priorities call,
+not a math one.
+
 ---
 
 ## BitVerse selection panels (live-read, per node)
@@ -591,3 +657,6 @@ so we don't re-derive (or re-break) it.
 - 2026-07-11 — **Locked the near-term goal: clear BN1 once more → SF1.2, then BN5.** Resolved the
   SF1.3 open question → **stop at 1.2** (1.2→1.3 is +4pp for a whole extra endgame; revisit after a
   rep-tax-killer). Mirrored into CLAUDE.md's goal line. Added the Singularity-availability note above.
+- 2026-07-18 — Added "General clearing order — the counter map": penalty→counter-SF table, the
+  topological order it implies, hard sequencing constraints, and the implication that the general
+  order puts BN2 (gang) ahead of BN5 — feeding the still-open next-node decision post-BN1.3.
