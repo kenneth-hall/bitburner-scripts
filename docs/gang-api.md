@@ -1,4 +1,4 @@
-# Gang API reference (this build)
+# Gang mechanics & API reference (this build)
 
 Complete surface of `ns.gang.*` and `ns.formulas.gang.*`, read systematically from `markdown/`
 2026-07-18. Written because a Phase 27 design was drafted off the *method list alone* and its
@@ -26,6 +26,49 @@ Consequence: nothing about gangs is measurable until `createGang()`, which is ir
 type fixed by faction, no `leaveGang()`). See [[reference_gang_api_requires_joined_gang]].
 
 ---
+
+## Gameplay mechanics (from the in-game Documentation → Gang page, read via CDP 2026-07-18)
+
+The API tells you what you can *call*; this is what the numbers *mean*. Captured verbatim-ish
+because none of it appears in `markdown/`.
+
+**Creation.** Outside BN2 you need karma ≤ −54000. **In BN2 there is no karma gate** — only
+membership in a gang-capable faction. "Creating a Gang in other BitNodes will offer more
+Augmentations than other Factions, **but they will not be a way to destroy the BitNode alone**"
+— i.e. the gang-sells-The-Red-Pill route appears to be BN2-specific.
+
+**Respect** is the central currency. Earned as members complete tasks. It drives:
+- gang productivity,
+- **your Faction Reputation** — which is how you buy augs from the gang faction (this is the
+  rep-tax-killer mechanism, and it bypasses BN2's Work Reputation 50% / Passive Rep 0% nerfs),
+- the number of members you can recruit.
+
+A member's respect is **lost when they Ascend, or if they are killed in a clash**.
+
+**Install-immunity.** "While in a BitNode, your gang and gang member stats will not reset if you
+install augmentations." This is the only asset we own that survives the ratchet's install cycle.
+⚠️ But see open question 1 — `GangMemberInstall` suggests ascension multipliers are *reduced*
+on install. Reduce ≠ reset, so both statements can hold; unverified.
+
+**Ascension.** A permanent boost to a member's stat multipliers, at the cost of resetting their
+base stats **and equipment** to 0, and reducing Gang Reputation by the respect that member earned
+since their last ascension. So ascension is a respect-for-multiplier trade with an equipment
+write-off.
+
+**Equipment.** Boosts stats until the member ascends or dies, "at which point most equipment will
+reset." **Augmentations installed on gang members do NOT reset on ascension** — so member augs are
+strictly better than gear for anyone you intend to ascend repeatedly. Member earnings scale with
+current stats × equipment × ascension effects.
+
+**Wanted level** "can make tasks much less productive," and is driven by which tasks members are
+assigned. Two named tasks lower it: **"Ethical Hacking"** and **"Vigilante Justice"**. This is the
+classic silent-income-killer; `GangGenInfo.wantedPenalty` exposes it directly.
+
+**Territory.** **"Territory Warfare"** is a task that builds `power`. If territory clashes are
+enabled (`setTerritoryWarfare`), members can win or lose territory against rival gangs. **The %
+of territory controlled affects most aspects of gang productivity** — which is why `GangTaskStats`
+carries a `territory` weight per task. ⚠️ **Members can die during clashes even when the gang
+wins.**
 
 ## Methods
 
