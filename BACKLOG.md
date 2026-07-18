@@ -52,13 +52,14 @@ do, and what's broken?*
   weighed. → **Phase 26 track B1** (`phase-26-ratchet-autonomy.features.md`); Phase 25's
   close-out is frozen.
 
-- **The ratchet cannot reach the Daedalus gate on its own — hard deadlock, blocking the BN1.3
-  clear** — 29/30 distinct augs with `endgameHold` on, which blocks arming, so no spend-down runs
-  and only the *head* target is ever bought. The head is NFG forever (score 0.022 > the only
-  reachable real aug at 0.015), and buying NFG levels never raises the **distinct** count. Wired
-  Reflexes would close it for 1,250 rep / $0.004b against $288t on hand — invisible to the engine
-  because it scores 0 on hacking. Sixth instance of "the head isn't what we need."
-  → **Phase 26 track A1** (`phase-26-ratchet-autonomy.features.md`), fix now while the state exists.
+- **Nothing installs the queued augs — second deadlock, still blocking the BN1.3 clear** — A1
+  shipped and the engine now buys gate-closing augs (9 queued, $24.9b), but they are *queued*, not
+  installed, and `endgameHold` blocks arming (`gainArmed` requires `!endgameHold`). So no trigger →
+  no install → the installed count stays 29 → Daedalus never invites → `endgameHold` never clears.
+  Circular, one level up. `endgameHold` means "stop ratcheting, go for Daedalus", but when queued
+  purchases would close the only remaining gate, holding is exactly wrong — it needs an exception.
+  This path has never run unattended (2026-07-15's endgame install was manual).
+  → **Phase 26 track A2** (`phase-26-ratchet-autonomy.features.md`) — spec target, not a patch.
 
 - **Observe-mode trigger flap: a fire self-clears, then re-fires every ~10 min** — firing sets
   `phase: "install-ready"`, which is not an arming phase, so the next poll clears it → re-arms →

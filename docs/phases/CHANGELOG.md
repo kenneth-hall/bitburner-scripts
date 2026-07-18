@@ -8,6 +8,23 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-18
 
+- **Phase 26 A1 shipped — gate-aware buying breaks the 29/30 deadlock** (`5ad32a3`). Every unowned
+  filter-passing aug was sold only by Daedalus/Covenant/Illuminati, the factions the aug-count gate
+  locks us out of, while every buyable aug scored 0.00 and was dropped — circular, unbreakable by
+  time, money or rep. Adds `numAugmentations` to `evaluateRequirement` (it had been falling through
+  to `default: return false`, so the requirement read unmet forever), `onlyAugCountGap` mirroring
+  the existing `onlyCityGap`, plus `findAugCountGate` / `pickGateFiller` and a `gate-fill` branch.
+  627 tests. **Shipped with a runaway, caught live in 90 seconds:** the gate was keyed on
+  *installed* augs but buying only *queues* them, so the gap never closed and it re-fired every
+  tick — 9 buys, $4.8m → $16.1b, ~$24.9b total. Seventh instance of the "what we have vs. what we
+  will have" confusion, written in the session that documented the other six. Damage bounded
+  (0.009% of cash, inflation resets on install, all 9 augs count toward the gate). **Process note:
+  the decision to skip the spec stage for A1 (D12) did not pay off** — a cold reviewer asked for
+  failure modes would plausibly have caught both the runaway and A2. → Phase 26 features doc.
+- **Phase 26 A2 identified — nothing installs the queued augs.** `endgameHold` blocks arming, so no
+  trigger fires, so no install, so the installed count stays 29 and Daedalus never invites, so the
+  hold never clears. A1 solved "the engine won't buy the aug"; it did not solve "nothing installs
+  it." Spec target — it edits an endgame path that has never run unattended.
 - **Phase 25 FROZEN; Phase 26 opened.** The close-out had drifted into a live bug tracker —
   archived in `docs/phases/` yet still absorbing production bugs three days after shipping (gaps
   7, 8 and 9 all landed 2026-07-18). Phase 25's own defects are now all closed; the remaining

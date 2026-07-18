@@ -1,7 +1,11 @@
 # Phase 26 — Ratchet autonomy: goals and supervision (features / brainstorm)
 
 **Status:** brainstorm, opened 2026-07-18. Stage 1 of the three-stage workflow — decisions,
-rejected alternatives, open questions. No spec yet, no code yet.
+rejected alternatives, open questions.
+
+**A1 SHIPPED 2026-07-18 (`5ad32a3`) and is done.** It also shipped a runaway that was caught live
+in 90 seconds, and it uncovered **A2**, a second deadlock it cannot reach. Both are written up
+below. **A2, B2 and B1 are the spec stage's scope** — this doc is their handoff.
 
 **Predecessor:** Phase 25 was **frozen** 2026-07-18 (`docs/phases/phase-25-faction-strategy.closeout.md`).
 Its own defects are all closed. Everything below is what *couldn't* be closed there, because none
@@ -50,8 +54,8 @@ The state Track A must be built against — it expires when we clear.
 | BitNode | **BN1.3** · `mode: auto` · `phase: grinding` · **`endgameHold: true`** |
 | Hacking | **4,435** (Daedalus needs 2,500 ✓) |
 | Money | **$1,571t** (needs $100b ✓) |
-| Distinct augs | **29 / 30** ✗ — *the only unmet requirement* |
-| Queued | 1 (an NFG level — **does not raise the distinct count**) |
+| Distinct augs | **29 installed / 30** ✗ — *the only unmet requirement* |
+| Queued | **10** as of 07:41 (1 NFG level + **9 gate-buys**, `$24.9b`) — all count on install, none count before it |
 | Mults | hacking **8.376** · hacking_exp **12.351** · faction_rep **3.011** |
 | NFG | level 2, `cappedThisCycle: true`, repReq **1,138,560**, next level **$3.24b** |
 | Trigger | `armed: false`, `gainArmed: false`, totalGain 1.020 — cannot arm under `endgameHold` |
@@ -95,7 +99,83 @@ Deliberately split, because these have different urgency and different failure m
 
 ### Track A — immediate, the live state is expiring
 
-**A1. Gate-aware buying (gap 9). Blocking the BN1.3 clear right now.**
+**A1. Gate-aware buying (gap 9). ✅ SHIPPED 2026-07-18 (`5ad32a3`).**
+
+What landed: `numAugmentations` implemented in `evaluateRequirement` (it had been falling through
+to `default: return false`, so the requirement A1 keys on read unmet forever); `onlyAugCountGap` /
+`augCountGap` on `evaluateInviteReqs`, mirroring `onlyCityGap`; `findAugCountGate` and
+`pickGateFiller` as pure functions; a `gate-fill` branch in `planPass` emitting a flagged buy last
+in order; a `gate-buy` decision record. 627 tests. Live: it bought Wired Reflexes for $4.75m —
+**$2.5m × 1.9, a direct confirmation of the purchase multiplier** from the NFG level already
+bought that cycle.
+
+#### ⚠️ The runaway — shipped, caught live in 90 seconds
+
+The gate check was keyed on **installed** augs. Buying only **queues** an aug, so the gap never
+closed and the rule re-fired every 10-second tick:
+
+```
+7:39:08  Wired Reflexes                  $4.8m
+7:39:18  NutriGen Implant                $9.0m
+7:39:28  Neural Wit Amplifier           $68.6m
+7:39:38  Speech Enhancement            $162.9m
+7:39:48  Augmented Targeting I         $371.4m
+7:39:58  Nuoptimal Nootropic Injector  $940.9m
+7:40:08  Combat Rib I                $2,122.9m
+7:40:18  INFRARET Enhancement        $5,095.1m
+7:40:28  Speech Processor Implant   $16,134.4m   ← killed here
+                                     ~$24.9b total, gap stuck at 1 throughout
+```
+
+**Seventh instance of this file's signature confusion**, written in the same session that
+documented the other six: *"what we have"* and *"what we will have after the install"* are
+different questions needing different numbers. Fixed by feeding the gate check distinct owned
+**including queued**, while `playerFacts.augCount` stays installed-only — that's what the game's
+invite check actually reads. Regression fixture added.
+
+**Damage bounded:** $24.9b against $288t is 0.009%; the ~322× purchase inflation resets on
+install; and all 9 augs count toward the very gate they were meant to close. Verified stopped.
+
+**The process lesson, recorded against my own recommendation (D12):** I argued A1 had "almost no
+design surface left" and that a spec + cold review would cost more than it returned. It bought 9
+augs instead of 1 within 90 seconds of going live, and missed A2 entirely. **A cold reviewer asked
+to find the failure modes would plausibly have caught both** — "you buy, but what makes the count
+move?" is exactly the question a reviewer asks and an implementer assumes. D12 stands as *what was
+decided*, but should not be cited as precedent.
+
+**A2. Nothing installs the queued augs — the second deadlock. NOT FIXED. Spec target.**
+
+A1 buys the aug. Nothing installs it, so the **installed** count stays 29 and Daedalus never
+invites:
+
+- `endgameHold` is true (hacking ≥ 2500 or Daedalus joined) and blocks arming outright —
+  `gainArmed` requires `!endgameHold`.
+- So the trigger can never fire, so no spend-down, so **no install**.
+- So the 9 queued augs never become installed, so the count never reaches 30, so Daedalus never
+  invites, so `endgameHold` never clears. **Circular, one level up from gap 9.**
+
+This path has never run unattended: the 2026-07-15 clear had Kenneth install by hand, and Phase 25
+deliberately left auto-install untested for the run-ending install.
+
+**The design question, which is why this wants a spec rather than a patch:** `endgameHold` exists
+to say *"stop ratcheting, go for Daedalus."* But when the only thing blocking Daedalus is an aug
+count that **already-queued purchases would close**, holding is precisely wrong. So the hold needs
+an exception — permit (or force) exactly one install when queued augs would satisfy the count gate.
+Getting that wrong means either an install loop at the endgame, or an endgame that never installs.
+
+Candidate approaches, undecided:
+- **Narrow exception:** allow arming when `findAugCountGate` reports the gap closed by queued augs.
+  Smallest change; edits the endgame path that has never run unattended.
+- **Reuse the gate signal:** `endgameHold` already knows about Daedalus; give it the same
+  owned-including-queued count A1 now computes, so the hold releases itself.
+- **Manual once, spec properly after:** unblock this clear by hand, ship the exception for the next
+  node. Loses the live test of the auto path.
+
+**Note the symmetry with A1's runaway:** both are the installed-vs-queued distinction. A1 needed
+the *queued* count to stop buying; A2 needs the *installed* count to move. Any fix should make that
+distinction explicit rather than picking whichever number happens to work.
+
+**A1's original write-up, kept because the reasoning is still the design record:**
 
 The engine cannot reach 30 distinct augs. `endgameHold` blocks arming → no spend-down → only the
 *head* target is ever bought → head is NFG forever → NFG doesn't raise the distinct count → grind
@@ -267,8 +347,43 @@ design.
 real deadlock *is* A1's live validation, and the state is gone once we clear. Closing the BN is
 explicitly secondary.
 
+**D12. A1 skips the spec stage and is implemented directly; fable's first spec is B2 + B1.**
+Kenneth's call, 2026-07-18. Rationale: D1–D11 already fix A1's trigger, selection rule, ordering,
+mode behavior, blast radius and validation — there is almost no design surface left, and it is the
+same size as gaps 5–8, which all shipped directly and correctly the same day. Against that, a spec
++ cold-review cycle would consume the live deadlock window, which is A1's *only* real validation
+opportunity. Track B is where a cold reviewer earns its keep: B1 has genuine design surface
+(recover vs. report, the coupled RAM bump), B3 is an open strategy question, B4 is a refactor with
+criteria but no design. **A1 wants an implementer; B1/B2 want a reviewer.**
+
+### Preconditions found while checking the handoff (2026-07-18)
+
+- **`numAugmentations` is not implemented in `evaluateRequirement`.** The switch handles `city`,
+  `money`, `skills`, `karma`, `employedBy`, `backdoorInstalled`, `not`, `someCondition`, `every` —
+  and falls through to `default: return false` for everything else. So the requirement A1's whole
+  trigger keys on **always evaluates as unmet, silently**, even at 30 augs. Implementing it (with
+  an `augCount` in `playerFacts`) is a precondition, not part of the feature. **Third instance this
+  session of a silent-false/zero default standing in for "unknown"** — see gap 8's follow-up.
+- **The seam already exists.** `evaluateInviteReqs` returns `onlyCityGap` / `gapCity` — "exactly one
+  unmet requirement, of type city." A1 is the same shape, so it extends that (`onlyAugCountGap` /
+  `augCountGap`) rather than introducing a parallel mechanism.
+- **Prereq chains must be excluded.** Several cheap dropped augs are chains (Combat Rib I→II→III,
+  Augmented Targeting I→II→III) and each link carries its own 1.9× tax. A1 considers only augs whose
+  prereqs are already owned. Today's answer (Wired Reflexes) is prereq-free, so this changes nothing
+  now — but unstated it would be guessed.
+- **Observability: logs only** — a `gate-buy` decision record, no dashboard panel (CLAUDE.md
+  requires this be an explicit brainstorm decision). It fires ~once per node clear; that doesn't
+  earn fixed-budget dashboard space.
+- **Constraints:** new logic as pure functions with unit tests (matching `pickNfgSeller` /
+  `spendDownPlan`); no new `ns` surface; `augfarmer.js` RAM stays **64.10 GB**; gate-buys respect
+  `augfarmer-pause.txt` and existing reserves.
+
 ## Open questions — genuinely unresolved, with wake-up conditions
 
+0. **A2: how does `endgameHold` learn to release for an install it needs?** The immediate one, and
+   the reason the spec stage exists. Three candidate approaches above, none chosen. **Wake-up: now
+   — it blocks the BN1.3 clear.** Constraint from A1's runaway: whichever number it uses (installed
+   vs. owned-including-queued) must be *named as a choice*, not inherited by accident.
 1. **What is the goal model in B4, concretely?** An enum the controller sets, or derived per pass?
    The four jobs `score` conflates suggest at least *acquire mults* / *clear a gate* / *bank rep* /
    *recover*. Needs a real design pass. **Wake-up:** after A1 and B2 ship, when no live state is at
@@ -288,8 +403,27 @@ explicitly secondary.
 
 ## Proposed sequence
 
-1. Verify the gap-9 deadlock read against live behavior (traced through code; not yet watched fail).
-2. Build + ship **A1**, validated against the live deadlock before it expires.
-3. Let the clear proceed; **B2** next, since it would have caught both stalls that motivated it.
-4. **B1** and **B3** as their own spec passes.
-5. **B4** when there's no live state at risk — and revisit whether A1 should fold into it.
+1. ~~Verify the gap-9 deadlock read against live behavior.~~ Done — seller data was conclusive.
+2. ~~Build + ship **A1**, validated against the live deadlock.~~ **Done (`5ad32a3`)**, including
+   the runaway and its fix.
+3. **A2 — the install exception.** Blocks the clear. Wants a spec, not a patch: it edits the
+   endgame path, which has never run unattended, and A1 just demonstrated what implementer
+   assumptions cost there.
+4. **B2** next, since it would have caught both stalls that motivated it — and it is exactly what
+   makes the fresh node's day-long unattended run observable.
+5. **B1** and **B3** as their own spec passes.
+6. **B4** when there's no live state at risk — and revisit whether A1 should fold into it.
+
+## Handoff notes for the spec stage
+
+- **Scope the spec to A2 + B2 + B1.** A1 is shipped; B3 is a strategy question with a wake-up
+  condition, not a build; B4 has acceptance criteria (D10) but no design and should not be rushed.
+- **Read the A1 runaway before speccing A2.** They are the same distinction — A1 needed the
+  *queued* count to stop buying, A2 needs the *installed* count to move — and getting it backwards
+  is what produced 9 purchases in 90 seconds.
+- **Inherited decisions:** D1–D12 are settled; don't relitigate. D12 (skip the spec for A1) is
+  recorded honestly as a decision that did not pay off — it is not precedent.
+- **Live state is in this doc** ("Current game state") and expires when we clear. If the clear
+  happens first, A2 must be specced against the recorded state rather than a live one.
+- **The engine is stable right now** — `phase: grinding`, nothing firing, 9 augs banked that count
+  the instant an install occurs. Nothing degrades while this is specced.
