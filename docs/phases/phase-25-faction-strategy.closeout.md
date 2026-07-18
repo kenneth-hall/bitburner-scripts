@@ -1,16 +1,23 @@
-# Phase 25 — close-out handoff (2026-07-16, L7 closed 2026-07-17)
+# Phase 25 — close-out handoff (2026-07-16, L7 closed 2026-07-17, gap 7 found 2026-07-18)
 
 **Read this first if you're picking up Phase 25 cold.** The spec
 (`phase-25-faction-strategy.spec.md`) is the design record and its "Close-out (2026-07-15)"
 section is the BN1.2-clear record. This doc is the *handoff*.
 
 **Status:** shipped 2026-07-14 · cleared BN1.2 2026-07-15 · S11's gate met 2026-07-16 ·
-**L7 PASSED 2026-07-17 — the last open item. Every step of the cycle has now executed at
-least once.** The phase has no open tests. Reading L7's logs turned up two bugs (gaps 5 and
-6); both fixed the same day, and the NFG price ladder they exposed is now measured (2.166)
-and the projection corrected. **Two gaps remain open — 3 and 4 — and neither is new.
-Gap 4 (no supervision) is the one that matters:** it is now the only thing between here and
-unattended running.
+L7 passed 2026-07-17 — every step of the cycle has executed at least once. Reading L7's logs
+turned up two bugs (gaps 5 and 6); both fixed the same day, and the NFG price ladder they
+exposed is now measured (2.166) and the projection corrected.
+
+**Then the cycle stalled.** After install #8 (2026-07-17 9:45), the auto ratchet sat **25
+hours in `phase: "grinding"` doing nothing** — `gainArmed: true`, gain 2.36, $3.3q idle,
+`phaseArmed: false` permanently. That is **gap 7**, found and fixed 2026-07-18. Three gaps are
+open — 3, 4 and 7's follow-on — and the earlier "the phase has no open tests" line was
+retracted with it.
+
+**Read this before trusting the "proven" column below: proven ≠ repeatable.** Every step had
+executed at least once, and the cycle still could not run itself a third time unattended. The
+table records coverage, not reliability.
 
 ---
 
@@ -130,6 +137,36 @@ All tracked in `BACKLOG.md`; repeated here so the handoff is self-contained. **G
 stable IDs** (`BACKLOG.md`, `CHANGELOG.md` and CLAUDE.md all cite them), so they keep their
 original numbers and the list reads out of order. Everything else is under "Closed" below.
 
+7. **~~The trigger cannot arm at a rep-complete plateau.~~ FIXED 2026-07-18 — but read the
+   lesson, it is the important part.** After install #8 the cycle sat **25 hours** in
+   `phase: "grinding"` with nothing to do:
+   ```
+   trigger: { armed: false, horizonMs: null,
+              reasons: { gainArmed: true, phaseArmed: false } }
+   totalGain 2.356 · nfgLevelsProjected 16 · money $3,336t · 6 augs queued
+   ```
+   **Mechanism.** Of the 38 augs reachable from our 8 joined factions, **zero still owed rep**,
+   so `pickHorizonGrind` correctly returned `{faction: undefined}` — and `evalTrigger` read
+   that as "no horizon measured, don't arm" when it actually means "**nothing left to wait
+   on**", which is arming evidence. The `idle-plateau` path that should have caught it is
+   unreachable: NFG's per-cycle cap (`buyBlocked`) keeps the head target non-rep-met, so
+   `planActions` takes the grind branch (`augfarmer.js:1004`) and the action list is never
+   empty. A real plateau wearing the `grinding` label.
+   - **Fixed** in `evalTrigger`: `grinding` + no faction owed rep ⇒ `phaseArmed = true`.
+     Money-blocked is deliberately excluded — that state is `awaiting-money`, which still never
+     arms, so the plateau read only fires when *rep* has run out of things to buy.
+   - **Fifth instance of this doc's recurring confusion.** Bugs 1 and 2 were the same state —
+     everything rep-met, horizon undefined — and **both fixes only widened *which* faction gets
+     picked. Neither handled "correctly picks none."** Three fixes in, the null case had still
+     never been tested. When this code names a faction, also ask what it means when it names
+     *nothing*.
+   - **It failed exactly the way gap 4 predicts a companion death would:** silent permanent
+     stop, indistinguishable from healthy at a glance, invisible until someone read the logs.
+     Different cause, identical signature. **So gap 4's supervisor must watch progress
+     liveness, not process liveness** — every process here was alive and healthy for 25 hours.
+     That is a design constraint on gap 4, discovered by gap 7.
+   - **Follow-on, still open:** nothing detects "auto mode, hours elapsed, no install." A
+     stall-age check is the cheap general net that would have caught this class on day one.
 4. **No supervision — the Level-2 gap. THE ONE THAT MATTERS.** Companions launch at
    `daemon.js:415-455`, **before** the `while (true)` at 626. They launch once; nothing monitors
    or relaunches them. Any companion death is a **silent permanent stop**. And `augfarmer.js`
@@ -222,13 +259,18 @@ always strands up to one level's price. **Do not "fix" this.**
 
 ## What to do next
 
-Phase 25 has no open tests. Gaps 5 and 6 are fixed, and the NFG ladder they exposed is now
-measured and the projection corrected. **Only gap 4 is left.**
+Gaps 5, 6 and 7 are fixed. **Gap 4 is still the prize, and gap 7 has now specified part of it.**
 
-1. **Gap 4 — the supervisor + reserve bump.** The big one, and the **only** thing between here
-   and unattended 24/7 running (the actual prize; sleep ≈ no progress, 24/7 is a free ~2×).
-   Fix is supervisor + reserve bump together or neither — see the gap-4 write-up above.
-2. **Gap 3 — confirm Daedalus's 30-aug gate counts NFG levels.** Cheap, and it shapes the
+1. **Gap 4 — the supervisor + reserve bump.** The big one, and the main thing between here and
+   unattended 24/7 running (the actual prize; sleep ≈ no progress, 24/7 is a free ~2×). Fix is
+   supervisor + reserve bump together or neither — see the gap-4 write-up above. **Gap 7 adds a
+   requirement: it must watch *progress*, not processes.** A supervisor that only checks "is
+   `augfarmer.js` running" would have reported all-green through the entire 25-hour stall.
+2. **Gap 7's follow-on — a stall-age check.** Cheapest possible version: in auto mode, if
+   `now - lastAugReset` exceeds some multiple of the observed cycle time with no install, say so
+   (dashboard or log). Catches this whole class, including causes not yet imagined. Arguably
+   this is gap 4's first increment rather than a separate item.
+3. **Gap 3 — confirm Daedalus's 30-aug gate counts NFG levels.** Cheap, and it shapes the
    BN1.3 endgame timing. Do it before the gate matters.
 
 **Abort levers, unchanged:** set `ratchet-mode.txt` to anything but `auto`, or create

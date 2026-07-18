@@ -6,6 +6,24 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-18
+
+- **Phase 25 gap 7 — the trigger could not arm at a rep-complete plateau; the auto cycle sat 25
+  hours doing nothing.** After install #8 every one of the 38 reachable augs was rep-met, so
+  `pickHorizonGrind` correctly returned no faction — and `evalTrigger` read "no horizon" as "don't
+  arm" when it means "nothing left to wait on." `idle-plateau` couldn't catch it either: NFG's
+  per-cycle cap keeps the action list non-empty, so `planActions` stays in `grinding`. Result:
+  `gainArmed: true`, gain 2.36, **$3.3q idle, 25h stalled, every process healthy**. Fixed —
+  `grinding` + nothing owed rep now arms (money-blocked stays excluded; that's `awaiting-money`).
+  590 tests pass (7 new, incl. the live shape as a fixture and a guard against the money-blocked
+  overreach); two older tests whose "does not arm" control *was* this state rewritten to assert
+  their real intent. Validated live: armed 10s after the reload, `phaseArmed: true` /
+  `horizonMs: null`. **Fifth instance of the phase's faction-identity confusion — and the first
+  where the answer was "no faction at all"; the two prior fixes both only widened which faction
+  gets picked.** It also failed with gap 4's exact signature (silent permanent stop, all processes
+  alive), which is now a design constraint on gap 4: **the supervisor must watch progress, not
+  processes.** → `docs/phases/phase-25-faction-strategy.closeout.md`, "Open gaps" (7).
+
 ## 2026-07-17
 
 - **Phase 25's last open item closed: the first auto fire (L7) passed — install #6.** The

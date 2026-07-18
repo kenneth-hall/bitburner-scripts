@@ -22,6 +22,13 @@ do, and what's broken?*
 
 ## Bugs
 
+- **Nothing detects a stalled auto cycle** — gap 7's follow-on. The trigger sat 25h unarmed with
+  $3.3q idle (2026-07-17 → 07-18) and nothing said a word; every process was alive and healthy the
+  whole time. The arming bug itself is fixed, but the *class* isn't: in auto mode there is no check
+  for "hours since `lastAugReset` >> observed cycle time, no install." Cheapest net: emit that as a
+  dashboard line or log warning. Arguably the first increment of the supervisor below, since it
+  proves the supervisor must watch **progress, not processes**. → close-out doc, "Open gaps" (7).
+
 - **No supervision + `HOME_RESERVE_GB` (32) < augfarmer's 64.1 GB** — companions launch once at
   `daemon.js:415-455`, *before* the loop at 626; nothing monitors or relaunches them, so any
   companion death is a **silent permanent stop**, and `augfarmer.js` can't be relaunched at all

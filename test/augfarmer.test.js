@@ -723,13 +723,21 @@ describe('pickHorizonGrind', () => {
     });
 
     const fixed = pickHorizonGrind(candidates, joined, donationClosable);
-    expect(evalTrigger(inputs(fixed), null).armed).toBe(true);
+    const armedFixed = evalTrigger(inputs(fixed), null);
+    expect(armedFixed.armed).toBe(true);
+    // It arms because it MEASURED NiteSec's ~13h wait and judged it too long.
+    expect(armedFixed.horizonMs).toBeGreaterThan(GRIND_HORIZON_MS);
 
     // The superseded wiring (follow pickWorkFaction) fell back to the rep-met
-    // head and could never arm -- the live plateau, reproduced.
+    // head and reported no faction owed rep. Since gap 7 (2026-07-18) that no
+    // longer deadlocks -- it arms as a plateau -- so `armed` alone no longer
+    // discriminates the two wirings. What still does: the stale wiring arms
+    // BLIND, with horizonMs null, having never seen the 42.6k deficit it was
+    // supposed to be waiting on. Right answer, wrong reasoning; the assertion
+    // is on the reasoning.
     const viaWorkFaction = pickWorkFaction(candidates, joined, PASSIVE_REP_FACTIONS, donationClosable);
     const stale = { faction: viaWorkFaction.deficit > 0 ? viaWorkFaction.faction : undefined, deficit: viaWorkFaction.deficit > 0 ? viaWorkFaction.deficit : 0 };
-    expect(evalTrigger(inputs(stale), null).armed).toBe(false);
+    expect(evalTrigger(inputs(stale), null).horizonMs).toBeNull();
   });
 });
 
@@ -801,6 +809,64 @@ describe('evalTrigger', () => {
     expect(evalTrigger(longHorizon, null).armed).toBe(true);
   });
 
+  describe('gap 7 -- grinding with nothing owed rep is a plateau, and must arm', () => {
+    // Live regression, 2026-07-18: the auto cycle sat 25h in phase "grinding"
+    // with gainArmed true (gain 2.36) and $3.3q idle, because every reachable
+    // aug was rep-met so pickHorizonGrind returned {faction: undefined} and
+    // the old code read that as "no horizon -> don't arm". NFG's per-cycle cap
+    // keeps planActions in "grinding" (never "idle-plateau"), so this state is
+    // the steady state at a plateau, not a transient.
+    const noOwedGrind = { phase: 'grinding', targetFaction: undefined, deficit: 0 };
+
+    it('arms when pickHorizonGrind found no faction still owed rep', () => {
+      const t = evalTrigger(baseInputs(noOwedGrind), null);
+      expect(t.reasons).toEqual({ gainArmed: true, phaseArmed: true });
+      expect(t.armed).toBe(true);
+      expect(t.horizonMs).toBeNull();
+    });
+
+    it('fires after the normal sustain, same as any other arm', () => {
+      const t0 = evalTrigger(baseInputs({ ...noOwedGrind, now: 0 }), null);
+      expect(t0.fired).toBe(false);
+      expect(evalTrigger(baseInputs({ ...noOwedGrind, now: TRIGGER_SUSTAIN_MS }), t0).fired).toBe(true);
+    });
+
+    it('still respects every gain-side block (the plateau read widens phaseArmed only)', () => {
+      expect(evalTrigger(baseInputs({ ...noOwedGrind, queuedGain: 1.05 }), null).armed).toBe(false);
+      expect(evalTrigger(baseInputs({ ...noOwedGrind, queuedCount: 0, queuedGain: 5 }), null).armed).toBe(false);
+      expect(evalTrigger(baseInputs({ ...noOwedGrind, paused: true }), null).armed).toBe(false);
+      expect(evalTrigger(baseInputs({ ...noOwedGrind, endgameHold: true }), null).armed).toBe(false);
+    });
+
+    it('does NOT arm when we are merely money-blocked (that is phase awaiting-money)', () => {
+      // rep is met but cash is short -- waiting genuinely earns the buy, so
+      // this must stay a non-arming phase. Guards the fix against overreach.
+      expect(evalTrigger(baseInputs({ phase: 'awaiting-money', targetFaction: undefined, deficit: 0 }), null).armed).toBe(false);
+    });
+
+    it('a faction IS owed rep -> the horizon rule still governs (unchanged)', () => {
+      const short = baseInputs({ phase: 'grinding', targetFaction: 'F1', deficit: 1000, repRates: { F1: 1 }, rateSamples: { F1: 40 } });
+      expect(evalTrigger(short, null).armed).toBe(false);
+    });
+
+    it("install #8's live shape: the exact state that stalled 25h", () => {
+      const stalled = baseInputs({
+        phase: 'grinding',
+        targetFaction: undefined, // all 38 reachable augs rep-met
+        deficit: 0,
+        queuedGain: 2.0091,
+        queuedCount: 6,
+        nfgPrice: 8_661_370_675,
+        nfgHackingMult: 1.01,
+        money: 3_336_199_017_192_556,
+        mode: 'auto',
+      });
+      const t = evalTrigger(stalled, null);
+      expect(t.armed).toBe(true);
+      expect(t.totalGain).toBeGreaterThan(MIN_TOTAL_GAIN);
+    });
+  });
+
   it('auto-mode latch: once fired, a spend-down/installing phase input does not clear it', () => {
     const t0 = evalTrigger(baseInputs({ now: 0, mode: 'auto' }), null);
     const t1 = evalTrigger(baseInputs({ now: TRIGGER_SUSTAIN_MS, mode: 'auto' }), t0);
@@ -823,7 +889,14 @@ describe('evalTrigger', () => {
   it('the mode-file lever (mode no longer "auto") drops the latch', () => {
     const t0 = evalTrigger(baseInputs({ now: 0, mode: 'auto' }), null);
     const t1 = evalTrigger(baseInputs({ now: TRIGGER_SUSTAIN_MS, mode: 'auto' }), t0);
-    const reverted = evalTrigger(baseInputs({ now: TRIGGER_SUSTAIN_MS + 1, mode: 'observe', phase: 'grinding' }), t1);
+    // The reverted call must land on inputs that genuinely do NOT arm, or the
+    // test proves nothing about the latch. A grind with a short measured
+    // horizon is such a state; bare `phase: 'grinding'` is not (since gap 7 it
+    // arms as a plateau when no faction is owed rep).
+    const reverted = evalTrigger(
+      baseInputs({ now: TRIGGER_SUSTAIN_MS + 1, mode: 'observe', phase: 'grinding', targetFaction: 'F1', deficit: 1000, repRates: { F1: 1 }, rateSamples: { F1: 40 } }),
+      t1,
+    );
     expect(reverted.fired).toBe(false);
   });
 

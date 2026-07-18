@@ -655,9 +655,11 @@ export function updateRepRates(prevRates, prevReps, reps, dtMs) {
  * price and the observed x1.9 ladder -- NFG's rep requirement may bind
  * first and cut the real count; accepted optimism, logged so observe data
  * shows the error). armed requires totalGain >= MIN_TOTAL_GAIN, at least
- * one aug queued, not paused, not endgame-held, and either idle-plateau or
- * (grinding with a measured (>=RATE_MIN_SAMPLES) rep rate whose deficit
- * horizon exceeds GRIND_HORIZON_MS). fired := armed continuously for
+ * one aug queued, not paused, not endgame-held, and either idle-plateau, or
+ * grinding with EITHER no faction still owed rep at all (gap 7: a plateau
+ * wearing the "grinding" label, because NFG's cycle cap keeps the action
+ * list non-empty) OR a measured (>=RATE_MIN_SAMPLES) rep rate whose deficit
+ * horizon exceeds GRIND_HORIZON_MS. fired := armed continuously for
  * TRIGGER_SUSTAIN_MS, recomputed fresh each call from priorState's
  * armedSinceMs -- so in observe mode a lapsed condition naturally clears
  * fired next call.
@@ -715,12 +717,34 @@ export function evalTrigger(inputs, priorState) {
   if (gainArmed) {
     if (phase === "idle-plateau") {
       phaseArmed = true;
-    } else if (phase === "grinding" && targetFaction) {
-      const rate = repRates[targetFaction];
-      const samples = rateSamples[targetFaction] ?? 0;
-      if (rate > 0 && samples >= RATE_MIN_SAMPLES) {
-        horizonMs = deficit / rate;
-        phaseArmed = horizonMs > GRIND_HORIZON_MS;
+    } else if (phase === "grinding") {
+      if (!targetFaction) {
+        // Gap 7 (2026-07-18). `pickHorizonGrind` returning no faction means
+        // NO reachable aug still owes rep -- there is nothing left to wait
+        // on, which is a plateau however the phase is labelled. It is NOT
+        // "keep grinding": planActions labels this "grinding" only because
+        // NFG's per-cycle cap (buyBlocked) keeps the head target non-rep-met
+        // and so keeps the action list non-empty, never reaching the
+        // "idle-plateau" label. Reading undefined as "no horizon, don't arm"
+        // stalled the auto cycle for 25h with $3.3q idle and gain 2.36.
+        //
+        // Money-blocked is deliberately NOT this case: planActions returns
+        // "awaiting-money" there (see the repMet branch), and that phase
+        // never arms -- so this only fires when rep, not cash, is what has
+        // run out of things to buy.
+        //
+        // This is the fifth instance of this file's recurring faction-identity
+        // confusion (see phase-25-faction-strategy.closeout.md): the previous
+        // two fixes both widened *which* faction gets picked and neither
+        // handled "correctly picks none".
+        phaseArmed = true;
+      } else {
+        const rate = repRates[targetFaction];
+        const samples = rateSamples[targetFaction] ?? 0;
+        if (rate > 0 && samples >= RATE_MIN_SAMPLES) {
+          horizonMs = deficit / rate;
+          phaseArmed = horizonMs > GRIND_HORIZON_MS;
+        }
       }
     }
   }
