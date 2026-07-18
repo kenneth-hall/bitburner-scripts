@@ -10,7 +10,7 @@
 
 import { getHosts, HOME_RESERVE_GB, totalAllocatableRam } from "./hosts.js";
 import { getTargets } from "./targets.js";
-import { tprintTs, workerRamCosts } from "./common.js";
+import { tprintTs, workerRamCosts, buildTargetsRanking } from "./common.js";
 import {
   WORKER_SCRIPTS,
   SHARE_FRACTION,
@@ -112,7 +112,6 @@ const MEMBER_LIST_CAP = 12;
 // spec's open question iii; a crash-before-done there heals at the next
 // daemon restart, same as before this phase).
 export const RESIDENT_COMPANIONS = [
-  "targetsmonitor.js",
   "transactionsmonitor.js",
   "resourcemanager.js",
   "cloudmanager.js",
@@ -129,6 +128,17 @@ export const SUPERVISOR_RETRY_MS = 5 * 60_000; // per-script backoff so an insta
 // once per CYCLE_MS via `snapshot` events and lacks several tail-only fields
 // (math mode, share-OFF flag, per-tick WARNs). Written every tick, 0 GB.
 const DAEMON_STATUS_FILE = "daemon-status.json";
+
+// dashboard.js's targets panel source. Written here rather than by a separate
+// monitor: producing it needs the ranked target list plus each target's live
+// security/money, and the daemon already computes both every tick (liveStates,
+// below). The retired targetsmonitor.js re-derived the ranking via its own
+// getTargets import -- ~9.5 GB of duplicated getServer/*Analyze* machinery in a
+// second process, for a file the daemon could write for 0 GB. Same 1 s cadence
+// either way: targetsmonitor's LIVE_REFRESH_MS and BATCH_INTERVAL_MS are both
+// 1000, so retiring it cost no freshness.
+const TARGETS_RANKING_FILE = "targets-ranking.json";
+const TARGETS_RANKING_TOP_N = 5; // file carries a little more than the panel shows, at zero extra cost
 
 /**
  * Shared free-RAM-check preamble for launchDetached/runAndWait: true iff
@@ -148,8 +158,8 @@ function fitsOnHome(ns, script) {
 }
 
 /**
- * Fire-and-forget launch for a long-running companion script that opens its
- * own tail window and never exits (targetsmonitor.js), or a Singularity-heavy
+ * Fire-and-forget launch for a long-running companion script that never exits
+ * (transactionsmonitor.js), or a Singularity-heavy
  * self-terminating one (procureprograms.js) -- unlike runAndWait's one-shot
  * utilities, there's nothing to wait for here. Singularity scripts carry a
  * RAM multiplier without SF4 and commonly just don't fit on home yet -- an
@@ -475,12 +485,12 @@ export async function main(ns) {
   // instance left running from a previous session would never get cleaned
   // up on restart, and would silently compete with the new one for RAM.
   await runAndWait(ns, "killscripts.js", ns.pid);
-  // Companions: neither calls ns.exec, so they have zero effect on the
-  // worker-RAM pool this daemon competes for -- targetsmonitor.js is
-  // read-only, transactionsmonitor.js writes the day's transactions log
-  // (src/translog.js) as income lands. Both headless as of Phase 24 --
-  // dashboard.js is the only standing tail.
-  launchDetached(ns, "targetsmonitor.js");
+  // Companion: doesn't call ns.exec, so it has zero effect on the worker-RAM
+  // pool this daemon competes for -- transactionsmonitor.js writes the day's
+  // transactions log (src/translog.js) as income lands. Headless as of Phase
+  // 24 -- dashboard.js is the only standing tail. (targetsmonitor.js was
+  // retired here: it cost 12.70 GB to re-derive a ranking this daemon already
+  // computes, and now writes itself -- see TARGETS_RANKING_FILE.)
   launchDetached(ns, "transactionsmonitor.js");
   // Phase 11: resource manager first, so its state file usually exists by
   // its consumers' first polls -- a nicety, not a correctness requirement,
@@ -653,7 +663,7 @@ export async function main(ns) {
     const currentTargetNames = new Set(targets.map((t) => t.server));
     // "new target" prints were removed as non-actionable terminal noise: they
     // fire routinely as the hacking level climbs and unlocks servers, and
-    // targetsmonitor.js already surfaces the live eligible-target set. The
+    // targets-ranking.json already surfaces the live eligible-target set. The
     // rarer "dropped target" line is kept -- a target leaving eligibility is
     // infrequent and more likely to be worth a glance.
     for (const name of previousTargetNames) {
@@ -1259,6 +1269,37 @@ export async function main(ns) {
           skipWarnServers,
           failedLaunches,
         })
+      ),
+      "w"
+    );
+
+    // dashboard.js's targets panel source (see TARGETS_RANKING_FILE). targets
+    // is already score-ordered by getTargets, and liveStates was populated for
+    // every target earlier this tick -- before the sample===null continue, so
+    // even targets excluded from candidates still carry a live entry here.
+    ns.write(
+      TARGETS_RANKING_FILE,
+      JSON.stringify(
+        buildTargetsRanking(
+          // `live`, not `ls` -- a local named `ls` matches ns.ls and the static
+          // RAM analyzer charges its 0.20 GB on the name alone, never mind that
+          // the receiver is a Map entry. Measured: 16.50 GB with `ls`, 16.30 GB
+          // with `live`. Same class as CLAUDE.md's `state.share` phantom.
+          targets.slice(0, TARGETS_RANKING_TOP_N).map((t) => {
+            const live = liveStates.get(t.server);
+            return {
+              server: t.server,
+              prepped: isPrepped(live),
+              sec: live.currentSecurity,
+              minSec: t.minSecurityLevel,
+              money: live.currentMoney,
+              maxMoney: t.maxMoney,
+              score: t.score,
+            };
+          }),
+          targets.length,
+          Date.now()
+        )
       ),
       "w"
     );

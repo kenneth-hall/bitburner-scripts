@@ -112,3 +112,18 @@ export function workerRamCosts(ns) {
     [WORKER_SCRIPTS.weaken]: ns.getScriptRam(WORKER_SCRIPTS.weaken, "home"),
   };
 }
+
+/**
+ * Assembles the targets-ranking.json record from `entries` (already sliced to
+ * the top N and live-refreshed) and the full unsliced count -- dashboard.js
+ * derives its own top-3 + "(+N more)" from this.
+ *
+ * Pure. Lived in targetsmonitor.js until that script was retired (its ranking
+ * duplicated getTargets analysis daemon.js already pays for -- ~9.5 GB of
+ * getServer + the *Analyze* family, a second time, in a second process). It
+ * sits in common.js rather than daemon.js so the unit test can import it
+ * without dragging in the daemon.
+ */
+export function buildTargetsRanking(entries, totalCount, now) {
+  return { timestamp: now, time: new Date(now).toLocaleTimeString(), totalCount, targets: entries };
+}
