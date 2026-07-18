@@ -133,7 +133,9 @@ describe('listHosts', () => {
     });
     const homeEntry = listHosts(ns).find((h) => h.hostname === 'home');
     expect(homeEntry.freeRam).toBe(0);
-    expect(HOME_RESERVE_GB).toBe(32);
+    // Phase 26 S6: 32 -> 80, sized to augfarmer.js's measured 64.1 GB plus
+    // headroom for a concurrent small-companion relaunch (B1).
+    expect(HOME_RESERVE_GB).toBe(80);
   });
 });
 
@@ -148,14 +150,22 @@ describe('totalAllocatableRam', () => {
 
   it('holds HOME_RESERVE_GB back for home only', () => {
     const hosts = [
-      { hostname: 'home', maxRam: 64 },
+      { hostname: 'home', maxRam: 128 },
       { hostname: 'n00dles', maxRam: 16 },
     ];
-    expect(totalAllocatableRam(hosts)).toBe(64 - HOME_RESERVE_GB + 16);
+    expect(totalAllocatableRam(hosts)).toBe(128 - HOME_RESERVE_GB + 16);
   });
 
   it('clamps home contribution at 0 when maxRam is below the reserve', () => {
     const hosts = [{ hostname: 'home', maxRam: 8 }];
+    expect(totalAllocatableRam(hosts)).toBe(0);
+  });
+
+  it('flips to 0 at the new 80 GB reserve for a home that used to clear the old 32 GB one (Phase 26 S6 regression guard)', () => {
+    // 64 GB cleared the pre-Phase-26 32 GB reserve with headroom; it does not
+    // clear the new 80 GB one. Locks the intended behavior change in, since
+    // the whole point of S6 was to widen the reserve past exactly this size.
+    const hosts = [{ hostname: 'home', maxRam: 64 }];
     expect(totalAllocatableRam(hosts)).toBe(0);
   });
 

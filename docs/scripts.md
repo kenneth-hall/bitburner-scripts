@@ -31,7 +31,7 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 ## Core daemon loop (`daemon.js` orchestrates; most are imported, not run)
 | Script | Role |
 |---|---|
-| `daemon.js` | Central-allocation HWGW batcher. Runs forever on home; also drives prep + `ns.share()`. Headless (Phase 24) — publishes `daemon-status.json` for `dashboard.js`. Restart via `tools/bb/cli.mjs restart daemon.js`. |
+| `daemon.js` | Central-allocation HWGW batcher. Runs forever on home; also drives prep + `ns.share()`. Headless (Phase 24) — publishes `daemon-status.json` for `dashboard.js`. Phase 26 B1: every `SUPERVISOR_CHECK_MS` (60s) diffs `ns.ps("home")` against `RESIDENT_COMPANIONS` and relaunches any missing one (backoff-bounded; a missing-but-doesn't-fit-yet companion waits instead of relaunch-storming). Restart via `tools/bb/cli.mjs restart daemon.js`. |
 | `scheduler.js` | *(imported)* Pure batch math — threads, `additionalMsec` timing, RAM bin-packing. No `ns`. |
 | `targets.js` | *(imported)* Decides **what to attack**, ranked. |
 | `hosts.js` | *(imported)* Discovers **where workers run** (rooting + purchased servers). |

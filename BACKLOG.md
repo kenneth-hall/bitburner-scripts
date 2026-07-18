@@ -41,17 +41,6 @@ do, and what's broken?*
   proves the supervisor must watch **progress, not processes**. → **Phase 26 track B2**
   (`phase-26-ratchet-autonomy.features.md`); Phase 25's close-out is frozen.
 
-- **No supervision + `HOME_RESERVE_GB` (32) < augfarmer's 64.1 GB** — companions launch once at
-  `daemon.js:415-455`, *before* the loop at 626; nothing monitors or relaunches them, so any
-  companion death is a **silent permanent stop**, and `augfarmer.js` can't be relaunched at all
-  (batcher fills home to `maxRam - reserve`, pinning free RAM at 32 GB). Confirmed **structural**:
-  home 2 TB → 64 TB and free RAM went *down* (34.75 → 32.00 GB), so "buy more RAM" is not a fix.
-  Recovery today is `restart daemon.js`. Doesn't block the first auto fire (you're watching); does
-  block genuinely-unattended running, which is the real prize. **Fix is supervisor + reserve bump
-  together, or neither.** Note Phase 25 deliberately declined the bump, correctly for the case it
-  weighed. → **Phase 26 track B1** (`phase-26-ratchet-autonomy.features.md`); Phase 25's
-  close-out is frozen.
-
 - **Nothing installs the queued augs — second deadlock, still blocking the BN1.3 clear** — A1
   shipped and the engine now buys gate-closing augs (9 queued, $24.9b), but they are *queued*, not
   installed, and `endgameHold` blocks arming (`gainArmed` requires `!endgameHold`). So no trigger →
