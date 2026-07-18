@@ -109,6 +109,24 @@ do, and what's broken?*
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
   first — does `contract.submit()` dodge `attempt`'s 10 GB charge? — it can invalidate the
   single-script architecture. → `phase-19-contracts.features.md`.
+- **⚠️ Share ran for ~7 hours on a factionless fresh node and cost us ALL income** — measured
+  2026-07-18 in BN2. `ns.share()`'s rep multiplier only applies while doing faction work
+  ([[reference_share_boost_needs_faction_work]]) and we were in **zero factions**, so its 25%
+  carve (24 GB of a 100 GB fleet) was pure waste. Worse, it wasn't merely wasteful — it was
+  *decisive*: with only 75 GB of batch budget the daemon couldn't place even a
+  `MIN_HACK_FRACTION` batch for its top-scored target (pipeline 1,891 GB vs 75 GB budget), so it
+  skipped every tick and earned **$0 for ~7 hours**. Dropping `share-off.txt` raised the budget to
+  100 GB; the daemon immediately switched to an affordable target (n00dles) and money went
+  $5,695 → $14,565 in 45 s.
+  - **The rule that's missing:** share should be suppressed automatically whenever
+    `ns.getPlayer().factions` is empty — it is *provably* worthless then, no heuristic needed.
+    That's a stronger and simpler trigger than the fleet-size floor below, and it would have
+    prevented this outright.
+  - Also worth flagging: the daemon reserved 1,891 GB for a target it could never afford and
+    reported `floor: true` / `commitPct: 0` every tick without ever escalating. **A member that
+    has been at 0% commitment for N consecutive ticks should be dropped for an affordable one**,
+    which is what happened instantly once the budget rose. Silent permanent stall is the bug.
+
 - **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
   carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
   toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset
