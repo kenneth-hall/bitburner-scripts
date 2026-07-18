@@ -42,18 +42,35 @@ the batcher cannot cover for it. This is a real bet, not a free upgrade.
 
 ## The core constraint shaping this phase
 
-**We cannot develop or test any of this before entering BN2.** `ns.gang.inGang()` is the only
-gang call that works without SF2 (0 GB, no API access required); every other method needs SF2 or
-in-node presence. Consequences:
+**MEASURED 2026-07-18, in-node — supersedes this section's original "written blind before
+entry" framing.** Kenneth entered BN2.1 the same day, so the API is live and developable. But
+recon (`gangprobe.js` / `gangreach.js`, both read-only) found a sharper constraint underneath:
 
-- The observer is written **blind**, against `markdown/bitburner.gang.*.md` only.
-- First execution happens inside a node we can't cheaply exit.
-- **Therefore: assume the first run fails.** The spec should demand defensive reads, no
-  assumptions about field presence, and a failure mode that logs and continues rather than
-  throwing. A crash-looping observer in a fresh node with a RAM-tight home is a bad first hour.
+**Only `inGang()` works before a gang exists. 1 of 4 calls reachable.**
 
-This is a different risk profile from every prior phase, all of which iterated against the live
-game. It should be called out as such in the spec.
+```
+OK    inGang
+FAIL  getGangInformation     -- API ACCESS ERROR: Must have joined gang
+FAIL  getMemberNames         -- API ACCESS ERROR: Must have joined gang
+FAIL  getAllGangInformation  -- API ACCESS ERROR: Must have joined gang
+FAIL  getTaskNames           -- API ACCESS ERROR: Must have joined gang
+FAIL  getEquipmentNames      -- API ACCESS ERROR: Must have joined gang
+```
+
+`getTaskNames` and `getEquipmentNames` are documented at **0 GB** and still throw. So "0 GB RAM
+cost" does not imply "no gang required" — the docs don't state the gang precondition anywhere.
+
+### What this does to the phase
+
+- **D5 (static table dump before a gang) is dead.** Not deferred — impossible.
+- **Nothing about gangs is measurable before `createGang()`.** And `createGang` is the single
+  irreversible decision in the mechanic: gang type (`GangGenInfo.isHacking`) is fixed forever by
+  which faction you pick, with no `leaveGang()` to undo it.
+- **Therefore the observe-first strategy has a hard floor.** The most consequential choice must
+  be made with zero in-game data. Everything downstream of it can be measured; it cannot.
+
+This inverts the doc's original sequencing and needs resolving before the spec — see revised
+open question 1.
 
 ## API surface (read from `markdown/`, RAM costs confirmed)
 
@@ -109,21 +126,30 @@ into a task→yield table the optimizer can be built from.
 - Also capture `wantedPenalty` every sample. It's the classic silent income killer and it's
   directly exposed.
 
-### D5 — Snapshot the static tables once at startup.
+### D5 — Snapshot the static tables once at startup. ~~Pre-gang.~~ **REVISED**
 `getTaskNames` + `getTaskStats` (each task) and `getEquipmentNames` + `getEquipmentStats/Cost/Type`
 (each item) are static reference data. Dump once to a separate file rather than per-sample.
-- This alone answers a large fraction of our strategy unknowns without any live measurement, and
-  it's cheap. Highest-value-per-line item in the phase.
+- **Original claim — "answers a large fraction of our strategy unknowns without any live
+  measurement" — is FALSE and was falsified by recon the same day.** Both entry-point calls
+  require an existing gang. The dump still belongs at observer startup; it just cannot happen
+  before `createGang()`, so it informs nothing about the gang-type decision.
+- `src/gangprobe.js` already implements this dump and is **retained** — it runs correctly the
+  moment a gang exists. `src/gangreach.js` answered its question permanently and should be
+  **deleted** at spec time rather than carried as dead weight.
 
 ## Open questions — resolve by measurement in-node, NOT by guessing
 
 Explicitly parked. The spec should carry these as things the observer is *built to answer*, and
 none of them should acquire a number before the log does.
 
-1. **Gang type: hacking vs combat.** `GangGenInfo.isHacking` is read-only and fixed at
-   `createGang` by which faction you pick — a **one-shot, no-undo** decision. Needs: which
-   factions offer a gang in this build, which are hacking, and their invite requirements.
-   *Anti-spoiler note:* this is Kenneth's call to research or discover, not mine to import.
+1. **Gang type: hacking vs combat. — NOW THE BLOCKING DECISION, and it cannot be measured.**
+   `GangGenInfo.isHacking` is read-only, fixed at `createGang` by which faction you pick, with no
+   `leaveGang()`. Recon proved the API is fully closed until a gang exists, so **no amount of
+   observation can inform this choice** — the observe-first strategy explicitly cannot help here.
+   Needs: which factions offer a gang in this build, which are hacking, and their invite
+   requirements. *Anti-spoiler note:* Kenneth's call to research or discover, not mine to import.
+   **This is the one place the phase must accept deciding blind** — worth naming rather than
+   pretending data will arrive.
 2. **Faction invite prerequisites.** `createGang` requires existing membership in the faction.
    The karma ≤ 54000 gate is documented as applying *outside* BN2 only — but the faction's own
    invite requirement still applies in-node and we haven't captured it.
@@ -134,9 +160,18 @@ none of them should acquire a number before the log does.
    losing accumulated `earnedRespect`. The tradeoff curve is unmeasured.
 5. **Tick rate under bonus time.** Sets D3's flush cadence and tells us how fast the node
    actually moves.
-6. **Does the batcher still earn anything at 8% max money** — i.e. do we run the existing daemon
-   alongside, or is home RAM better spent elsewhere in BN2? Affects whether `gangwatch` competes
-   for RAM.
+6. **~~Does the batcher still earn anything at 8% max money~~ — PARTLY ANSWERED, and it's worse
+   than "competes for RAM": there is no RAM.** Measured on the fresh BN2 home 2026-07-18:
+   `daemon.js` + `targetsmonitor` + `transactionsmonitor` = **31.60 / 32.00 GB** (the two monitors
+   alone are **15.3 GB**). The daemon's supervisor log shows the *entire* companion suite failing
+   to start for lack of RAM: `augfarmer` 64.10 GB (never fits on a 32 GB home), `ratchetlog`
+   10.10, `cloudmanager` 6.25, `xpfarm` 5.85, `resourcemanager` 3.35, `dashboard` 2.60.
+   - **The observer's ~22 GB budget has nowhere to live**, and BN2's 8% max money makes buying
+     home RAM slower than in any node we've played. The spec must either fit `gangwatch` into a
+     drastically smaller footprint, or make an explicit call about what it displaces.
+   - Open sub-question this raises: **are the two monitors worth 15.3 GB on a fresh node?** That's
+     ~48% of home spent on observability while six functional companions can't start. Possibly a
+     bug-level finding for the existing toolchain, independent of gangs.
 7. **The Red Pill via gang.** `docs/bitnodes.md` (in-game guide) says BN2's gang faction offers
    The Red Pill directly. If true it restructures the entire endgame — no Daedalus, no 2.5m rep,
    no 30-aug gate. Verify early; it's the single highest-leverage unknown on this list.
