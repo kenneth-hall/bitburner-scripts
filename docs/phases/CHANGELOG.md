@@ -8,6 +8,31 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-18
 
+- **Phase 25 FROZEN; Phase 26 opened.** The close-out had drifted into a live bug tracker —
+  archived in `docs/phases/` yet still absorbing production bugs three days after shipping (gaps
+  7, 8 and 9 all landed 2026-07-18). Phase 25's own defects are now all closed; the remaining
+  items aren't its defects but design questions its spec never asked, so they moved to
+  **`phase-26-ratchet-autonomy.features.md`** (repo root while active): supervision (gap 4),
+  stall-age detection (gap 7's follow-on), NFG rep as a planned expense (gap 8's strategy half),
+  and gate-aware buying (gap 9). Phase 26's thesis is the root cause all four share — **`score` is
+  one number doing four jobs, and the engine has no representation of what it is currently trying
+  to achieve**; six separate Phase 25 bugs were that same absence surfacing somewhere new.
+- **Phase 25 gap 3 CLOSED — the Daedalus gate counts DISTINCT augs**, settled by our own position
+  rather than a test: 29 distinct + ~50 NFG levels, every *other* requirement met (`$288t` ≥
+  $100b, hacking 4251 ≥ 2500), and **no invite**. Prior evidence was consistent with both readings;
+  what settled it was a state where they predict *different observable outcomes*.
+- **Phase 25 gap 9 found — a hard deadlock now blocking the BN1.3 clear.** At 29/30 augs with
+  `endgameHold` on, arming is blocked → no spend-down → only the *head* target is bought → the head
+  is NFG forever → NFG never raises the distinct count. Wired Reflexes would close the gate for
+  1,250 rep / $0.004b against $288t on hand, but scores 0 on hacking so the engine can't see it.
+  Surfaced by a request to weight `company_rep`, which was **rejected** — it admits 4 zero-hacking
+  augs and misses the actually-cheapest exit (a combat aug). → Phase 26 track A1.
+- **`docs/neuroflux.md` — the ladder decomposes: 2.166 = 1.14 × 1.9.** The second factor is this
+  build's **per-purchase aug cost multiplier**, which applies to *every* aug, not just NFG, and
+  resets on install. So a $4m junk aug and a $25b real aug impose the same tax on everything bought
+  after them — 1 buy ≈ 0.8 NFG levels, 4 ≈ 3.3, 18 ≈ cycle destroyed. This is the number that
+  prices any "should we buy this?" decision, and it's why gate-buying must be tightly gated.
+
 - **Phase 25 gap 8 — NFG's rep requirement climbs ×1.14/level; the close-out had recorded that it
   doesn't.** Install #9 measured repReq 122,736 → 998,737 over exactly 16 levels (= 1.14¹⁶). The
   original "checked" reading compared a before/after that spanned a catalog which hadn't rebuilt —

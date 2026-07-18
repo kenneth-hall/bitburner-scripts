@@ -21,6 +21,30 @@ table records coverage, not reliability.
 
 ---
 
+> ## 🔒 FROZEN 2026-07-18 — this doc is history, not a tracker
+>
+> Phase 25 shipped, cleared BN1.2, and its own defects (gaps 3, 5, 6, 7, and gap 8's
+> arithmetic) are **all closed**. This file records what Phase 25 built and what running it
+> taught us. **Nothing here is a live work item.**
+>
+> It had drifted into a bug tracker — archived in `docs/phases/` yet still absorbing new
+> production bugs three days after shipping (gaps 7, 8 and 9 all landed on 2026-07-18 alone).
+> The remaining items are **not Phase 25 defects**; they're design questions its spec never
+> asked. They moved out:
+>
+> | Item | Where it went |
+> |---|---|
+> | Gap 4 — supervision | **Phase 26** |
+> | Gap 8 — NFG rep as a planned expense (strategy half) | **Phase 26** |
+> | Gap 9 — gate-aware buying / the endgame deadlock | **Phase 26** |
+> | Gap 7's follow-on — stall-age detection | **Phase 26** (folds into gap 4) |
+>
+> → **`phase-26-ratchet-autonomy.features.md`** (repo root while active) and `BACKLOG.md`.
+>
+> If you're here for live state, you're in the wrong file.
+
+---
+
 ## L7 — the first auto fire (2026-07-17, install #6)
 
 Ran end-to-end, unmodified, on the first attempt. **`auto` is still set** — the next fire
@@ -131,12 +155,33 @@ was the main auto-mode risk carried out of the BN1.2 clear.
 
 ---
 
-## Open gaps — two left
+## Gaps — final state at freeze
 
-All tracked in `BACKLOG.md`; repeated here so the handoff is self-contained. **Gap numbers are
-stable IDs** (`BACKLOG.md`, `CHANGELOG.md` and CLAUDE.md all cite them), so they keep their
-original numbers and the list reads out of order. Everything else is under "Closed" below.
+**Gap numbers are stable IDs** (`BACKLOG.md`, `CHANGELOG.md` and CLAUDE.md all cite them), so
+they keep their original numbers and the list reads out of order. Every gap below is either
+**CLOSED** (a Phase 25 defect, fixed) or **→ PHASE 26** (a design question, moved out — see the
+freeze banner). Nothing is left open *here*.
 
+9. **The engine cannot reach the Daedalus gate on its own — a hard deadlock. → PHASE 26.**
+   Found 2026-07-18 while checking a `company_rep` request; **this is what is blocking the BN1.3
+   clear right now.** State: 29/30 distinct augs, `endgameHold` on, `$288t` idle, hacking 4251.
+   - **The loop.** `endgameHold` blocks arming (`gainArmed` requires `!endgameHold`), so no
+     spend-down ever runs. Outside spend-down `planActions` only ever buys the **head** target.
+     The head is NFG (score 0.022), which outranks the only reachable real aug — Embedded
+     Netburner Module Analyze Engine (0.015) — **forever**. So: grind to NFG's 998,737 → buy a
+     level → **the distinct count does not move** (NFG is one entry, per gap 3) → repReq jumps
+     ×1.14 to 1.138m → repeat. It never buys the aug that closes the gate.
+   - **Cheapest exit is absurdly cheap and the engine can't see it.** Wired Reflexes: **1,250
+     rep, $0.004b**, against $288t on hand. It's filtered out for scoring 0 on hacking — correct
+     by stat value, wrong by *what we need*, which is +1 to a count.
+   - **Sixth instance of this doc's recurring confusion** ("what to buy" ≠ "what we're waiting
+     on" ≠ "what to work" ≠ **"what unlocks a gate"**). Six is a pattern, not luck: `score` is
+     doing four jobs and the engine has **no representation of what it is currently trying to
+     achieve.** That root cause, not another patch, is Phase 26's thesis.
+   - **Do NOT fix by weighting `company_rep`** — the request that surfaced this. It would admit
+     4 zero-hacking augs, *miss* the actually-cheapest exit (Wired Reflexes is a combat aug), and
+     permanently value a stat we never earn. Kenneth called this out as a naive hardcode before
+     any code was written; he was right.
 8. **~~NFG's rep requirement was recorded as not climbing with level. It climbs ×1.14.~~ Fixed
    2026-07-18 — but the *strategic* consequence is open and is the ratchet's next real problem.**
    Full mechanics now in **`docs/neuroflux.md`**; this is the phase-local record.
@@ -152,6 +197,15 @@ original numbers and the list reads out of order. Everything else is under "Clos
      the binding constraint and then shrinks the tail every cycle.** The tail is most of the gain
      (16 NFG levels vs 6 discrete augs at #9), so **per-cycle gain will decay toward the discrete
      augs alone.**
+   - **Follow-up the same hour (`491f6a0`), worth its own line.** The first fix guarded on
+     `nfgRep > 0 && nfgRepReq > 0` as "was rep info supplied?" — which **cannot distinguish "no
+     info" from "zero usable rep."** The second is the case the fix exists for, so it fell back
+     to the money-only projection precisely where it mattered. Caught on live state minutes after
+     shipping: repReq 998,737 vs ~180k rep, tail fully suppressed, projection still claiming 14
+     levels and `totalGain` 1.1495 — already past `MIN_TOTAL_GAIN`, with only `queuedCount: 0`
+     holding the trigger down. `repReq > 0` alone now marks supplied-ness. **Lesson: a `0`
+     default that doubles as a "missing" sentinel is the same bug wearing different clothes** —
+     and I shipped it *while fixing that exact class*.
    - **Fixed in code:** `NFG_REP_LADDER` + `nfgLevelsByRep`; `spendDownPlan`'s tail and
      `evalTrigger`'s projection are now bounded by **both** ladders. Previously the projection was
      money-only — documented as "accepted optimism ... NFG's rep requirement may bind first",
@@ -209,12 +263,17 @@ original numbers and the list reads out of order. Everything else is under "Clos
 3. **NFG counting / `daedalusGate`.** Install #5 answered S10's open question: queued NFG
    levels duplicate in `getOwnedAugmentations(true)` (queue 8 → 14), installed ones collapse
    to one entry. So `nfg.level` reads 1 forever (cosmetic), and `daedalusGate.installed`
-   counts distinct augs. **Unverified:** whether Daedalus's real 30-aug gate counts NFG
-   levels individually. If it does we undercount and over-grind. Confirm against the in-game
-   requirement before it shapes the BN1.3 plan — the 2026-07-15 clear reaching Daedalus at 33
-   distinct installed is consistent with *both* readings and settles nothing. (Install #6 is
-   another instance of the same ambiguity, not a tiebreak: 12 NFG levels went in and the
-   distinct count moved 8 → 15, i.e. +7 discrete augs and no new NFG entry.)
+   counts distinct augs. **CLOSED 2026-07-18 — the gate counts DISTINCT augs.** Answered by our
+   own position rather than a test: post-install-#9 we hold **29 distinct augs and ~50 NFG
+   levels**, with every *other* Daedalus requirement met (`$288t` ≥ $100b, hacking 4251 ≥ 2500,
+   read live from `inviteReqs`) — and **no invite**. If levels counted individually we'd be far
+   past 30 and already in. So `daedalusGate.installed`'s distinct count was right all along; we
+   do **not** undercount, and there's no over-grind to correct.
+   - Worth keeping: the earlier evidence (the 2026-07-15 clear at 33 distinct, install #6's
+     8 → 15 move) was consistent with *both* readings and settled nothing. What settled it was a
+     state where the two readings **predict different observable outcomes** — invited vs not.
+     When a question stalls on ambiguous data, look for the position that forces a disagreement
+     instead of collecting more of the same.
 
 ---
 
@@ -284,28 +343,26 @@ always strands up to one level's price. **Do not "fix" this.**
 
 ---
 
-## What to do next
+## Where the work went
 
-Gaps 5, 6 and 7 are fixed. **Gap 4 is still the prize, and gap 7 has now specified part of it.**
+**Nothing is left here.** Phase 25's own defects are closed; everything still live moved to
+**`phase-26-ratchet-autonomy.features.md`** (repo root while active), which carries gaps 4, 8's
+strategy half, 9, and 7's stall-age follow-on — plus the root cause all four share.
 
-1. **Gap 4 — the supervisor + reserve bump.** The big one, and the main thing between here and
-   unattended 24/7 running (the actual prize; sleep ≈ no progress, 24/7 is a free ~2×). Fix is
-   supervisor + reserve bump together or neither — see the gap-4 write-up above. **Gap 7 adds a
-   requirement: it must watch *progress*, not processes.** A supervisor that only checks "is
-   `augfarmer.js` running" would have reported all-green through the entire 25-hour stall.
-2. **Gap 7's follow-on — a stall-age check.** Cheapest possible version: in auto mode, if
-   `now - lastAugReset` exceeds some multiple of the observed cycle time with no install, say so
-   (dashboard or log). Catches this whole class, including causes not yet imagined. Arguably
-   this is gap 4's first increment rather than a separate item.
-3. **Gap 8's open half — plan NFG rep as an expense.** The arithmetic is fixed; the strategy
-   isn't. The NFG tail is most of each cycle's gain and it is on track to shrink every cycle. See
-   `docs/neuroflux.md`. This is the ratchet's next *design* question, not a bug.
-4. **Gap 3 — confirm Daedalus's 30-aug gate counts NFG levels.** Cheap, and it shapes the
-   BN1.3 endgame timing. Do it before the gate matters. Note gap 8 raises the stakes: if the gate
-   counts levels, the same ×1.14 rep ladder is also pacing our approach to Daedalus.
+**Abort levers, unchanged and still valid:** set `ratchet-mode.txt` to anything but `auto`, or
+create `augfarmer-pause.txt`.
 
-**Abort levers, unchanged:** set `ratchet-mode.txt` to anything but `auto`, or create
-`augfarmer-pause.txt`.
+## The one lesson worth carrying forward
+
+Six separate bugs in this phase were **the same bug**: code that names a faction or an aug
+without being clear which question it is answering — *what do we buy* / *what are we waiting on*
+/ *what should the slot work* / *what unlocks a gate*. Three fixes widened which faction gets
+picked; none asked what it means when the right answer is **none** (gap 7) or **something the
+scorer values at zero** (gap 9).
+
+The deeper version, and Phase 26's starting point: `score` is a single number doing four jobs,
+and the engine has **no representation of what it is currently trying to achieve.** Every one of
+these six was that absence surfacing somewhere new.
 
 ### Done since the first fire (2026-07-17 afternoon, installs #7-#8)
 

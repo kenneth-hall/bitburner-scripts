@@ -20,6 +20,35 @@ The catalog's *base* price also moves ~×1.14/level (observed ≈×4.23 ≈ 1.14
 the ×2.166 figure is the **paid** escalation within a single spend-down, which is what a buy loop
 needs. Don't mix them up: the 2.166 is the one that predicts affordability.
 
+### The 2.166 decomposes — and the other half applies to EVERY aug
+
+```
+2.166  =  1.14  ×  1.9
+           │        └── this build's per-purchase AUG COST MULTIPLIER
+           └────────── NFG's own per-level base-price scaling
+```
+
+**Every augmentation bought in a cycle multiplies the price of every subsequent aug that cycle by
+~1.9**, NFG or not; the multiplier resets on install. So our empirically-measured NFG ladder was
+never an NFG-specific fact — it's NFG's level scaling riding on a global purchase tax.
+
+This is the number that prices *any* "should we buy this?" question:
+
+| buys | subsequent-price inflation | cost at the NFG tail |
+|---|---|---|
+| 1 | 1.9× | ≈ 0.8 NFG levels |
+| 4 | ≈ 13× | ≈ 3.3 NFG levels |
+| 18 | ≈ 110,000× | cycle destroyed |
+
+Two consequences worth stating outright:
+
+- **A cheap aug is not a cheap purchase.** A $4m junk aug and a $25b real aug impose the *same*
+  1.9× tax on everything after them. Price is therefore the only thing that distinguishes them —
+  which is why "buy the cheapest one" is the right rule when you need an aug for its *count*
+  rather than its stats (→ Phase 26, gap 9).
+- **Buy order matters.** Inflation hits everything *after* a purchase, so any low-value buy
+  should come last in a cycle, after the augs whose price you care about.
+
 **Both ladders bound the tail, and either can bind first.** Price escalates far faster, so money
 was the binding constraint for installs #6-#9. That's changing — see below.
 

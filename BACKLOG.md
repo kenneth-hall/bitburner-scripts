@@ -31,14 +31,15 @@ do, and what's broken?*
   the gain (16 NFG levels vs 6 discrete augs at #9). Arithmetic is fixed (both ladders now bound
   the buy loop and the projection); **the strategy is open**: donation is the only rep lever that
   scales with our money surplus, and nothing currently aims it at NFG.
-  → [docs/neuroflux.md](docs/neuroflux.md), close-out "Open gaps" (8).
+  → [docs/neuroflux.md](docs/neuroflux.md), **Phase 26 track B3**.
 
 - **Nothing detects a stalled auto cycle** — gap 7's follow-on. The trigger sat 25h unarmed with
   $3.3q idle (2026-07-17 → 07-18) and nothing said a word; every process was alive and healthy the
   whole time. The arming bug itself is fixed, but the *class* isn't: in auto mode there is no check
   for "hours since `lastAugReset` >> observed cycle time, no install." Cheapest net: emit that as a
   dashboard line or log warning. Arguably the first increment of the supervisor below, since it
-  proves the supervisor must watch **progress, not processes**. → close-out doc, "Open gaps" (7).
+  proves the supervisor must watch **progress, not processes**. → **Phase 26 track B2**
+  (`phase-26-ratchet-autonomy.features.md`); Phase 25's close-out is frozen.
 
 - **No supervision + `HOME_RESERVE_GB` (32) < augfarmer's 64.1 GB** — companions launch once at
   `daemon.js:415-455`, *before* the loop at 626; nothing monitors or relaunches them, so any
@@ -48,14 +49,16 @@ do, and what's broken?*
   Recovery today is `restart daemon.js`. Doesn't block the first auto fire (you're watching); does
   block genuinely-unattended running, which is the real prize. **Fix is supervisor + reserve bump
   together, or neither.** Note Phase 25 deliberately declined the bump, correctly for the case it
-  weighed. → close-out doc, "Open gaps" (4).
+  weighed. → **Phase 26 track B1** (`phase-26-ratchet-autonomy.features.md`); Phase 25's
+  close-out is frozen.
 
-- **NFG counting: `nfg.level` misreports, `daedalusGate` may undercount** — install #5 answered
-  S10's open question (queued NFG levels duplicate in `getOwnedAugmentations(true)`, installed ones
-  collapse to one entry; annotated in `augfarmer.js`'s header). `nfg.level` reads 1 forever
-  (cosmetic). **Unverified and load-bearing:** whether Daedalus's real 30-aug gate counts NFG levels
-  individually — if it does we undercount (8/30 now) and over-grind. Confirm against the in-game
-  requirement before it shapes the BN1.3 plan. → close-out doc, "Open gaps" (3).
+- **The ratchet cannot reach the Daedalus gate on its own — hard deadlock, blocking the BN1.3
+  clear** — 29/30 distinct augs with `endgameHold` on, which blocks arming, so no spend-down runs
+  and only the *head* target is ever bought. The head is NFG forever (score 0.022 > the only
+  reachable real aug at 0.015), and buying NFG levels never raises the **distinct** count. Wired
+  Reflexes would close it for 1,250 rep / $0.004b against $288t on hand — invisible to the engine
+  because it scores 0 on hacking. Sixth instance of "the head isn't what we need."
+  → **Phase 26 track A1** (`phase-26-ratchet-autonomy.features.md`), fix now while the state exists.
 
 - **Observe-mode trigger flap: a fire self-clears, then re-fires every ~10 min** — firing sets
   `phase: "install-ready"`, which is not an arming phase, so the next poll clears it → re-arms →
@@ -63,7 +66,7 @@ do, and what's broken?*
   **Auto mode masks it** (the latch is gated on `mode === "auto"`), so it can't affect the first
   auto fire — but it degrades the observe-mode evidence the provisional constants need. Fix
   candidate: treat `install-ready` as arm-preserving, or latch on `fired` regardless of mode.
-  → close-out doc, "Open gaps" (2).
+  → Phase 25 close-out (frozen), "Resolved by L7 itself" (2).
 
 - **viteburner dev-server silently stops auto-exporting** — after hours of clean running (no
   crash, no error), `npm run dev` can stop producing fresh `logs/` downloads while `daemon.js`
