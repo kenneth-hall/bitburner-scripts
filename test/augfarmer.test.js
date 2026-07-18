@@ -933,6 +933,20 @@ describe('evalTrigger', () => {
       const b = evalTrigger(baseInputs({ ...rich, nfgRep: 0, nfgRepReq: 0 }), null);
       expect(b.nfgLevelsProjected).toBe(a.nfgLevelsProjected);
     });
+
+    it('ZERO usable rep projects 0 levels -- not money-only (live 2026-07-18)', () => {
+      // The case the whole fix exists for, and the one an over-eager
+      // supplied-ness test silently skips: no joined seller clears repReq, so
+      // pickNfgSeller returns null, the caller passes rep 0, and spendDownPlan
+      // suppresses the entire tail. Projecting money-only here claimed 14
+      // levels and a 1.1495 totalGain -- over MIN_TOTAL_GAIN -- against a real
+      // yield of zero. `repReq > 0` is what marks the info supplied; rep 0 is
+      // a real answer, not a missing one.
+      const t = evalTrigger(baseInputs({ ...rich, nfgRep: 0, nfgRepReq: 998_737 }), null);
+      expect(t.nfgLevelsProjected).toBe(0);
+      expect(t.projectedNfgFactor).toBe(1);
+      expect(t.totalGain).toBe(1); // queuedGain alone, no phantom NFG tail
+    });
   });
 
   it('auto-mode latch: once fired, a spend-down/installing phase input does not clear it', () => {
@@ -1050,6 +1064,14 @@ describe('spendDownPlan', () => {
     const nfgState = { livePrice: 100, faction: 'BitRunners', repMet: true };
     const withRep = spendDownPlan([], { augs: {} }, 100 + 100 * NFG_PRICE_LADDER + 1, nfgState);
     expect(withRep.length).toBe(2);
+  });
+
+  it('rep 0 with a real repReq buys nothing, however much money there is', () => {
+    // rep 0 is a real answer (cap 0), not missing info -- the same
+    // discriminator evalTrigger uses. repMet already guards this path today;
+    // the cap must agree rather than falling back to unbounded.
+    const nfgState = { livePrice: 100, faction: 'BitRunners', repMet: true, rep: 0, repReq: 998_737 };
+    expect(spendDownPlan([], { augs: {} }, 1e15, nfgState)).toEqual([]);
   });
 
   it('repeats NFG buys along the observed price ladder until unaffordable', () => {

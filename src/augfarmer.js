@@ -731,9 +731,18 @@ export function evalTrigger(inputs, priorState) {
   // 999k over three installs. The old money-only projection was documented as
   // "accepted optimism ... NFG's rep requirement may bind first"; that
   // optimism is now the common case, and it inflates totalGain -- which is
-  // exactly what MIN_TOTAL_GAIN gates on. An unsupplied rep/repReq leaves the
-  // projection money-only, as before.
-  if (nfgRep > 0 && nfgRepReq > 0) {
+  // exactly what MIN_TOTAL_GAIN gates on.
+  //
+  // The supplied-ness test is `nfgRepReq > 0` ALONE, deliberately. Gating on
+  // `nfgRep > 0` too cannot distinguish "caller supplied no rep info" from
+  // "supplied it, and we hold zero usable rep" -- and the second is the case
+  // this exists for: when no joined seller clears repReq, spendDownPlan
+  // suppresses the whole tail, so the honest projection is 0, not money-only.
+  // Caught live 2026-07-18 with repReq 998,737 against ~180k rep: the tail was
+  // suppressed while the projection still claimed 14 levels and a 1.1495
+  // totalGain, already over MIN_TOTAL_GAIN. Only queuedCount 0 was holding the
+  // trigger down.
+  if (nfgRepReq > 0) {
     nfgLevelsProjected = Math.min(nfgLevelsProjected, nfgLevelsByRep(nfgRep, nfgRepReq));
   }
   const projectedNfgFactor = Math.pow(nfgHackingMult, nfgLevelsProjected);
@@ -888,8 +897,9 @@ export function spendDownPlan(sortedCandidates, catalog, money, nfgState) {
   }
 
   if (nfgState?.repMet && nfgState.faction && nfgState.livePrice > 0) {
-    const repCap =
-      nfgState.rep > 0 && nfgState.repReq > 0 ? nfgLevelsByRep(nfgState.rep, nfgState.repReq) : Infinity;
+    // `repReq > 0` alone marks the info as supplied -- see evalTrigger's note:
+    // rep of 0 is a real answer (cap 0), not a missing one.
+    const repCap = nfgState.repReq > 0 ? nfgLevelsByRep(nfgState.rep ?? 0, nfgState.repReq) : Infinity;
     let price = nfgState.livePrice;
     let nfgLevels = 0;
     while (actions.length < SPEND_DOWN_BUY_CAP && price > 0 && price <= remaining && nfgLevels < repCap) {
