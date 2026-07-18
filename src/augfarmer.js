@@ -31,15 +31,22 @@
 // Phase 25 trigger summary (S7, explicitly provisional -- see the decision
 // log, ratchet-decisions.json, which carries every constant in force on
 // every record so observe-mode data can re-derive better ones offline):
-// armed := projected total mult gain (queued augs x affordable NFG tail)
-// clears MIN_TOTAL_GAIN, at least one aug queued, not paused, not endgame
-// hold, and either nothing left to buy (idle-plateau) or the current grind's
-// rep horizon exceeds GRIND_HORIZON_MS. fired := armed continuously for
+// armed := (projected total mult gain clears MIN_TOTAL_GAIN, at least one aug
+// queued, not paused, not endgame hold, and either nothing left to buy
+// (idle-plateau) or the current grind's rep horizon exceeds
+// GRIND_HORIZON_MS) OR gateArmed. fired := armed continuously for
 // TRIGGER_SUSTAIN_MS. In auto mode fired is a latch (evalTrigger's own
 // shortcut) that only Kenneth's two abort levers (mode file / pause file)
 // clear. Endgame hold (S8): joined(Daedalus) || hacking >= 2500 -- the
-// trigger can't arm there, handing off to the manual Daedalus runbook
-// (docs/reset-protocol.md) untouched.
+// trigger can't arm there UNLESS gateArmed (Phase 26 A2): endgameHold means
+// "stop ratcheting, go for Daedalus" generally, but when the only thing
+// blocking Daedalus (or another FACTION_SCOPE count-gated faction) is an
+// aug count the already-queued purchases would close on install, holding is
+// precisely wrong -- so the trigger, not the hold itself, learns the one
+// exception, guarded by gateRelease.closedByQueue (computeGateRelease below)
+// so an install that would not actually move the gate can never arm this
+// way. Otherwise the manual Daedalus runbook (docs/reset-protocol.md)
+// stands untouched.
 //
 // RAM: derived ~60 GB at SF4.3's 1x multiplier (phase-25 spec S12 -- Phase
 // 23's measured 52.7 GB + donateToFaction/getFactionFavor/getFavorToDonate/
@@ -84,6 +91,9 @@ const POLL_MS = 10_000;
 export const RESERVE_FILE = "augfarmer-reserve.json";
 export const STATE_FILE = "augfarmer-state.json";
 export const CATALOG_FILE = "augfarmer-catalog.json";
+// Phase 26 B2: ratchetlog.js's append-only ring (its own LOG_FILE constant,
+// not exported/imported -- read-only from here, the writer is unchanged).
+const RATCHET_LOG_FILE = "ratchet-log.json";
 export const PAUSE_FILE = "augfarmer-pause.txt";
 export const TRAVEL_COST = 200_000;
 const DAEDALUS_AUG_GATE = 30;
@@ -134,6 +144,17 @@ export const NFG_PRICE_LADDER = 2.166;
 export const NFG_REP_LADDER = 1.14;
 export const PASSIVE_REP_FACTIONS = new Set(["CyberSec", "NiteSec", "The Black Hand", "BitRunners"]);
 export const RED_PILL_NAME = "The Red Pill";
+
+// Phase 26 B2 (S4). Stall-age thresholds -- explicitly provisional, same as
+// every Phase 25 constant, and ride into every ratchet-decisions.json record.
+// Observed cycles run 4-8h, so STALL_CYCLE_FACTOR x median lands 12-24h in
+// steady state; the MIN/MAX clamp keeps a much faster or slower future node
+// from false-positiving or never-firing while the interval sample is thin.
+export const STALL_CYCLE_FACTOR = 3;
+export const STALL_MIN_MS = 12 * 3600_000;
+export const STALL_MAX_MS = 48 * 3600_000;
+export const STALL_FALLBACK_MS = 24 * 3600_000;
+export const STALL_REWARN_MS = 6 * 3600_000;
 
 // Kept for the fixture helper in test/augfarmer.test.js (statsAllOnes) --
 // scoreAug itself only reads hacking/hacking_exp/faction_rep.
@@ -489,6 +510,38 @@ export function findAugCountGate(catalog, playerFacts, joinedSet, factionScope) 
 }
 
 /**
+ * Pure (Phase 26 A2, S2). Does an in-scope faction's aug-COUNT gate close the
+ * moment the currently-queued augs finish installing? Two explicit steps, not
+ * a second findAugCountGate call (cold review blocker 1: that function
+ * returns only the single shortest-gap faction, so a second call could name a
+ * different faction -- or null -- whenever some OTHER in-scope faction still
+ * has an open count gate against the owned count, and the two implementations
+ * would then silently diverge):
+ *   1. Which faction (if any) has the count as its ONLY unmet requirement,
+ *      against `playerFactsInstalled.augCount` (distinct INSTALLED augs).
+ *   2. For THAT SAME faction, re-evaluate its inviteReqs with the count
+ *      swapped to `augCountOwned` (distinct owned INCLUDING queued).
+ *      `closedByQueue` is exact, not a proxy: step 1 already established the
+ *      count as the only unmet requirement against current facts, so
+ *      re-evaluating with the owned count flips `joinable` iff the count
+ *      requirement itself closes.
+ * Returns null when no count gate exists on the installed count.
+ * @param {{factions: Record<string, {inviteReqs: object[]}>}} catalog
+ * @param {object} playerFactsInstalled must include augCount = distinct INSTALLED augs
+ * @param {number} augCountOwned distinct owned augs INCLUDING queued
+ * @param {Set<string>} joinedSet
+ * @param {Set<string>} factionScope
+ * @returns {{faction: string, gap: number, closedByQueue: boolean}|null}
+ */
+export function computeGateRelease(catalog, playerFactsInstalled, augCountOwned, joinedSet, factionScope) {
+  const gate = findAugCountGate(catalog, playerFactsInstalled, joinedSet, factionScope);
+  if (!gate) return null;
+  const inviteReqs = catalog?.factions?.[gate.faction]?.inviteReqs ?? [];
+  const reEval = evaluateInviteReqs(inviteReqs, { ...playerFactsInstalled, augCount: augCountOwned });
+  return { faction: gate.faction, gap: gate.gap, closedByQueue: reEval.joinable };
+}
+
+/**
  * Pure (Phase 26 A1, 2026-07-18). The cheapest aug we can buy RIGHT NOW purely
  * to raise the distinct-aug count -- ignoring `passesFilter` entirely, because
  * the point is the count, not the stats.
@@ -780,6 +833,16 @@ export function updateRepRates(prevRates, prevReps, reps, dtMs) {
  * clear it: changing ratchet-mode.txt away from "auto" (mode stops being
  * "auto", shortcut no longer applies) or creating the pause file (paused
  * flows into the shortcut's guard too).
+ *
+ * Phase 26 A2 (S1/S2): `gateRelease` is computeGateRelease's result (or
+ * null), passed in rather than derived here -- this function stays pure and
+ * never sees the catalog. `gateArmed := gateRelease?.closedByQueue &&
+ * queuedCount >= 1 && !paused`, deliberately NOT gated on `endgameHold` (the
+ * whole point of the exception), MIN_TOTAL_GAIN, or the phase label -- an
+ * install this narrow is justified by the unlock itself. `armed := (gainArmed
+ * && phaseArmed) || gateArmed`; everything downstream (sustain, the auto-mode
+ * latch, the abort levers) is unchanged and applies to a gate-armed state
+ * exactly as it does to a gain-armed one.
  */
 export function evalTrigger(inputs, priorState) {
   const {
@@ -798,6 +861,7 @@ export function evalTrigger(inputs, priorState) {
     paused = false,
     endgameHold = false,
     mode = "observe",
+    gateRelease = null,
     now,
   } = inputs;
 
@@ -805,17 +869,18 @@ export function evalTrigger(inputs, priorState) {
     return { ...priorState, latched: true };
   }
 
-  let nfgLevelsProjected = 0;
-  if (nfgPrice > 0) {
-    // How many NFG levels `money` can buy when each costs NFG_PRICE_LADDER (L)
-    // times the previous, starting from nfgPrice (p). Geometric closed form:
-    // sum_{i=0}^{k-1} p*L^i <= money  =>  k = floor(log(1 + money*(L-1)/p) / log L).
-    // The (L-1) numerator factor MUST track the ladder -- it was previously the
-    // literal 0.9, which was exactly (1.9 - 1) and silently went stale when a
-    // real 2.166 ladder was measured (2026-07-17). Validated against install #8:
-    // predicts 11, which is what spend-down actually bought.
+  // How many NFG levels `money` can buy when each costs NFG_PRICE_LADDER (L)
+  // times the previous, starting from nfgPrice (p). Geometric closed form:
+  // sum_{i=0}^{k-1} p*L^i <= money  =>  k = floor(log(1 + money*(L-1)/p) / log L).
+  // The (L-1) numerator factor MUST track the ladder -- it was previously the
+  // literal 0.9, which was exactly (1.9 - 1) and silently went stale when a
+  // real 2.166 ladder was measured (2026-07-17). Validated against install #8:
+  // predicts 11, which is what spend-down actually bought.
+  let moneyLevels = 0;
+  const hasMoneyInfo = nfgPrice > 0;
+  if (hasMoneyInfo) {
     const ratio = 1 + (money * (NFG_PRICE_LADDER - 1)) / nfgPrice;
-    if (ratio > 1) nfgLevelsProjected = Math.max(0, Math.floor(Math.log(ratio) / Math.log(NFG_PRICE_LADDER)));
+    if (ratio > 1) moneyLevels = Math.max(0, Math.floor(Math.log(ratio) / Math.log(NFG_PRICE_LADDER)));
   }
   // Rep bounds the tail too, and increasingly does the binding (2026-07-18):
   // NFG's repReq escalates x1.14 per level while rep resets to zero every
@@ -834,8 +899,20 @@ export function evalTrigger(inputs, priorState) {
   // suppressed while the projection still claimed 14 levels and a 1.1495
   // totalGain, already over MIN_TOTAL_GAIN. Only queuedCount 0 was holding the
   // trigger down.
+  //
+  // Phase 26 D9: `nfgBoundBy` names WHICH ladder actually cut the projection
+  // -- "money" | "rep" | "none" (no price info supplied at all, so no tail was
+  // even attempted). Rep is credited whenever it supplies a tighter (or
+  // equally tight) bound than money, INCLUDING when that bound is 0 -- rep
+  // being the reason the tail is zero is still a rep-bound record, not "none".
+  let nfgLevelsProjected = moneyLevels;
+  let nfgBoundBy = hasMoneyInfo ? "money" : "none";
   if (nfgRepReq > 0) {
-    nfgLevelsProjected = Math.min(nfgLevelsProjected, nfgLevelsByRep(nfgRep, nfgRepReq));
+    const repLevels = nfgLevelsByRep(nfgRep, nfgRepReq);
+    if (!hasMoneyInfo || repLevels <= moneyLevels) {
+      nfgLevelsProjected = repLevels;
+      nfgBoundBy = "rep";
+    }
   }
   const projectedNfgFactor = Math.pow(nfgHackingMult, nfgLevelsProjected);
   const totalGain = queuedGain * projectedNfgFactor;
@@ -879,7 +956,14 @@ export function evalTrigger(inputs, priorState) {
     }
   }
 
-  const armed = gainArmed && phaseArmed;
+  // Phase 26 A2 (S1/S2): the third arming reason. Deliberately independent of
+  // endgameHold/MIN_TOTAL_GAIN/phase -- see this function's header and
+  // computeGateRelease's for the full "why". Safety is entirely
+  // gateRelease.closedByQueue: an install that would not actually move the
+  // gate can never arm this way.
+  const gateArmed = !!(gateRelease?.closedByQueue && queuedCount >= 1 && !paused);
+
+  const armed = (gainArmed && phaseArmed) || gateArmed;
   const wasArmedSince = priorState?.armed ? priorState.armedSinceMs : null;
   const armedSinceMs = armed ? (wasArmedSince ?? now) : null;
   const sustainedMs = armed ? now - armedSinceMs : 0;
@@ -894,9 +978,100 @@ export function evalTrigger(inputs, priorState) {
     totalGain,
     projectedNfgFactor,
     nfgLevelsProjected,
+    nfgBoundBy,
     horizonMs,
-    reasons: { gainArmed, phaseArmed },
+    gateRelease,
+    reasons: { gainArmed, phaseArmed, gateArmed },
   };
+}
+
+/**
+ * Pure (Phase 26 B2, S4). Adaptive stall-age threshold: STALL_CYCLE_FACTOR x
+ * the median of `cycleIntervalsMs`, clamped to [STALL_MIN_MS, STALL_MAX_MS].
+ * Fewer than 2 measured intervals (can't derive a meaningful median from 0 or
+ * 1 points) falls back to STALL_FALLBACK_MS. Observed cycles run 4-8h, so 3x
+ * median lands 12-24h in steady state -- inside the clamp, which exists only
+ * to protect a thin early sample (or a much slower future node) from a false
+ * positive or a threshold so loose it never fires.
+ * @param {number[]} cycleIntervalsMs install-to-install deltas, most-recent-first or not (order doesn't matter)
+ */
+export function computeStallThreshold(cycleIntervalsMs) {
+  const valid = (cycleIntervalsMs ?? []).filter((v) => v > 0);
+  if (valid.length < 2) return STALL_FALLBACK_MS;
+  const sorted = [...valid].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  return Math.min(STALL_MAX_MS, Math.max(STALL_MIN_MS, STALL_CYCLE_FACTOR * median));
+}
+
+/**
+ * Pure (Phase 26 B2, S4). Up to the last 5 install-to-install deltas (ms)
+ * derivable from ratchetlog.js's persisted {installTime} records, bounded to
+ * the CURRENT node (installTime >= nodeResetMs) so a previous node's cadence
+ * can't leak into a fresh node's thin sample.
+ * @param {{installTime: number}[]} records ratchet-log.json's parsed array
+ * @param {number} nodeResetMs ns.getResetInfo().lastNodeReset
+ * @returns {number[]}
+ */
+export function recentCycleIntervals(records, nodeResetMs) {
+  const inNode = (records ?? [])
+    .filter((r) => (r?.installTime ?? -Infinity) >= (nodeResetMs ?? 0))
+    .map((r) => r.installTime)
+    .sort((a, b) => a - b);
+  const deltas = [];
+  for (let i = 1; i < inNode.length; i++) deltas.push(inNode[i] - inNode[i - 1]);
+  return deltas.slice(-5);
+}
+
+/**
+ * Pure (Phase 26 B2, S4). "We stopped making progress" -- watches age since
+ * `lastAugReset` against computeStallThreshold's adaptive bound, independent
+ * of what the phase label claims (gap 7 and gap 9 both had every process
+ * healthy and a non-"idle-plateau" phase label throughout). Deliberately NOT
+ * suppressed by `endgameHold` -- a stalled endgame is exactly gap 9's shape,
+ * and a healthy post-A2 endgame hold resolves itself, so suppressing here
+ * would hide the one case this exists to catch.
+ *
+ * Gated OFF (reports `stalled: false`, no warn) when `mode !== "auto"`
+ * (observe mode never installs, so "stalled" has no meaning), `paused`
+ * (a deliberate hold), or `installSeqActive` (a running spend-down/install is
+ * the opposite of a stall). `lastWarnMs` carries across calls (and across a
+ * B1 relaunch, via the state file) so the re-warn cadence survives a restart
+ * mid-stall instead of re-warning immediately.
+ * @param {{nowMs: number, lastAugReset: number, mode: string, installSeqActive?: boolean,
+ *   paused?: boolean, cycleIntervalsMs?: number[]}} inputs
+ * @param {{stalled: boolean, lastWarnMs: number|null}|null} priorStall
+ * @returns {{stalled: boolean, ageMs: number, thresholdMs: number, warnDue: boolean, lastWarnMs: number|null}}
+ */
+export function evalStall(inputs, priorStall) {
+  const { nowMs, lastAugReset, mode, installSeqActive = false, paused = false, cycleIntervalsMs = [] } = inputs;
+
+  const thresholdMs = computeStallThreshold(cycleIntervalsMs);
+  const ageMs = nowMs - lastAugReset;
+  const gated = mode === "auto" && !paused && !installSeqActive;
+
+  if (!gated) {
+    return { stalled: false, ageMs, thresholdMs, warnDue: false, lastWarnMs: priorStall?.lastWarnMs ?? null };
+  }
+
+  const stalled = ageMs > thresholdMs;
+  const wasStalled = !!priorStall?.stalled;
+  let lastWarnMs = priorStall?.lastWarnMs ?? null;
+  let warnDue = false;
+
+  if (stalled && !wasStalled) {
+    warnDue = true; // false -> true crossing
+    lastWarnMs = nowMs;
+  } else if (stalled && wasStalled) {
+    if (lastWarnMs == null || nowMs - lastWarnMs >= STALL_REWARN_MS) {
+      warnDue = true;
+      lastWarnMs = nowMs;
+    }
+  } else {
+    lastWarnMs = null; // not stalled -- next stall re-arms the crossing fresh
+  }
+
+  return { stalled, ageMs, thresholdMs, warnDue, lastWarnMs };
 }
 
 /**
@@ -1088,6 +1263,11 @@ export function buildDecisionRecord(kind, inputs) {
       DONATION_BUFFER,
       ENDGAME_HACK_LEVEL,
       SPEND_DOWN_BUY_CAP,
+      STALL_CYCLE_FACTOR,
+      STALL_MIN_MS,
+      STALL_MAX_MS,
+      STALL_FALLBACK_MS,
+      STALL_REWARN_MS,
     },
   };
 }
@@ -1377,9 +1557,21 @@ export async function main(ns) {
   let lastAugReset = resetInfoAtStartup.lastAugReset;
   let nfgBoughtThisCycle = false;
   let boughtThisCycle = [];
+  // Phase 26 B2: restored the same way, keyed on the same lastAugReset match --
+  // without this a mid-stall B1 relaunch would lose lastWarnMs and immediately
+  // re-warn instead of respecting the remaining STALL_REWARN_MS window.
+  let stallState = null;
   if (savedState && savedState.lastAugReset === lastAugReset) {
     nfgBoughtThisCycle = savedState.nfgBoughtThisCycle ?? false;
     boughtThisCycle = savedState.boughtThisCycle ?? [];
+    if (savedState.stall) {
+      stallState = {
+        stalled: savedState.stall.stalled ?? false,
+        ageMs: savedState.stall.ageMs ?? 0,
+        thresholdMs: savedState.stall.thresholdMs ?? STALL_FALLBACK_MS,
+        lastWarnMs: savedState.stall.lastWarnMs ?? null,
+      };
+    }
   }
 
   let lastFailureKey = null;
@@ -1419,6 +1611,7 @@ export async function main(ns) {
       triggerState = null;
       installSeq = null;
       previousCampKey = null;
+      stallState = null;
       tprintTs(ns, "INFO: new install cycle detected (lastAugReset changed) -- resetting NFG cap + bought-this-cycle tracking");
     }
 
@@ -1718,6 +1911,15 @@ export async function main(ns) {
     // workTarget (skips passive factions, then falls back to that same
     // rep-met head). See pickHorizonGrind's header: both mistakes shipped.
     const horizonGrind = pickHorizonGrind(target?.candidates ?? [], joined, donationClosableSet);
+
+    // Phase 26 A2 (S2). Step 1 (installed count) + step 2 (owned-including-
+    // queued, re-evaluated for the SAME faction step 1 named) live inside
+    // computeGateRelease -- see its header for why a second findAugCountGate
+    // call would be wrong here. `playerFacts.augCount` is already the
+    // installed-only count (unchanged from A1); `ownedSet.size` is owned
+    // including queued.
+    const gateRelease = computeGateRelease(catalog, playerFacts, ownedSet.size, joined, FACTION_SCOPE_SET);
+
     const triggerInputs = {
       queuedGain,
       queuedCount: queuedNames.length,
@@ -1734,6 +1936,7 @@ export async function main(ns) {
       paused,
       endgameHold,
       mode,
+      gateRelease,
       now: nowMs,
     };
     const prevTrigger = triggerState;
@@ -1810,6 +2013,34 @@ export async function main(ns) {
       };
       installSeq.actions = spendDownPlan(target?.candidates ?? [], catalog, player.money, nfgState);
       installSeq.execReady = installSeq.actions.length === 0;
+    }
+
+    // Phase 26 B2 (S4). Progress-watch, evaluated after installSeq is current
+    // for this pass so a running spend-down/install correctly gates it off.
+    // Cycle intervals: the last <=5 install-to-install deltas from
+    // ratchet-log.json, bounded to the CURRENT node (lastNodeReset) so a
+    // previous node's cadence can't leak into this node's thin sample.
+    const ratchetLogRecords = readJSON(ns, RATCHET_LOG_FILE) ?? [];
+    const cycleIntervalsMs = recentCycleIntervals(ratchetLogRecords, resetInfo.lastNodeReset ?? 0);
+    const priorStall = stallState;
+    stallState = evalStall(
+      { nowMs, lastAugReset, mode, installSeqActive: installSeq !== null, paused, cycleIntervalsMs },
+      priorStall,
+    );
+    if (stallState.warnDue) {
+      tprintTs(
+        ns,
+        `WARN: stall -- ${(stallState.ageMs / 3600_000).toFixed(1)}h since last install ` +
+          `(threshold ${(stallState.thresholdMs / 3600_000).toFixed(1)}h), phase ${previousPhase}, ` +
+          `reasons ${JSON.stringify(triggerState.reasons)}`,
+      );
+      appendDecision(ns, "stall-warning", {
+        now: nowMs,
+        mode,
+        phase: previousPhase,
+        money: player.money,
+        detail: { ageMs: stallState.ageMs, thresholdMs: stallState.thresholdMs, reasons: triggerState.reasons },
+      });
     }
 
     // Phase 26 A1. Only consider a gate-fill when the normal pipeline has
@@ -2081,6 +2312,9 @@ export async function main(ns) {
         endgameHold,
         lastAugReset,
         nfgBoughtThisCycle,
+        // Phase 26 B2: report-only progress watch, restored on a B1 relaunch
+        // via lastAugReset matching (see the startup restore block).
+        stall: { stalled: stallState.stalled, ageMs: stallState.ageMs, thresholdMs: stallState.thresholdMs, lastWarnMs: stallState.lastWarnMs },
       };
       ns.write(STATE_FILE, JSON.stringify(stateRecord, null, 2), "w");
       lastStateWrite = nowMs;

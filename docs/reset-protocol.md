@@ -131,6 +131,16 @@ multiplier, then re-climb.
   hacking >= 2500`) that hands off to the manual Daedalus runbook below untouched. Every fire is
   logged to `ratchet-decisions.json` beside `ratchet-log.json`'s per-install audit trail. Full design:
   `docs/phases/phase-25-faction-strategy.spec.md`.
+- **The endgame count-gate install — automated 2026-07-18 (Phase 26 A2), same bounded
+  authorization.** The endgame hold above still means "stop ratcheting, go for Daedalus," but when
+  the *only* thing blocking an in-scope faction (Daedalus, or The Covenant/Illuminati by the same
+  shape) is an aug count that already-queued purchases would close on install, holding was exactly
+  wrong — a live BN1.3 deadlock at 29/30 augs proved the trigger could never fire on its own. The
+  trigger, not the hold, learned one exception: it also arms when the queued augs would close a
+  faction's count gate (`gateArmed`, guarded by `closedByQueue` so an install that would not
+  actually move the gate can never fire this way), independent of `endgameHold` and the usual
+  multiplier-gain floor. The manual Daedalus runbook below remains the fallback for every other
+  case — this only closes the one circular deadlock the ratchet couldn't otherwise escape.
 - **What this retires:** Phase 22's grep-for-`joinFaction` rail (asserting `joinFaction` appears
   nowhere in `src/`) is retired — `augfarmer.js` is now the one script authorized to call it. The
   replacement rail is two-part: `joinFaction` calls exist only in `augfarmer.js`, and every join site

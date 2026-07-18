@@ -38,6 +38,7 @@ import {
   pickWorkFaction,
   pickHorizonGrind,
   findAugCountGate,
+  computeGateRelease,
   pickGateFiller,
   updateRepRates,
   evalTrigger,
@@ -48,6 +49,14 @@ import {
   buildDecisionRecord,
   planPass,
   buildReserveRecord,
+  STALL_CYCLE_FACTOR,
+  STALL_MIN_MS,
+  STALL_MAX_MS,
+  STALL_FALLBACK_MS,
+  STALL_REWARN_MS,
+  computeStallThreshold,
+  recentCycleIntervals,
+  evalStall,
 } from '../src/augfarmer.js';
 
 function statsAllOnes(overrides = {}) {
@@ -834,6 +843,47 @@ describe('Phase 26 A1 — gate-aware buying', () => {
     });
   });
 
+  describe('computeGateRelease — Phase 26 A2', () => {
+    const catalog = { factions: { Daedalus: { inviteReqs: DAEDALUS_REQS } } };
+    const scope = new Set(['Daedalus']);
+
+    it('closedByQueue true: the gate found on the INSTALLED count closes on the OWNED (incl. queued) count', () => {
+      // STUCK.augCount (29) is installed-only; 30 owned (1 queued) closes it.
+      expect(computeGateRelease(catalog, STUCK, 30, new Set(), scope)).toEqual({ faction: 'Daedalus', gap: 1, closedByQueue: true });
+    });
+
+    it('closedByQueue false: a gate exists but nothing queued closes it', () => {
+      const r = computeGateRelease(catalog, STUCK, 29, new Set(), scope); // owned == installed -- nothing queued
+      expect(r).toEqual({ faction: 'Daedalus', gap: 1, closedByQueue: false });
+    });
+
+    it('null when no count gate exists on the installed count', () => {
+      expect(computeGateRelease(catalog, { ...STUCK, augCount: 30 }, 30, new Set(), scope)).toBeNull();
+    });
+
+    it('skips joined/out-of-scope factions exactly like findAugCountGate', () => {
+      expect(computeGateRelease(catalog, STUCK, 30, new Set(['Daedalus']), scope)).toBeNull();
+      expect(computeGateRelease(catalog, STUCK, 30, new Set(), new Set())).toBeNull();
+    });
+
+    it('cold review two-faction case: the SHORTEST-gap faction (X) closes by queue while a second, larger-deficit faction (Y) stays open — closedByQueue must read true for X', () => {
+      // A second findAugCountGate call on the owned count would find Y (gap
+      // 10, still open on 30) instead of null, and a naive "closedByQueue :=
+      // second call returned null" implementation would misread that as
+      // "the gate did not close" — even though X's OWN gate, the one this
+      // whole computation is about, closed exactly as queued.
+      const twoFactionCatalog = {
+        factions: {
+          FactionX: { inviteReqs: [{ type: 'numAugmentations', numAugmentations: 30 }] },
+          FactionY: { inviteReqs: [{ type: 'numAugmentations', numAugmentations: 40 }] },
+        },
+      };
+      const twoScope = new Set(['FactionX', 'FactionY']);
+      const r = computeGateRelease(twoFactionCatalog, { augCount: 29 }, 30, new Set(), twoScope);
+      expect(r).toEqual({ faction: 'FactionX', gap: 1, closedByQueue: true });
+    });
+  });
+
   describe('pickGateFiller', () => {
     // The live buyable set at the deadlock: all filter-dropped, all rep-met.
     const augs = {
@@ -1051,7 +1101,7 @@ describe('evalTrigger', () => {
 
     it('arms when pickHorizonGrind found no faction still owed rep', () => {
       const t = evalTrigger(baseInputs(noOwedGrind), null);
-      expect(t.reasons).toEqual({ gainArmed: true, phaseArmed: true });
+      expect(t.reasons).toEqual({ gainArmed: true, phaseArmed: true, gateArmed: false });
       expect(t.armed).toBe(true);
       expect(t.horizonMs).toBeNull();
     });
@@ -1186,6 +1236,198 @@ describe('evalTrigger', () => {
     const expectedN = Math.floor(Math.log(expectedRatio) / Math.log(NFG_PRICE_LADDER));
     expect(result.nfgLevelsProjected).toBe(expectedN);
     expect(result.projectedNfgFactor).toBeCloseTo(Math.pow(1.05, expectedN), 6);
+  });
+
+  describe('Phase 26 A2 — gate-release arming (S1/S2/S10)', () => {
+    const closedTrue = { faction: 'Daedalus', gap: 1, closedByQueue: true };
+    const closedFalse = { faction: 'Daedalus', gap: 1, closedByQueue: false };
+
+    it('arms under endgameHold, ignoring MIN_TOTAL_GAIN — the live BN1.3 fixture (totalGain 1.02) verbatim', () => {
+      const t = evalTrigger(baseInputs({ queuedGain: 1.02, endgameHold: true, gateRelease: closedTrue }), null);
+      expect(t.totalGain).toBeCloseTo(1.02, 6);
+      expect(t.totalGain).toBeLessThan(MIN_TOTAL_GAIN);
+      expect(t.reasons.gateArmed).toBe(true);
+      expect(t.armed).toBe(true);
+      expect(t.gateRelease).toEqual(closedTrue);
+    });
+
+    it('does NOT arm when a gate exists but the queue does not close it (the A2-runaway-analog guard)', () => {
+      const t = evalTrigger(baseInputs({ endgameHold: true, gateRelease: closedFalse }), null);
+      expect(t.reasons.gateArmed).toBe(false);
+      expect(t.armed).toBe(false); // gainArmed is also false here (endgameHold)
+    });
+
+    it('does not arm at queuedCount 0, even with a closed gate release', () => {
+      const t = evalTrigger(baseInputs({ queuedCount: 0, endgameHold: true, gateRelease: closedTrue }), null);
+      expect(t.armed).toBe(false);
+    });
+
+    it('paused blocks a gate-release arm exactly like a gain-side arm', () => {
+      const t = evalTrigger(baseInputs({ paused: true, endgameHold: true, gateRelease: closedTrue }), null);
+      expect(t.armed).toBe(false);
+    });
+
+    it('sustain is still required — no instant fire from a gate-release arm', () => {
+      const t0 = evalTrigger(baseInputs({ now: 0, endgameHold: true, gateRelease: closedTrue }), null);
+      expect(t0.armed).toBe(true);
+      expect(t0.fired).toBe(false);
+      const t1 = evalTrigger(baseInputs({ now: TRIGGER_SUSTAIN_MS, endgameHold: true, gateRelease: closedTrue }), t0);
+      expect(t1.fired).toBe(true);
+    });
+
+    it('the auto-mode latch and abort levers apply to a gate-armed fire exactly as to a gain-armed one', () => {
+      const t0 = evalTrigger(baseInputs({ now: 0, mode: 'auto', endgameHold: true, gateRelease: closedTrue }), null);
+      const t1 = evalTrigger(baseInputs({ now: TRIGGER_SUSTAIN_MS, mode: 'auto', endgameHold: true, gateRelease: closedTrue }), t0);
+      expect(t1.fired).toBe(true);
+
+      // Latches through a spend-down pass even though the gate input clears
+      // (the queue is now empty -- installer.js took over).
+      const duringSpendDown = evalTrigger(
+        baseInputs({ now: TRIGGER_SUSTAIN_MS + 60_000, mode: 'auto', phase: 'spend-down', queuedGain: 1, queuedCount: 0, gateRelease: null }),
+        t1,
+      );
+      expect(duringSpendDown.fired).toBe(true);
+      expect(duringSpendDown.latched).toBe(true);
+
+      // The pause lever still clears it.
+      const paused = evalTrigger(baseInputs({ now: TRIGGER_SUSTAIN_MS + 1, mode: 'auto', endgameHold: true, gateRelease: closedTrue, paused: true }), t1);
+      expect(paused.fired).toBe(false);
+    });
+
+    it('once-per-gate is structural: the post-install fixture (gate met on installed count, queue empty) cannot re-arm', () => {
+      // After the install, findAugCountGate reads the requirement met on the
+      // installed count (no gate at all) => gateRelease is null upstream, and
+      // the queue is empty. Neither the gain path nor the gate path can arm.
+      const t = evalTrigger(baseInputs({ queuedCount: 0, gateRelease: null }), null);
+      expect(t.armed).toBe(false);
+      expect(t.reasons.gateArmed).toBe(false);
+    });
+  });
+
+  describe('Phase 26 D9 — nfgBoundBy names the tail\'s binding constraint', () => {
+    it('"money" when no rep info is supplied', () => {
+      const t = evalTrigger(baseInputs({ nfgPrice: 1e9, nfgHackingMult: 1.01, money: 1e15, queuedGain: 1, queuedCount: 1 }), null);
+      expect(t.nfgBoundBy).toBe('money');
+      expect(t.nfgLevelsProjected).toBeGreaterThan(0);
+    });
+
+    it('"rep" when rep is the tighter (or equally tight) bound — including when it cuts the tail to zero', () => {
+      const t = evalTrigger(
+        baseInputs({ nfgPrice: 1e9, nfgHackingMult: 1.01, money: 1e15, queuedGain: 1, queuedCount: 1, nfgRep: 0, nfgRepReq: 998_737 }),
+        null,
+      );
+      expect(t.nfgBoundBy).toBe('rep');
+      expect(t.nfgLevelsProjected).toBe(0);
+    });
+
+    it('"none" when no NFG price info is supplied at all (default inputs)', () => {
+      const t = evalTrigger(baseInputs(), null);
+      expect(t.nfgBoundBy).toBe('none');
+      expect(t.nfgLevelsProjected).toBe(0);
+    });
+  });
+});
+
+describe('computeStallThreshold — Phase 26 B2 (S4)', () => {
+  const H = 3600_000;
+
+  it('falls back to STALL_FALLBACK_MS with fewer than 2 measured intervals', () => {
+    expect(computeStallThreshold([])).toBe(STALL_FALLBACK_MS);
+    expect(computeStallThreshold([5 * H])).toBe(STALL_FALLBACK_MS);
+  });
+
+  it('STALL_CYCLE_FACTOR x median, inside the clamp — the gap-7 shape (cycles ~4-8h)', () => {
+    const cycles = [4 * H, 6 * H, 8 * H];
+    expect(computeStallThreshold(cycles)).toBe(STALL_CYCLE_FACTOR * 6 * H);
+  });
+
+  it('clamps fast cycles up to STALL_MIN_MS', () => {
+    const cycles = [1 * H, 1 * H, 1 * H]; // median 1h -> 3x = 3h, below the 12h floor
+    expect(computeStallThreshold(cycles)).toBe(STALL_MIN_MS);
+  });
+
+  it('clamps slow cycles down to STALL_MAX_MS', () => {
+    const cycles = [20 * H, 22 * H, 24 * H]; // median 22h -> 3x = 66h, above the 48h ceiling
+    expect(computeStallThreshold(cycles)).toBe(STALL_MAX_MS);
+  });
+
+  it('ignores non-positive entries when computing the median', () => {
+    expect(computeStallThreshold([0, -5, 4 * H, 6 * H])).toBe(STALL_CYCLE_FACTOR * 5 * H);
+  });
+});
+
+describe('recentCycleIntervals — Phase 26 B2 (S4)', () => {
+  const H = 3600_000;
+
+  it('derives consecutive deltas from installTime, order-independent input', () => {
+    const records = [{ installTime: 30 * H }, { installTime: 10 * H }, { installTime: 20 * H }];
+    expect(recentCycleIntervals(records, 0)).toEqual([10 * H, 10 * H]);
+  });
+
+  it("bounds to the current node — a previous node's records do not leak in", () => {
+    const records = [{ installTime: 5 * H }, { installTime: 10 * H }, { installTime: 15 * H }]; // all pre-node-reset
+    expect(recentCycleIntervals(records, 100 * H)).toEqual([]);
+  });
+
+  it('caps at the last 5 deltas', () => {
+    const records = Array.from({ length: 8 }, (_, i) => ({ installTime: i * H }));
+    expect(recentCycleIntervals(records, 0)).toEqual([H, H, H, H, H]);
+  });
+});
+
+describe('evalStall — Phase 26 B2 (S4)', () => {
+  const H = 3600_000;
+  function stallInputs(overrides = {}) {
+    return {
+      nowMs: 25 * H,
+      lastAugReset: 0,
+      mode: 'auto',
+      installSeqActive: false,
+      paused: false,
+      cycleIntervalsMs: [4 * H, 6 * H, 8 * H], // median 6h -> threshold 18h
+      ...overrides,
+    };
+  }
+
+  it('the gap-7 shape: cycles ~4-8h, age 25h => stalled (threshold 18h), warns on the crossing', () => {
+    const s = evalStall(stallInputs(), null);
+    expect(s.thresholdMs).toBe(18 * H);
+    expect(s.ageMs).toBe(25 * H);
+    expect(s.stalled).toBe(true);
+    expect(s.warnDue).toBe(true);
+  });
+
+  it('below threshold: not stalled, no warn', () => {
+    const s = evalStall(stallInputs({ nowMs: 10 * H }), null);
+    expect(s.stalled).toBe(false);
+    expect(s.warnDue).toBe(false);
+  });
+
+  it('gated off in observe mode, while paused, or during an active install sequence', () => {
+    expect(evalStall(stallInputs({ mode: 'observe' }), null).stalled).toBe(false);
+    expect(evalStall(stallInputs({ paused: true }), null).stalled).toBe(false);
+    expect(evalStall(stallInputs({ installSeqActive: true }), null).stalled).toBe(false);
+  });
+
+  it('the gap-9 shape still reports: evalStall takes no endgameHold input at all, so a healthy-looking endgame deadlock still ages and crosses the threshold', () => {
+    const s = evalStall(stallInputs(), null);
+    expect(s.stalled).toBe(true);
+  });
+
+  it('re-warn cadence: true at the crossing, false until STALL_REWARN_MS elapses, true again after', () => {
+    const t0 = evalStall(stallInputs({ nowMs: 25 * H }), null);
+    expect(t0.warnDue).toBe(true);
+    const t1 = evalStall(stallInputs({ nowMs: 25 * H + STALL_REWARN_MS - 1 }), t0);
+    expect(t1.warnDue).toBe(false);
+    const t2 = evalStall(stallInputs({ nowMs: 25 * H + STALL_REWARN_MS }), t1);
+    expect(t2.warnDue).toBe(true);
+  });
+
+  it('clearing (not stalled) resets lastWarnMs so the next stall re-arms the crossing fresh', () => {
+    const t0 = evalStall(stallInputs({ nowMs: 25 * H }), null);
+    const cleared = evalStall(stallInputs({ nowMs: 26 * H, lastAugReset: 26 * H }), t0); // fresh install -> age 0
+    expect(cleared.stalled).toBe(false);
+    expect(cleared.lastWarnMs).toBeNull();
   });
 });
 

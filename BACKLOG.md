@@ -33,14 +33,6 @@ do, and what's broken?*
   scales with our money surplus, and nothing currently aims it at NFG.
   → [docs/neuroflux.md](docs/neuroflux.md), **Phase 26 track B3**.
 
-- **Nothing detects a stalled auto cycle** — gap 7's follow-on. The trigger sat 25h unarmed with
-  $3.3q idle (2026-07-17 → 07-18) and nothing said a word; every process was alive and healthy the
-  whole time. The arming bug itself is fixed, but the *class* isn't: in auto mode there is no check
-  for "hours since `lastAugReset` >> observed cycle time, no install." Cheapest net: emit that as a
-  dashboard line or log warning. Arguably the first increment of the supervisor below, since it
-  proves the supervisor must watch **progress, not processes**. → **Phase 26 track B2**
-  (`phase-26-ratchet-autonomy.features.md`); Phase 25's close-out is frozen.
-
 - **No supervision + `HOME_RESERVE_GB` (32) < augfarmer's 64.1 GB** — companions launch once at
   `daemon.js:415-455`, *before* the loop at 626; nothing monitors or relaunches them, so any
   companion death is a **silent permanent stop**, and `augfarmer.js` can't be relaunched at all
@@ -51,15 +43,6 @@ do, and what's broken?*
   together, or neither.** Note Phase 25 deliberately declined the bump, correctly for the case it
   weighed. → **Phase 26 track B1** (`phase-26-ratchet-autonomy.features.md`); Phase 25's
   close-out is frozen.
-
-- **Nothing installs the queued augs — second deadlock, still blocking the BN1.3 clear** — A1
-  shipped and the engine now buys gate-closing augs (9 queued, $24.9b), but they are *queued*, not
-  installed, and `endgameHold` blocks arming (`gainArmed` requires `!endgameHold`). So no trigger →
-  no install → the installed count stays 29 → Daedalus never invites → `endgameHold` never clears.
-  Circular, one level up. `endgameHold` means "stop ratcheting, go for Daedalus", but when queued
-  purchases would close the only remaining gate, holding is exactly wrong — it needs an exception.
-  This path has never run unattended (2026-07-15's endgame install was manual).
-  → **Phase 26 track A2** (`phase-26-ratchet-autonomy.features.md`) — spec target, not a patch.
 
 - **Observe-mode trigger flap: a fire self-clears, then re-fires every ~10 min** — firing sets
   `phase: "install-ready"`, which is not an arming phase, so the next poll clears it → re-arms →

@@ -8,6 +8,23 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-18
 
+- **Phase 26 A2 + B2 shipped — the endgame gate-release exception + stall-age detection**
+  (`phase26-a2-b2`). A2: `evalTrigger` gains a third arming reason — `gateArmed`, true when
+  currently-queued augs would close an in-scope faction's aug-count gate (`computeGateRelease`'s
+  two-step check: does an installed-count gate exist, and does the SAME faction's requirement
+  close on the owned-including-queued count) — deliberately independent of `endgameHold` and
+  `MIN_TOTAL_GAIN`, guarded only by `closedByQueue` so an install that would not actually move the
+  gate can never fire this way. This is the fix for A2, the deadlock A1's runaway uncovered: queued
+  augs alone never install, so the gate never closed and Daedalus never invited. B2: augfarmer
+  self-reports a stalled auto cycle — age since `lastAugReset` exceeding an adaptive threshold
+  (3× the median observed cycle interval, clamped 12–48h) with no install in progress — as a
+  `stall-warning` decision record + terminal WARN, re-warning every 6h while stalled. Deliberately
+  NOT suppressed by `endgameHold` (gap 9's exact shape: healthy processes, zero progress,
+  indefinitely). D9 lands alongside: `evalTrigger` now also names the NFG tail's binding
+  constraint (`nfgBoundBy: "money"|"rep"|"none"`) on every record. Full suite (656 tests) green;
+  RAM flat at 64.10 GB. Live validation (install #10 firing from `gateArmed`, the unattended
+  endgame chain) is the phase's primary gate — see `phase-26-ratchet-autonomy.spec.md`'s live
+  procedure.
 - **Phase 26 A1 shipped — gate-aware buying breaks the 29/30 deadlock** (`5ad32a3`). Every unowned
   filter-passing aug was sold only by Daedalus/Covenant/Illuminati, the factions the aug-count gate
   locks us out of, while every buyable aug scored 0.00 and was dropped — circular, unbreakable by
