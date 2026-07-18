@@ -137,6 +137,30 @@ All tracked in `BACKLOG.md`; repeated here so the handoff is self-contained. **G
 stable IDs** (`BACKLOG.md`, `CHANGELOG.md` and CLAUDE.md all cite them), so they keep their
 original numbers and the list reads out of order. Everything else is under "Closed" below.
 
+8. **~~NFG's rep requirement was recorded as not climbing with level. It climbs ×1.14.~~ Fixed
+   2026-07-18 — but the *strategic* consequence is open and is the ratchet's next real problem.**
+   Full mechanics now in **`docs/neuroflux.md`**; this is the phase-local record.
+   - **The false fact.** Gap 6's write-up asserted, as checked, that NFG's rep requirement doesn't
+     climb. Install #9 disproves it: repReq **122,736 → 998,737 over exactly 16 levels** = 8.137 =
+     **1.14¹⁶**. The original check compared a before/after that spanned a catalog which hadn't
+     rebuilt. *A before/after across an install is only as good as the rebuild between them* —
+     check the catalog's timestamp moved, not just its values.
+   - **Why it's load-bearing.** Rep resets to zero on every install; the requirement doesn't.
+     Each cycle re-earns, from scratch, a requirement that only grows: **10k → 123k → 999k** over
+     three installs. Money bound the tail for installs #6-#9, so this stayed invisible — but rep
+     income is roughly linear per cycle while the requirement compounds, so **rep takes over as
+     the binding constraint and then shrinks the tail every cycle.** The tail is most of the gain
+     (16 NFG levels vs 6 discrete augs at #9), so **per-cycle gain will decay toward the discrete
+     augs alone.**
+   - **Fixed in code:** `NFG_REP_LADDER` + `nfgLevelsByRep`; `spendDownPlan`'s tail and
+     `evalTrigger`'s projection are now bounded by **both** ladders. Previously the projection was
+     money-only — documented as "accepted optimism ... NFG's rep requirement may bind first",
+     which was fine while it never did. It inflates `totalGain`, which is what `MIN_TOTAL_GAIN`
+     gates on, so this would have started firing installs on gains that couldn't be realized.
+   - **Open — the strategy, not the arithmetic.** Nothing plans NFG rep as an *expense*. The two
+     counters are donation (money → rep, the only lever that scales with our surplus) and rising
+     `faction_rep` mults. Both exist in the engine; neither is aimed at NFG. Decide before the
+     decay shows up as a mysteriously falling `totalGain`.
 7. **~~The trigger cannot arm at a rep-complete plateau.~~ FIXED 2026-07-18 — but read the
    lesson, it is the important part.** After install #8 the cycle sat **25 hours** in
    `phase: "grinding"` with nothing to do:
@@ -230,10 +254,13 @@ and #8 buying NFG from NiteSec and The Black Hand (highest rep) rather than Cybe
      Fire early in a cycle, or in a cycle whose grind doesn't route through CyberSec, and the
      bank converts to nothing. The highest-rep faction is the camp one being actively worked, so
      picking by rep both removes the failure mode and buys more levels.
-   - Checked and **not** a factor: NFG's rep requirement does *not* climb with level. The
+   - ~~Checked and **not** a factor: NFG's rep requirement does *not* climb with level. The
      catalog read 10,181 both before install #6 and after (fresh rebuild at 06:21:48), despite
-     12 levels going in — so this was unguarded rather than worsening. (NFG's *price* does
-     scale: the catalog's base moved ~×4.23 ≈ 1.14¹¹ across the same install.)
+     12 levels going in — so this was unguarded rather than worsening.~~ **WRONG — corrected
+     2026-07-18, see gap 8.** It climbs **×1.14 per level**. That before/after read was a
+     catalog that hadn't actually rebuilt. (NFG's *price* does scale: the catalog's base moved
+     ~×4.23 ≈ 1.14¹¹ across the same install — which should have been the tell that its rep
+     moves the same way.)
 
 ### Resolved by L7 itself
 
@@ -270,8 +297,12 @@ Gaps 5, 6 and 7 are fixed. **Gap 4 is still the prize, and gap 7 has now specifi
    `now - lastAugReset` exceeds some multiple of the observed cycle time with no install, say so
    (dashboard or log). Catches this whole class, including causes not yet imagined. Arguably
    this is gap 4's first increment rather than a separate item.
-3. **Gap 3 — confirm Daedalus's 30-aug gate counts NFG levels.** Cheap, and it shapes the
-   BN1.3 endgame timing. Do it before the gate matters.
+3. **Gap 8's open half — plan NFG rep as an expense.** The arithmetic is fixed; the strategy
+   isn't. The NFG tail is most of each cycle's gain and it is on track to shrink every cycle. See
+   `docs/neuroflux.md`. This is the ratchet's next *design* question, not a bug.
+4. **Gap 3 — confirm Daedalus's 30-aug gate counts NFG levels.** Cheap, and it shapes the
+   BN1.3 endgame timing. Do it before the gate matters. Note gap 8 raises the stakes: if the gate
+   counts levels, the same ×1.14 rep ladder is also pacing our approach to Daedalus.
 
 **Abort levers, unchanged:** set `ratchet-mode.txt` to anything but `auto`, or create
 `augfarmer-pause.txt`.

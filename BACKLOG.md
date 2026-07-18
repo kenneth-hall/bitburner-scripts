@@ -22,6 +22,17 @@ do, and what's broken?*
 
 ## Bugs
 
+- **The NFG tail is on track to shrink every cycle — nothing plans for it** — NFG's rep
+  requirement escalates **×1.14/level** (measured install #9: 122,736 → 998,737 over 16 levels;
+  the close-out previously recorded it as *not* climbing, which was wrong). Rep resets to zero
+  every install but the requirement doesn't, so each cycle re-earns a compounding target with
+  roughly linear rep income. Money bound the tail through install #9 so it hasn't bitten yet.
+  When it does, per-cycle gain decays toward the discrete augs alone — and the tail is most of
+  the gain (16 NFG levels vs 6 discrete augs at #9). Arithmetic is fixed (both ladders now bound
+  the buy loop and the projection); **the strategy is open**: donation is the only rep lever that
+  scales with our money surplus, and nothing currently aims it at NFG.
+  → [docs/neuroflux.md](docs/neuroflux.md), close-out "Open gaps" (8).
+
 - **Nothing detects a stalled auto cycle** — gap 7's follow-on. The trigger sat 25h unarmed with
   $3.3q idle (2026-07-17 → 07-18) and nothing said a word; every process was alive and healthy the
   whole time. The arming bug itself is fixed, but the *class* isn't: in auto mode there is no check

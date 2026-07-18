@@ -21,6 +21,8 @@ import {
   RATE_EWMA_ALPHA,
   SPEND_DOWN_BUY_CAP,
   NFG_PRICE_LADDER,
+  NFG_REP_LADDER,
+  nfgLevelsByRep,
   scoreAug,
   filterAugs,
   expandPrereqs,
@@ -741,6 +743,37 @@ describe('pickHorizonGrind', () => {
   });
 });
 
+describe('nfgLevelsByRep', () => {
+  // NFG's repReq escalates x1.14/level, same shape as its base price. Measured
+  // at install #9 (2026-07-18): 122,736 -> 998,737 across exactly 16 levels
+  // bought (ratio 8.137 = 1.14^16). This corrects the close-out's "does not
+  // climb with level" claim. -> docs/neuroflux.md
+  it('0 when rep cannot clear even the first level', () => {
+    expect(nfgLevelsByRep(9_999, 10_000)).toBe(0);
+    expect(nfgLevelsByRep(0, 10_000)).toBe(0);
+  });
+
+  it('exactly 1 at the requirement, and until the second level is affordable', () => {
+    expect(nfgLevelsByRep(10_000, 10_000)).toBe(1);
+    expect(nfgLevelsByRep(11_399, 10_000)).toBe(1); // 2nd level needs 11,400
+    expect(nfgLevelsByRep(11_400, 10_000)).toBe(2);
+  });
+
+  it("install #9's live shape: 122,736 req against 3.93m rep allows 27 levels", () => {
+    // Money bound it to 16 that cycle, which is why rep never showed up as the
+    // constraint -- but the headroom is collapsing: that same 3.93m rep covers
+    // only 11 levels against the NEW 998,737 requirement, and rep restarts at
+    // zero next install while the requirement does not.
+    expect(nfgLevelsByRep(3_932_303, 122_736)).toBe(27);
+    expect(nfgLevelsByRep(3_932_303, 998_737)).toBe(11);
+  });
+
+  it('degenerate inputs never produce a bound that would suppress the tail wrongly', () => {
+    expect(nfgLevelsByRep(-1, 10_000)).toBe(0);
+    expect(nfgLevelsByRep(10_000, 0)).toBe(0);
+  });
+});
+
 describe('evalTrigger', () => {
   function baseInputs(overrides = {}) {
     return {
@@ -867,6 +900,41 @@ describe('evalTrigger', () => {
     });
   });
 
+  describe('the NFG projection is bounded by rep, not money alone', () => {
+    // The money-only projection was documented as "accepted optimism -- NFG's
+    // rep requirement may bind first." Since repReq escalates x1.14/level while
+    // rep resets to zero every install, that optimism is now the common case,
+    // and it inflates the very totalGain MIN_TOTAL_GAIN gates on.
+    const rich = { nfgPrice: 1e9, nfgHackingMult: 1.01, money: 1e15, queuedGain: 1, queuedCount: 1 };
+
+    it('takes the rep bound when rep is the tighter of the two', () => {
+      const moneyOnly = evalTrigger(baseInputs(rich), null);
+      expect(moneyOnly.nfgLevelsProjected).toBeGreaterThan(3);
+      const repBound = evalTrigger(baseInputs({ ...rich, nfgRep: 12_000, nfgRepReq: 10_000 }), null);
+      expect(repBound.nfgLevelsProjected).toBe(2); // 10k + 11.4k cleared, 12.996k not
+      expect(repBound.totalGain).toBeLessThan(moneyOnly.totalGain);
+    });
+
+    it('leaves the money bound alone when money is the tighter of the two', () => {
+      const poor = { ...rich, money: 3e9 }; // ~2 levels of cash
+      const a = evalTrigger(baseInputs(poor), null);
+      const b = evalTrigger(baseInputs({ ...poor, nfgRep: 1e12, nfgRepReq: 10_000 }), null);
+      expect(b.nfgLevelsProjected).toBe(a.nfgLevelsProjected);
+    });
+
+    it('projects 0 levels when rep cannot clear even the first', () => {
+      const t = evalTrigger(baseInputs({ ...rich, nfgRep: 9_999, nfgRepReq: 10_000 }), null);
+      expect(t.nfgLevelsProjected).toBe(0);
+      expect(t.projectedNfgFactor).toBe(1);
+    });
+
+    it('unsupplied rep/repReq stays money-only (back-compat for other callers)', () => {
+      const a = evalTrigger(baseInputs(rich), null);
+      const b = evalTrigger(baseInputs({ ...rich, nfgRep: 0, nfgRepReq: 0 }), null);
+      expect(b.nfgLevelsProjected).toBe(a.nfgLevelsProjected);
+    });
+  });
+
   it('auto-mode latch: once fired, a spend-down/installing phase input does not clear it', () => {
     const t0 = evalTrigger(baseInputs({ now: 0, mode: 'auto' }), null);
     const t1 = evalTrigger(baseInputs({ now: TRIGGER_SUSTAIN_MS, mode: 'auto' }), t0);
@@ -961,6 +1029,27 @@ describe('spendDownPlan', () => {
   it('skips NFG in the discrete pass -- handled by the repeated NFG tail', () => {
     const actions = spendDownPlan([candidate({ aug: NFG_NAME, price: 100 })], { augs: {} }, 1000, null);
     expect(actions).toEqual([]);
+  });
+
+  it('stops the NFG tail when the REP ladder runs out before the money does', () => {
+    // 2026-07-18: repReq escalates x1.14/level, so clearing level 1's rep does
+    // not license the whole tail. Money here funds many levels; rep funds 2.
+    const nfgState = { livePrice: 100, faction: 'BitRunners', repMet: true, rep: 12_000, repReq: 10_000 };
+    const actions = spendDownPlan([], { augs: {} }, 1e12, nfgState);
+    expect(actions.length).toBe(2);
+    expect(actions.every((a) => a.aug === NFG_NAME)).toBe(true);
+  });
+
+  it('money still binds when it is the tighter of the two ladders', () => {
+    const nfgState = { livePrice: 100, faction: 'BitRunners', repMet: true, rep: 1e12, repReq: 10_000 };
+    const actions = spendDownPlan([], { augs: {} }, 100 + 100 * NFG_PRICE_LADDER + 1, nfgState);
+    expect(actions.length).toBe(2);
+  });
+
+  it('omitted rep/repReq leaves the tail money-bounded (back-compat)', () => {
+    const nfgState = { livePrice: 100, faction: 'BitRunners', repMet: true };
+    const withRep = spendDownPlan([], { augs: {} }, 100 + 100 * NFG_PRICE_LADDER + 1, nfgState);
+    expect(withRep.length).toBe(2);
   });
 
   it('repeats NFG buys along the observed price ladder until unaffordable', () => {

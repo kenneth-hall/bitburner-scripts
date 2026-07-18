@@ -8,6 +8,21 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-18
 
+- **Phase 25 gap 8 — NFG's rep requirement climbs ×1.14/level; the close-out had recorded that it
+  doesn't.** Install #9 measured repReq 122,736 → 998,737 over exactly 16 levels (= 1.14¹⁶). The
+  original "checked" reading compared a before/after that spanned a catalog which hadn't rebuilt —
+  the lesson being that a cross-install comparison is only as good as the rebuild between them.
+  Load-bearing because rep resets to zero every install while the requirement doesn't: each cycle
+  re-earns a compounding target (10k → 123k → 999k over three installs) on roughly linear rep
+  income, so **rep is about to replace money as the binding constraint on the NFG tail and then
+  shrink it every cycle** — and the tail is most of a cycle's gain (16 NFG levels vs 6 discrete
+  augs at #9). Fixed: `NFG_REP_LADDER` + `nfgLevelsByRep`, with `spendDownPlan`'s buy loop and
+  `evalTrigger`'s projection now bounded by **both** ladders (the projection was money-only, an
+  optimism that inflates the `totalGain` `MIN_TOTAL_GAIN` gates on). 601 tests pass. New mechanics
+  reference **`docs/neuroflux.md`** (+ `INDEX.md` row) — both ladders, the counting quirks, the
+  seller rule. **Left open:** nothing plans NFG rep as an expense; donation is the only rep lever
+  that scales with our surplus and isn't aimed at NFG. → close-out "Open gaps" (8).
+
 - **Phase 25 gap 7 — the trigger could not arm at a rep-complete plateau; the auto cycle sat 25
   hours doing nothing.** After install #8 every one of the 38 reachable augs was rep-met, so
   `pickHorizonGrind` correctly returned no faction — and `evalTrigger` read "no horizon" as "don't

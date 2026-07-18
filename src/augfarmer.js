@@ -116,6 +116,22 @@ export const SPEND_DOWN_BUY_CAP = 50;
 // under-projected every level past the first. If a future node re-prices NFG,
 // re-measure the same way.
 export const NFG_PRICE_LADDER = 2.166;
+
+// NeuroFlux Governor's REP requirement escalates per level too -- ×1.14, the
+// same shape as its base price. Measured across install #9 (2026-07-18):
+// repReq 122,736 -> 998,737 over exactly 16 levels bought, ratio 8.137 =
+// 1.14^16 to four figures.
+//
+// This corrects a claim the phase-25 close-out carried as checked fact ("NFG's
+// rep requirement does not climb with level" -- it read 10,181 before AND after
+// install #6, which we now believe was a catalog that had not rebuilt yet).
+// It matters because rep resets to zero on every install: each cycle must
+// re-earn the CURRENT requirement from scratch, and that requirement has gone
+// 10k -> 123k -> 999k in three installs. Rep, not money, becomes the binding
+// constraint on the NFG tail -- and the tail is where most of a cycle's gain
+// comes from (16 levels vs 6 discrete augs at install #9).
+// -> docs/neuroflux.md
+export const NFG_REP_LADDER = 1.14;
 export const PASSIVE_REP_FACTIONS = new Set(["CyberSec", "NiteSec", "The Black Hand", "BitRunners"]);
 export const RED_PILL_NAME = "The Red Pill";
 
@@ -679,6 +695,8 @@ export function evalTrigger(inputs, priorState) {
     queuedCount = 0,
     nfgPrice = 0,
     nfgHackingMult = 1,
+    nfgRep = 0,
+    nfgRepReq = 0,
     money = 0,
     phase,
     targetFaction,
@@ -706,6 +724,17 @@ export function evalTrigger(inputs, priorState) {
     // predicts 11, which is what spend-down actually bought.
     const ratio = 1 + (money * (NFG_PRICE_LADDER - 1)) / nfgPrice;
     if (ratio > 1) nfgLevelsProjected = Math.max(0, Math.floor(Math.log(ratio) / Math.log(NFG_PRICE_LADDER)));
+  }
+  // Rep bounds the tail too, and increasingly does the binding (2026-07-18):
+  // NFG's repReq escalates x1.14 per level while rep resets to zero every
+  // install, so each cycle re-earns a requirement that has grown 10k -> 123k ->
+  // 999k over three installs. The old money-only projection was documented as
+  // "accepted optimism ... NFG's rep requirement may bind first"; that
+  // optimism is now the common case, and it inflates totalGain -- which is
+  // exactly what MIN_TOTAL_GAIN gates on. An unsupplied rep/repReq leaves the
+  // projection money-only, as before.
+  if (nfgRep > 0 && nfgRepReq > 0) {
+    nfgLevelsProjected = Math.min(nfgLevelsProjected, nfgLevelsByRep(nfgRep, nfgRepReq));
   }
   const projectedNfgFactor = Math.pow(nfgHackingMult, nfgLevelsProjected);
   const totalGain = queuedGain * projectedNfgFactor;
@@ -809,12 +838,37 @@ export function pickNfgSeller(sellers, factionRep, repReq) {
 }
 
 /**
+ * Pure (2026-07-18). How many NFG levels `rep` can clear, given the CURRENT
+ * level's requirement and the ×NFG_REP_LADDER escalation: level i (0-indexed)
+ * needs repReq * L^i, so the count is floor(log(rep/repReq)/log L) + 1, and 0
+ * when rep can't even clear the first.
+ *
+ * Rep does not grow during a spend-down (it's seconds long, and the work slot
+ * is not earning through an install), so a single up-front bound is exact --
+ * no need to re-derive per level.
+ * @param {number} rep rep with the chosen NFG seller
+ * @param {number} repReq the current level's requirement
+ */
+export function nfgLevelsByRep(rep, repReq) {
+  if (!(rep > 0) || !(repReq > 0) || rep < repReq) return 0;
+  return Math.floor(Math.log(rep / repReq) / Math.log(NFG_REP_LADDER)) + 1;
+}
+
+/**
  * Pure (S10 step 1). One pass's spend-down buy list: rep-met discrete augs
  * first in S3's sorted order (skipping NFG, handled below), then repeated
  * NFG levels using the observed NFG_PRICE_LADDER escalation from
  * `nfgState.livePrice`, bounded by SPEND_DOWN_BUY_CAP. `nfgState` is
- * {livePrice, faction, repMet} -- repMet false suppresses the NFG tail
- * (money-only affordability can't buy past its own rep requirement).
+ * {livePrice, faction, repMet, rep, repReq} -- repMet false suppresses the NFG
+ * tail (money-only affordability can't buy past its own rep requirement).
+ *
+ * The tail is bounded by BOTH ladders (2026-07-18): money escalates ×2.166 per
+ * level and the rep requirement escalates ×1.14, so rep can run out first even
+ * though it cleared level 1. Before this the tail was money-bounded only and
+ * planned levels the game would refuse -- harmless at the buy site (a failed
+ * spend records nothing) but it fed a `totalGain` that overstated the fire.
+ * `rep`/`repReq` omitted => rep is not treated as binding, preserving the old
+ * behavior for callers that don't supply them.
  * @param {object[]} sortedCandidates
  * @param {{augs: Record<string, {price: number}>}} catalog
  * @param {number} money
@@ -834,11 +888,15 @@ export function spendDownPlan(sortedCandidates, catalog, money, nfgState) {
   }
 
   if (nfgState?.repMet && nfgState.faction && nfgState.livePrice > 0) {
+    const repCap =
+      nfgState.rep > 0 && nfgState.repReq > 0 ? nfgLevelsByRep(nfgState.rep, nfgState.repReq) : Infinity;
     let price = nfgState.livePrice;
-    while (actions.length < SPEND_DOWN_BUY_CAP && price > 0 && price <= remaining) {
+    let nfgLevels = 0;
+    while (actions.length < SPEND_DOWN_BUY_CAP && price > 0 && price <= remaining && nfgLevels < repCap) {
       actions.push({ type: "buy", aug: NFG_NAME, faction: nfgState.faction, price });
       remaining -= price;
       price *= NFG_PRICE_LADDER;
+      nfgLevels += 1;
     }
   }
 
@@ -1518,6 +1576,12 @@ export async function main(ns) {
     const queuedGain = queuedNames.reduce((p, n) => p * (catalog.augs[n]?.hackingMult ?? 1), 1);
     const nfgPrice = catalog.augs[NFG_NAME]?.price ?? 0;
     const nfgHackingMult = catalog.augs[NFG_NAME]?.hackingMult ?? 1;
+    // Project the tail against the seller spend-down will actually use (the
+    // most-rep joined seller, gap 6) -- projecting against any other faction's
+    // rep would bound the wrong thing.
+    const nfgRepReq = catalog.augs[NFG_NAME]?.repReq ?? 0;
+    const nfgProjectedSeller = pickNfgSeller(catalog.augs[NFG_NAME]?.sellers, factionRep, nfgRepReq || Infinity);
+    const nfgRep = nfgProjectedSeller ? (factionRep[nfgProjectedSeller] ?? 0) : 0;
 
     // The horizon measures the best candidate we're still waiting on rep for
     // -- NOT pickTarget's head (always rep-met, deficit 0) and NOT
@@ -1529,6 +1593,8 @@ export async function main(ns) {
       queuedCount: queuedNames.length,
       nfgPrice,
       nfgHackingMult,
+      nfgRep,
+      nfgRepReq,
       money: player.money,
       phase: previousPhase,
       targetFaction: horizonGrind.faction,
@@ -1609,6 +1675,8 @@ export async function main(ns) {
         livePrice: nfgPrice,
         faction: nfgSeller,
         repMet: nfgSeller !== null,
+        rep: nfgSeller ? (factionRep[nfgSeller] ?? 0) : 0,
+        repReq: catalog.augs[NFG_NAME]?.repReq ?? 0,
       };
       installSeq.actions = spendDownPlan(target?.candidates ?? [], catalog, player.money, nfgState);
       installSeq.execReady = installSeq.actions.length === 0;
