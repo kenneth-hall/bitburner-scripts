@@ -41,7 +41,7 @@ export function pickBootstrapTarget(candidates, myHackLevel) {
 /**
  * Pure. Per-host thread top-up: threads = floor(freeRam / bootloopRam),
  * zero-thread hosts dropped (covers home automatically -- getHosts holds
- * HOME_RESERVE_GB back, so home reports 0 free below a 32GB home).
+ * HOME_RESERVE_GB back, so home reports 0 free below an 80GB home).
  * @param {{hostname: string, freeRam: number}[]} hosts
  * @param {number} bootloopRam
  */

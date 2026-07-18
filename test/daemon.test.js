@@ -4,7 +4,7 @@
 // dashboard.js status-snapshot builder). trimLog/DAEMON_LOG_MAX_ENTRIES are
 // exported for this test only -- no other behavior change.
 import { describe, it, expect } from 'vitest';
-import { trimLog, DAEMON_LOG_MAX_ENTRIES, buildDaemonStatus } from '../src/daemon.js';
+import { trimLog, DAEMON_LOG_MAX_ENTRIES, buildDaemonStatus, planRelaunches, RESIDENT_COMPANIONS, SUPERVISOR_RETRY_MS } from '../src/daemon.js';
 
 /** Builds MAX + extra plain entries, no `mode` event -- non-pinned case. */
 function buildPlainEntries(count) {
@@ -96,5 +96,67 @@ describe('buildDaemonStatus', () => {
     const status = buildDaemonStatus({ now: 1, useFormulas: true, forcedLegacy: false, members });
     expect(status.members).toHaveLength(17);
     expect(status.memberCount).toBe(17);
+  });
+});
+
+describe('planRelaunches — Phase 26 B1 (S5/S10)', () => {
+  const residents = ['a.js', 'b.js', 'c.js'];
+
+  it('a missing resident is queued for launch, with its attempt time recorded', () => {
+    const running = new Set(['b.js', 'c.js']);
+    const r = planRelaunches(running, residents, new Set(), {}, 1000);
+    expect(r.launch).toEqual(['a.js']);
+    expect(r.waitingRam).toEqual([]);
+    expect(r.lastAttemptMs['a.js']).toBe(1000);
+  });
+
+  it('a running resident needs nothing', () => {
+    const running = new Set(residents);
+    const r = planRelaunches(running, residents, new Set(), {}, 1000);
+    expect(r.launch).toEqual([]);
+    expect(r.waitingRam).toEqual([]);
+  });
+
+  it('backoff: missing again within SUPERVISOR_RETRY_MS is not relaunched; after it is', () => {
+    const running = new Set(['b.js', 'c.js']);
+    const priorAttempts = { 'a.js': 1000 };
+    const stillWithin = planRelaunches(running, residents, new Set(), priorAttempts, 1000 + SUPERVISOR_RETRY_MS - 1);
+    expect(stillWithin.launch).toEqual([]);
+    expect(stillWithin.lastAttemptMs['a.js']).toBe(1000); // untouched -- no attempt was made
+
+    const afterBackoff = planRelaunches(running, residents, new Set(), priorAttempts, 1000 + SUPERVISOR_RETRY_MS);
+    expect(afterBackoff.launch).toEqual(['a.js']);
+    expect(afterBackoff.lastAttemptMs['a.js']).toBe(1000 + SUPERVISOR_RETRY_MS);
+  });
+
+  it('missing + unfit => waitingRam, no launch, no attempt-time update', () => {
+    const running = new Set(['b.js', 'c.js']);
+    const r = planRelaunches(running, residents, new Set(['a.js']), {}, 1000);
+    expect(r.launch).toEqual([]);
+    expect(r.waitingRam).toEqual(['a.js']);
+    expect(r.lastAttemptMs['a.js']).toBeUndefined();
+  });
+
+  it('unfit -> fit transition launches immediately -- no backoff accrued while waiting', () => {
+    const running = new Set(['b.js', 'c.js']);
+    // Missing and unfit for a long stretch -- no attempt time was ever set.
+    const waiting = planRelaunches(running, residents, new Set(['a.js']), {}, 1000);
+    expect(waiting.lastAttemptMs['a.js']).toBeUndefined();
+    // Now it fits: must launch immediately, not wait out SUPERVISOR_RETRY_MS.
+    const nowFits = planRelaunches(running, residents, new Set(), waiting.lastAttemptMs, 1000 + 1);
+    expect(nowFits.launch).toEqual(['a.js']);
+  });
+
+  it('self-terminating scripts never appear -- list membership is the rail', () => {
+    expect(RESIDENT_COMPANIONS).not.toContain('procureprograms.js');
+    expect(RESIDENT_COMPANIONS).not.toContain('procureformulas.js');
+    expect(RESIDENT_COMPANIONS).not.toContain('studybootstrap.js');
+    expect(RESIDENT_COMPANIONS).not.toContain('backdoorfactions.js');
+    expect(RESIDENT_COMPANIONS).not.toContain('backdoorwd.js');
+  });
+
+  it('multiple missing residents are all handled in one pass', () => {
+    const r = planRelaunches(new Set(), residents, new Set(), {}, 1000);
+    expect(r.launch.sort()).toEqual(['a.js', 'b.js', 'c.js']);
   });
 });

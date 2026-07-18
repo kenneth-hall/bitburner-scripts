@@ -33,17 +33,6 @@ do, and what's broken?*
   scales with our money surplus, and nothing currently aims it at NFG.
   → [docs/neuroflux.md](docs/neuroflux.md), **Phase 26 track B3**.
 
-- **No supervision + `HOME_RESERVE_GB` (32) < augfarmer's 64.1 GB** — companions launch once at
-  `daemon.js:415-455`, *before* the loop at 626; nothing monitors or relaunches them, so any
-  companion death is a **silent permanent stop**, and `augfarmer.js` can't be relaunched at all
-  (batcher fills home to `maxRam - reserve`, pinning free RAM at 32 GB). Confirmed **structural**:
-  home 2 TB → 64 TB and free RAM went *down* (34.75 → 32.00 GB), so "buy more RAM" is not a fix.
-  Recovery today is `restart daemon.js`. Doesn't block the first auto fire (you're watching); does
-  block genuinely-unattended running, which is the real prize. **Fix is supervisor + reserve bump
-  together, or neither.** Note Phase 25 deliberately declined the bump, correctly for the case it
-  weighed. → **Phase 26 track B1** (`phase-26-ratchet-autonomy.features.md`); Phase 25's
-  close-out is frozen.
-
 - **Observe-mode trigger flap: a fire self-clears, then re-fires every ~10 min** — firing sets
   `phase: "install-ready"`, which is not an arming phase, so the next poll clears it → re-arms →
   re-fires on a `TRIGGER_SUSTAIN_MS` loop (observed 22:42:14Z fire → :24 clear → :34 re-arm).

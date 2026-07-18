@@ -8,6 +8,22 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-18
 
+- **Phase 26 B1 shipped — companion supervisor + `HOME_RESERVE_GB` bump** (`phase26-b1`, held
+  unmerged until after install #10 per the phase spec's S7 staging). `daemon.js`'s main loop now
+  diffs `ns.ps("home")` against `RESIDENT_COMPANIONS` every 60s and relaunches any missing one via
+  the existing `launchDetached`, with a 5-minute per-script backoff so an instantly-re-crashing
+  script produces a bounded WARN cadence rather than a relaunch storm. A missing-but-doesn't-fit
+  companion (normal for `augfarmer.js`'s 64.1 GB in a fresh node's early hours) gets its own
+  `waiting-ram` state — one INFO line on entry, then silence — instead of a spurious WARN loop.
+  `HOME_RESERVE_GB` 32 → 80 ships together (never separately): a relaunched `augfarmer.js` needs
+  the headroom to actually fit. Self-terminating fulfillers (`procureprograms.js` and siblings)
+  are deliberately unsupervised — their absence is success, not failure. New pure `planRelaunches`;
+  `hosts.test.js`'s two `HOME_RESERVE_GB`-dependent fixtures updated as an intended change, plus a
+  new case locking the 64→0 GB flip at the new reserve. Full suite green; daemon.js RAM flat at
+  16.3 GB (already charged via `sampling.js`'s `ns.ps`). Merged 2026-07-18 after Phase 26 A2's
+  install #10 completed live (confirmed via `ratchet-decisions.json`); live shakedown (kill-and-
+  recover on a cheap monitor and on `augfarmer.js` itself) follows as this branch's own live
+  procedure.
 - **Phase 26 A2 + B2 shipped — the endgame gate-release exception + stall-age detection**
   (`phase26-a2-b2`). A2: `evalTrigger` gains a third arming reason — `gateArmed`, true when
   currently-queued augs would close an in-scope faction's aug-count gate (`computeGateRelease`'s
@@ -22,9 +38,11 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   NOT suppressed by `endgameHold` (gap 9's exact shape: healthy processes, zero progress,
   indefinitely). D9 lands alongside: `evalTrigger` now also names the NFG tail's binding
   constraint (`nfgBoundBy: "money"|"rep"|"none"`) on every record. Full suite (656 tests) green;
-  RAM flat at 64.10 GB. Live validation (install #10 firing from `gateArmed`, the unattended
-  endgame chain) is the phase's primary gate — see `phase-26-ratchet-autonomy.spec.md`'s live
-  procedure.
+  RAM flat at 64.10 GB. **Live-validated 2026-07-18:** restarted `augfarmer.js` live, arming
+  recorded within one poll (`trigger-arm`, `reasons.gateArmed: true`, `gateRelease` naming
+  Daedalus, `totalGain` exactly 1 — no gain-side arming at all), fired at the full
+  `TRIGGER_SUSTAIN_MS`, and install #10 landed via `installer.js` — the first unattended endgame
+  install this ratchet has ever completed.
 - **Phase 26 A1 shipped — gate-aware buying breaks the 29/30 deadlock** (`5ad32a3`). Every unowned
   filter-passing aug was sold only by Daedalus/Covenant/Illuminati, the factions the aug-count gate
   locks us out of, while every buyable aug scored 0.00 and was dropped — circular, unbreakable by

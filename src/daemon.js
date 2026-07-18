@@ -103,6 +103,27 @@ const SHARE_OFF_MARKER = "share-off.txt";
 // only way to guarantee the window's header never scrolls out of view.
 const MEMBER_LIST_CAP = 12;
 
+// Phase 26 B1: the always-on companions this daemon supervises (relaunches if
+// missing). Deliberately excludes the self-terminating fulfillers
+// (procureprograms.js, procureformulas.js, studybootstrap.js,
+// backdoorfactions.js, backdoorwd.js) -- their absence is their SUCCESS
+// state, and a supervisor can't tell "done" from "died early" without owning
+// each script's own completion predicate (recorded limitation, see the phase
+// spec's open question iii; a crash-before-done there heals at the next
+// daemon restart, same as before this phase).
+export const RESIDENT_COMPANIONS = [
+  "targetsmonitor.js",
+  "transactionsmonitor.js",
+  "resourcemanager.js",
+  "cloudmanager.js",
+  "augfarmer.js",
+  "dashboard.js",
+  "xpfarm.js",
+  "ratchetlog.js",
+];
+export const SUPERVISOR_CHECK_MS = 60_000; // time-gated inside the main loop, like the share-marker check
+export const SUPERVISOR_RETRY_MS = 5 * 60_000; // per-script backoff so an instantly-re-crashing script doesn't relaunch-storm
+
 // Phase 24 (S2): a purpose-built status snapshot for dashboard.js -- distinct
 // from DAEMON_LOG_FILE's event ring buffer, which only carries this info
 // once per CYCLE_MS via `snapshot` events and lacks several tail-only fields
@@ -139,6 +160,53 @@ function launchDetached(ns, script, ...args) {
 
   const pid = ns.exec(script, "home", 1, ...args);
   if (pid === 0) tprintTs(ns, `ERROR: failed to start ${script}`);
+}
+
+/**
+ * Pure (Phase 26 B1, S5). Which resident companions need a relaunch attempt
+ * this check.
+ *
+ * `runningNames`: Set of script filenames currently in ns.ps("home").
+ * `residents`: the full RESIDENT_COMPANIONS list (order preserved in output).
+ * `unfitNames`: Set of resident names that are missing AND currently don't
+ * fit on home (fitsOnHome false) -- these go to `waitingRam`, not `launch`,
+ * and their backoff clock is untouched, so an unfit->fit transition launches
+ * immediately instead of waiting out a backoff that accrued while unfit
+ * (cold review blocker 2's "missing != died" case: a resident that simply
+ * doesn't fit yet -- normal for augfarmer.js's 64.1 GB in a fresh node's
+ * early hours -- is its own state, not a relaunch attempt).
+ * `lastAttemptMs`: {[script]: timestamp} of the last relaunch ATTEMPT
+ * (fit-and-missing only); absent/undefined means "never attempted".
+ * `nowMs`: current time.
+ *
+ * Returns {launch, waitingRam, lastAttemptMs} -- `lastAttemptMs` is the
+ * caller's next map, with an entry added/updated ONLY for names actually
+ * placed in `launch` this call (never for `waitingRam` names).
+ * @param {Set<string>} runningNames
+ * @param {string[]} residents
+ * @param {Set<string>} unfitNames
+ * @param {Record<string, number>} lastAttemptMs
+ * @param {number} nowMs
+ * @returns {{launch: string[], waitingRam: string[], lastAttemptMs: Record<string, number>}}
+ */
+export function planRelaunches(runningNames, residents, unfitNames, lastAttemptMs, nowMs) {
+  const launch = [];
+  const waitingRam = [];
+  const nextAttempts = { ...lastAttemptMs };
+
+  for (const script of residents) {
+    if (runningNames.has(script)) continue; // running -- nothing to do
+    if (unfitNames.has(script)) {
+      waitingRam.push(script);
+      continue; // no attempt-time update -- backoff must not accrue while unfit
+    }
+    const last = nextAttempts[script];
+    if (last !== undefined && nowMs - last < SUPERVISOR_RETRY_MS) continue; // still within backoff
+    launch.push(script);
+    nextAttempts[script] = nowMs;
+  }
+
+  return { launch, waitingRam, lastAttemptMs: nextAttempts };
 }
 
 /**
@@ -495,6 +563,13 @@ export async function main(ns) {
   let justRefreshed = true; // true only for the tick that just ran refreshCycle() -- gates the once-per-CYCLE_MS snapshot event
   let pendingImmediateFlush = false; // set when a mode/enter/exit event was appended this tick -- forces an immediate flush instead of the lazy timer
 
+  // --- Phase 26 B1 companion-supervisor state ---
+  let lastSupervisorCheck = 0; // 0 => check on the first tick
+  let supervisorAttempts = {}; // script -> last relaunch-attempt timestamp (planRelaunches' lastAttemptMs)
+  let companionMissingSince = {}; // script -> ms first observed missing (cleared once seen running again)
+  let companionAttemptCount = {}; // script -> relaunch attempts since it went missing (cleared once running)
+  let waitingRamAnnounced = new Set(); // scripts currently in the waiting-ram state we've already announced once
+
   // Appends a "mode" event carrying BOTH the math-mode and share-allocation
   // config, whichever changed -- the log's one config record, so a toggle of
   // either is visible with a timestamp regardless of which one moved.
@@ -668,6 +743,70 @@ export async function main(ns) {
       await refreshCycle();
       lastCycleTime = Date.now();
       justRefreshed = true;
+    }
+
+    // Phase 26 B1 (S5): companion supervisor -- time-gated inside this loop
+    // like the share-marker check, independent of the CYCLE_MS/targets state
+    // (a companion death matters whether or not there are eligible targets
+    // right now). ns.ps("home") is already charged via sampling.js's
+    // inFlightByTarget, reachable from this same file -- this direct call
+    // adds no new RAM (S9).
+    const supervisorNowMs = Date.now();
+    if (supervisorNowMs - lastSupervisorCheck >= SUPERVISOR_CHECK_MS) {
+      lastSupervisorCheck = supervisorNowMs;
+      const runningNames = new Set(ns.ps("home").map((p) => p.filename));
+
+      for (const script of RESIDENT_COMPANIONS) {
+        if (runningNames.has(script)) {
+          delete companionMissingSince[script];
+          delete companionAttemptCount[script];
+        } else if (companionMissingSince[script] === undefined) {
+          companionMissingSince[script] = supervisorNowMs;
+        }
+      }
+
+      const unfitNames = new Set(RESIDENT_COMPANIONS.filter((s) => !runningNames.has(s) && !fitsOnHome(ns, s)));
+      const supervisorPlan = planRelaunches(runningNames, RESIDENT_COMPANIONS, unfitNames, supervisorAttempts, supervisorNowMs);
+      supervisorAttempts = supervisorPlan.lastAttemptMs;
+
+      for (const script of supervisorPlan.launch) {
+        companionAttemptCount[script] = (companionAttemptCount[script] ?? 0) + 1;
+        const sinceMs = supervisorNowMs - (companionMissingSince[script] ?? supervisorNowMs);
+        tprintTs(ns, `SUPERVISOR: ${script} not running -- relaunching (attempt ${companionAttemptCount[script]}, missing ${Math.round(sinceMs / 1000)}s)`);
+        logEntries = appendLogEvent(logEntries, openSkipRecords, {
+          event: "companion-relaunch",
+          time: new Date().toLocaleTimeString(),
+          timestamp: supervisorNowMs,
+          script,
+          attempt: companionAttemptCount[script],
+          sinceMs,
+        });
+        pendingImmediateFlush = true;
+        launchDetached(ns, script);
+        waitingRamAnnounced.delete(script); // a fresh launch attempt supersedes any prior waiting-ram announcement
+      }
+
+      // Missing + unfit is its own state, not a relaunch (cold review blocker
+      // 2): no WARN, no companion-relaunch event, no attempt-time update --
+      // one INFO line + one log event on ENTERING the state, then silence
+      // until it fits (normal relaunch resumes, backoff clock fresh) or shows
+      // up. Without this the supervisor would WARN every 5 min for hours in
+      // exactly the fresh-node window B1 exists to protect.
+      for (const script of supervisorPlan.waitingRam) {
+        if (!waitingRamAnnounced.has(script)) {
+          waitingRamAnnounced.add(script);
+          tprintTs(ns, `INFO: ${script} missing but doesn't fit on home yet -- waiting for RAM`);
+          logEntries = appendLogEvent(logEntries, openSkipRecords, {
+            event: "companion-waiting-ram",
+            time: new Date().toLocaleTimeString(),
+            timestamp: supervisorNowMs,
+            script,
+          });
+        }
+      }
+      for (const script of [...waitingRamAnnounced]) {
+        if (!supervisorPlan.waitingRam.includes(script)) waitingRamAnnounced.delete(script);
+      }
     }
 
     if (targets.length === 0) {

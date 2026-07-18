@@ -4,7 +4,18 @@
 
 import { scanNetwork } from "./common.js";
 
-export const HOME_RESERVE_GB = 32;
+// Phase 26 S6: 32 -> 80. 80 = augfarmer.js's measured 64.1 GB + headroom for
+// a concurrent small-companion relaunch (dashboard ~2-4 GB, the monitors
+// less) -- the reserve exists so a relaunched resident (Phase 26 B1's
+// supervisor) actually fits, not just so manual scripts have room. Cost is
+// noise at the current 64 TB home (48 GB held back is 0.075%); the real cost
+// window is a fresh node's first cycle, where the fleet + xpfarm carry
+// throughput anyway until the first install maxes home RAM. A dynamic
+// reserve was considered and rejected: HOME_RESERVE_GB is consumed at three
+// sites (this file x2, daemon.js) and assumed constant by bootstrap.js's
+// handoff comment, and a conditional reserve is a second moving part in
+// exactly the RAM accounting that produced Phase 13's phantom-RAM hunt.
+export const HOME_RESERVE_GB = 80;
 
 const PORT_OPENERS = ["BruteSSH.exe", "FTPCrack.exe", "relaySMTP.exe", "HTTPWorm.exe", "SQLInject.exe"];
 
