@@ -33,6 +33,26 @@ do, and what's broken?*
   scales with our money surplus, and nothing currently aims it at NFG.
   → [docs/neuroflux.md](docs/neuroflux.md), **Phase 26 track B3**.
 
+- **`companion-relaunch`/`companion-waiting-ram` events get FIFO-evicted from `daemon-batch-log.json`
+  within minutes on a busy fleet** — discovered live 2026-07-18 during Phase 26 B1's L5 kill-test:
+  a `transactionsmonitor.js` relaunch event was confirmed present, then gone ~5 min later (grep came
+  up empty) while the relaunch itself worked fine (confirmed via `ps`/terminal WARN). `trimLog` only
+  pins the single most recent `mode` event against ordinary FIFO eviction; on a large fleet the
+  batch/skip event volume can churn through the full `DAEMON_LOG_MAX_ENTRIES` (2000) ring in a few
+  minutes. Not a correctness bug — supervision itself is unaffected — but it means the audit trail
+  for *why* a companion needed relaunching is unreliable on exactly the fleets where it matters
+  most. Candidate fix: pin the latest `companion-relaunch` alongside `mode`, or give supervisor
+  events their own small file (Phase 24's "log, not dashboard" convention, just a dedicated log).
+  **Not fixed here** — outside Phase 26 B1's authorized scope; revisit before leaning on this log
+  for automated alerting.
+
+- **L6 next-node entry watch (Phase 26)** — the fresh node's first unattended day is B1/B2's real
+  soak (small early fleet, thin `ratchet-log.json` sample so `evalStall`'s threshold runs on
+  `STALL_FALLBACK_MS`/`STALL_MIN_MS`, augfarmer's 64.1 GB likely doesn't fit for a while so B1's
+  `waiting-ram` state should be the only thing the supervisor logs). **Check daily during that
+  stretch:** `companion-relaunch` event count (should track real deaths only) and the `stall` block
+  in `augfarmer-state.json` (age/threshold should look sane, no false positives). → phase spec's L6.
+
 - **Observe-mode trigger flap: a fire self-clears, then re-fires every ~10 min** — firing sets
   `phase: "install-ready"`, which is not an arming phase, so the next poll clears it → re-arms →
   re-fires on a `TRIGGER_SUSTAIN_MS` loop (observed 22:42:14Z fire → :24 clear → :34 re-arm).

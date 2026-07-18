@@ -21,9 +21,14 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   `hosts.test.js`'s two `HOME_RESERVE_GB`-dependent fixtures updated as an intended change, plus a
   new case locking the 64→0 GB flip at the new reserve. Full suite green; daemon.js RAM flat at
   16.3 GB (already charged via `sampling.js`'s `ns.ps`). Merged 2026-07-18 after Phase 26 A2's
-  install #10 completed live (confirmed via `ratchet-decisions.json`); live shakedown (kill-and-
-  recover on a cheap monitor and on `augfarmer.js` itself) follows as this branch's own live
-  procedure.
+  install #10 completed live (confirmed via `ratchet-decisions.json`). **Live-validated same day
+  (L4/L5):** `daemon.js` restart brought every companion back with state intact; killed
+  `transactionsmonitor.js` and (separately, mid-`grinding`) `augfarmer.js` over CDP — both
+  relaunched within one 60s supervisor tick, `augfarmer.js`'s cycle state (lastAugReset,
+  boughtThisCycle, trigger) survived cleanly with no spurious re-fire. Found in the process (not
+  fixed, see BACKLOG): `companion-relaunch` log events get FIFO-evicted from
+  `daemon-batch-log.json` within minutes on a busy fleet — `trimLog` only pins the latest `mode`
+  event, not this one.
 - **Phase 26 A2 + B2 shipped — the endgame gate-release exception + stall-age detection**
   (`phase26-a2-b2`). A2: `evalTrigger` gains a third arming reason — `gateArmed`, true when
   currently-queued augs would close an in-scope faction's aug-count gate (`computeGateRelease`'s
