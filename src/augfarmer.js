@@ -400,6 +400,15 @@ function evaluateRequirement(req, facts) {
       return Object.entries(req.skills).every(([skill, level]) => (facts.skills?.[skill] ?? 0) >= level);
     case "karma":
       return (facts.karma ?? 0) <= req.karma;
+    case "numAugmentations":
+      // Phase 26 A1 precondition (2026-07-18). Was falling through to
+      // `default: return false`, so this requirement read UNMET forever --
+      // even at 30 augs -- and any logic keyed on it could never fire. The
+      // count is DISTINCT augs: NFG is one entry however many levels it holds
+      // (Phase 25 gap 3, settled live). Third instance this session of a
+      // silent false/zero default standing in for "unknown"; the `default`
+      // arm below is the same hazard for every type still unhandled.
+      return (facts.augCount ?? 0) >= req.numAugmentations;
     case "employedBy":
       return facts.jobs?.has(req.company) ?? false;
     case "backdoorInstalled":
@@ -428,7 +437,90 @@ export function evaluateInviteReqs(reqs, playerFacts) {
   const unmet = evaluated.filter((e) => !e.met);
   const joinable = unmet.length === 0;
   const onlyCityGap = !joinable && unmet.length === 1 && unmet[0].req.type === "city";
-  return { joinable, onlyCityGap, gapCity: onlyCityGap ? unmet[0].req.city : undefined };
+  // Phase 26 A1: the aug-count analogue of onlyCityGap. Travel closes a city
+  // gap; buying any unowned aug closes this one. `augCountGap` is how many
+  // more DISTINCT augs are needed.
+  const onlyAugCountGap = !joinable && unmet.length === 1 && unmet[0].req.type === "numAugmentations";
+  return {
+    joinable,
+    onlyCityGap,
+    gapCity: onlyCityGap ? unmet[0].req.city : undefined,
+    onlyAugCountGap,
+    augCountGap: onlyAugCountGap ? Math.max(0, unmet[0].req.numAugmentations - (playerFacts.augCount ?? 0)) : 0,
+  };
+}
+
+/**
+ * Pure (Phase 26 A1, 2026-07-18). Is an aug-COUNT gate the only thing between
+ * us and a faction we're not in? Returns the shortest such gap across in-scope
+ * unjoined factions, or null.
+ *
+ * WHY THIS EXISTS -- the deadlock it breaks, observed live at 29/30 augs:
+ * every unowned aug that passes the score filter is sold ONLY by Daedalus /
+ * The Covenant / Illuminati, and those factions are exactly what the count
+ * gate locks us out of. Meanwhile every aug we CAN buy scores 0.00 and is
+ * dropped. So the augs the engine will buy are sold only by the faction
+ * requiring the augs it won't buy: circular, unbreakable by time, money or
+ * rep. And it is structural -- once the non-endgame factions' passing augs are
+ * exhausted, the count gate can ONLY ever be closed by a zero-score aug. This
+ * recurs on every node clear.
+ *
+ * Deliberately general rather than keyed on `endgameHold` (D2): that flag is
+ * Daedalus-specific, while The Covenant (20 augs) and Illuminati (30) have the
+ * same shape and sell the same locked-out augs. Safety comes from "the count
+ * is the ONLY unmet requirement" -- a fresh node holds neither $100b nor
+ * hacking 2500, so this cannot fire during early game.
+ * @param {{factions: Record<string, {inviteReqs: object[]}>}} catalog
+ * @param {object} playerFacts must include `augCount`
+ * @param {Set<string>} joinedSet
+ * @param {Set<string>} factionScope
+ * @returns {{faction: string, gap: number}|null}
+ */
+export function findAugCountGate(catalog, playerFacts, joinedSet, factionScope) {
+  let best = null;
+  for (const [faction, info] of Object.entries(catalog?.factions ?? {})) {
+    if (joinedSet?.has(faction)) continue;
+    if (factionScope && !factionScope.has(faction)) continue;
+    const { onlyAugCountGap, augCountGap } = evaluateInviteReqs(info?.inviteReqs ?? [], playerFacts);
+    if (!onlyAugCountGap || !(augCountGap > 0)) continue;
+    if (!best || augCountGap < best.gap) best = { faction, gap: augCountGap };
+  }
+  return best;
+}
+
+/**
+ * Pure (Phase 26 A1, 2026-07-18). The cheapest aug we can buy RIGHT NOW purely
+ * to raise the distinct-aug count -- ignoring `passesFilter` entirely, because
+ * the point is the count, not the stats.
+ *
+ * Cheapest by PRICE is the whole rule: every aug purchase inflates the rest of
+ * the cycle by the same ~1.9x (docs/neuroflux.md), so price is the only thing
+ * separating two count-fillers. A $2.5m junk aug and a $25b real one cost the
+ * same tax.
+ *
+ * Excludes augs with unowned prereqs: chains (Combat Rib I->II->III) would each
+ * carry their own 1.9x tax, and we need +1, not a chain. Excludes NFG, which is
+ * already owned as a single entry and so never raises the distinct count -- the
+ * exact reason the deadlock is permanent.
+ * @param {Record<string, {price: number, repReq: number, sellers: string[], prereqs: string[], isNFG: boolean}>} augs
+ * @param {Set<string>} ownedSet
+ * @param {Record<string, number>} factionRep rep by joined faction
+ * @returns {{aug: string, faction: string, price: number}|null}
+ */
+export function pickGateFiller(augs, ownedSet, factionRep) {
+  let best = null;
+  for (const [name, info] of Object.entries(augs ?? {})) {
+    if (info?.isNFG) continue;
+    if (ownedSet?.has(name)) continue;
+    if ((info?.prereqs ?? []).some((p) => !ownedSet?.has(p))) continue;
+    // Cheapest rep-met seller we're actually in; rep is a threshold, not a
+    // cost -- buying does not deduct it.
+    const seller = (info?.sellers ?? []).find((f) => (factionRep?.[f] ?? -1) >= info.repReq);
+    if (!seller) continue;
+    if (!(info.price >= 0)) continue;
+    if (!best || info.price < best.price) best = { aug: name, faction: seller, price: info.price };
+  }
+  return best;
 }
 
 /** Pure. hacking > field > security, per S8; falls back to whatever's offered. */
@@ -1036,6 +1128,7 @@ export function planPass({
   mode,
   fired,
   installSeq,
+  gateFill,
 }) {
   if (paused) return { actions: [], reserve: 0, phase: "paused" };
 
@@ -1056,6 +1149,27 @@ export function planPass({
     actions.push({ type: "join", faction });
   }
   if (travel) actions.push({ type: "travel", city: travel.city, faction: travel.faction });
+
+  // Phase 26 A1. A count gate is the only thing between us and a faction, and
+  // nothing the scorer likes is buyable -- so buy the cheapest aug that exists
+  // purely to move the count. MUST live here in the grinding path, not in
+  // spend-down: `endgameHold` blocks arming, so spend-down never runs in
+  // exactly the state this exists to break (see findAugCountGate's header).
+  //
+  // Emitted LAST among buys (D5) -- purchase inflation hits everything bought
+  // after it, so a zero-score aug must never precede one whose price matters.
+  // Today nothing else is buyable, which is the whole problem, but the rule is
+  // wrong without the ordering.
+  if (gateFill) {
+    actions.push({
+      type: "buy",
+      aug: gateFill.aug,
+      faction: gateFill.faction,
+      price: gateFill.price,
+      gateFill: true,
+    });
+    return { actions, reserve: 0, phase: "gate-fill" };
+  }
 
   if (fired) {
     return { actions, reserve: 0, phase: "install-ready" };
@@ -1422,6 +1536,12 @@ export async function main(ns) {
       backdoored: new Set(),
       invites,
       factionRep,
+      // Phase 26 A1: DISTINCT installed augs -- NFG is one entry however many
+      // levels it holds (Phase 25 gap 3, settled live). Queued-but-uninstalled
+      // augs are deliberately excluded: the game's gate counts what's actually
+      // installed, and counting the queue would make the gate read closed a
+      // whole cycle early.
+      augCount: ownedInstalled.length,
     };
 
     const target = pickTarget(catalog, playerFacts, joined, ownedSet, nfgBoughtThisCycle);
@@ -1692,8 +1812,41 @@ export async function main(ns) {
       installSeq.execReady = installSeq.actions.length === 0;
     }
 
+    // Phase 26 A1. Only consider a gate-fill when the normal pipeline has
+    // nothing to buy -- i.e. no rep-met, affordable, score-positive target.
+    // "No passing aug is buyable" is the correct condition, NOT "only NFG
+    // left": six passing augs were unowned during the live deadlock, all sold
+    // exclusively by the endgame factions the gate locks us out of.
+    const normalBuyAvailable =
+      !!target && target.deficit <= 0 && !target.buyBlocked && livePrice !== null && player.money >= livePrice;
+    let gateFill = null;
+    if (!paused && !normalBuyAvailable) {
+      // The gate check must count distinct augs INCLUDING QUEUED ones, which
+      // is NOT what joinability counts. Buying an aug queues it; the installed
+      // count cannot move until an install happens. Feeding the installed
+      // count here means the gap never closes, so the rule re-fires every pass
+      // and buys the entire catalog at 1.9x each.
+      //
+      // That is not hypothetical -- it ran live 2026-07-18 07:39, five buys in
+      // fifty seconds ($4.75m -> $371m, gap stuck at 1) before being killed.
+      // SEVENTH instance of this file's recurring confusion, written while
+      // documenting the other six: "what we have" vs "what we will have after
+      // the install" are different questions and need different numbers.
+      // playerFacts.augCount stays INSTALLED-only because that is what the
+      // game's invite check actually reads.
+      const gateFacts = { ...playerFacts, augCount: ownedSet.size };
+      const gate = findAugCountGate(catalog, gateFacts, joined, FACTION_SCOPE_SET);
+      if (gate) {
+        const filler = pickGateFiller(catalog.augs, ownedSet, factionRep);
+        // One per pass (D4): the next pass re-derives everything, so if the
+        // gate closes or a real aug becomes reachable, this simply stops.
+        if (filler && player.money >= filler.price) gateFill = { ...filler, gateFaction: gate.faction, gap: gate.gap };
+      }
+    }
+
     const plan = planPass({
       target,
+      gateFill,
       joinFactions,
       travel,
       currentWork,
@@ -1803,7 +1956,7 @@ export async function main(ns) {
           if (ok) {
             recordTransaction(ns, {
               type: "expense",
-              source: "auto-aug",
+              source: action.gateFill ? "auto-aug-gate" : "auto-aug",
               aug: action.aug,
               faction: action.faction,
               amount: paid,
@@ -1811,6 +1964,18 @@ export async function main(ns) {
               timestamp: Date.now(),
               time: new Date().toLocaleTimeString(),
             });
+            if (action.gateFill) {
+              // Phase 26 A1: logs only, no dashboard panel -- fires ~once per
+              // node clear, which doesn't earn fixed-budget dashboard space.
+              appendDecision(ns, "gate-buy", {
+                now: nowMs,
+                mode,
+                phase: plan.phase,
+                money: player.money,
+                detail: { aug: action.aug, faction: action.faction, paid, gateFaction: gateFill?.gateFaction, gap: gateFill?.gap },
+              });
+              tprintTs(ns, `GATE: bought ${action.aug} ($${ns.format.number(paid)}) purely to close ${gateFill?.gateFaction ?? "a"}'s aug-count gate`);
+            }
             tprintTs(ns, `BUY: ${action.aug} from ${action.faction} for $${ns.format.number(paid)}`);
             boughtThisPass = true;
             if (action.aug === NFG_NAME) nfgBoughtThisCycle = true;

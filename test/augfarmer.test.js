@@ -37,6 +37,8 @@ import {
   pickTarget,
   pickWorkFaction,
   pickHorizonGrind,
+  findAugCountGate,
+  pickGateFiller,
   updateRepRates,
   evalTrigger,
   spendDownPlan,
@@ -740,6 +742,202 @@ describe('pickHorizonGrind', () => {
     const viaWorkFaction = pickWorkFaction(candidates, joined, PASSIVE_REP_FACTIONS, donationClosable);
     const stale = { faction: viaWorkFaction.deficit > 0 ? viaWorkFaction.faction : undefined, deficit: viaWorkFaction.deficit > 0 ? viaWorkFaction.deficit : 0 };
     expect(evalTrigger(inputs(stale), null).horizonMs).toBeNull();
+  });
+});
+
+describe('Phase 26 A1 — gate-aware buying', () => {
+  // Daedalus's real requirements, read live from the game 2026-07-18.
+  const DAEDALUS_REQS = [
+    { type: 'numAugmentations', numAugmentations: 30 },
+    { type: 'money', money: 100_000_000_000 },
+    {
+      type: 'someCondition',
+      conditions: [
+        { type: 'skills', skills: { hacking: 2500 } },
+        { type: 'skills', skills: { strength: 1500, defense: 1500, dexterity: 1500, agility: 1500 } },
+      ],
+    },
+  ];
+  // The live deadlock: 29/30 augs, everything else comfortably met.
+  const STUCK = { augCount: 29, money: 1_571_600_000_000_000, skills: { hacking: 4435 } };
+
+  describe('numAugmentations requirement (the precondition)', () => {
+    it('was unimplemented and fell through to a silent false — it must now evaluate', () => {
+      // Before the fix this hit `default: return false`, so the requirement read
+      // UNMET forever and anything keyed on it could never fire.
+      expect(evaluateInviteReqs(DAEDALUS_REQS, { ...STUCK, augCount: 30 }).joinable).toBe(true);
+    });
+
+    it('counts DISTINCT augs — 29 is short, 30 clears, 31 still clears', () => {
+      expect(evaluateInviteReqs(DAEDALUS_REQS, STUCK).joinable).toBe(false);
+      expect(evaluateInviteReqs(DAEDALUS_REQS, { ...STUCK, augCount: 31 }).joinable).toBe(true);
+    });
+
+    it('a missing augCount reads as 0, not as met', () => {
+      expect(evaluateInviteReqs(DAEDALUS_REQS, { money: 1e15, skills: { hacking: 4435 } }).joinable).toBe(false);
+    });
+  });
+
+  describe('onlyAugCountGap — the seam, mirroring onlyCityGap', () => {
+    it("reports the gap when the count is the ONLY unmet requirement (today's state)", () => {
+      const r = evaluateInviteReqs(DAEDALUS_REQS, STUCK);
+      expect(r.onlyAugCountGap).toBe(true);
+      expect(r.augCountGap).toBe(1);
+    });
+
+    it('does NOT report when something else is also unmet — the safety clause', () => {
+      // A fresh node: no money, no hacking. This is what stops the rule firing
+      // during early game, when buying junk augs would be catastrophic.
+      const fresh = { augCount: 2, money: 1000, skills: { hacking: 10 } };
+      expect(evaluateInviteReqs(DAEDALUS_REQS, fresh).onlyAugCountGap).toBe(false);
+    });
+
+    it('reports gap size, not just a boolean, so a deficit > 1 is visible', () => {
+      expect(evaluateInviteReqs(DAEDALUS_REQS, { ...STUCK, augCount: 24 }).augCountGap).toBe(6);
+    });
+
+    it('is false once joinable', () => {
+      expect(evaluateInviteReqs(DAEDALUS_REQS, { ...STUCK, augCount: 30 }).onlyAugCountGap).toBe(false);
+    });
+  });
+
+  describe('findAugCountGate', () => {
+    const catalog = {
+      factions: {
+        Daedalus: { inviteReqs: DAEDALUS_REQS },
+        'The Covenant': { inviteReqs: [{ type: 'numAugmentations', numAugmentations: 20 }] },
+        CyberSec: { inviteReqs: [{ type: 'backdoorInstalled', server: 'CSEC' }] },
+      },
+    };
+    const scope = new Set(['Daedalus', 'The Covenant', 'CyberSec']);
+
+    it('finds the gate when one exists', () => {
+      expect(findAugCountGate(catalog, STUCK, new Set(), scope)).toEqual({ faction: 'Daedalus', gap: 1 });
+    });
+
+    it('prefers the SHORTEST gap across factions', () => {
+      // At 19 augs Covenant needs 1 and Daedalus needs 11 — chase the cheap one.
+      const r = findAugCountGate(catalog, { ...STUCK, augCount: 19 }, new Set(), scope);
+      expect(r).toEqual({ faction: 'The Covenant', gap: 1 });
+    });
+
+    it('skips factions already joined', () => {
+      expect(findAugCountGate(catalog, STUCK, new Set(['Daedalus']), scope)).toBeNull();
+    });
+
+    it('skips out-of-scope factions', () => {
+      expect(findAugCountGate(catalog, STUCK, new Set(), new Set(['CyberSec']))).toBeNull();
+    });
+
+    it('returns null when nothing is gated on a count', () => {
+      expect(findAugCountGate(catalog, { ...STUCK, augCount: 30 }, new Set(), scope)).toBeNull();
+    });
+  });
+
+  describe('pickGateFiller', () => {
+    // The live buyable set at the deadlock: all filter-dropped, all rep-met.
+    const augs = {
+      'Wired Reflexes': { price: 2_500_000, repReq: 1250, sellers: ['Tian Di Hui', 'Ishima'], prereqs: [], isNFG: false, passesFilter: false },
+      'NutriGen Implant': { price: 2_500_001, repReq: 6250, sellers: ['New Tokyo'], prereqs: [], isNFG: false, passesFilter: false },
+      'Neural Wit Amplifier': { price: 10_000_000, repReq: 5000, sellers: ['BitRunners'], prereqs: [], isNFG: false, passesFilter: false },
+      'NeuroFlux Governor': { price: 1, repReq: 1, sellers: ['Chongqing'], prereqs: [], isNFG: true, passesFilter: true },
+      'Combat Rib II': { price: 100, repReq: 1, sellers: ['Ishima'], prereqs: ['Combat Rib I'], isNFG: false, passesFilter: false },
+      'EMBA Analyze Engine': { price: 6_000_000_000, repReq: 625_000, sellers: ['Daedalus'], prereqs: [], isNFG: false, passesFilter: true },
+    };
+    const rep = { 'Tian Di Hui': 126_787, Ishima: 75_643, 'New Tokyo': 75_801, BitRunners: 168_054, Chongqing: 1_357_600 };
+
+    it('picks the cheapest rep-met aug, ignoring passesFilter entirely', () => {
+      expect(pickGateFiller(augs, new Set(), rep)).toEqual({ aug: 'Wired Reflexes', faction: 'Tian Di Hui', price: 2_500_000 });
+    });
+
+    it('never picks NFG — it is one entry, so it can never raise the distinct count', () => {
+      // NFG is the cheapest thing here by far. Picking it would "succeed" and
+      // leave the gate exactly as shut: the deadlock, reconstructed.
+      const r = pickGateFiller(augs, new Set(), rep);
+      expect(r.aug).not.toBe('NeuroFlux Governor');
+    });
+
+    it('skips augs with unowned prereqs — each chain link carries its own 1.9x tax', () => {
+      // Combat Rib II is by far the cheapest ($100) but needs Combat Rib I.
+      expect(pickGateFiller(augs, new Set(), rep).aug).toBe('Wired Reflexes');
+      // ...and becomes eligible once the prereq is owned.
+      expect(pickGateFiller(augs, new Set(['Combat Rib I']), rep).aug).toBe('Combat Rib II');
+    });
+
+    it('skips augs we already own or have queued', () => {
+      expect(pickGateFiller(augs, new Set(['Wired Reflexes']), rep).aug).toBe('NutriGen Implant');
+    });
+
+    it('skips augs whose only sellers we lack the rep for', () => {
+      // EMBA is unowned and passing, but Daedalus is exactly who we cannot reach.
+      expect(pickGateFiller({ 'EMBA Analyze Engine': augs['EMBA Analyze Engine'] }, new Set(), rep)).toBeNull();
+    });
+
+    it('returns null when nothing is buyable', () => {
+      expect(pickGateFiller({}, new Set(), rep)).toBeNull();
+      expect(pickGateFiller(augs, new Set(Object.keys(augs)), rep)).toBeNull();
+    });
+  });
+
+  describe('the runaway: queued augs must close the gap (live incident 2026-07-18 07:39)', () => {
+    // Shipped with the gate keyed on INSTALLED augs. Buying queues an aug, so
+    // the installed count never moved, `gap` stayed 1, and the rule re-fired
+    // every pass: 5 buys in 50 seconds ($4.75m -> $371m at 1.9x each) before
+    // it was killed. Seventh instance of "what we have" vs "what we will have".
+    const reqs = [{ type: 'numAugmentations', numAugmentations: 30 }];
+    const catalog = { factions: { Daedalus: { inviteReqs: reqs } } };
+    const scope = new Set(['Daedalus']);
+    const facts = { money: 1e15, skills: { hacking: 4435 } };
+
+    it('gap is open at 29 distinct owned-or-queued', () => {
+      expect(findAugCountGate(catalog, { ...facts, augCount: 29 }, new Set(), scope)).toEqual({ faction: 'Daedalus', gap: 1 });
+    });
+
+    it('gap CLOSES once the purchase is queued, before any install', () => {
+      // The whole fix: 29 installed + 1 queued = 30 distinct => stop buying.
+      expect(findAugCountGate(catalog, { ...facts, augCount: 30 }, new Set(), scope)).toBeNull();
+    });
+
+    it('stays closed while over-queued, so a re-fire cannot cascade', () => {
+      for (const n of [31, 34, 40]) {
+        expect(findAugCountGate(catalog, { ...facts, augCount: n }, new Set(), scope)).toBeNull();
+      }
+    });
+  });
+
+  describe('planPass emits the gate-fill buy', () => {
+    const base = {
+      joinFactions: [],
+      factionScope: new Set(['Daedalus']),
+      money: 1e15,
+      livePrice: 100,
+      paused: false,
+      mode: 'auto',
+      endgameHold: true,
+      target: null,
+    };
+
+    it('emits a flagged buy and a gate-fill phase', () => {
+      const plan = planPass({ ...base, gateFill: { aug: 'Wired Reflexes', faction: 'Tian Di Hui', price: 2_500_000 } });
+      expect(plan.phase).toBe('gate-fill');
+      expect(plan.actions).toContainEqual({
+        type: 'buy',
+        aug: 'Wired Reflexes',
+        faction: 'Tian Di Hui',
+        price: 2_500_000,
+        gateFill: true,
+      });
+    });
+
+    it('paused still wins over a gate-fill', () => {
+      const plan = planPass({ ...base, paused: true, gateFill: { aug: 'Wired Reflexes', faction: 'Tian Di Hui', price: 1 } });
+      expect(plan.phase).toBe('paused');
+      expect(plan.actions).toEqual([]);
+    });
+
+    it('no gateFill leaves behavior exactly as before', () => {
+      expect(planPass({ ...base }).phase).not.toBe('gate-fill');
+    });
   });
 });
 
