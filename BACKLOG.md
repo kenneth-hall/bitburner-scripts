@@ -99,11 +99,17 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
-- **Phase 28 — gang optimizer (data-driven)**. Deliberately *not* designed yet: task assignment,
-  ascension timing, equipment buys, and the territory-warfare trigger all need thresholds we
-  refuse to guess (and won't import — CLAUDE.md's no-other-players'-solutions rule bites hardest
-  on gang, the most-solved mechanic). **Trigger:** Phase 27's `gangwatch` log has enough in-node
-  samples to derive them. → `phase-27-gang.features.md`.
+- **Gang manager** — *rewritten 2026-07-18; the earlier "observe first, derive thresholds later"
+  framing was wrong.* Task assignment, ascension timing, equipment buys, and the clash trigger are
+  **computable, not empirical**: `getTaskStats` exposes per-task base yields and stat weights,
+  `getAscensionResult` previews gain and cost exactly, `getChanceToWinClash` gives odds directly,
+  and `ns.formulas.gang.*` computes yields outright. → `docs/gang-api.md`.
+  - **Real gate is Formulas.exe ($5b)** for exact yields. Without it, reconstruct the model from
+    the weights and validate against `GangMemberInfo`'s per-member `respectGain`/`moneyGain`/
+    `wantedLevelGain` actuals — observation earns its keep as *model validation*, not threshold
+    discovery.
+  - **Blocked on:** no gang exists, and reaching a gang-capable faction needs either hacking 202+
+    or combat 30 + $1m + karma. **Trigger:** we are in a gang.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
