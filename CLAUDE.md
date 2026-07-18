@@ -85,6 +85,28 @@ on request — hold to them even when the moment is uncomfortable.
 - **Raise problems Kenneth didn't ask about, and disagree when you disagree.** Treat his praise-worthy
   work as a peer's draft to critique, not a product to accept.
 
+## Read the whole interface before designing against it
+
+**Before writing a features/spec doc for work against an unfamiliar API, read that API's
+*complete* surface first — methods, return types, field definitions, preconditions, and any
+formulas module.** A method list with one-line descriptions is not the interface; the types are.
+
+This is a recorded failure, not a hypothetical (2026-07-18, Phase 27/gangs): a brainstorm doc was
+drafted after reading only `bitburner.gang.md`'s method list. Its central premise — "every
+strategic threshold is empirical, so build an observer first and derive them from logs" — was
+**false**, and provably so from files sitting unread in `markdown/`: `GangTaskStats` exposes each
+task's base yields *and* per-stat weights, and `ns.formulas.gang.*` computes exact yields. The
+doc was invalidated twice more before the gap was noticed, and each time it got *patched* rather
+than reconsidered. **Three invalidations of one document means the foundation is wrong — stop
+patching and re-read the source material.**
+
+Cost of doing it right: the full read here was ~10 minutes of bulk `grep` over ~30 meaningful
+files (see `docs/gang-api.md`, which that read produced). Cost of skipping it: most of a session.
+
+Corollary: **documented RAM cost tells you nothing about preconditions.** `getTaskNames` and
+`getEquipmentNames` are 0 GB and still throw without a gang. Verify availability empirically with
+a read-only probe before assuming a call is usable.
+
 ## Development workflow
 Feature work runs in three stages, each handing off a **file**, not chat. Name phase docs
 `phase-NN-slug.<stage>.md` — zero-padded number first so they sort chronologically (e.g.
