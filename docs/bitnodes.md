@@ -220,13 +220,18 @@ your only engine** — not "stack multipliers until penalties cancel."
 2. **BN2 (gang)** — highest-leverage early pick: SF2 removes the recurring cost every
    subsequent clear pays (Red Pill from your own gang, no Daedalus grind). ~~Its own penalties
    (80% hack level, 8% max money) are mild; gang income routes around the economy nerf.~~
-   **⚠️ CORRECTED 2026-07-18 — "mild" was wrong and this placement is now in doubt.** That
-   reading skipped the General row: `w0r1d_d43m0n` Difficulty **500%** → gate **15,000**,
-   needing **M ≈ 40.6** vs our best-ever 9.16. By this very table's own logic BN2 is a
-   *hacking-level wall* whose designed counter is SF6/7 (Bladeburner) — which we don't hold —
-   so the framework, applied consistently, argues against putting BN2 second. Full arithmetic in
-   BN2's clearing notes above. **The rep-tax reasoning for SF2 still stands; what's in question
-   is whether we can *clear* BN2 to get it.**
+   **⚠️ CORRECTED TWICE 2026-07-18 — read both corrections, the first overshot.**
+   (a) "Mild" was wrong: that reading skipped the General row — `w0r1d_d43m0n` Difficulty
+   **500%** → gate **15,000**, realistically needing **M ≈ 30–35** against our demonstrated
+   10.077. BN2 is unambiguously the hardest gate on the board.
+   (b) But the follow-up correction — "so BN2 is a hacking-level wall whose counter is SF6/7,
+   and this table argues against placing it second" — **also overshot, and is wrong.** BN2 is a
+   *starter* node in the in-game guide, recommended before SF6/7 can exist; its designed counter
+   is **in-node** (the gang faction's broad aug catalog), not a carried-in Source-File. The
+   counter-map's own principle still holds; BN2 is simply a node whose counter is native rather
+   than imported. **Net: placement stands, difficulty was understated, and clearability hinges on
+   one verifiable unknown (the gang catalog) rather than on a missing Source-File.** Full
+   arithmetic in BN2's clearing notes above.
 3. **BN5** — hacking mults + Formulas; modest penalties; compounds everything after.
 4. **BN4 → SF4.3** — automation. *Already held via the Phase 21 save-edit grant — skip.*
 5. **BN6 then BN7** — the Bladeburner alt-win path; the key that defangs the harsh back half.
@@ -298,7 +303,10 @@ WD still has to be backdoored.
 error**. BN2 applies its 80% Hacking Level mult on top.
 
 **Multiplier required to reach each node's gate, by XP budget** (our BN1.3 stack peaked at
-**M = 9.16** — 39 augs incl. NeuroFlux 67):
+**M = 10.077** — 42 augs incl. NeuroFlux 67. ⚠️ An earlier pass here used **9.16**, which is the
+`auginfo` dump from 10:35:10, *one minute before* install #12 took it to 10.077; see
+`phase-26-ratchet-autonomy.closeout.md` line 74. Caught by an independent fable review
+2026-07-18. Corrected below — it changes BN5's verdict materially):
 
 | XP budget | BN1 (3,000) | BN5 (4,500) | BN4 (9,000) | **BN2 (15,000)** |
 |---|---|---|---|---|
@@ -308,26 +316,45 @@ error**. BN2 applies its 80% Hacking Level mult on top.
 | 1,000× | 4.4 | 6.6 | 13.2 | **27.4** |
 | 10,000× | 4.0 | 5.9 | 11.9 | **24.8** |
 
-**Read that carefully:** BN2 needs **M ≈ 40.6**, about **4.4× our best-ever multiplier**, and
-roughly **double BN4's requirement** — a node this doc already judged "catalog-only infeasible."
-Even at an absurd 10,000× XP it still needs 24.8. Grinding cannot close it: at M = 9.16 the XP
-required for 15,000 is **3.1e30**, or 3.2e21× our BN1.3 total. Concretely, dropping our entire
-BN1.3 aug stack into BN2 reaches level **3,388**; 10,000× the XP reaches **5,548**. The gate is
-15,000.
+**The realistic bar is ~30–35, not 40.6.** The 10,000× column is decorative: at the ≈1.35e5 exp/s
+a mature BN1 fleet demonstrated, 10× base exp ≈ a day, 100× ≈ a week-plus, 1,000× ≈ months,
+10,000× ≈ years. So BN2 realistically asks **M ≈ 30–35** against our demonstrated **10.077** —
+about **3× short**, and still ~2× BN4's ask. Grinding genuinely cannot substitute (level is
+logarithmic in exp: a 10,000× XP increase buys only −39% on the required multiplier). Dropping
+our BN1.3 stack straight into BN2 reaches level ~3,400 against a 15,000 gate.
 
-**For contrast, BN5 needs M ≈ 9.7 at that same XP budget — we already achieved 9.16.** BN5 is
-roughly a node we can clear with the stack we've built before; BN2 is not.
+**BN5's requirement is already MET, not merely approached: it needs M ≈ 9.73 at base exp and we
+demonstrated 10.077.** BN5 is cleared territory for the existing toolchain.
 
-**The one genuine unknown** is whether BN2's gang faction sells a broad enough aug catalog to
-reach M ≈ 40. Our BN1 11-faction catalog produced 9.16, of which NeuroFlux 67 contributed only
-~×1.95 (so discrete augs ≈ ×4.7). Reaching 40 needs roughly a **3× larger discrete-aug product
-than any catalog we have ever assembled**, while BN2's 8% max money funds aug purchases ~12×
-slower than BN1 (gang income offsets this, but rep/availability — not money — is what bounds M).
-Unverified either way; verifying it needs `augcheck.js` against the gang faction, which requires
-joining it first.
+**The one genuine unknown — and it is genuinely open, not rhetorically open — is BN2's gang aug
+catalog.** Decomposing our 10.077: NeuroFlux 67 = ×1.948, SF1.3 = ×1.28, leaving **×3.67 from
+discrete augs** (an earlier pass said ×4.7 by double-counting SF1.3 into the discrete term).
 
-**Also note:** neither rescue path is available to us here — grafting (SF10) and the Bladeburner
-alt-destroy (SF6/7) are both unowned, so hacking WD is the *only* destroy route in BN2.
+⚠️ **Do not read ×3.67 as a ceiling — it was a stopping point.** The aug-ratchet needed only
+M ≈ 6.5 for BN1's gate and halted there by design. The BN1 stack omits the entire megacorp /
+endgame hacking tier, which is worth roughly another ×5 on the discrete term (QLink, nextSENS,
+OmniTek InfoLoad, Xanipher, the PC-DNI line, SPTN-97, Neuronal Densification — *from-memory
+vanilla values, NOT verified against this fork; confirm with `augcheck.js` before relying on
+them*). A near-complete catalog would be ≈×18–20 discrete → **≈25 before any NeuroFlux**, leaving
+BN2's gate needing only ~19–47 NFG levels — below the 67 already demonstrated in BN1's *weaker*
+economy. So the honest verdict is **"plausible, unverified,"** not "out of reach."
+
+**Structural argument that cuts the same way:** the in-game guide (quoted above) calls BN2 a
+*starter* node — recommended before SF6/7 exist. A 15,000 gate on a starter node only coheres if
+the designed in-node path closes it, and BN2's unique mechanic is exactly a faction selling "most
+augs." That is evidence the gang catalog is meant to bridge this.
+
+**Also note:** neither *carried-in* rescue exists — grafting (SF10) and the Bladeburner
+alt-destroy (SF6/7) are both unowned, so hacking WD is the only destroy route here. But see the
+point above: BN2's intended counter is in-node, not carried in.
+
+**⚠️ The 15,000 figure is an INFERENCE, not a reading.** `WorldDaemonDifficulty` is confirmed by
+`markdown/bitburner.bitnodemultipliers.worlddaemondifficulty.md` to influence the required
+backdoor level, but neither the base constant (3000) nor linearity is stated in any doc, and
+`src/backdoorwd.js` shows `getServer("w0r1d_d43m0n")` throws until The Red Pill is installed — so
+it cannot be read in-game yet. Call it ~85% confidence. **Required checkpoint: read
+`getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill installs, before sizing any
+NFG grind against 15,000.**
 
 ### BN3: Corporatocracy — owned **SF3 level 0 / 3** (not cleared)
 SF3: create corporations in other nodes (some disable it), **L3 unlocks full Corp API** + charisma/company-salary L1 8 / L2 12 / L3 14%. Multiplier table (rest baseline):
@@ -719,3 +746,15 @@ so we don't re-derive (or re-break) it.
   and skipping the General row; both corrected in place above. **BN5 by contrast needs M ≈ 9.7,
   which we have already achieved.** Open decision for Kenneth: stay in BN2 for the gang mechanic
   knowing a clear may be out of reach, or re-target. See BN2 clearing notes.
+- 2026-07-18 — **Independent fable review of the BN2 analysis above.** Reproduced every required-
+  mult figure exactly, and found three corrections, all folded in: (1) our peak multiplier was
+  **10.077**, not 9.16 — the auginfo dump used predates install #12 by one minute — which flips
+  BN5 from "roughly reachable" to **requirement already exceeded**; (2) the pessimistic read
+  overshot: our BN1 discrete-aug product (×3.67, not ×4.7 — the earlier figure double-counted
+  SF1.3) was a *ratchet stopping point at M≈6.5*, not a catalog ceiling, and the untouched
+  megacorp/endgame tier is worth roughly another ×5, putting M≈25-before-NFG plausibly in reach;
+  (3) the "BN2 is a hacking wall needing SF6/7" correction was itself wrong — BN2 is a starter
+  node, so its designed counter is the in-node gang catalog. Net verdict moves from "BN2 is not
+  clearable" to **"plausible but unverified, ~60–70%, 4–10 weeks"**. Two cheap decisive checks
+  named: `augcheck.js faction "<gang faction>"` once joined settles the catalog question, and
+  reading WD's required level the moment Red Pill installs settles the 15,000 inference.

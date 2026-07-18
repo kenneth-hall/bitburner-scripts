@@ -12,16 +12,22 @@ on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** **IN BN2.1 as of 2026-07-18** (BN1.3 cleared the
   same day — `w0r1d_d43m0n` backdoored, confirmed via BitVerse screenshot `bb-shot.png`; close-out
   with two surfaced design gaps: `docs/phases/phase-26-ratchet-autonomy.closeout.md`).
-  - **⚠️ OPEN DECISION, KENNETH'S — is BN2 the right node at all?** BN2 was locked for its gang
-    engine (SF2 kills the recurring Daedalus rep tax), then same-day in-node analysis found its
-    `w0r1d_d43m0n` gate is **15,000** (Difficulty 500%), needing hacking mult **M ≈ 40.6** against
-    our best-ever **9.16** — roughly **2× BN4's** requirement, a node already judged
-    catalog-only-infeasible. Grinding can't close it (level is logarithmic in XP). **BN5 by
-    contrast needs M ≈ 9.7, which we have already hit.** Neither rescue path exists here (no SF10
-    grafting, no SF6/7 Bladeburner alt-destroy), so hacking WD is BN2's only exit. The one genuine
-    unknown is whether the gang faction's aug catalog can reach ~40 — unverified, and it needs
-    joining the faction to check. **Full arithmetic: `docs/bitnodes.md` → BN2 clearing notes.
-    Don't resume BN2 work as a default; this needs an actual decision.**
+  - **⚠️ OPEN DECISION, KENNETH'S — commit to BN2 or abort?** (We are already *in* BN2, so this
+    is commit-vs-abort, not BN2-vs-BN5.) BN2 was locked for its gang engine (SF2 kills the
+    recurring Daedalus rep tax); same-day in-node analysis then found its `w0r1d_d43m0n` gate is
+    **15,000** (Difficulty 500%) — realistically needing hacking mult **M ≈ 30–35** against our
+    demonstrated **10.077**, ~2× BN4's ask. Grinding can't substitute (level is logarithmic in
+    XP). **BN5's requirement (M ≈ 9.73) we have already exceeded.**
+    - **Verdict after an independent fable review: "plausible but unverified, ~60–70%, 4–10
+      weeks"** — *not* "unreachable," which an earlier pass here overstated on two counts (a stale
+      9.16 multiplier, and treating our BN1 aug catalog as a ceiling when it was a ratchet
+      stopping point at M≈6.5; the untouched megacorp tier is worth ~×5 more).
+    - **Two cheap checks settle it, in this order:** (1) once in the gang faction, run
+      `augcheck.js faction "<gang faction>"` — that one file answers whether the catalog reaches
+      ~25-before-NFG; (2) read `getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill
+      installs — the 15,000 figure is an *inference* (~85% confidence), unreadable until then.
+    - Full arithmetic + both corrections: `docs/bitnodes.md` → BN2 clearing notes. **Don't resume
+      BN2 work as a default; this needs an actual decision.**
   - **Phase 27 (gang observer) is drafted but blocked**, and not only on the above: recon proved
     the entire gang API is inert until `createGang()` — only `inGang()` works — so the one
     irreversible choice (gang type, fixed forever by faction) is precisely the one observation
