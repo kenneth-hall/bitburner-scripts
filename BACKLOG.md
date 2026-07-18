@@ -33,6 +33,14 @@ do, and what's broken?*
   scales with our money surplus, and nothing currently aims it at NFG.
   → [docs/neuroflux.md](docs/neuroflux.md), **Phase 26 track B3**.
 
+- **`npm run verify:log`'s "amount is always positive" hard assertion is too strict for a real,
+  legitimate case** — found 2026-07-18 while checking Phase 26's acceptance criteria:
+  `transactions-2026-07-15.json` has one `auto-aug` record for The Red Pill at `amount: 0`, which
+  is correct (it's allow-listed and $0 once Daedalus rep clears 2.5m — see `UTILITY_ALLOWLIST`'s
+  header in `augfarmer.js`), not a bug. Predates Phase 26 entirely (2026-07-15's BN1.2 clear) and
+  is unrelated to this session's changes — flagged here rather than silently loosening the
+  checker. Fix candidate: `toBeGreaterThanOrEqual(0)`, or special-case allow-listed $0 augs.
+
 - **`companion-relaunch`/`companion-waiting-ram` events get FIFO-evicted from `daemon-batch-log.json`
   within minutes on a busy fleet** — discovered live 2026-07-18 during Phase 26 B1's L5 kill-test:
   a `transactionsmonitor.js` relaunch event was confirmed present, then gone ~5 min later (grep came

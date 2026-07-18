@@ -28,6 +28,7 @@ const VALID_EXPENSE_SOURCES = new Set([
   'auto-port-opener', // procureprograms.js (Phase 11)
   'auto-cloud-purchase', // cloudmanager.js (Phase 11)
   'auto-aug', // augfarmer.js (Phase 23)
+  'auto-aug-gate', // augfarmer.js (Phase 26 A1) -- the gate-fill buy, flagged separately from auto-aug
   'auto-travel', // augfarmer.js (Phase 23)
   'auto-formulas', // procureformulas.js -- pre-existing bug (missing from this whitelist), folded into Phase 23's ship gate
   'auto-donation', // augfarmer.js (Phase 25, S6) -- the generalized donation route
