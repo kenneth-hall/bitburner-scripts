@@ -41,6 +41,54 @@ because nothing knows what progress *was*.
 
 ---
 
+## Current game state (2026-07-18 07:22, install #9 + ~75 min)
+
+The state Track A must be built against — it expires when we clear.
+
+| | |
+|---|---|
+| BitNode | **BN1.3** · `mode: auto` · `phase: grinding` · **`endgameHold: true`** |
+| Hacking | **4,435** (Daedalus needs 2,500 ✓) |
+| Money | **$1,571t** (needs $100b ✓) |
+| Distinct augs | **29 / 30** ✗ — *the only unmet requirement* |
+| Queued | 1 (an NFG level — **does not raise the distinct count**) |
+| Mults | hacking **8.376** · hacking_exp **12.351** · faction_rep **3.011** |
+| NFG | level 2, `cappedThisCycle: true`, repReq **1,138,560**, next level **$3.24b** |
+| Trigger | `armed: false`, `gainArmed: false`, totalGain 1.020 — cannot arm under `endgameHold` |
+
+Faction rep / favor: Chongqing 1,357,600 / 187.4 · BitRunners 168,054 / 256.9 · The Black Hand
+132,506 / 181.4 · CyberSec 131,546 / 179.4 · Tian Di Hui 126,787 / 167.9 · NiteSec 123,297 / 161.9
+· New Tokyo 75,801 / 79.5 · Ishima 75,643 / 79.5.
+
+### The deadlock is circular, not slow — sharper than first diagnosed
+
+**Every unowned aug that passes the filter is sold ONLY by Daedalus / The Covenant / Illuminati:**
+EMBA Analyze Engine (625k rep), EMBA Direct Memory Access (1.0m), SPTN-97 (1.25m), EMBA Core V3
+(1.75m), QLink (1.875m), The Red Pill (2.5m). Those are the three endgame factions — unjoinable
+until the 30-aug count is met.
+
+**Every aug we CAN buy is filter-dropped, score 0.00** — 11 of them, all rep-met right now:
+
+| aug | rep | price | seller (joined) |
+|---|---|---|---|
+| **Wired Reflexes** | 1,250 | **$2.5m** | Tian Di Hui / Ishima |
+| NutriGen Implant | 6,250 | $2.5m | New Tokyo |
+| Neural Wit Amplifier | 5,000 | $10m | BitRunners |
+| Speech Enhancement | 2,500 | $12.5m | Tian Di Hui |
+| …7 more | | ≤$250m | |
+
+So: **the augs we're willing to buy are sold only by the faction that requires the augs we won't
+buy.** Nothing to fall through to, no rep to wait for, no amount of money that helps. The engine
+cannot close this gate in any amount of time.
+
+**This kills an alternative fix worth recording as rejected:** *make head-selection skip the
+`buyBlocked` NFG and fall through to the next candidate.* Cleaner than a gate rule, fixes the same
+confusion — and useless here, because the fall-through set is empty.
+
+**And it generalizes.** Once the non-endgame factions' passing augs are exhausted, the count gate
+**can only ever be closed by a zero-score aug**. That is structural to the progression, so A1 is a
+permanent capability, not a workaround for today.
+
 ## Scope
 
 Deliberately split, because these have different urgency and different failure modes if rushed.
@@ -63,9 +111,9 @@ Proposed rule (deliberately narrow):
 > N and the target both read live from `inviteReqs`.
 
 **Why this shape** (each clause earns its place):
-- *"No passing aug is buyable"* not *"only NFG left"* — the latter is **false today** (Embedded
-  Netburner Module Analyze Engine is unowned and passing, just rep-blocked at 625k) yet we're
-  still stuck. It under-fires in the exact case that motivated it.
+- *"No passing aug is buyable"* not *"only NFG left"* — the latter is **false today** (six passing
+  augs are unowned) yet we're still stuck, because all six are sold only by the endgame factions
+  we can't join. It under-fires in the exact case that motivated it.
 - *Cheapest by money* — every purchase imposes the same ~1.9× tax on the rest of the cycle
   (`docs/neuroflux.md`), so price is the *only* differentiator between two count-fillers.
 - *N and 30 from `inviteReqs`* — the engine already reads that structure for
@@ -163,24 +211,80 @@ regression you won't notice for hours.
   level's price. Settled in Phase 25: **do not "fix" this.**
 - **Refactoring selection while the window is open** (B4) — the right idea at the wrong time.
 
-## Open questions
+## Decisions taken 2026-07-18 (branching questions closed while context is fresh)
 
-1. **Does B2 (stall-age) subsume B1 (supervisor), or precede it?** It catches more classes for far
-   less code, but can't *recover* — it only reports. Is "tell Kenneth" enough for now, or does
-   unattended running require auto-recovery? (Bearing on the `HOME_RESERVE_GB` bump: a reporter
-   doesn't need it; a relauncher does.)
-2. **What is the goal model in B4, concretely?** An enum the controller sets? Derived from state
-   each pass? The four jobs `score` conflates suggest at least: *acquire mults*, *clear a gate*,
-   *bank rep*, *recover*. Needs a real design pass, not a guess here.
-3. **Should A1 generalize past `endgameHold`?** Scoping it to the endgame keeps blast radius tiny
-   and matches the only known case. A general "any faction gate" version is more principled and
-   more likely to misfire in a fresh node's early game. Leaning narrow — YAGNI.
-4. **Does B3 change install *timing*?** If NFG levels get rep-bound, the optimal cycle may be
-   shorter (install sooner, re-earn cheaper early rep) rather than longer. That would move
-   `MIN_TOTAL_GAIN` and `GRIND_HORIZON_MS`, both still provisional.
-5. **Is the 1.9 purchase multiplier BitNode-dependent?** It's measured in BN1.2/1.3 only. If BN5
-   or another node scales it, the gate rule's cost model shifts. Cheap to re-measure per node from
-   the `projected`-vs-`amount` pair the gap-5 fix logs.
+**D1. A1 is a permanent capability, not a workaround.** Settled by the state above: the count gate
+can only ever be closed by a filter-dropped aug once the non-endgame factions are exhausted. It
+recurs every node clear. Build it as a real rule, document it as a mechanic.
+
+**D2. A1's trigger is GENERAL, not `endgameHold`-scoped — reversing the earlier lean.** Condition:
+*an in-scope faction we have not joined has `numAugmentations` as its **only** unmet requirement.*
+Rationale for the reversal: `endgameHold` is a Daedalus-specific flag, so keying on it would need
+rewriting the moment The Covenant (20 augs) or Illuminati (30) matter — both are already in
+`FACTION_SCOPE` and both sell the augs we're locked out of. The general form is *the same amount of
+code*, and the "only unmet requirement" clause is what actually provides safety: in a fresh node
+we hold neither $100b nor hacking 2500, so it **cannot** fire during early game.
+
+**D3. Buy the cheapest rep-met unowned aug by PRICE, ignoring filter status.** Every purchase
+imposes the same ~1.9× tax on the rest of the cycle (`docs/neuroflux.md`), so price is the only
+thing separating two count-fillers. Today that is **Wired Reflexes, $2.5m / 1,250 rep, from Tian
+Di Hui or Ishima** (both joined, both rep-met). Must respect existing reserves —
+`daedalusInviteReserve`'s $100b is untouched at $2.5m.
+
+**D4. One buy per pass, re-evaluated each time** — not N at once. If the gate closes early, or a
+passing aug becomes reachable mid-way, the next pass simply stops firing. No separate
+"prefer useful augs" logic needed; it falls out.
+
+**D5. Gate-buys go LAST in a cycle's buy order.** Inflation hits everything purchased *after* a
+buy, so a zero-score aug must never precede an aug whose price we care about. (Moot today — there
+is nothing else to buy — but the rule is wrong without it.)
+
+**D6. A1 is NOT mode-gated.** `mode` (`observe`/`auto`) gates *installs*, not purchases; augfarmer
+already buys augs in either mode. Gate-buying is a purchase, so it follows that convention.
+Flagging it explicitly because it means A1 will fire under `observe` too.
+
+**D7. B2 precedes B1; it does not subsume it.** Ship stall-age detection standalone as the first
+supervision increment. It would have caught gaps 7 **and** 9 without knowing either existed, it's
+a fraction of the code, and — decisive — **a reporter does not need the `HOME_RESERVE_GB` bump**,
+while a relauncher does. That keeps the coupled RAM change out of the first increment.
+
+**D8. The 1.9 purchase multiplier is treated as per-node measured, not constant.** Re-derive on
+entry to any new BitNode from the `projected`-vs-`amount` pair the gap-5 fix logs — free, since
+the data is already written. Add it to the node-entry checklist rather than assuming BN1's value
+travels.
+
+**D9. Log the NFG tail's binding constraint (`money` vs `rep`) on every spend-down.** This is the
+discriminator that answers B3's timing question on its own schedule, so nobody has to guess now.
+Cheap to add, and the first `rep`-bound spend-down is precisely B3's wake-up trigger.
+
+**D10. B4's acceptance criteria, fixed now even though the design isn't.** Any goal model must:
+(a) answer the four conflated questions *separately*; (b) be **derived from state**, not hand-set
+by a caller; (c) make gap 9's case fall out of the model rather than needing a special case — if
+B4 still needs A1 bolted on beside it, B4 is wrong. This is a test the design must pass, not a
+design.
+
+**D11. Let the engine close the gate — do not hand-buy the aug.** The gate rule firing against the
+real deadlock *is* A1's live validation, and the state is gone once we clear. Closing the BN is
+explicitly secondary.
+
+## Open questions — genuinely unresolved, with wake-up conditions
+
+1. **What is the goal model in B4, concretely?** An enum the controller sets, or derived per pass?
+   The four jobs `score` conflates suggest at least *acquire mults* / *clear a gate* / *bank rep* /
+   *recover*. Needs a real design pass. **Wake-up:** after A1 and B2 ship, when no live state is at
+   risk. Constrained but not answered by D10.
+2. **Does B3 change install *timing*?** If the NFG tail becomes rep-bound, the optimal cycle may be
+   *shorter* (install sooner, re-earn cheap early rep) rather than longer — which would move
+   `MIN_TOTAL_GAIN` and `GRIND_HORIZON_MS`, both still provisional. **Wake-up:** the first
+   spend-down that D9 logs as `rep`-bound.
+3. **Does unattended running require auto-recovery, or is reporting enough?** D7 defers this rather
+   than answering it: B2 reports, B1 recovers, and only B1 forces the `HOME_RESERVE_GB` bump whose
+   blast radius Phase 25 deliberately declined. **Wake-up:** the first companion death that B2
+   catches — at which point we'll know whether a report arrived in time to matter.
+4. **Does the count gate ever need more than one aug at once?** Today it's 29/30. A node entered
+   with a larger deficit (or The Covenant's 20 from a low base) would buy several, and 1.9ⁿ
+   inflation compounds. D4's one-per-pass bounds the damage but doesn't price it. **Wake-up:** any
+   gate rule firing with a deficit > 1.
 
 ## Proposed sequence
 

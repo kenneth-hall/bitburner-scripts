@@ -165,6 +165,11 @@ freeze banner). Nothing is left open *here*.
 9. **The engine cannot reach the Daedalus gate on its own — a hard deadlock. → PHASE 26.**
    Found 2026-07-18 while checking a `company_rep` request; **this is what is blocking the BN1.3
    clear right now.** State: 29/30 distinct augs, `endgameHold` on, `$288t` idle, hacking 4251.
+   - **Mechanism below is SUPERSEDED — the real cause is worse.** Every unowned filter-passing aug
+     is sold *only* by Daedalus/Covenant/Illuminati, the factions the count gate locks us out of,
+     so there is no "next candidate" to fall through to at all. Corrected write-up + evidence:
+     `phase-26-ratchet-autonomy.features.md`, "Current game state". Kept below as first-pass
+     reasoning.
    - **The loop.** `endgameHold` blocks arming (`gainArmed` requires `!endgameHold`), so no
      spend-down ever runs. Outside spend-down `planActions` only ever buys the **head** target.
      The head is NFG (score 0.022), which outranks the only reachable real aug — Embedded
