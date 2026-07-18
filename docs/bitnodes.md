@@ -218,8 +218,15 @@ your only engine** — not "stack multipliers until penalties cancel."
 
 1. **BN1 (repeat)** — no penalties, broad buff. *Done: SF1.3 held.*
 2. **BN2 (gang)** — highest-leverage early pick: SF2 removes the recurring cost every
-   subsequent clear pays (Red Pill from your own gang, no Daedalus grind). Its own penalties
-   (80% hack level, 8% max money) are mild; gang income routes around the economy nerf.
+   subsequent clear pays (Red Pill from your own gang, no Daedalus grind). ~~Its own penalties
+   (80% hack level, 8% max money) are mild; gang income routes around the economy nerf.~~
+   **⚠️ CORRECTED 2026-07-18 — "mild" was wrong and this placement is now in doubt.** That
+   reading skipped the General row: `w0r1d_d43m0n` Difficulty **500%** → gate **15,000**,
+   needing **M ≈ 40.6** vs our best-ever 9.16. By this very table's own logic BN2 is a
+   *hacking-level wall* whose designed counter is SF6/7 (Bladeburner) — which we don't hold —
+   so the framework, applied consistently, argues against putting BN2 second. Full arithmetic in
+   BN2's clearing notes above. **The rep-tax reasoning for SF2 still stands; what's in question
+   is whether we can *clear* BN2 to get it.**
 3. **BN5** — hacking mults + Formulas; modest penalties; compounds everything after.
 4. **BN4 → SF4.3** — automation. *Already held via the Phase 21 save-edit grant — skip.*
 5. **BN6 then BN7** — the Bladeburner alt-win path; the key that defangs the harsh back half.
@@ -277,6 +284,50 @@ Only listed multipliers differ from BN1 (100%); the rest are baseline. Multiplie
 - **Infiltration** — Infiltration Money: **300%**
 - **Corporation** — Corporation Softcap: **0.900** · Division limit: **90%**
 - **Stanek's Gift** — Gift Power: **200%** · Base Size Modifier: **−6.00000**
+
+**⚠️ Clearing notes — the 15,000 gate (analysis 2026-07-18, in-node). READ BEFORE PLANNING A BN2
+CLEAR.** Two prior analyses (the original next-node plan, and the 2026-07-18 counter-map) both
+described BN2's penalties as "mild" by reading the **Skills** row (Hacking Level 80%) and the
+**Hacking** row (Max Money 8%) while skipping the **General** row directly above them:
+`w0r1d_d43m0n` Difficulty **500%** → required hacking level **15,000**, vs BN1's 3,000. The gang
+selling The Red Pill removes the *Daedalus rep* tax; it does **not** remove the *level* gate —
+WD still has to be backdoored.
+
+**Model.** `level = mult × (32·ln(exp) − 200)`, validated against our own BN1.3 endgame dump
+(`logs/auginfo-1784388910541.json`: level 4,234, exp 9.73e8, hacking mult 9.161) to **0.02%
+error**. BN2 applies its 80% Hacking Level mult on top.
+
+**Multiplier required to reach each node's gate, by XP budget** (our BN1.3 stack peaked at
+**M = 9.16** — 39 augs incl. NeuroFlux 67):
+
+| XP budget | BN1 (3,000) | BN5 (4,500) | BN4 (9,000) | **BN2 (15,000)** |
+|---|---|---|---|---|
+| our BN1.3 actual (9.7e8) | 6.5 | 9.7 | 19.5 | **40.6** |
+| 10× | 5.6 | 8.4 | 16.8 | **35.0** |
+| 100× | 4.9 | 7.4 | 14.8 | **30.8** |
+| 1,000× | 4.4 | 6.6 | 13.2 | **27.4** |
+| 10,000× | 4.0 | 5.9 | 11.9 | **24.8** |
+
+**Read that carefully:** BN2 needs **M ≈ 40.6**, about **4.4× our best-ever multiplier**, and
+roughly **double BN4's requirement** — a node this doc already judged "catalog-only infeasible."
+Even at an absurd 10,000× XP it still needs 24.8. Grinding cannot close it: at M = 9.16 the XP
+required for 15,000 is **3.1e30**, or 3.2e21× our BN1.3 total. Concretely, dropping our entire
+BN1.3 aug stack into BN2 reaches level **3,388**; 10,000× the XP reaches **5,548**. The gate is
+15,000.
+
+**For contrast, BN5 needs M ≈ 9.7 at that same XP budget — we already achieved 9.16.** BN5 is
+roughly a node we can clear with the stack we've built before; BN2 is not.
+
+**The one genuine unknown** is whether BN2's gang faction sells a broad enough aug catalog to
+reach M ≈ 40. Our BN1 11-faction catalog produced 9.16, of which NeuroFlux 67 contributed only
+~×1.95 (so discrete augs ≈ ×4.7). Reaching 40 needs roughly a **3× larger discrete-aug product
+than any catalog we have ever assembled**, while BN2's 8% max money funds aug purchases ~12×
+slower than BN1 (gang income offsets this, but rep/availability — not money — is what bounds M).
+Unverified either way; verifying it needs `augcheck.js` against the gang faction, which requires
+joining it first.
+
+**Also note:** neither rescue path is available to us here — grafting (SF10) and the Bladeburner
+alt-destroy (SF6/7) are both unowned, so hacking WD is the *only* destroy route in BN2.
 
 ### BN3: Corporatocracy — owned **SF3 level 0 / 3** (not cleared)
 SF3: create corporations in other nodes (some disable it), **L3 unlocks full Corp API** + charisma/company-salary L1 8 / L2 12 / L3 14%. Multiplier table (rest baseline):
@@ -660,3 +711,11 @@ so we don't re-derive (or re-break) it.
 - 2026-07-18 — Added "General clearing order — the counter map": penalty→counter-SF table, the
   topological order it implies, hard sequencing constraints, and the implication that the general
   order puts BN2 (gang) ahead of BN5 — feeding the still-open next-node decision post-BN1.3.
+- 2026-07-18 — **BN1.3 cleared; entered BN2.1.** Then, in-node, ran the 15,000-gate arithmetic
+  nobody had done: BN2's `w0r1d_d43m0n` Difficulty 500% needs **M ≈ 40.6** vs our best-ever
+  **9.16** (~2× BN4's requirement, a node already judged catalog-only-infeasible). Level model
+  validated to 0.02% against `logs/auginfo-1784388910541.json`. Two prior analyses — the original
+  next-node plan and the same-day counter-map — both called BN2 "mild" by reading the Skills row
+  and skipping the General row; both corrected in place above. **BN5 by contrast needs M ≈ 9.7,
+  which we have already achieved.** Open decision for Kenneth: stay in BN2 for the gang mechanic
+  knowing a clear may be out of reach, or re-target. See BN2 clearing notes.

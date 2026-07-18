@@ -40,6 +40,19 @@ a plan that then deflated every one of BN5's own rewards. Three reasons BN2 wins
 Max Money **8%**, Work Reputation **50%**, Passive Rep **0%**. If the gang engine underperforms,
 the batcher cannot cover for it. This is a real bet, not a free upgrade.
 
+**⚠️ AND A COST THIS DOC ORIGINALLY OMITTED (added 2026-07-18, post-entry).** The list above
+skips the number that decides the node: `w0r1d_d43m0n` Difficulty **500%** → gate **hacking
+15,000**, vs BN1's 3,000. Measured against our own BN1.3 endgame dump, clearing it needs hacking
+mult **M ≈ 40.6**; we have never exceeded **9.16**. That is ~2× BN4's requirement, and BN4 was
+judged catalog-only-infeasible. XP can't substitute — level is logarithmic in exp, so even
+10,000× our BN1.3 XP still demands M ≈ 24.8. Neither rescue path is available (no SF10 grafting,
+no SF6/7 alt-destroy).
+
+**This does not automatically kill the phase, but it does mean the phase rests on an unresolved
+premise.** The gang engine is still the right answer to the rep tax; what's in question is
+whether BN2 can be *cleared* to bank SF2 at all. Full arithmetic: `docs/bitnodes.md` → BN2
+clearing notes. **Kenneth's decision, not to be defaulted past.**
+
 ## The core constraint shaping this phase
 
 **MEASURED 2026-07-18, in-node — supersedes this section's original "written blind before

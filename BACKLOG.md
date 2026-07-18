@@ -22,6 +22,20 @@ do, and what's broken?*
 
 ## Bugs
 
+- **`augfarmer.js` needs 64.10 GB and can never start on a 32 GB home** — found 2026-07-18 on
+  fresh BN2 entry, from `daemon.js`'s own supervisor log. It is permanently unlaunchable for the
+  entire early game of every node, and the supervisor retries it forever without ever saying so
+  in a way that surfaces. Two sub-problems: (a) the script's RAM is far above any plausible
+  fresh-node home, so it may need splitting into a cheap resident + an expensive on-demand pass;
+  (b) the supervisor treats "will never fit" and "doesn't fit yet" identically. Related and now
+  fixed: `targetsmonitor.js` was 12.70 GB for a file the daemon could write for free.
+
+- **`xpfarm.js` (5.85 GB) and `ratchetlog.js` (10.10 GB) still don't fit early** — same fresh-node
+  RAM crunch, less severe. After retiring `targetsmonitor.js` (recovered 12.70 GB) the freed space
+  went to `resourcemanager`/`cloudmanager`/`dashboard`; these two remain blocked until home RAM is
+  bought up. In BN2 that's slow (8% max money). **Next:** decide whether the fresh-node companion
+  set should be priority-ordered rather than launch-ordered.
+
 - **The NFG tail is on track to shrink every cycle — nothing plans for it** — NFG's rep
   requirement escalates **×1.14/level** (measured install #9: 122,736 → 998,737 over 16 levels;
   the close-out previously recorded it as *not* climbing, which was wrong). Rep resets to zero

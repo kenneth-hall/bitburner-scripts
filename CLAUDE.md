@@ -9,14 +9,23 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **BN1.3 CLEARED 2026-07-18** — `w0r1d_d43m0n`
-  backdoored, confirmed live via a BitVerse-selection-screen screenshot (`bb-shot.png`). **What
-  comes next is undecided** — the previously-superseded "stop at 1.2 / go to BN5" plan (kept
-  below) is back on the table now that 1.3 is actually done, but re-deciding that is a live
-  conversation with Kenneth, not a default to resume automatically. Full close-out, including two
-  design gaps the clear itself surfaced (no automated path to the favor-donation shortcut once
-  `endgameHold` latches; Red Pill must be *installed*, not merely owned, for WD to spawn):
-  `docs/phases/phase-26-ratchet-autonomy.closeout.md`.
+- **Current goal (keep this line current):** **IN BN2.1 as of 2026-07-18** (BN1.3 cleared the
+  same day — `w0r1d_d43m0n` backdoored, confirmed via BitVerse screenshot `bb-shot.png`; close-out
+  with two surfaced design gaps: `docs/phases/phase-26-ratchet-autonomy.closeout.md`).
+  - **⚠️ OPEN DECISION, KENNETH'S — is BN2 the right node at all?** BN2 was locked for its gang
+    engine (SF2 kills the recurring Daedalus rep tax), then same-day in-node analysis found its
+    `w0r1d_d43m0n` gate is **15,000** (Difficulty 500%), needing hacking mult **M ≈ 40.6** against
+    our best-ever **9.16** — roughly **2× BN4's** requirement, a node already judged
+    catalog-only-infeasible. Grinding can't close it (level is logarithmic in XP). **BN5 by
+    contrast needs M ≈ 9.7, which we have already hit.** Neither rescue path exists here (no SF10
+    grafting, no SF6/7 Bladeburner alt-destroy), so hacking WD is BN2's only exit. The one genuine
+    unknown is whether the gang faction's aug catalog can reach ~40 — unverified, and it needs
+    joining the faction to check. **Full arithmetic: `docs/bitnodes.md` → BN2 clearing notes.
+    Don't resume BN2 work as a default; this needs an actual decision.**
+  - **Phase 27 (gang observer) is drafted but blocked**, and not only on the above: recon proved
+    the entire gang API is inert until `createGang()` — only `inGang()` works — so the one
+    irreversible choice (gang type, fixed forever by faction) is precisely the one observation
+    can never inform. → `phase-27-gang.features.md`.
   - **How it cleared — Phase 26 (A2 gate-release arming + B2 stall detection + B1 companion
     supervisor) shipped and live-validated 2026-07-18**, closing the 29/30 aug-count deadlock A1's
     runaway had uncovered (`docs/phases/phase-26-ratchet-autonomy.spec.md`). The gate-release fire
@@ -154,7 +163,19 @@ site rather than trusting recall.
   from *anywhere* in the script's namespace (`ns`, `ns.ui`, `ns.cloud`, `ns.singularity`, …); if a
   field name must match one for schema/readability reasons, access it via bracket notation
   (`obj["share"]`) rather than dot notation. Always confirm any surprising `ramcheck.js` reading
-  against this class of bug before assuming it's a real cost.
+  against this class of bug before assuming it's a real cost. **Local variables count too**
+  (confirmed 2026-07-18): `const ls = liveStates.get(...)` in `daemon.js` silently billed
+  `ns.ls`'s 0.20 GB on the *name alone* — 16.50 GB measured vs 16.30 expected — and renaming to
+  `live` recovered it exactly. Short, innocuous-looking names are the dangerous ones: `ls`, `ps`,
+  `rm`, `mv`, `run`, `kill`, `read`, `write`, `scan`, `hack`, `grow`, `share`, `exec`, `tail`.
+- **Import bleed — importing a pure helper charges the whole module's `ns` surface.** The
+  analyzer bills an imported module's *entire* `ns` footprint, not just the symbol you named.
+  Confirmed 2026-07-18: `targetsmonitor.js` imported the four-line, zero-`ns` `isPrepped` from
+  `scheduler.js` and was charged 0.60 GB for `hack`/`grow`/`weaken`/`getScriptRam`/`fileExists` —
+  functions it never called (visible in `mem` as a bare `hack (fn)` line on a read-only script,
+  which is the tell). **Rule:** keep pure helpers in a pure/cheap module (`common.js`) rather than
+  importing them out of `ns`-heavy ones; when a script's `mem` breakdown lists a function its own
+  source never mentions, suspect an import, not a bug in your code.
 
 ## Driving the live game (CDP)
 
