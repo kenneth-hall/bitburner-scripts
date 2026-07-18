@@ -85,6 +85,11 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
+- **Phase 28 — gang optimizer (data-driven)**. Deliberately *not* designed yet: task assignment,
+  ascension timing, equipment buys, and the territory-warfare trigger all need thresholds we
+  refuse to guess (and won't import — CLAUDE.md's no-other-players'-solutions rule bites hardest
+  on gang, the most-solved mechanic). **Trigger:** Phase 27's `gangwatch` log has enough in-node
+  samples to derive them. → `phase-27-gang.features.md`.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
