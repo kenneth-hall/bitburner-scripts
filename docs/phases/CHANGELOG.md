@@ -8,6 +8,15 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-18
 
+- **BN1.3 CLEARED.** `w0r1d_d43m0n` backdoored ~10:41 AM, confirmed via the BitVerse-selection
+  screen (`bb-shot.png`). Sequence: install #10 (Phase 26 A2's gate-release fire, unattended) →
+  install #11 (manual, banked Daedalus favor via the donation shortcut in
+  `docs/reputation-favor.md` — the automated ratchet has no path to this once `endgameHold`
+  latches permanently) → auto-donate fired on its own → Red Pill bought → install #12 (manual,
+  activates the Red Pill — owning it isn't enough, `w0r1d_d43m0n` needs it installed) →
+  `backdoorwd.js` fired unattended. Full story, including the two automation gaps this exposed:
+  `docs/phases/phase-26-ratchet-autonomy.closeout.md`. What's next is undecided — see
+  `CLAUDE.md`'s "Current goal" line.
 - **Phase 26 B1 shipped — companion supervisor + `HOME_RESERVE_GB` bump** (`phase26-b1`, held
   unmerged until after install #10 per the phase spec's S7 staging). `daemon.js`'s main loop now
   diffs `ns.ps("home")` against `RESIDENT_COMPANIONS` every 60s and relaunches any missing one via

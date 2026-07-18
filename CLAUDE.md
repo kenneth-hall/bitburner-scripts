@@ -9,22 +9,27 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **Clearing BN1.3** (decided 2026-07-15, this session) —
-  reversing the earlier "stop at 1.2 / go to BN5 next" plan. The reversal isn't against the old
-  reasoning; it's that reasoning's own escape clause firing — the prior note said 1.3 was worth
-  revisiting "now that Phase 25 cut manual attention substantially," and Phase 25's automation is
-  exactly what makes re-farming BN1 cheap enough to justify the +4pp. BN1 clear mechanics are
-  identical for 1.3 as 1.2, so the whole existing bootstrap/aug-ratchet toolchain applies unchanged.
-  - **NEXT ACTION (updated 2026-07-17) — Phase 25 L7 PASSED; the aug-ratchet now installs itself.**
-    The first auto fire ran end-to-end unmodified (install #6): every step of the cycle is proven,
-    the phase has **no open tests**, and **`ratchet-mode.txt` is still set to `auto`** — it fires
-    again each cycle (~4-8h) unattended. **Read
-    `docs/phases/phase-25-faction-strategy.closeout.md`** — it holds the result, the two bugs L7's
-    logs turned up (projected-vs-actual price logging; NFG seller picked by catalog order instead
-    of rep), and the "what to do next" list. The open decision is whether `auto` stays on: the
-    chain is sound, but companion supervision (gap 4) is still missing, so a companion death
-    mid-cycle is a silent permanent stop. That supervisor is now the **only** thing between here
-    and unattended 24/7 running — the actual prize.
+- **Current goal (keep this line current):** **BN1.3 CLEARED 2026-07-18** — `w0r1d_d43m0n`
+  backdoored, confirmed live via a BitVerse-selection-screen screenshot (`bb-shot.png`). **What
+  comes next is undecided** — the previously-superseded "stop at 1.2 / go to BN5" plan (kept
+  below) is back on the table now that 1.3 is actually done, but re-deciding that is a live
+  conversation with Kenneth, not a default to resume automatically. Full close-out, including two
+  design gaps the clear itself surfaced (no automated path to the favor-donation shortcut once
+  `endgameHold` latches; Red Pill must be *installed*, not merely owned, for WD to spawn):
+  `docs/phases/phase-26-ratchet-autonomy.closeout.md`.
+  - **How it cleared — Phase 26 (A2 gate-release arming + B2 stall detection + B1 companion
+    supervisor) shipped and live-validated 2026-07-18**, closing the 29/30 aug-count deadlock A1's
+    runaway had uncovered (`docs/phases/phase-26-ratchet-autonomy.spec.md`). The gate-release fire
+    (install #10) needed no manual help; two further installs did (#11 to bank Daedalus favor
+    early, #12 to activate the already-bought Red Pill) — both are recorded as open automation
+    gaps in the close-out, not fixed in-flight, since fixing them is real design surface, not a
+    patch.
+  - **NEXT ACTION: decide what comes after BN1.3.** Nothing is scheduled — this needs an actual
+    conversation with Kenneth, not an assumption either way.
+  - **Phase 25's aug-ratchet controller is the reusable asset going forward** (Phase 25 L7 passed
+    2026-07-17; supervision/stall-detection/gate-release all added by Phase 26). Whatever node
+    comes next that still fits BN1-shaped mechanics can reuse this toolchain largely unchanged —
+    see `docs/phases/phase-25-faction-strategy.closeout.md` for that phase's own record.
   - **BN1.2 was cleared 2026-07-15** — `w0r1d_d43m0n` backdoored (confirmed live via a
     BitVerse-selection-screen screenshot; SF1.2 grant itself not yet independently re-verified via a
     save/aug-info read, but the backdoor firing + landing back on the BitVerse screen is strong
@@ -34,13 +39,15 @@ on request — hold to them even when the moment is uncomfortable.
     auto-backdoors WD — see that spec's "Close-out (2026-07-15)" section for the full done-vs-left
     record (auto-*install* specifically is still unexercised, deliberately skipped for that run's
     final install).
-  - **[SUPERSEDED 2026-07-15 — kept as Phase 26 doc-audit triage/archive input, do not act on]** The
-    prior plan was to **stop at 1.2** and make **BN5** the next *extending* node — reasoning: 1.2→1.3
+  - **[Reopened 2026-07-18 — was superseded, now a live candidate again, still not decided]** The
+    pre-1.3 plan was to **stop at 1.2** and make **BN5** the next *extending* node — reasoning: 1.2→1.3
     is only +4pp for another entire endgame (poor ROI at full manual rep-tax); BN5 re-priced by cold
     review as a 2–3-install mult grind, least-bad under a "no new engine" constraint; BN10 deferred
     (×0.35 hacking-level wall needs in-node Grafting); BN4 + economy-nerfed nodes deferred until a
-    second engine exists. Full prior reasoning + all 15 nodes' multiplier tables lives in
-    `docs/bitnodes.md` → "Our next-node plan (mature batcher)" and in git history.
+    second engine exists. That reasoning was written pre-1.3-clear and hasn't been re-checked
+    against what Phase 26 now proves (unattended clears are cheaper than assumed) — worth
+    revisiting, not assuming still holds. Full prior reasoning + all 15 nodes' multiplier tables
+    lives in `docs/bitnodes.md` → "Our next-node plan (mature batcher)" and in git history.
   - **In parallel:** (a) **Phase 20 XP-farm engine shipped 2026-07-13** (`docs/phases/phase-20-xpfarm.spec.md`)
     — hack-saturation of surplus fleet RAM, S7 ON/OFF A/B gate measured 5.15× exp/sec; (b) **prototype
     a second engine** — only **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator +
