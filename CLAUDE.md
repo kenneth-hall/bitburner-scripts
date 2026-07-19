@@ -12,8 +12,18 @@ on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** **IN BN2.1 as of 2026-07-18** (BN1.3 cleared the
   same day — `w0r1d_d43m0n` backdoored, confirmed via BitVerse screenshot `bb-shot.png`; close-out
   with two surfaced design gaps: `docs/phases/phase-26-ratchet-autonomy.closeout.md`).
-  - **⚠️ OPEN DECISION, KENNETH'S — commit to BN2 or abort?** (We are already *in* BN2, so this
-    is commit-vs-abort, not BN2-vs-BN5.) BN2 was locked for its gang engine (SF2 kills the
+  - **✅ DECIDED 2026-07-19 — COMMITTED TO BN2, hacking gang via NiteSec.** The gang exists
+    (`isHacking: true`, fixed permanently). Everything below this bullet is the *history* of that
+    decision, kept because the measured numbers still bound the plan — it is no longer open.
+    Kenneth's closing argument, which is the reusable part: **a BitNode restart is cheap when the
+    node holds no progress**, so "permanent" was mispriced as a blocker. In-node permanence is
+    bounded by restart cost, not infinite. Deciding wrong and restarting beats deliberating for
+    five more sessions.
+    - **NEXT: Phase 27 brainstorm — the gang manager.** Inputs now exist that didn't before:
+      `docs/gang-api.md` (full API surface) and `logs/gangprobe-1784473065811.json` (the live
+      static tables — 15 tasks, 32 equipment, `errors: []`). Gang state at handoff: respect 1,
+      territory 14.3%, **zero members recruited, nothing running.**
+  - *(historical — the decision above closed this)* **commit to BN2 or abort?** BN2 was locked for its gang engine (SF2 kills the
     recurring Daedalus rep tax); same-day in-node analysis then found its `w0r1d_d43m0n` gate is
     **15,000** (Difficulty 500%) — realistically needing hacking mult **M ≈ 30–35** against our
     demonstrated **10.077**, ~2× BN4's ask. Grinding can't substitute (level is logarithmic in

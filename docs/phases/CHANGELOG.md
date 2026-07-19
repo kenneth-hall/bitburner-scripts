@@ -6,6 +6,36 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-19
+
+- **BN2 COMMITTED — the gang exists.** NiteSec, `isHacking: true`, fixed permanently. Sequence run
+  live: backdoor `avmnite-02h` (BruteSSH + FTPCrack sufficed) → join NiteSec → `createGang`. This
+  ended four days of circling: the gang API had been **entirely inert** until this call, so no gang
+  work of any kind was possible before it. `gangprobe.js` now returns 15 tasks / 32 equipment /
+  `errors: []`. Gang at handoff: respect 1, territory 14.3%, zero members, nothing running.
+  Kenneth's closing argument, recorded because it generalizes: **a BitNode restart is cheap when
+  the node holds no progress** — in-node permanence is bounded by restart cost, not infinite.
+- **`gangaugs.js` — aug-catalog sweep across factions** (read-only, works pre-gang, no membership
+  needed). Corrected the check that had blocked the BN2 decision on two counts: its "once in the
+  gang faction" precondition was **false**, and it was aimed at the **wrong factions**. Measured:
+  the five pure-criminal gang factions union to hacking **×1.061**, while the 17 non-gang factions
+  union to **×23.121** — so a gang is worth ~+6% M, and its real value to BN2 is the money/rep
+  engine that funds the megacorp catalog, not the augs it sells.
+- **`share-off.txt` retired** on joining NiteSec — share back on at 1.12 TB / 280k threads, fleet
+  utilization 6.4% → 27.6%. The auto-suppress-when-factionless rule that would prevent a repeat is
+  still unbuilt (`BACKLOG.md`).
+- **Convergence rules added to `CLAUDE.md`.** The "Working with Kenneth" section had six-plus rules
+  telling Claude to *open* questions and none to *close* them; four days of circling was that
+  imbalance executing as written. Every new rule constrains *that* a conclusion is reached, never
+  *which* — the test Kenneth's yes-man concern produced. Diagnosis:
+  `docs/metareference/divergence-without-convergence.md`.
+- **`tools/bb`: new `join "<Faction>"` verb + `goto` badge fix.** `goto` used `exact: true`, but a
+  pending invite renames the nav button to "1 Factions", breaking it precisely when it's needed.
+  The `join` verb pairs each `Join!` button with its heading by DOM order and throws rather than
+  clicking the wrong one — a naive first-match click would have joined Sector-12 and permanently
+  foreclosed five city factions. Caveat learned the hard way: a click fired from inside
+  `page.evaluate()` is untrusted and MUI ignores it *while reporting success*.
+
 ## 2026-07-18
 
 - **BN1.3 CLEARED.** `w0r1d_d43m0n` backdoored ~10:41 AM, confirmed via the BitVerse-selection

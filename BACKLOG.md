@@ -22,6 +22,25 @@ do, and what's broken?*
 
 ## Bugs
 
+- **The log-download bridge silently stalls, and nothing detects it mid-session** — found
+  2026-07-19: no file synced to `logs/` between 09:55 and 10:19 (24 min), so `gangaugs.js`'s and
+  `gangprobe.js`'s output simply never appeared on disk while every in-game read looked healthy. A
+  dev-server kill+restart fixed it instantly. The `SessionStart` autoheal hook only checks staleness
+  **once, at session start** — it cannot catch a stall that begins mid-session, which is exactly
+  what happened here (the stall began right after a manual restart). **Next:** either have the
+  10 s auto-export plugin assert its own liveness (log when a pull returns nothing for N ticks), or
+  give the daemon a heartbeat file whose mtime a check can compare against wall-clock on demand.
+  Cheap tell in the meantime: `ls -la logs/daemon-batch-log.json` — more than ~60 s stale means the
+  bridge is dead and any "the log doesn't show it" conclusion is unsound.
+
+- **`daemon.js` floods the terminal with un-launchable companion retries** — 3 lines/minute,
+  forever: `skipped augfarmer.js -- needs 64.10GB but only 0.90GB free on home`, same for
+  `xpfarm.js` and `ratchetlog.js`. On a 32 GB home these can *never* fit, so the retry is pure
+  noise, and it makes `read-terminal` nearly unusable for reading any script's output. This is the
+  visible half of the "will never fit vs doesn't fit yet" supervisor bug below — that entry covers
+  the retry logic; this one covers the observability damage. **Next:** log a permanent-skip once,
+  then stay quiet.
+
 - **`augfarmer.js` needs 64.10 GB and can never start on a 32 GB home** — found 2026-07-18 on
   fresh BN2 entry, from `daemon.js`'s own supervisor log. It is permanently unlaunchable for the
   entire early game of every node, and the supervisor retries it forever without ever saying so
@@ -108,8 +127,16 @@ do, and what's broken?*
     the weights and validate against `GangMemberInfo`'s per-member `respectGain`/`moneyGain`/
     `wantedLevelGain` actuals — observation earns its keep as *model validation*, not threshold
     discovery.
-  - **Blocked on:** no gang exists, and reaching a gang-capable faction needs either hacking 202+
-    or combat 30 + $1m + karma. **Trigger:** we are in a gang.
+  - **UNBLOCKED 2026-07-19 — the gang exists** (NiteSec, `isHacking: true`). This is now **Phase 27
+    brainstorm**, not a backlog idea. `gangprobe.js` dumped the live static tables
+    (`logs/gangprobe-1784473065811.json`, 15 tasks / 32 equipment / `errors: []`) and
+    `docs/gang-api.md` now carries the measured task table plus the shape of the problem read
+    straight off it — money ladder ordered by difficulty, respect concentrated in Cyberterrorism at
+    6 wanted, and exactly two wanted-sinks. Gang state: respect 1, territory 14.3%, **zero members
+    recruited, nothing running.**
+  - **Fix `gangprobe.js` before the spec leans on it** — it captures only `name` + `mults` per
+    equipment item. No `cost`, no `type`, so no purchase logic can be written against it. Needs
+    `getEquipmentCost` / `getEquipmentType`.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
@@ -127,7 +154,9 @@ do, and what's broken?*
   - **The rule that's missing:** share should be suppressed automatically whenever
     `ns.getPlayer().factions` is empty — it is *provably* worthless then, no heuristic needed.
     That's a stronger and simpler trigger than the fleet-size floor below, and it would have
-    prevented this outright.
+    prevented this outright. **Still unbuilt** — the 2026-07-19 fix was manual (`share-off.txt`
+    deleted on joining NiteSec; share went back on at 1.12 TB / 280k threads, fleet utilization
+    6.4% → 27.6%). The next factionless start repeats the bug unless this lands.
   - Also worth flagging: the daemon reserved 1,891 GB for a target it could never afford and
     reported `floor: true` / `commitPct: 0` every tick without ever escalating. **A member that
     has been at 0% commitment for N consecutive ticks should be dropped for an affordable one**,

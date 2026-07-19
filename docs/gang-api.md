@@ -213,13 +213,55 @@ to a trustworthy model.
 3. **Which factions allow gang creation** — not exposed by any API and not in any documentation
    (checked in-game docs, `faction_list.md`, `gang.md`). Only in game source, which is off-limits
    by CLAUDE.md. **`createGang` returning `false` is a safe empirical probe** once a member of a
-   candidate faction.
+   candidate faction. **Confirmed 2026-07-19: NiteSec allows it** (returned `true`, `isHacking`
+   `true`). The other candidates remain untested and now unreachable — there is no `leaveGang()`.
 4. **Max gang members** — `canRecruitMember` mentions a maximum; the number isn't documented.
 5. **Territory-warfare death risk** — the in-game doc warns members can die in clashes even when
    winning. No API exposes the per-clash death probability.
 
+## Measured: our actual task menu (2026-07-19, NiteSec hacking gang)
+
+Dumped by `gangprobe.js` the moment the gang existed → `logs/gangprobe-1784473065811.json`
+(`errors: []`, 15 tasks, 32 equipment). **`getTaskNames()` returns only the tasks available to
+*our* gang type** — the combat-gang list (Mug People, Deal Drugs, Armed Robbery, Traffick Illegal
+Arms, Human Trafficking, Terrorism, …) simply does not appear. These 15 are the whole menu:
+
+| Task | money | respect | wanted | diff | hack/cha weight |
+|---|---|---|---|---|---|
+| Ransomware | 3 | 0.00005 | 0.0001 | 1 | 100 / 0 |
+| Phishing | 7.5 | 0.00008 | 0.003 | 3.5 | 85 / 15 |
+| Identity Theft | 18 | 0.0001 | 0.075 | 5 | 80 / 20 |
+| DDoS Attacks | 0 | 0.0004 | 0.2 | 8 | 100 / 0 |
+| Plant Virus | 0 | 0.0006 | 0.4 | 12 | 100 / 0 |
+| Fraud & Counterfeiting | 45 | 0.0004 | 0.3 | 20 | 80 / 20 |
+| **Money Laundering** | **360** | 0.001 | 1.25 | 25 | 75 / 25 |
+| **Cyberterrorism** | 0 | **0.01** | **6** | 36 | 80 / 20 |
+| Ethical Hacking | 3 | 0 | **−0.001** | 1 | 90 / 10 |
+| Vigilante Justice | 0 | 0 | **−0.001** | 1 | 20 / 0 |
+| Train Hacking / Charisma / Combat | 0 | 0 | 0 | 45 / 8 / 100 | — |
+| Territory Warfare | 0 | 0 | 0 | 5 | 15 / 5 |
+| Unassigned | 0 | 0 | 0 | 1 | — |
+
+Shape of the problem, readable straight off the table — **no observation period needed**, which is
+the premise three deleted features docs got wrong:
+- **Money ladder** is strictly ordered by difficulty: Ransomware → Phishing → Identity Theft →
+  Fraud → **Money Laundering (360, 8× the next best)**. Assignment is a stat-gated climb.
+- **Respect** comes almost solely from **Cyberterrorism** (0.01, 10× Money Laundering) at a brutal
+  **6 wanted** — the central tension in the whole design.
+- **Only two wanted-level sinks exist**, both at −0.001: Ethical Hacking (which also earns 3) and
+  Vigilante Justice (which earns nothing). Ethical Hacking dominates Vigilante Justice for a
+  hacking gang — same wanted reduction, strictly more money, higher hack weight.
+
+**Equipment:** 32 items, 8 carry a `hack` mult — Demon Rootkit / Jack the Ripper / Neuralstimulator
+(×1.15), Hmap Node (×1.12), Soulstealer Rootkit / DataJack (×1.10), NUKE Rootkit / BitWire (×1.05).
+
+⚠️ **`gangprobe.js` captures only `name` + `mults` per item — no `cost`, no `type`.** Any purchase
+logic needs both (`getEquipmentCost` / `getEquipmentType`). Fix the probe before the spec depends
+on it.
+
 ## Related in-repo
 
-`src/gangprobe.js` (static task/equipment dump — works the moment a gang exists) ·
-`src/gangreach.js` (pre-gang reachability probe; question permanently answered, safe to delete) ·
+`src/gangprobe.js` (static task/equipment dump — works the moment a gang exists; **missing
+cost/type, see above**) · `src/gangcreate.js` (one-shot creator + safe faction probe) ·
+`src/gangaugs.js` (aug-catalog sweep across factions; works pre-gang, no membership needed) ·
 `docs/bitnodes.md` → BN2 clearing notes (the 15,000 gate).
