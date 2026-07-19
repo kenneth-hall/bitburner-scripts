@@ -22,10 +22,31 @@ on request — hold to them even when the moment is uncomfortable.
       weeks"** — *not* "unreachable," which an earlier pass here overstated on two counts (a stale
       9.16 multiplier, and treating our BN1 aug catalog as a ceiling when it was a ratchet
       stopping point at M≈6.5; the untouched megacorp tier is worth ~×5 more).
-    - **Two cheap checks settle it, in this order:** (1) once in the gang faction, run
-      `augcheck.js faction "<gang faction>"` — that one file answers whether the catalog reaches
-      ~25-before-NFG; (2) read `getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill
-      installs — the 15,000 figure is an *inference* (~85% confidence), unreadable until then.
+    - **Two cheap checks settle it, in this order:** (1) run `augcheck.js faction "<gang faction>"`
+      — that one file answers whether the catalog reaches ~25-before-NFG; (2) read
+      `getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill installs — the 15,000
+      figure is an *inference* (~85% confidence), unreadable until then.
+      - **Correction 2026-07-19:** check (1) previously read "*once in the gang faction*" — that
+        precondition is **false**, verified live. `singularity.getAugmentationsFromFaction` does
+        **not** require membership; `augcheck.js faction "NiteSec"` returned the full catalog with
+        zero factions joined and no gang created. The check is available *now*, with nothing
+        irreversible spent, which makes the whole BN2 decision cheaper than it has been priced.
+        (It needs 29.10 GB, so it won't fit a crowded 32 GB home — run it from a fleet server.)
+      - **…and check (1) was aimed at the wrong factions.** Measured 2026-07-19 via the new
+        `src/gangaugs.js` catalog sweep (read-only, pre-gang): the union of all five *pure-criminal*
+        gang factions (Slum Snakes / Tetrads / Speakers / Dark Army / Syndicate) is **hacking
+        ×1.061** across 33 augs — they share one hacking aug between them. NiteSec ×1.515 and
+        The Black Hand ×1.511 are the only gang-capable factions with real hacking catalogs, and
+        **both are reachable without a gang.** So a gang buys ~**+6%** M that nothing else offers.
+        The catalog was never going to reach ~25 from gang factions.
+      - **The real ceiling, measured the same way:** union of the 17 non-gang factions
+        (megacorps + BitRunners + endgame) = **hacking ×23.121** across 69 distinct augs, NFG
+        counted once. Against a demonstrated 10.077 and a needed ~30–35, that puts the target
+        inside reach *only* with a substantial NFG tail on top (~×1.3–1.5, i.e. ~26–38 levels)
+        **and** with essentially the whole catalog bought — whose union price is dominated by
+        Illuminati at ~$25t. **This reframes the gang's role: its value to BN2 is the money/rep
+        engine that makes that catalog affordable, not the augs it sells.** Raw sweep output:
+        `logs/gangaugs-*.json` (in-game FS; `scp … home` to sync).
     - Full arithmetic + both corrections: `docs/bitnodes.md` → BN2 clearing notes. **Don't resume
       BN2 work as a default; this needs an actual decision.**
   - **Phase 27 (gang observer) is drafted but blocked**, and not only on the above: recon proved

@@ -82,6 +82,7 @@ export default defineConfig({
         if (/^sf4check-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 21 -- SF/Singularity liveness check, one file per run
         if (/^gangprobe-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 27 -- BN2 static gang task/equipment tables, one file per run
         if (/^gangreach-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 27 -- BN2 gang API pre-gang reachability probe, one file per run
+        if (/^gangaugs-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 27 -- gang-faction aug catalog sweep (pre-gang, read-only), one file per run
 
         if (file === 'backdoor-status.json') return 'logs/backdoor-status.json'; // Phase 22 -- faction-backdoor status snapshot, overwritten in place, written on classification change only
         if (file === 'augfarmer-state.json') return 'logs/augfarmer-state.json'; // Phase 23 -- overwrite-in-place, written on change + a low-frequency heartbeat
