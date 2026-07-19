@@ -32,6 +32,11 @@ await bb.withPage(async (page) => {
     case 'body': return out(await bb.bodyText(page));
     case 'goto': { await bb.goto(page, args.join(' ')); return out('ok -> ' + args.join(' ')); }
     case 'click': { await bb.clickText(page, args.join(' ')); return out('clicked -> ' + args.join(' ')); }
+    case 'join': {
+      if (!args.length) return out('usage: join "<Faction Name>"');
+      await bb.goto(page, 'Factions');
+      return out(await bb.joinFaction(page, args.join(' ')));
+    }
     case 'location': {
       const name = args.join(' ');
       const landed = await bb.clickLocation(page, name);

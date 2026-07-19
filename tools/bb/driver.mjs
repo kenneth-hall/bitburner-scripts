@@ -30,7 +30,12 @@ export async function withPage(fn) {
 export async function goto(page, section) {
   await dismissModal(page);
   await dismissStoryPopup(page);
-  await page.getByRole('button', { name: section, exact: true }).click();
+  // Nav buttons carry a notification-badge count in their accessible name when something is
+  // pending -- "Factions" becomes "1 Factions" the moment an invite lands. exact:true then fails
+  // on precisely the screens you most need (confirmed 2026-07-19 on the NiteSec invite). Match
+  // the name with an optional leading count instead.
+  const named = new RegExp(`^(\\d+\\s+)?${section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+  await page.getByRole('button', { name: named }).first().click();
   await page.waitForTimeout(300);
 }
 
@@ -40,6 +45,41 @@ export async function goto(page, section) {
 export async function clickText(page, text) {
   await page.getByText(text, { exact: false }).first().click();
   await page.waitForTimeout(300);
+}
+
+/** Accept a pending faction invitation BY NAME, from the Factions screen.
+ *
+ * Why this exists rather than `click "Join!"`: every pending invitation renders an identical
+ * unnamed-by-faction `Join!` button, and clickText takes the FIRST match -- so a naive click joins
+ * whichever invite happens to be top of the list. That is a genuinely costly misfire, since the six
+ * city factions are mutually exclusive: accepting Sector-12 by accident permanently forecloses
+ * Aevum/Chongqing/Ishima/New Tokyo/Volhaven for the node.
+ *
+ * The DOM orders each button BEFORE its faction heading (confirmed 2026-07-19), so we locate the
+ * heading and take the Join! button immediately preceding it. Throws if the faction has no pending
+ * invite, rather than clicking something else.
+ */
+export async function joinFaction(page, faction) {
+  await dismissModal(page);
+  await dismissStoryPopup(page);
+  // Read-only pass: which Join! button (by index) belongs to this faction? Each invitation is a
+  // [button "Join!"][heading "<Faction>"] pair in DOM order, so the Nth Join! button pairs with
+  // the Nth invitation heading. We only COMPUTE here -- clicking from inside evaluate() fires an
+  // untrusted event that MUI ignores (observed 2026-07-19: reported success, nothing happened).
+  const index = await page.evaluate((name) => {
+    const nodes = [...document.querySelectorAll('button,h1,h2,h3,h4,h5,h6')];
+    let n = -1;
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i];
+      if (el.tagName === 'BUTTON' && /^join!?$/i.test(el.textContent.trim())) n++;
+      else if (/^H[1-6]$/.test(el.tagName) && el.textContent.trim() === name && n >= 0) return n;
+    }
+    return -1;
+  }, faction);
+  if (index < 0) throw new Error(`no pending "Join!" invitation found for faction "${faction}"`);
+  await page.getByRole('button', { name: /^Join!?$/ }).nth(index).click();
+  await page.waitForTimeout(500);
+  return `joined ${faction}`;
 }
 
 /** Click a City-map location by its full name and open its page (e.g. "Central Intelligence
