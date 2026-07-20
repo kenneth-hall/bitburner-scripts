@@ -202,11 +202,32 @@ to a trustworthy model.
 
 ## Open questions — verify, don't assume
 
-1. **⚠️ Does a player aug install degrade gang members?** `GangMemberInstall`'s fields read
-   "factor by which the X ascension multiplier was **decreased**", yet the in-game Gang doc says
-   "your gang and gang member stats will **not reset** if you install augmentations." Reduce ≠
-   reset, so both can be true — but if installs degrade the gang, that collides directly with our
-   aug-ratchet, which installs constantly. **Resolve before running the ratchet alongside a gang.**
+1. **~~⚠️ Does a player aug install degrade gang members?~~ — ✅ RESOLVED 2026-07-20. Yes: −2.53%
+   hack ascension multiplier per install.** Measured live, read-only, via `getInstallResult()` for
+   all 8 members (`run ascendrecon.js`, no `--commit`; raw:
+   `logs/ascendrecon-1784572486984.json`). Result: **`hack` × 0.9746794344808963 — bit-identical
+   across every member who has ascended at least once**, regardless of their current ascension
+   mult (measured across mults 1.517 → 3.174). `str`/`def`/`dex`/`agi`/`cha` are all exactly
+   `1.0` (we hold no ascension points in those). The one member who had never ascended
+   (`hack_asc_mult` exactly 1.000) returns `1.0`, i.e. the reduction floors at 1.0 and cannot push
+   a mult below baseline.
+   - **The docs never actually contradicted each other** — they describe different quantities.
+     The in-game text promises base **stats** survive an install; `GangMemberInstall` describes
+     the **ascension multiplier**, a separate value. Both hold simultaneously.
+   - **Why the factor is flat:** a constant ratio across widely different mults is the signature
+     of a power-law mult-from-points curve (`mult ∝ points^k`) with the reduction applied to
+     *points* — the mult ratio then comes out as `r^k`, independent of how many points you hold.
+     Inferred from the data, not from game source.
+   - **What it costs us:** the tax compounds against the aug-ratchet, which installs constantly.
+     `0.9747^20 ≈ 0.60` (~40% of hack ascension mult gone over 20 installs); `0.9747^50 ≈ 0.28`.
+     Break-even is `ln(F) / 0.02563` installs per ascension of factor `F` — so one **1.5×**
+     ascension pays for ~**16** installs.
+   - **Current policy already survives this, by luck rather than design.** `ASCEND_MIN_FACTOR =
+     1.5` (`gangmanager.js:73`) means we only ascend on large gains, which is exactly the right
+     shape — frequent small ascensions (our live previews run 1.005–1.212×) would *lose* the race
+     outright. The open risk is cadence, not policy: if 1.5× ascensions arrive slower than ~1 per
+     16 installs, the gang's hack mults decay net-negative. **That cadence is measurable from the
+     existing `ascend` gang-log events — no new code needed.**
 2. **`createGang`'s karma text.** API doc says "karma must be less than or equal to 54000"; the
    in-game doc says "−54000 karma or lower". Almost certainly a sign typo in the API doc. Moot in
    BN2 (no karma gate) but matters for using gangs in other nodes.
