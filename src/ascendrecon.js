@@ -42,6 +42,15 @@ export async function main(ns) {
     } catch (e) {
       result = { error: String(e) };
     }
+    // Open question 1 (docs/gang-api.md): does a player aug install degrade gang
+    // ascension multipliers? getInstallResult is a read-only preview -- all 1.0 means
+    // no degradation and the question closes without waiting for an install to fire.
+    let installResult = null;
+    try {
+      installResult = ns.gang.getInstallResult(name);
+    } catch (e) {
+      installResult = { error: String(e) };
+    }
     out.previews.push({
       name,
       task: info.task,
@@ -50,6 +59,7 @@ export async function main(ns) {
       hackAscMult: info.hack_asc_mult,
       hackAscPoints: info.hack_asc_points,
       result,
+      installResult,
     });
   }
 
@@ -61,6 +71,32 @@ export async function main(ns) {
       `earnedResp ${Number(p.earnedRespect).toFixed(2).padStart(9)} | ascend -> hack x${r.hack ? r.hack.toFixed(4) : "?"} ` +
       `costing ${r.respect !== undefined ? Number(r.respect).toFixed(2) : "?"} respect`
     );
+  }
+
+  ns.tprint(`=== install previews (open question 1: does an install degrade the gang?) ===`);
+  for (const p of out.previews) {
+    const i = p.installResult || {};
+    if (i.error) {
+      ns.tprint(`  ${p.name.padEnd(9)} ERROR ${i.error}`);
+      continue;
+    }
+    ns.tprint(
+      `  ${p.name.padEnd(9)} install -> hack x${i.hack !== undefined ? i.hack.toFixed(4) : "?"} ` +
+      `str x${i.str !== undefined ? i.str.toFixed(4) : "?"} def x${i.def !== undefined ? i.def.toFixed(4) : "?"} ` +
+      `dex x${i.dex !== undefined ? i.dex.toFixed(4) : "?"} agi x${i.agi !== undefined ? i.agi.toFixed(4) : "?"} ` +
+      `cha x${i.cha !== undefined ? i.cha.toFixed(4) : "?"}`
+    );
+  }
+  const factors = out.previews
+    .flatMap((p) => (p.installResult && !p.installResult.error ? Object.values(p.installResult) : []))
+    .filter((v) => typeof v === "number");
+  if (factors.length) {
+    const worst = Math.min(...factors);
+    out.installVerdict =
+      worst >= 0.9999
+        ? "NO DEGRADATION -- every install factor is 1.0. Installs are free for the gang."
+        : `DEGRADATION REAL -- worst factor ${worst.toFixed(4)}. The ratchet erodes gang mults every install.`;
+    ns.tprint(`=== INSTALL VERDICT: ${out.installVerdict}`);
   }
 
   if (!commit) {

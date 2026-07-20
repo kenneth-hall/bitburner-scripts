@@ -149,10 +149,18 @@ do, and what's broken?*
   Tiers 2+3 as Phase 29 (`docs/phases/phase-29-gang-scaling.spec.md`). Lowest priority of the four —
   undocumented death-on-clash odds, lowest value for a hacking gang whose payoff is money/rep. May
   end up deferred indefinitely.
-  - **Still open** — does a player aug install *degrade* gang ascension mults? `GangMemberInstall`'s
-    fields read as a decrease; the in-game doc says gang stats "will not reset" on install (reduce
-    ≠ reset). Untestable until the first BN2 install fires; folded into Phase 29's L5 live rider.
-    → `docs/gang-api.md` open question 1.
+  - **~~Still open — does a player aug install degrade gang ascension mults?~~ ✅ ANSWERED
+    2026-07-20: yes, `hack` × 0.9747 per install (flat, floors at 1.0).** It was never "untestable
+    until the first install fires" as recorded here — `getInstallResult()` is a read-only *preview*
+    and answered it immediately; nothing had ever called it. Measured via `ascendrecon.js` (now
+    reads it for every member). Full numbers + break-even arithmetic:
+    `docs/gang-api.md` open question 1.
+    - **What's left is a cadence question, not a mechanic question.** One 1.5× ascension pays for
+      ~16 installs. `ASCEND_MIN_FACTOR = 1.5` already only fires on large gains, so the shipped
+      policy is the right shape — but if 1.5× ascensions arrive slower than ~1 per 16 installs, gang
+      hack mults decay net-negative over the node. **Next:** when the Phase 29 observation window
+      closes (~2026-07-27), count `ascend` events in the gang log against install count over the
+      same stretch. Needs no code change and no edit to `gangmanager.js`.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
