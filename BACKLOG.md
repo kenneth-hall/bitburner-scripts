@@ -22,6 +22,24 @@ do, and what's broken?*
 
 ## Bugs
 
+- **This build's terminal has no `write` command** — found 2026-07-20 attempting Phase 27's L5
+  off-marker test (`write gang-off.txt` → "Command write not found"). The reliable path is either
+  in-game `nano <file>` + a UI Save click, or (faster, used live) dropping the file under `src/` —
+  viteburner already watches `src/**/*.txt` and syncs it straight to `@home:/<file>`, same
+  mechanism `share-off.txt`/`xp-off.txt` used historically. Not a bug to fix, just a documentation
+  gap: `tools/bb/README.md` should note this so a future session doesn't re-discover it the hard
+  way. Low priority — cheap to rediscover, now recorded here and in
+  `docs/phases/phase-27-gang.closeout.md`.
+
+- **`GangGenInfo.wantedPenalty` is not simply monotonic in `wantedLevel`** — observed live 2026-07-19/20:
+  `wantedPenalty` kept drifting upward over ~8.5 hours while `wantedLevel` sat exactly at its floor
+  (1) the entire time. Caused a real bug in `gangmanager.js`'s wanted-sink baseline (fixed, see
+  `docs/phases/phase-27-gang.closeout.md`), but the underlying cause of the drift itself
+  (respect? territory? gang size? all looked roughly constant while it happened) is still
+  unexplained. Doesn't block Tier 1 — the fix works regardless of cause — but worth understanding
+  before Tier 2+ tries to model `wantedPenalty` more precisely, or before assuming any other
+  `GangGenInfo` field behaves the way its name suggests.
+
 - **The log-download bridge silently stalls, and nothing detects it mid-session** — found
   2026-07-19: no file synced to `logs/` between 09:55 and 10:19 (24 min), so `gangaugs.js`'s and
   `gangprobe.js`'s output simply never appeared on disk while every in-game read looked healthy. A
@@ -119,8 +137,8 @@ do, and what's broken?*
 
 ### Game / progression
 - **Gang manager Tiers 2-4 (equipment / ascension / territory)** — Tier 1 (recruit + task-assign)
-  shipped as `src/gangmanager.js` (phase27-gang-tier1 branch; `phase-27-gang.spec.md` graduates to
-  `docs/phases/` at phase close, once live validation clears). Remaining tiers, in build order:
+  shipped as `src/gangmanager.js`, merged to `master` 2026-07-20 — full record:
+  `docs/phases/phase-27-gang.closeout.md`. Remaining tiers, in build order:
   - **Tier 2 — equipment.** Blocked on fixing `gangprobe.js` first — it captures only `name` +
     `mults` per equipment item, no `cost`/`type`, so no purchase logic can be written against it.
     Needs `getEquipmentCost` / `getEquipmentType`.
