@@ -84,6 +84,9 @@ export default defineConfig({
         if (/^gangreach-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 27 -- BN2 gang API pre-gang reachability probe, one file per run
         if (/^gangaugs-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 27 -- gang-faction aug catalog sweep (pre-gang, read-only), one file per run
         if (/^gangcreate-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 27 -- gang creation record (faction + permanent isHacking), one file per run
+        if (/^ascendrecon-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 29 -- ascension preview + the rep-tracks-rate probe, one file per run
+        if (/^bn2probe-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 29 -- player mults / faction rep / owned-aug recon, one file per run
+        if (/^gangtaskcompare-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 29 -- hacking-vs-combat gang task yield comparison, one file per run
         if (file === 'gang-state.json') return 'logs/gang-state.json'; // Phase 27 Tier 1 -- gangmanager.js overwrite-in-place snapshot + restart-persistence source
         if (file === 'gang-log.json') return 'logs/gang-log.json'; // Phase 27 Tier 1 -- gangmanager.js ring-capped event log (recruit/promote/demote/sink/startup/off-marker)
 

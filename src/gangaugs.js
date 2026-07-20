@@ -78,7 +78,10 @@ export async function main(ns) {
 
   out.factions.sort((a, b) => b.mults.hacking - a.mults.hacking);
 
-  const path = `logs/gangaugs-${out.ts}.json`;
+  // Bare filename, NOT logs/-prefixed: vite.config.ts's download filter matches on the
+  // in-game filename, and a `logs/`-prefixed name never matches `^gangaugs-\d+\.json$` --
+  // which is why no earlier sweep ever reached the repo despite the documented scp step.
+  const path = `gangaugs-${out.ts}.json`;
   ns.write(path, JSON.stringify(out, null, 2), "w");
 
   ns.tprint("=== gang faction aug catalogs (cumulative mults, NFG counted once) ===");
