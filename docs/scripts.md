@@ -25,7 +25,8 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 | `upgradecloudserver.js <hostname>` | Upgrade one cloud server tier-by-tier until unaffordable, then rename. |
 | `fleetupgrade.js` | Rebalance + upgrade the **whole** fleet together, then rename `pserv-<sizeGB>gb-<i>`. |
 | `renamecloudservers.js` | Rename owned cloud servers to the `cloud-<n>` scheme (rename only). |
-| `upgradehomeram.js` | Buy home RAM (Singularity — needs ~74GB free just to launch). |
+| `upgradehomeram.js` | Buy home RAM (Singularity — needs ~74GB free just to launch). Loops `while money >= cost`, draining the whole bankroll — correct only during an install spend-down. |
+| `upgradehomeramonce.js [maxSpend]` | Buy exactly ONE home RAM tier, spend-capped (default $500m), then exit — the safe lever outside an install, when RAM is competing with the gang/aug plans for capital. Used by Phase 29 L1 (128 → 256 GB). Run from the fleet, not home (needs headroom the crowded home doesn't have). |
 | `killscripts.js` | Kill everything (daemon runs it once at startup). |
 
 ## Core daemon loop (`daemon.js` orchestrates; most are imported, not run)
@@ -57,7 +58,7 @@ its `ns.print` status block, so a manual `tail <script>` shows live status for f
 | `cloudmanager.js` | Always-on cloud fleet buy/upgrade (no rename, no Singularity); publishes `cloud-state.json`. |
 | `procureprograms.js` | Self-terminating Singularity fulfiller for TOR + the 5 port openers. |
 | `bootstrap.js` | Cold-start deployer that runs `bootloop.js` on the network until home RAM fits `daemon.js`, then hands off. |
-| `gangmanager.js` | Phase 27 Tier 1 -- recruits gang members (greedy) and assigns tasks (measured money-ladder climb + wanted-level sink watchdog); publishes `gang-state.json` + `gang-log.json`. Equipment/ascension/territory are future tiers (deliberately out of scope -- grep-checked). `gang-off.txt` on home suppresses all actions. |
+| `gangmanager.js` | Phase 29 -- Tiers 1-3: recruits gang members (greedy), assigns tasks via an 8-rung respect ladder moved by an exact Formulas-based mover (`evalLadderMove`, suspends without Formulas.exe), buys rootkits broadly + member augmentations on ascension-rotation members only (`planEquipmentBuys`), and ascends members aggressively once their preview clears ×1.5 (`evalAscension`, staggered one per cooldown window). Publishes `gang-state.json` + `gang-log.json`; gang-equip spends also land in `transactions-YYYY-MM-DD.json`. Territory (Tier 4, `setTerritoryWarfare`) stays deliberately out of scope -- grep-checked. `gang-off.txt` on home suppresses all actions (recruit/task-move/ascend/equip-buy). |
 | `transactionsmonitor.js` | The income-side writer of the transactions log (`transactions-YYYY-MM-DD.json`) — `dashboard.js` reads that file directly, no separate summary state. |
 | `targetsmonitor.js` | Live re-rank/re-plan analysis of every eligible hack target; publishes `targets-ranking.json`. |
 | `launchmonitor.js` | Live worker-launch history (watches `ns.ps()`). |

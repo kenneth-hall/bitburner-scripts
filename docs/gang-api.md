@@ -259,6 +259,21 @@ the premise three deleted features docs got wrong:
 logic needs both (`getEquipmentCost` / `getEquipmentType`). Fix the probe before the spec depends
 on it.
 
+## Measured (Phase 29, 2026-07-20): two facts the earlier open questions left unresolved
+
+- **Faction rep tracks the respect *gain rate*, not the total respect.** Measured live via
+  `src/ascendrecon.js --commit`, ascending `nite-07`: respect dropped by exactly the previewed
+  330.14 on ascension; faction rep did not move at all, then resumed climbing at the (temporarily
+  lower) new rate. **Ascension claws back nothing from faction rep** — the "amount of Respect
+  LOST by ascending" (`GangMemberAscension.respect`) is a respect-ledger cost, not a rep cost. This
+  settles the Tier 3 policy question the ascension section above left open: ascend aggressively.
+  Raw: `logs/ascendrecon-1784568236075.json`.
+- **`getAscensionResult` has an undocumented minimum-strength floor.** All 8 members previewed;
+  the 7 with `hack` ≥ 79 got a result (×1.517 to ×3.079), the 8th (`hack` 27) got `undefined` —
+  not a zero-value result, no result at all. The floor's exact threshold is unmeasured (only one
+  below-floor data point exists). Policy: skip silently, don't error — the member keeps earning
+  and crosses the floor on its own. Same raw file as above.
+
 ## Related in-repo
 
 `src/gangprobe.js` (static task/equipment dump — works the moment a gang exists; **missing
