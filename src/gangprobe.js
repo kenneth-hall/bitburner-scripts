@@ -5,6 +5,11 @@
  * one run answers a large share of the strategy unknowns without needing a
  * live gang to observe.
  *
+ * 2026-07-20: equipment rows now carry `cost` + `type` alongside `mults`. The
+ * original capture had only name+mults, which is not enough to write any
+ * purchase logic against (no price to rank by, no type to filter hacking-
+ * relevant gear from combat gear) -- that gap was Tier 2's stated blocker.
+ *
  * Deliberately lean: fresh-node home is RAM-saturated by the batcher (measured
  * 31.60/32.00GB, 2026-07-18), so this drops every call not strictly needed.
  * The API-reachability probe lives in gangreach.js -- a separate file because
@@ -42,7 +47,12 @@ export async function main(ns) {
     const rows = [];
     for (const e of eqNames) {
       try {
-        rows.push({ name: e, mults: ns.gang.getEquipmentStats(e) });
+        rows.push({
+          name: e,
+          cost: ns.gang.getEquipmentCost(e),
+          type: ns.gang.getEquipmentType(e),
+          mults: ns.gang.getEquipmentStats(e),
+        });
       } catch (err) {
         rows.push({ name: e, error: String(err.message || err) });
       }
