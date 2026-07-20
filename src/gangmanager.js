@@ -25,7 +25,23 @@
  * Run: launched automatically by daemon.js's companion block.
  */
 
-export const MONEY_LADDER = ["Ransomware", "Phishing", "Identity Theft", "Fraud & Counterfeiting", "Money Laundering"];
+// The task ladder members climb. PINNED TO ONE RUNG as of 2026-07-20 -- the gang
+// is optimized for REPUTATION, not money, and Ransomware is the best task on the
+// board for that by ~20x. See docs/phases/phase-28-gang-rep-pivot.md.
+//
+// The full money-ordered ladder was:
+//   Ransomware -> Phishing -> Identity Theft -> Fraud & Counterfeiting -> Money Laundering
+// Each rung pays more and generates disproportionately more heat: promoting a
+// member from Ransomware to Identity Theft doubles their respect and multiplies
+// their wanted gain by 750. Seven members on Identity Theft need ~75 on the sink
+// to break even, so the gang thrashed between earning and cooling (71.6% sink
+// duty over 4.3h) and respect gain -- which is what buys faction rep -- was zero
+// for most of its life.
+//
+// The climbing machinery below is deliberately left intact, not deleted: with a
+// one-entry ladder evalPromotion hits its "top rung, nothing to probe" early exit
+// and goes quiet. Re-adding rungs here is all it takes to switch it back on.
+export const TASK_LADDER = ["Ransomware"];
 export const SINK_TASK = "Ethical Hacking"; // dominates Vigilante Justice: same wanted reduction, more money, higher hack weight
 export const SINK_ENTER_DEVIATION = 0.02;
 export const SINK_EXIT_DEVIATION = 0.005;
@@ -91,14 +107,18 @@ export function nextRecruitName(existingNames) {
  * @param {{name:string, task:string}[]} members
  * @param {Record<string, number>} persistedRungs
  */
-export function rebuildRungs(members, persistedRungs = {}) {
+export function rebuildRungs(members, persistedRungs = {}, ladder = TASK_LADDER) {
   const rungs = {};
   for (const m of members) {
     if (persistedRungs[m.name] !== undefined) {
-      rungs[m.name] = persistedRungs[m.name];
+      // Clamp: a persisted rung can outlive a shortened ladder (it did when the
+      // ladder was pinned to one rung -- live state held rungs of 2). Without
+      // this, ladder[rung] is undefined and members get assigned a nonexistent
+      // task.
+      rungs[m.name] = Math.min(persistedRungs[m.name], ladder.length - 1);
       continue;
     }
-    const idx = MONEY_LADDER.indexOf(m.task);
+    const idx = ladder.indexOf(m.task);
     rungs[m.name] = idx !== -1 ? idx : 0;
   }
   return rungs;
@@ -227,16 +247,20 @@ export function evalPromotion({ rung, moneyGain, weightedStatValue, state, sinkM
 /**
  * Pure (S1/S7/S8). Reconciles every member's current task against policy:
  * off-marker -> no ops at all; else desired = SINK_TASK under sink mode, else
- * MONEY_LADDER[rung] (defaulting an unrecorded rung to 0). Only members whose
- * current task differs from the desired one get an op -- no redundant
- * `setMemberTask` calls.
- * @param {{members:{name:string, task:string}[], rungs:Record<string, number>, sinkMode:boolean, offMarker:boolean}} params
+ * ladder[rung] (defaulting an unrecorded rung to 0, clamping one that exceeds
+ * the ladder). Only members whose current task differs from the desired one get
+ * an op -- no redundant `setMemberTask` calls.
+ *
+ * `ladder` is injectable so the multi-rung machinery stays testable while the
+ * live ladder is pinned to a single rung.
+ * @param {{members:{name:string, task:string}[], rungs:Record<string, number>, sinkMode:boolean, offMarker:boolean, ladder?:string[]}} params
  */
-export function planAssignments({ members, rungs, sinkMode, offMarker }) {
+export function planAssignments({ members, rungs, sinkMode, offMarker, ladder = TASK_LADDER }) {
   if (offMarker) return [];
   const ops = [];
   for (const m of members) {
-    const desired = sinkMode ? SINK_TASK : MONEY_LADDER[rungs[m.name] ?? 0];
+    const rung = Math.min(rungs[m.name] ?? 0, ladder.length - 1);
+    const desired = sinkMode ? SINK_TASK : ladder[rung];
     if (m.task !== desired) ops.push({ name: m.name, task: desired });
   }
   return ops;
@@ -285,7 +309,7 @@ export async function main(ns) {
   }
 
   const taskNames = ns.gang.getTaskNames();
-  const requiredTasks = [...MONEY_LADDER, SINK_TASK];
+  const requiredTasks = [...TASK_LADDER, SINK_TASK];
   for (const t of requiredTasks) {
     if (!taskNames.includes(t)) {
       ns.tprint(`ERROR: gangmanager.js -- task "${t}" not found in getTaskNames() -- exiting (setMemberTask silently idles on a bad name, so this fails loud instead).`);
@@ -393,7 +417,7 @@ export async function main(ns) {
     for (const m of members) {
       const rung = rungs[m.name] ?? 0;
       const state = probeStates[m.name] ?? freshProbeState();
-      const task = MONEY_LADDER[Math.min(rung, MONEY_LADDER.length - 1)];
+      const task = TASK_LADDER[Math.min(rung, TASK_LADDER.length - 1)];
       const wsv = weightedStat(m.stats, taskWeights[task]);
       const result = evalPromotion({
         rung,
@@ -401,7 +425,7 @@ export async function main(ns) {
         weightedStatValue: wsv,
         state,
         sinkMode,
-        ladderLength: MONEY_LADDER.length,
+        ladderLength: TASK_LADDER.length,
         evalTicks: EVAL_TICKS,
         probeTicks: PROBE_TICKS,
         retryStatGrowth: RETRY_STAT_GROWTH,
@@ -438,7 +462,7 @@ export async function main(ns) {
       const stateMembers = members.map((m) => ({
         name: m.name,
         task: m.task,
-        desiredTask: sinkMode ? SINK_TASK : MONEY_LADDER[rungs[m.name] ?? 0],
+        desiredTask: sinkMode ? SINK_TASK : TASK_LADDER[Math.min(rungs[m.name] ?? 0, TASK_LADDER.length - 1)],
         rung: rungs[m.name] ?? 0,
         stats: m.stats,
         moneyGain: m.moneyGain,

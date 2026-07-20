@@ -1,9 +1,16 @@
 // Pure-function tests for Phase 27 Tier 1's gang manager (spec: S10). Every
 // function under test is ns-free by design -- the main() loop is thin
 // plumbing around these, same split as daemon.js/scheduler.js.
+//
+// LADDER FIXTURE (2026-07-20): the live TASK_LADDER is pinned to a single rung
+// (rep pivot -- see gangmanager.js's header). The multi-rung promote/demote
+// machinery is still present and must stay covered, so the tests that exercise
+// climbing inject FIXTURE_LADDER instead of reading the live constant. Tests
+// that assert live *policy* (e.g. verify-gang's VALID_TASKS) keep using
+// TASK_LADDER, since there the point is what the gang actually does.
 import { describe, it, expect } from 'vitest';
 import {
-  MONEY_LADDER,
+  TASK_LADDER,
   SINK_TASK,
   RETRY_STAT_GROWTH,
   freshProbeState,
@@ -18,6 +25,10 @@ import {
   buildGangState,
   GANG_LOG_MAX_ENTRIES,
 } from '../src/gangmanager.js';
+
+// The historical five-rung money ladder, kept here as a test fixture so the
+// climbing machinery stays exercised while the live ladder is pinned to one rung.
+const FIXTURE_LADDER = ['Ransomware', 'Phishing', 'Identity Theft', 'Fraud & Counterfeiting', 'Money Laundering'];
 
 const EVAL_TICKS = 30;
 const PROBE_TICKS = 5;
@@ -60,13 +71,13 @@ describe('nextRecruitName', () => {
 
 describe('rebuildRungs', () => {
   it('a persisted rung wins on a name match', () => {
-    const rungs = rebuildRungs([{ name: 'nite-01', task: 'Unassigned' }], { 'nite-01': 3 });
+    const rungs = rebuildRungs([{ name: 'nite-01', task: 'Unassigned' }], { 'nite-01': 3 }, FIXTURE_LADDER);
     expect(rungs['nite-01']).toBe(3);
   });
 
   it('a member on a known ladder task keeps that rung (live rebuild, no persisted match)', () => {
-    const rungs = rebuildRungs([{ name: 'nite-01', task: 'Fraud & Counterfeiting' }], {});
-    expect(rungs['nite-01']).toBe(MONEY_LADDER.indexOf('Fraud & Counterfeiting'));
+    const rungs = rebuildRungs([{ name: 'nite-01', task: 'Fraud & Counterfeiting' }], {}, FIXTURE_LADDER);
+    expect(rungs['nite-01']).toBe(FIXTURE_LADDER.indexOf('Fraud & Counterfeiting'));
   });
 
   it('"Unassigned" or an off-policy task falls back to rung 0', () => {
@@ -81,8 +92,21 @@ describe('rebuildRungs', () => {
     expect(rungs['nite-02']).toBe(0);
   });
 
+  // Regression (2026-07-20, rep pivot): pinning the live ladder to one rung left
+  // real persisted rungs of 2 in gang-state.json. Unclamped, ladder[2] is
+  // undefined and every member gets setMemberTask(name, undefined) -- which the
+  // gang API silently turns into "Unassigned", idling the whole gang.
+  it('a persisted rung beyond the end of the ladder clamps to the top rung', () => {
+    const rungs = rebuildRungs([{ name: 'nite-01', task: SINK_TASK }], { 'nite-01': 2 }, ['Ransomware']);
+    expect(rungs['nite-01']).toBe(0);
+  });
+
+  it('the live ladder is pinned to a single rung (rep pivot -- change deliberately, not by accident)', () => {
+    expect(TASK_LADDER).toEqual(['Ransomware']);
+  });
+
   it('a persisted name that no longer exists is simply absent from the result -- ignored, not an error', () => {
-    const rungs = rebuildRungs([{ name: 'nite-01', task: 'Ransomware' }], { 'nite-99': 4, 'nite-01': 2 });
+    const rungs = rebuildRungs([{ name: 'nite-01', task: 'Ransomware' }], { 'nite-99': 4, 'nite-01': 2 }, FIXTURE_LADDER);
     expect(rungs).toEqual({ 'nite-01': 2 });
   });
 });
@@ -229,7 +253,7 @@ function runPromotion({ startRung, startState = freshProbeState(), moneyGainOf, 
       weightedStatValue: weightedStatOf(i, rung),
       state,
       sinkMode,
-      ladderLength: MONEY_LADDER.length,
+      ladderLength: FIXTURE_LADDER.length,
       evalTicks: EVAL_TICKS,
       probeTicks: PROBE_TICKS,
       retryStatGrowth: RETRY_STAT_GROWTH,
@@ -279,7 +303,7 @@ describe('evalPromotion', () => {
   });
 
   it('the top rung is never probed', () => {
-    const topRung = MONEY_LADDER.length - 1;
+    const topRung = FIXTURE_LADDER.length - 1;
     const result = runPromotion({ startRung: topRung, moneyGainOf: () => 999, weightedStatOf: () => 999, maxTicks: EVAL_TICKS * 3 });
     expect(result.rung).toBe(topRung);
     expect(result.state.phase).toBe('idle');
@@ -299,7 +323,7 @@ describe('evalPromotion', () => {
       weightedStatValue: 50,
       state: mid.state,
       sinkMode: true,
-      ladderLength: MONEY_LADDER.length,
+      ladderLength: FIXTURE_LADDER.length,
       evalTicks: EVAL_TICKS,
       probeTicks: PROBE_TICKS,
       retryStatGrowth: RETRY_STAT_GROWTH,
@@ -346,8 +370,9 @@ describe('planAssignments', () => {
       rungs: { 'nite-01': 3 },
       sinkMode: false,
       offMarker: false,
+      ladder: FIXTURE_LADDER,
     });
-    expect(ops).toEqual([{ name: 'nite-01', task: MONEY_LADDER[3] }]);
+    expect(ops).toEqual([{ name: 'nite-01', task: FIXTURE_LADDER[3] }]);
   });
 
   it('desired equal to current emits no op', () => {
@@ -356,8 +381,8 @@ describe('planAssignments', () => {
   });
 
   it('an "Unassigned"/off-policy member is reconciled to policy', () => {
-    const ops = planAssignments({ members: [{ name: 'nite-01', task: 'Unassigned' }], rungs: { 'nite-01': 2 }, sinkMode: false, offMarker: false });
-    expect(ops).toEqual([{ name: 'nite-01', task: MONEY_LADDER[2] }]);
+    const ops = planAssignments({ members: [{ name: 'nite-01', task: 'Unassigned' }], rungs: { 'nite-01': 2 }, sinkMode: false, offMarker: false, ladder: FIXTURE_LADDER });
+    expect(ops).toEqual([{ name: 'nite-01', task: FIXTURE_LADDER[2] }]);
   });
 
   it('off-marker set produces an empty op list regardless of state', () => {
@@ -372,11 +397,11 @@ describe('planAssignments', () => {
 
   it('restart-during-sink fixture: persisted {sinkMode:true, rungs} keeps members on SINK_TASK and resumes rungs on exit', () => {
     const membersOnSink = [{ name: 'nite-01', task: SINK_TASK }];
-    const stillSink = planAssignments({ members: membersOnSink, rungs: { 'nite-01': 4 }, sinkMode: true, offMarker: false });
+    const stillSink = planAssignments({ members: membersOnSink, rungs: { 'nite-01': 4 }, sinkMode: true, offMarker: false, ladder: FIXTURE_LADDER });
     expect(stillSink).toEqual([]); // already on SINK_TASK -- restored state matches live, no redundant op
 
-    const afterExit = planAssignments({ members: membersOnSink, rungs: { 'nite-01': 4 }, sinkMode: false, offMarker: false });
-    expect(afterExit).toEqual([{ name: 'nite-01', task: MONEY_LADDER[4] }]); // resumes rung 4, not rung 0
+    const afterExit = planAssignments({ members: membersOnSink, rungs: { 'nite-01': 4 }, sinkMode: false, offMarker: false, ladder: FIXTURE_LADDER });
+    expect(afterExit).toEqual([{ name: 'nite-01', task: FIXTURE_LADDER[4] }]); // resumes rung 4, not rung 0
   });
 });
 

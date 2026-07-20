@@ -1,0 +1,43 @@
+ 3 is moot, lets scope the phase. additionally give me coaching, give it to me straight. as im further from the code and api i feel like im taking on the role of a manager - something i dont have experience with since im an engineer. struggling with determining direction (the truth), when to trust and let claude cook. tell me how it is
+
+Phase 28 scope
+
+Goal: the gang optimizes for reputation, not money.
+
+In:
+1. Pin the task list to Ransomware (one-entry list; machinery goes quiet on its own).
+2. Rename MONEY_LADDER and the money-based promotion language — it's actively misleading now.
+3. Retune the panic button if needed. Its thresholds were calibrated against a gang generating 750× more heat; they may be wrong in the new regime.
+4. Log NiteSec rep directly, so respect→rep conversion is measured instead of inferred. This closes the one open item from your #6 that I never verified.
+
+Out (grep rail, same as Tier 1): equipment, ascension, territory, Formulas.exe.
+
+Acceptance: duty cycle and respect/hour against today's 4.30h baseline — 71.6% sink, 0.00020 respect/tick. Plus rep/hour, which we now log. Target is duty cycle near zero and rep climbing continuously.
+
+Honest flag: this is a one-line behavior change plus renames. Running it through brainstorm → spec → spec-reviewer → implementation costs more effort than the change itself. I'd do a short features doc to record why (the reasoning is the valuable part, and it reverses a shipped decision), then implement directly. Full ceremony here would be process for its own sake.
+
+---
+Coaching — straight
+
+You're managing this better than you think, and I have evidence. Twice today you overturned me and you were right both times. "This isn't on the tier list" caught me smuggling scope. "We're optimizing for a mechanic we haven't unlocked" was better reasoning than my proposal to go measure it. Neither required reading code. Both came from judgment about direction, which is exactly the thing that doesn't transfer to me.
+
+Now the part you actually need. I was wrong three times today: split augfarmer, then run it off-home, then build Tier 2. Look at what separates those from the things I got right:
+
+- Wrong every time I reasoned — "it follows that," "the docs suggest," "that would mean."
+- Right every time I read — the probe output, the task table, the log files.
+
+That's your signal. Not "is Claude trustworthy" — that's the wrong question and it has no stable answer. The right question is "is this claim from evidence or from inference?" You can ask that without knowing any Bitburner API. When I say something confident, ask where it came from. If the answer is a file, a log, or a measurement, it's probably solid. If it's a chain of plausible steps, discount it hard — that's where I generated three wrong recommendations today, each delivered with the same confidence as the correct ones.
+
+Which is the uncomfortable core of this: confidence and polish are free for me. I produce clean tables and structured arguments whether or not the underlying claim is grounded. The signals you'd use on a human engineer — hedging, tone, how carefully something is argued — are decoupled from accuracy here. A well-organized wrong answer costs me nothing to produce.
+
+On "when to let Claude cook": delegate when the output is checkable without trusting me. The probe was ideal — it produced a file of numbers you could look at. "Which phase should we do next" was the opposite: the output was an opinion, and opinions from me are exactly where the failure mode lives. Note this isn't about task difficulty. Hard-but-verifiable is safe to hand off. Easy-but-unverifiable is not.
+
+The best thing you did today was "close it in the next prompt, or move it to backlog." I'd been circling for several turns. You didn't need to know whether I was right — you bounded the cost of my being wrong. That's the whole job, and it works without domain knowledge. Do more of it. This project has burned four days circling one decision before; the CLAUDE.md convergence rules exist because of it, and you enforcing a deadline works better than me following a written rule.
+
+The thing you did that I'd push back on: "you frame it as low cost so I'm willing to take this side path." You noticed something was off and proceeded anyway. It worked out — but only because the probe was cheap and you time-boxed it two turns later. When your instinct says "this doesn't fit," that's not a soft signal to note and move past. Make me justify the cost before agreeing, not after.
+
+And the highest-leverage habit you already have: asking me to explain the gang code in plain terms. You were rebuilding your own model instead of accepting my summary. That is precisely the right instinct for a manager who's far from the code — and notice that the ladder problem only surfaced because I had to go read the actual file to answer you. Your question found the bug. Do that more, especially when I've been summarizing my own work for several turns.
+
+On feeling far from the code: you're going to get further, and that's fine as long as the artifacts stay honest. This project's "prefer exported logs over pasted output" convention is already the right answer — it means truth lives in files you can inspect, not in my claims about them. Keep enforcing that. When I tell you something worked, the question is "which log shows it," not "are you sure."
+
+You don't need to verify my reasoning. You need to make me produce evidence that verifies itself, then bound how long I get to be wrong.

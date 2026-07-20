@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { MONEY_LADDER, SINK_TASK, GANG_LOG_MAX_ENTRIES } from '../src/gangmanager.js';
+import { TASK_LADDER, SINK_TASK, GANG_LOG_MAX_ENTRIES } from '../src/gangmanager.js';
 
 const LOG_DIR = process.env.GANG_LOG_DIR ?? path.join(process.cwd(), 'logs');
 
@@ -25,7 +25,7 @@ function skip(filename) {
   expect(true).toBe(true);
 }
 
-const VALID_TASKS = new Set([...MONEY_LADDER, SINK_TASK, 'Unassigned']);
+const VALID_TASKS = new Set([...TASK_LADDER, SINK_TASK, 'Unassigned']);
 
 describe('gang-state.json (Phase 27 Tier 1, S8)', () => {
   it('parses, numeric fields are finite, sinkMode is boolean, every member is on an in-policy task', () => {

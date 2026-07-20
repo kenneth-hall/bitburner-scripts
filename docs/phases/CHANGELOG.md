@@ -8,6 +8,16 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-20
 
+- **Gang rep pivot — the task ladder is pinned to Ransomware.** Tier 1's ladder was ordered by
+  money and its promotion test asked only "did money go up?", so members climbed into tasks costing
+  750× more wanted for 2× the respect. The gang overwhelmed its own cooling and spent **71.6% of
+  4.3h** in the sink, where respect gain — which is what buys faction rep — is exactly 0. We are
+  rep-gated, not money-gated ($4.128b held; the target aug costs $4m but needs 1,000 NiteSec rep
+  against ~41), and gang money is ~0.003% of income. Pinned to one rung; climbing machinery left
+  intact and quiet behind its existing top-rung early exit. Caught pre-ship: persisted rungs of 2
+  would have resolved to `undefined` and silently idled the whole gang — now clamped, with a
+  regression test. 704 tests. Acceptance (duty cycle, respect/hr, rep/hr) pending a few hours of
+  live observation. → [phase-28-gang-rep-pivot.md](phase-28-gang-rep-pivot.md)
 - **Aug-ratchet unblocked — it had been dormant since BN2 entry (~2 days) on a home-RAM deadlock.**
   Probe (prompted by "is `augfarmer.js` splittable?") found the standing diagnosis wrong on both
   counts: the script needs no split, and it has no home-only dependency — `installAugmentations`
