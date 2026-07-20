@@ -8,6 +8,16 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-20
 
+- **Aug-ratchet unblocked — it had been dormant since BN2 entry (~2 days) on a home-RAM deadlock.**
+  Probe (prompted by "is `augfarmer.js` splittable?") found the standing diagnosis wrong on both
+  counts: the script needs no split, and it has no home-only dependency — `installAugmentations`
+  lives in `installer.js`, and every home reference passes an explicit host arg. The real deadlock:
+  `installer.js` is the only thing that buys home RAM and only runs during an install, which the
+  ratchet couldn't reach while home was too small to host the 64.10 GB farmer. Broken by buying one
+  tier (64 → 128 GB, $31.862m against $3.076b held); `augfarmer.js` self-launched on the daemon's
+  next retry and resumed (joined Chongqing + Tian Di Hui, targeting Neurotrainer I). New
+  `src/upgradehomeramonce.js` — one tier, spend-capped — is the safe sibling to
+  `upgradehomeram.js`'s full-bankroll drain. The deadlock is *not* auto-detected; see `BACKLOG.md`.
 - **Phase 27 Tier 1 shipped — gang manager (recruit + task-assign).** `gangmanager.js` runs as a
   home-resident daemon companion: greedy recruitment, a measured money-ladder climb (probe-and-
   compare against `moneyGain` actuals, no Formulas.exe needed), and a wanted-level watchdog with

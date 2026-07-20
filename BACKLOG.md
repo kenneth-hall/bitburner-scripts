@@ -59,13 +59,21 @@ do, and what's broken?*
   the retry logic; this one covers the observability damage. **Next:** log a permanent-skip once,
   then stay quiet.
 
-- **`augfarmer.js` needs 64.10 GB and can never start on a 32 GB home** — found 2026-07-18 on
-  fresh BN2 entry, from `daemon.js`'s own supervisor log. It is permanently unlaunchable for the
-  entire early game of every node, and the supervisor retries it forever without ever saying so
-  in a way that surfaces. Two sub-problems: (a) the script's RAM is far above any plausible
-  fresh-node home, so it may need splitting into a cheap resident + an expensive on-demand pass;
-  (b) the supervisor treats "will never fit" and "doesn't fit yet" identically. Related and now
-  fixed: `targetsmonitor.js` was 12.70 GB for a file the daemon could write for free.
+- **The aug-ratchet can deadlock on home RAM, and nothing automates the way out** — root-caused
+  2026-07-20 (previously filed as "`augfarmer.js` needs 64.10 GB and can never start"). The
+  premise was wrong: the script needs no split and has no home-only dependency. The actual
+  deadlock is that **`installer.js` is the only thing that buys home RAM, and it only runs during
+  an install — which the ratchet can't reach while home is too small to host `augfarmer.js`.**
+  Broken live by hand-buying one tier (64 → 128 GB, $31.862m against $3.076b held); `augfarmer.js`
+  self-launched on the daemon's next retry and resumed normally. New `src/upgradehomeramonce.js`
+  is the safe lever (one tier, spend-capped) vs. `upgradehomeram.js`'s full-bankroll drain.
+  **Still open:** nothing detects or breaks this deadlock automatically, so the next fresh node
+  repeats it. Sub-problem (b) below is the other half. Related and now fixed: `targetsmonitor.js`
+  was 12.70 GB for a file the daemon could write for free.
+  - **(b) the supervisor treats "will never fit" and "doesn't fit yet" identically** — see the
+    terminal-flood entry above; a permanent-skip needs logging once, and a *chronic* skip of a
+    priority companion should arguably escalate (buy RAM / warn) rather than retry silently
+    forever, which is exactly what hid this deadlock for two days.
 
 - **`xpfarm.js` (5.85 GB) and `ratchetlog.js` (10.10 GB) still don't fit early** — same fresh-node
   RAM crunch, less severe. After retiring `targetsmonitor.js` (recovered 12.70 GB) the freed space
