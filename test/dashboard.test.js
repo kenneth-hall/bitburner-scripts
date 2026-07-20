@@ -14,10 +14,16 @@ import {
   cloudPanel,
   transactionsPanel,
   augPanel,
+  gangPanel,
+  pushGangSample,
+  summarizeGangTrend,
   renderAll,
   COLUMN_BUDGET,
   ROW_BUDGET,
   PARSE_FAILED,
+  GANG_RESPECT_GOAL,
+  GANG_SAMPLE_MS,
+  GANG_SAMPLE_CAP,
 } from '../src/dashboard.js';
 
 const NOW = 1_700_000_000_000;
@@ -143,10 +149,13 @@ describe('daemonPanel', () => {
     expect(lines[0]).not.toContain('STALE');
   });
 
-  it('caps members at 3 and reports "(+N more)", showing the highest-commitPct-ordered input as given (seat order)', () => {
+  // Cap tightened 3 -> 2 (2026-07-20) to fund the GANG panel; the "(+N more)"
+  // accounting itself is unchanged, which is what this test actually guards.
+  it('caps members at 2 and reports "(+N more)", showing the highest-commitPct-ordered input as given (seat order)', () => {
     const members = [1, 2, 3, 4, 5].map((i) => ({ server: `s${i}`, prepped: true, batchesInFlight: 1, depth: 1, commitPct: 50, sec: 1, minSec: 1, money: 1, maxMoney: 1 }));
     const lines = daemonPanel({ ...freshDaemonState, members, memberCount: 5 }, NOW);
-    expect(lines.some((l) => l.includes('(+2 more)'))).toBe(true);
+    expect(lines.some((l) => l.includes('(+3 more)'))).toBe(true);
+    expect(lines.some((l) => l.includes('s3'))).toBe(false);
   });
 
   it('noTargets renders a live empty panel, not "no data yet"', () => {
@@ -176,18 +185,140 @@ describe('targetsPanel', () => {
     ],
   };
 
-  it('sorts descending by score', () => {
+  // Collapsed to summary + top-scored only (2026-07-20). The previous two
+  // tests asserted the full ranked list and its "(+N more)" tail; both are
+  // gone by design, so they are replaced rather than deleted -- the sort still
+  // matters (it picks which target is "top") and totalCount still matters.
+  it('picks the highest-scoring target as "top", not list order', () => {
     const lines = targetsPanel(state, NOW);
-    const bIdx = lines.findIndex((l) => l.includes('  b'));
-    const aIdx = lines.findIndex((l) => l.includes('  a'));
-    const cIdx = lines.findIndex((l) => l.includes('  c'));
-    expect(bIdx).toBeLessThan(aIdx);
-    expect(aIdx).toBeLessThan(cIdx);
+    const topLine = lines.find((l) => l.startsWith('top:'));
+    expect(topLine).toBeDefined();
+    expect(topLine).toContain('b'); // score 9 beats a=5 and c=3
+    expect(topLine).toContain('DRIFTED');
   });
 
-  it('caps at 3 shown and derives "(+N more)" from totalCount, not list length', () => {
+  it('summarizes eligible totalCount and prepped fraction without listing targets', () => {
     const lines = targetsPanel(state, NOW);
-    expect(lines.some((l) => l.includes('(+5 more)'))).toBe(true); // totalCount 8 - 3 shown
+    expect(lines.some((l) => l.includes('8 eligible, 2/3 prepped'))).toBe(true);
+    expect(lines.some((l) => l.includes('more)'))).toBe(false);
+    expect(lines.length).toBe(3); // title + summary + top
+  });
+
+  it('reports no eligible targets without a top line', () => {
+    const lines = targetsPanel({ timestamp: NOW, totalCount: 0, targets: [] }, NOW);
+    expect(lines.some((l) => l.includes('no eligible targets'))).toBe(true);
+    expect(lines.some((l) => l.startsWith('top:'))).toBe(false);
+  });
+});
+
+// --- gang trend sampler + gangPanel ---------------------------------------
+
+describe('pushGangSample', () => {
+  const state = { respect: 100, respectGainRate: 0.5 };
+
+  it('appends the first sample and never mutates the input array', () => {
+    const before = [];
+    const after = pushGangSample(before, state, NOW);
+    expect(before).toEqual([]);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ t: NOW, respect: 100, rate: 0.5 });
+  });
+
+  it('rate-limits to one sample per GANG_SAMPLE_MS', () => {
+    let s = pushGangSample([], state, NOW);
+    s = pushGangSample(s, state, NOW + GANG_SAMPLE_MS - 1);
+    expect(s).toHaveLength(1);
+    s = pushGangSample(s, state, NOW + GANG_SAMPLE_MS);
+    expect(s).toHaveLength(2);
+  });
+
+  it('trims oldest-first at GANG_SAMPLE_CAP', () => {
+    let s = [];
+    for (let i = 0; i <= GANG_SAMPLE_CAP + 5; i++) s = pushGangSample(s, state, NOW + i * GANG_SAMPLE_MS);
+    expect(s).toHaveLength(GANG_SAMPLE_CAP);
+    expect(s[s.length - 1].t).toBe(NOW + (GANG_SAMPLE_CAP + 5) * GANG_SAMPLE_MS);
+  });
+
+  // A transient read failure must not punch a hole in the history -- otherwise
+  // the trend silently resets every time the bridge hiccups.
+  it('is a no-op on missing/unreadable state or a non-finite rate', () => {
+    const s = pushGangSample([], state, NOW);
+    expect(pushGangSample(s, null, NOW + GANG_SAMPLE_MS)).toBe(s);
+    expect(pushGangSample(s, PARSE_FAILED, NOW + GANG_SAMPLE_MS)).toBe(s);
+    expect(pushGangSample(s, { respectGainRate: undefined }, NOW + GANG_SAMPLE_MS)).toBe(s);
+  });
+});
+
+describe('summarizeGangTrend', () => {
+  it('returns null below two samples or on a zero span', () => {
+    expect(summarizeGangTrend([], NOW)).toBeNull();
+    expect(summarizeGangTrend([{ t: NOW, rate: 1 }], NOW)).toBeNull();
+    expect(summarizeGangTrend([{ t: NOW, rate: 1 }, { t: NOW, rate: 2 }], NOW)).toBeNull();
+  });
+
+  it('reports span and signed rate delta across the ring', () => {
+    const s = [{ t: NOW, rate: 0.30 }, { t: NOW + 60_000, rate: 0.34 }];
+    const trend = summarizeGangTrend(s, NOW);
+    expect(trend.spanMs).toBe(60_000);
+    expect(trend.rateDelta).toBeCloseTo(0.04, 6);
+  });
+});
+
+describe('gangPanel', () => {
+  const state = {
+    timestamp: NOW,
+    respect: 1775,
+    respectGainRate: 0.319,
+    moneyGainRate: 2381,
+    netWantedRate: -0.008,
+    memberCount: 8,
+    members: [{ ascPreviewHack: 1.08 }, { ascPreviewHack: 1.6 }, { ascPreviewHack: 2.1 }],
+  };
+
+  it('renders no-data and unreadable sentinels like every other panel', () => {
+    expect(gangPanel(null, null, NOW)).toEqual(['-- GANG --', 'no data yet']);
+    expect(gangPanel(PARSE_FAILED, null, NOW)).toEqual(['-- GANG --', 'unreadable']);
+  });
+
+  it('shows rate against the observation-window goal as a percentage', () => {
+    const lines = gangPanel(state, null, NOW);
+    expect(lines.some((l) => l.includes(`goal ${GANG_RESPECT_GOAL}/t`))).toBe(true);
+    expect(lines.some((l) => l.includes('25.1%'))).toBe(true); // 0.319 / 1.27
+  });
+
+  it('omits the trend segment until there is history, then shows direction and delta', () => {
+    expect(gangPanel(state, null, NOW).some((l) => l.includes('UP'))).toBe(false);
+    const up = gangPanel(state, { spanMs: 720_000, rateDelta: 0.04 }, NOW);
+    expect(up.some((l) => l.includes('12m UP +0.040'))).toBe(true);
+    const down = gangPanel(state, { spanMs: 60_000, rateDelta: -0.02 }, NOW);
+    expect(down.some((l) => l.includes('1m DOWN -0.020'))).toBe(true);
+    const flat = gangPanel(state, { spanMs: 60_000, rateDelta: 0 }, NOW);
+    expect(flat.some((l) => l.includes('FLAT'))).toBe(true);
+  });
+
+  // netWantedRate is the signal the Phase 27 sink bug hid: negative drains.
+  it('flags wanted health by the sign of netWantedRate', () => {
+    expect(gangPanel(state, null, NOW).some((l) => l.includes('OK'))).toBe(true);
+    expect(gangPanel({ ...state, netWantedRate: 0.01 }, null, NOW).some((l) => l.includes('RISING'))).toBe(true);
+  });
+
+  it('counts ascension-ready members against the ascend threshold', () => {
+    expect(gangPanel(state, null, NOW).some((l) => l.includes('asc-ready 2/3'))).toBe(true);
+  });
+
+  it('short-circuits to OFF on the off-marker, suppressing the numbers', () => {
+    const lines = gangPanel({ ...state, offMarker: true }, null, NOW);
+    expect(lines).toEqual(['-- GANG --', 'OFF (gang-off.txt)']);
+  });
+
+  it('surfaces SINK MODE alongside the ascension count', () => {
+    expect(gangPanel({ ...state, sinkMode: true }, null, NOW).some((l) => l.includes('SINK MODE'))).toBe(true);
+  });
+
+  it('tolerates a fully empty record without throwing', () => {
+    const lines = gangPanel({}, null, NOW);
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.some((l) => l.includes('asc-ready 0/0'))).toBe(true);
   });
 });
 
@@ -231,10 +362,19 @@ describe('xpPanel', () => {
     expect(lines.some((l) => l.includes('OFF'))).toBe(true);
   });
 
-  it('caps targets at 3 with "(+1 more)" for a 4-entry XP_TOP_N set', () => {
+  // Collapsed to a single summary line (2026-07-20) -- the per-target
+  // breakdown and its "(+N more)" tail are gone by design.
+  it('summarizes target count on one line without listing them', () => {
     const targets = [1, 2, 3, 4].map((i) => ({ server: `s${i}`, mode: 'hold', sec: 1, minSec: 1, hackThreadsLaunched: 1, weakenThreadsLaunched: 1 }));
     const lines = xpPanel({ timestamp: NOW, off: false, usableGb: 100, claimGb: 50, hackingLevel: 500, targets }, NOW);
-    expect(lines.some((l) => l.includes('(+1 more)'))).toBe(true);
+    expect(lines.length).toBe(2); // title + summary
+    expect(lines[1]).toContain('4 target(s)');
+    expect(lines.some((l) => l.includes('s1'))).toBe(false);
+  });
+
+  it('flags an empty target set explicitly', () => {
+    const lines = xpPanel({ timestamp: NOW, off: false, usableGb: 100, claimGb: 50, hackingLevel: 500, targets: [] }, NOW);
+    expect(lines.some((l) => l.includes('no eligible XP target'))).toBe(true);
   });
 });
 
@@ -412,8 +552,23 @@ describe('renderAll', () => {
     const worstTransactions = [1, 2, 3, 4, 5].map((i) => ({ type: i % 2 === 0 ? 'income' : 'expense', source: 'auto-cloud-upgrade', amount: 1e9, timestamp: NOW - i * 1000, firstTimestamp: NOW - i * 1000, lastTimestamp: NOW - i * 1000 }));
     const worstAug = { timestamp: NOW, phase: 'grinding', target: { aug: 'The Red Pill', faction: 'Daedalus', deficit: 999999 }, boughtThisCycle: [1, 2, 3, 4, 5], joinedFactions: ['a', 'b', 'c', 'd'], daedalusGate: { installed: 29, queued: 5, target: 30 } };
 
+    // Gang at its widest: 8 members, every optional segment present (trend +
+    // SINK MODE), hostile magnitudes on every number.
+    const worstGangState = {
+      timestamp: NOW,
+      respect: 9.99e12,
+      respectGainRate: 999.999,
+      moneyGainRate: 9.99e12,
+      netWantedRate: 0.12345,
+      wantedLevel: 99999,
+      memberCount: 8,
+      sinkMode: true,
+      members: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({ ascPreviewHack: 1.5 + i / 10 })),
+    };
+    const worstGangTrend = { spanMs: 3_600_000, rateDelta: -999.999 };
+
     const lines = renderAll(
-      { daemon: worstDaemon, targets: worstTargets, finance: worstFinance, xp: worstXp, cloud: worstCloud, transactions: worstTransactions, augfarmer: worstAug },
+      { daemon: worstDaemon, targets: worstTargets, finance: worstFinance, xp: worstXp, cloud: worstCloud, transactions: worstTransactions, augfarmer: worstAug, gangState: worstGangState, gangTrend: worstGangTrend },
       NOW
     );
 
