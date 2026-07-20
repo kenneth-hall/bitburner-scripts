@@ -123,17 +123,29 @@ export function initBaseline({ wantedLevel, wantedPenalty, persisted }) {
 }
 
 /**
- * Pure (S2). One tick of the wanted-level watchdog: updates the baseline on a
- * new observed minimum `wantedLevel`, computes deviation with a denominator
- * floor (zero-safe under either an undocumented multiplier-form or
- * fraction-form `wantedPenalty`), and applies enter/exit hysteresis
- * (0.02 in / 0.005 out) so a healthy series never flaps.
+ * Pure (S2). One tick of the wanted-level watchdog: updates the baseline
+ * whenever `wantedLevel` is AT OR BELOW the lowest ever seen, computes
+ * deviation with a denominator floor (zero-safe under either an undocumented
+ * multiplier-form or fraction-form `wantedPenalty`), and applies enter/exit
+ * hysteresis (0.02 in / 0.005 out) so a healthy series never flaps.
+ *
+ * The "at or below" (not strictly below) comparison is a live-bug fix
+ * (2026-07-19/20): a fresh gang starts AT its wanted floor on tick one, so a
+ * strict "new minimum" test can never fire again once first touched --
+ * confirmed live, the gang sat parked on SINK_TASK for 8.5+ hours because
+ * `wantedPenalty` drifted upward over time (apparently as a function of gang
+ * growth, not of `wantedLevel`, which stayed pinned at its floor the entire
+ * time) while the baseline stayed frozen at its pre-recruitment tick-zero
+ * capture. Comparing "at or below" instead lets the baseline keep tracking
+ * `wantedPenalty` every tick the gang is calm (at its floor), so deviation
+ * only grows when `wantedLevel` actually rises above where it's ever been --
+ * the intended signal -- rather than from organic drift while calm.
  * @param {{wantedLevel:number, wantedPenalty:number, baselineWantedLevel:number|undefined, baselinePenalty:number|undefined, sinkMode:boolean}} params
  */
 export function evalSink({ wantedLevel, wantedPenalty, baselineWantedLevel, baselinePenalty, sinkMode }) {
   let nextBaselineWantedLevel = baselineWantedLevel;
   let nextBaselinePenalty = baselinePenalty;
-  if (nextBaselineWantedLevel === undefined || wantedLevel < nextBaselineWantedLevel) {
+  if (nextBaselineWantedLevel === undefined || wantedLevel <= nextBaselineWantedLevel) {
     nextBaselineWantedLevel = wantedLevel;
     nextBaselinePenalty = wantedPenalty;
   }

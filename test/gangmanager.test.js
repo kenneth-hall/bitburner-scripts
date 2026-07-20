@@ -120,18 +120,23 @@ describe('evalSink', () => {
   // Fraction-form baseline (0) is used for these boundary checks specifically
   // because it makes deviation === wantedPenalty exactly (no float error from
   // subtracting two nearly-equal numbers, which `1 - 0.005` etc. would incur).
+  // wantedLevel (5) is deliberately kept ABOVE baselineWantedLevel (1) in
+  // every case below -- otherwise the "at or below the minimum" baseline
+  // update (the live-bug fix, see evalSink's doc comment) would overwrite
+  // the very baseline these tests are trying to hold fixed and measure
+  // deviation against.
   it('enters sink mode at deviation >= 0.02, not at 0.019', () => {
-    const below = evalSink({ wantedLevel: 1, wantedPenalty: 0.019, baselineWantedLevel: 1, baselinePenalty: 0, sinkMode: false });
+    const below = evalSink({ wantedLevel: 5, wantedPenalty: 0.019, baselineWantedLevel: 1, baselinePenalty: 0, sinkMode: false });
     expect(below.sinkMode).toBe(false);
     expect(below.event).toBeNull();
 
-    const at = evalSink({ wantedLevel: 1, wantedPenalty: 0.02, baselineWantedLevel: 1, baselinePenalty: 0, sinkMode: false });
+    const at = evalSink({ wantedLevel: 5, wantedPenalty: 0.02, baselineWantedLevel: 1, baselinePenalty: 0, sinkMode: false });
     expect(at.sinkMode).toBe(true);
     expect(at.event).toBe('sink-enter');
   });
 
   it('exits sink mode at deviation <= 0.005, not at 0.006', () => {
-    const sinkOn = { wantedLevel: 1, baselineWantedLevel: 1, baselinePenalty: 0, sinkMode: true };
+    const sinkOn = { wantedLevel: 5, baselineWantedLevel: 1, baselinePenalty: 0, sinkMode: true };
     const above = evalSink({ ...sinkOn, wantedPenalty: 0.006 });
     expect(above.sinkMode).toBe(true);
     expect(above.event).toBeNull();
@@ -150,24 +155,51 @@ describe('evalSink', () => {
     }
   });
 
-  it('baseline updates on a new observed minimum wantedLevel, and not otherwise', () => {
+  it('baseline updates whenever wantedLevel is at or below the lowest ever seen, and not otherwise', () => {
     const lower = evalSink({ wantedLevel: 0.5, wantedPenalty: 0.95, baselineWantedLevel: 1, baselinePenalty: 1, sinkMode: false });
     expect(lower.baselineWantedLevel).toBe(0.5);
     expect(lower.baselinePenalty).toBe(0.95);
+
+    // Equal to the prior minimum -- still updates (this is the live-bug fix: a
+    // fresh gang starts AT its floor, so "strictly lower" alone can never
+    // re-fire once first touched).
+    const same = evalSink({ wantedLevel: 1, wantedPenalty: 0.6, baselineWantedLevel: 1, baselinePenalty: 0.5, sinkMode: false });
+    expect(same.baselineWantedLevel).toBe(1);
+    expect(same.baselinePenalty).toBe(0.6);
 
     const higher = evalSink({ wantedLevel: 2, wantedPenalty: 0.7, baselineWantedLevel: 1, baselinePenalty: 1, sinkMode: false });
     expect(higher.baselineWantedLevel).toBe(1);
     expect(higher.baselinePenalty).toBe(1);
   });
 
+  it('regression: baseline keeps tracking wantedPenalty drift while wantedLevel holds at its floor -- does not freeze at tick zero (live bug, 2026-07-19/20)', () => {
+    // Reproduces the observed live failure: wantedLevel pinned at the floor
+    // (1) for the entire run while wantedPenalty organically drifts (gang
+    // growth, unrelated to any real wanted spike). With the fix the baseline
+    // tracks the drift every tick, so deviation never grows and sinkMode
+    // never incorrectly latches on.
+    let baselineWantedLevel;
+    let baselinePenalty;
+    let sinkMode = false;
+    const drift = [0.5, 0.55, 0.6, 0.64, 0.6, 0.55, 0.5];
+    for (const wantedPenalty of drift) {
+      const r = evalSink({ wantedLevel: 1, wantedPenalty, baselineWantedLevel, baselinePenalty, sinkMode });
+      baselineWantedLevel = r.baselineWantedLevel;
+      baselinePenalty = r.baselinePenalty;
+      sinkMode = r.sinkMode;
+      expect(sinkMode).toBe(false);
+      expect(r.deviation).toBe(0);
+    }
+  });
+
   it('multiplier-form baseline (~1): deviation is relative, finite', () => {
-    const r = evalSink({ wantedLevel: 1, wantedPenalty: 1.1, baselineWantedLevel: 1, baselinePenalty: 1, sinkMode: false });
+    const r = evalSink({ wantedLevel: 5, wantedPenalty: 1.1, baselineWantedLevel: 1, baselinePenalty: 1, sinkMode: false });
     expect(r.deviation).toBeCloseTo(0.1);
     expect(Number.isFinite(r.deviation)).toBe(true);
   });
 
   it('fraction-form baseline (0): deviation degrades to absolute, never NaN/Infinity', () => {
-    const r = evalSink({ wantedLevel: 1, wantedPenalty: 0.05, baselineWantedLevel: 1, baselinePenalty: 0, sinkMode: false });
+    const r = evalSink({ wantedLevel: 5, wantedPenalty: 0.05, baselineWantedLevel: 1, baselinePenalty: 0, sinkMode: false });
     expect(r.deviation).toBeCloseTo(0.05);
     expect(Number.isFinite(r.deviation)).toBe(true);
     expect(Number.isNaN(r.deviation)).toBe(false);
