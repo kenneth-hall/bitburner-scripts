@@ -144,26 +144,15 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
-- **Gang manager Tiers 2-4 (equipment / ascension / territory)** — Tier 1 (recruit + task-assign)
-  shipped as `src/gangmanager.js`, merged to `master` 2026-07-20 — full record:
-  `docs/phases/phase-27-gang.closeout.md`. Remaining tiers, in build order:
-  - **Tiers 2+3 (equipment + ascension) are now Phase 29, in brainstorm** →
-    `phase-29-gang-scaling.features.md`. **Both original blockers are cleared:** Tier 2's
-    (`gangprobe.js` lacked `cost`/`type`) by commit `1edfcc6`; Tier 3's policy direction by the
-    2026-07-20 live ascension probe, which established that **faction rep tracks the respect *gain
-    rate*, not the total** — ascension does not claw back rep, so ascend aggressively
-    (`logs/ascendrecon-1784568236075.json`). Specced together because ascension wipes ordinary
-    equipment but not member augmentations, so purchase policy depends on ascension policy.
-  - **Still open, not blocking Phase 29** — does a player aug install *degrade* gang ascension
-    mults? `GangMemberInstall`'s fields read as a decrease; the in-game doc says gang stats "will
-    not reset" on install (reduce ≠ reset). Untestable until the first BN2 install fires; it's a
-    magnitude question, not a direction one. → `docs/gang-api.md` open question 1.
-  - **Tier 4 — territory warfare.** Lowest priority — undocumented death-on-clash odds, lowest
-    value for a hacking gang whose payoff is money/rep. May end up deferred indefinitely.
-  - **Real gate for exact yields (all tiers) is Formulas.exe ($5b)** — `getTaskStats` exposes
-    per-task base yields and stat weights, which is enough for Tier 1's measured-actuals policy,
-    but `getAscensionResult`/`getChanceToWinClash`/`ns.formulas.gang.*` make Tiers 2-4 exact once
-    affordable ($4.738b held as of the Tier 1 spec, close). → `docs/gang-api.md`.
+- **Gang manager Tier 4 (territory warfare)** — Tiers 1-3 (recruit + task-assign, equipment,
+  ascension) shipped: Tier 1 as `src/gangmanager.js` 2026-07-20 (`docs/phases/phase-27-gang.closeout.md`),
+  Tiers 2+3 as Phase 29 (`docs/phases/phase-29-gang-scaling.spec.md`). Lowest priority of the four —
+  undocumented death-on-clash odds, lowest value for a hacking gang whose payoff is money/rep. May
+  end up deferred indefinitely.
+  - **Still open** — does a player aug install *degrade* gang ascension mults? `GangMemberInstall`'s
+    fields read as a decrease; the in-game doc says gang stats "will not reset" on install (reduce
+    ≠ reset). Untestable until the first BN2 install fires; folded into Phase 29's L5 live rider.
+    → `docs/gang-api.md` open question 1.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe

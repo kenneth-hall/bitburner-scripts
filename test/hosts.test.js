@@ -133,10 +133,10 @@ describe('listHosts', () => {
     });
     const homeEntry = listHosts(ns).find((h) => h.hostname === 'home');
     expect(homeEntry.freeRam).toBe(0);
-    // Phase 27 S6: 80 -> 100, to make room for gangmanager.js's reserve slot
-    // once home RAM is bought back up (Phase 26 S6 sized the prior 80 to
-    // augfarmer.js's measured 64.1 GB plus B1 relaunch headroom).
-    expect(HOME_RESERVE_GB).toBe(100);
+    // Phase 29 S6: 100 -> 160, to fit gangmanager.js's equipment/ascension
+    // growth (predicted ~24.8 GB) alongside the full companion census once
+    // home RAM is bought up to 256 GB (L1).
+    expect(HOME_RESERVE_GB).toBe(160);
   });
 });
 
@@ -151,10 +151,10 @@ describe('totalAllocatableRam', () => {
 
   it('holds HOME_RESERVE_GB back for home only', () => {
     const hosts = [
-      { hostname: 'home', maxRam: 128 },
+      { hostname: 'home', maxRam: 256 },
       { hostname: 'n00dles', maxRam: 16 },
     ];
-    expect(totalAllocatableRam(hosts)).toBe(128 - HOME_RESERVE_GB + 16);
+    expect(totalAllocatableRam(hosts)).toBe(256 - HOME_RESERVE_GB + 16);
   });
 
   it('clamps home contribution at 0 when maxRam is below the reserve', () => {
@@ -162,12 +162,12 @@ describe('totalAllocatableRam', () => {
     expect(totalAllocatableRam(hosts)).toBe(0);
   });
 
-  it('flips to 0 at the new 100 GB reserve for a home that used to clear the old 32 GB one (Phase 26/27 S6 regression guard)', () => {
-    // 64 GB cleared the pre-Phase-26 32 GB reserve with headroom; it clears
-    // neither the Phase 26 80 GB reserve nor the current Phase 27 100 GB one.
-    // Locks the intended behavior change in -- S6's whole point (both times)
-    // was to widen the reserve past exactly this size.
-    const hosts = [{ hostname: 'home', maxRam: 64 }];
+  it('flips to 0 at the new 160 GB reserve for a home that used to clear the old 100 GB one (Phase 29 S6 regression guard)', () => {
+    // 128 GB cleared the Phase 27 100 GB reserve with headroom (28 GB); it
+    // does not clear the Phase 29 160 GB one. Locks the intended behavior
+    // change in -- S6's whole point (every time) was to widen the reserve
+    // past exactly this size, once gangmanager.js's footprint grew.
+    const hosts = [{ hostname: 'home', maxRam: 128 }];
     expect(totalAllocatableRam(hosts)).toBe(0);
   });
 

@@ -25,7 +25,19 @@ import { scanNetwork } from "./common.js";
 // has a resident batcher allocation of 0 either way (unchanged from 80), and
 // the reserve only starts mattering once home RAM grows past it -- see
 // phase-27-gang.spec.md S6 for the full fit arithmetic and displacement order.
-export const HOME_RESERVE_GB = 100;
+//
+// Phase 29 S6: 100 -> 160. gangmanager.js grows ~+12.1 GB (equipment +
+// ascension + Formulas-based ladder mover, predicted ~24.8 GB total vs the
+// Phase 27 baseline's 12.7), which at the pre-phase 128 GB home leaves ~0
+// margin for the two scripts BN2 actually runs on (augfarmer.js's 64.10 GB
+// ratchet + gangmanager.js itself). L1 buys one more home tier (128 -> 256
+// GB) alongside this bump. 160 is the full companion census (daemon +
+// core companions + augfarmer + gangmanager + xpfarm/backdoorfactions/
+// ratchetlog/backdoorwd, ~155 GB) with headroom -- at 256 GB every companion
+// fits and the batcher's home budget is intentionally ~0 (home is companion
+// territory; the batcher runs on the 33 TB fleet). See
+// phase-29-gang-scaling.spec.md S6.
+export const HOME_RESERVE_GB = 160;
 
 const PORT_OPENERS = ["BruteSSH.exe", "FTPCrack.exe", "relaySMTP.exe", "HTTPWorm.exe", "SQLInject.exe"];
 
