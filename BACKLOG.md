@@ -22,6 +22,24 @@ do, and what's broken?*
 
 ## Bugs
 
+- **This build's terminal has no `write` command** — found 2026-07-20 attempting Phase 27's L5
+  off-marker test (`write gang-off.txt` → "Command write not found"). The reliable path is either
+  in-game `nano <file>` + a UI Save click, or (faster, used live) dropping the file under `src/` —
+  viteburner already watches `src/**/*.txt` and syncs it straight to `@home:/<file>`, same
+  mechanism `share-off.txt`/`xp-off.txt` used historically. Not a bug to fix, just a documentation
+  gap: `tools/bb/README.md` should note this so a future session doesn't re-discover it the hard
+  way. Low priority — cheap to rediscover, now recorded here and in
+  `docs/phases/phase-27-gang.closeout.md`.
+
+- **`GangGenInfo.wantedPenalty` is not simply monotonic in `wantedLevel`** — observed live 2026-07-19/20:
+  `wantedPenalty` kept drifting upward over ~8.5 hours while `wantedLevel` sat exactly at its floor
+  (1) the entire time. Caused a real bug in `gangmanager.js`'s wanted-sink baseline (fixed, see
+  `docs/phases/phase-27-gang.closeout.md`), but the underlying cause of the drift itself
+  (respect? territory? gang size? all looked roughly constant while it happened) is still
+  unexplained. Doesn't block Tier 1 — the fix works regardless of cause — but worth understanding
+  before Tier 2+ tries to model `wantedPenalty` more precisely, or before assuming any other
+  `GangGenInfo` field behaves the way its name suggests.
+
 - **The log-download bridge silently stalls, and nothing detects it mid-session** — found
   2026-07-19: no file synced to `logs/` between 09:55 and 10:19 (24 min), so `gangaugs.js`'s and
   `gangprobe.js`'s output simply never appeared on disk while every in-game read looked healthy. A
@@ -118,25 +136,23 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
-- **Gang manager** — *rewritten 2026-07-18; the earlier "observe first, derive thresholds later"
-  framing was wrong.* Task assignment, ascension timing, equipment buys, and the clash trigger are
-  **computable, not empirical**: `getTaskStats` exposes per-task base yields and stat weights,
-  `getAscensionResult` previews gain and cost exactly, `getChanceToWinClash` gives odds directly,
-  and `ns.formulas.gang.*` computes yields outright. → `docs/gang-api.md`.
-  - **Real gate is Formulas.exe ($5b)** for exact yields. Without it, reconstruct the model from
-    the weights and validate against `GangMemberInfo`'s per-member `respectGain`/`moneyGain`/
-    `wantedLevelGain` actuals — observation earns its keep as *model validation*, not threshold
-    discovery.
-  - **UNBLOCKED 2026-07-19 — the gang exists** (NiteSec, `isHacking: true`). This is now **Phase 27
-    brainstorm**, not a backlog idea. `gangprobe.js` dumped the live static tables
-    (`logs/gangprobe-1784473065811.json`, 15 tasks / 32 equipment / `errors: []`) and
-    `docs/gang-api.md` now carries the measured task table plus the shape of the problem read
-    straight off it — money ladder ordered by difficulty, respect concentrated in Cyberterrorism at
-    6 wanted, and exactly two wanted-sinks. Gang state: respect 1, territory 14.3%, **zero members
-    recruited, nothing running.**
-  - **Fix `gangprobe.js` before the spec leans on it** — it captures only `name` + `mults` per
-    equipment item. No `cost`, no `type`, so no purchase logic can be written against it. Needs
-    `getEquipmentCost` / `getEquipmentType`.
+- **Gang manager Tiers 2-4 (equipment / ascension / territory)** — Tier 1 (recruit + task-assign)
+  shipped as `src/gangmanager.js`, merged to `master` 2026-07-20 — full record:
+  `docs/phases/phase-27-gang.closeout.md`. Remaining tiers, in build order:
+  - **Tier 2 — equipment.** Blocked on fixing `gangprobe.js` first — it captures only `name` +
+    `mults` per equipment item, no `cost`/`type`, so no purchase logic can be written against it.
+    Needs `getEquipmentCost` / `getEquipmentType`.
+  - **Tier 3 — ascension.** Blocked on the install-degrade recon (does installing an augmentation
+    reduce gang-member ascension mults? `GangMemberInstall`'s fields read as a decrease, but the
+    in-game doc says gang stats "will not reset" on install — unverified, reduce ≠ reset). Moot
+    today since the aug-ratchet is dormant in BN2 (no installs happening) — recon plan:
+    `docs/gang-api.md` open question 1 / `phase-27-gang.spec.md` open question 1.
+  - **Tier 4 — territory warfare.** Lowest priority — undocumented death-on-clash odds, lowest
+    value for a hacking gang whose payoff is money/rep. May end up deferred indefinitely.
+  - **Real gate for exact yields (all tiers) is Formulas.exe ($5b)** — `getTaskStats` exposes
+    per-task base yields and stat weights, which is enough for Tier 1's measured-actuals policy,
+    but `getAscensionResult`/`getChanceToWinClash`/`ns.formulas.gang.*` make Tiers 2-4 exact once
+    affordable ($4.738b held as of the Tier 1 spec, close). → `docs/gang-api.md`.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe

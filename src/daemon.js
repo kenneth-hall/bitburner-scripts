@@ -115,6 +115,7 @@ export const RESIDENT_COMPANIONS = [
   "transactionsmonitor.js",
   "resourcemanager.js",
   "cloudmanager.js",
+  "gangmanager.js", // Phase 27 -- priority slot right after cloudmanager.js, matches the launch-block order above
   "augfarmer.js",
   "dashboard.js",
   "xpfarm.js",
@@ -501,6 +502,11 @@ export async function main(ns) {
   // until the next daemon restart.
   launchDetached(ns, "resourcemanager.js");
   launchDetached(ns, "cloudmanager.js");
+  // Phase 27 (S6/S9): gang manager -- inserted directly after cloudmanager.js
+  // in the priority slot the RAM census assigned it (the phase's primary
+  // gate can't be the script that loses the startup RAM race). Recruit +
+  // task-assign only (Tier 1); Tier 2-4 are future phases.
+  launchDetached(ns, "gangmanager.js");
   launchDetached(ns, "procureprograms.js");
   // Phase 22: Singularity-heavy self-terminating fulfiller for the four
   // hacking-faction backdoors -- resident until all four are done (never

@@ -15,7 +15,17 @@ import { scanNetwork } from "./common.js";
 // sites (this file x2, daemon.js) and assumed constant by bootstrap.js's
 // handoff comment, and a conditional reserve is a second moving part in
 // exactly the RAM accounting that produced Phase 13's phantom-RAM hunt.
-export const HOME_RESERVE_GB = 80;
+//
+// Phase 27 S6: 80 -> 100. gangmanager.js is a new resident (reserve, not
+// disable -- the batcher stays fully on); its own footprint is small
+// (~12.7 GB predicted), but the live prerequisite this phase found is that
+// today's 32 GB home can't hold ANY companion reserve at all -- a one-tier
+// home RAM purchase (32 -> 64 GB) is bought as part of this phase (S6/L1) to
+// make the reserve concept real again. 100 is sized so a 64 GB home still
+// has a resident batcher allocation of 0 either way (unchanged from 80), and
+// the reserve only starts mattering once home RAM grows past it -- see
+// phase-27-gang.spec.md S6 for the full fit arithmetic and displacement order.
+export const HOME_RESERVE_GB = 100;
 
 const PORT_OPENERS = ["BruteSSH.exe", "FTPCrack.exe", "relaySMTP.exe", "HTTPWorm.exe", "SQLInject.exe"];
 

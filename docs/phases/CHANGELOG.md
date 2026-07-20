@@ -6,6 +6,22 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-20
+
+- **Phase 27 Tier 1 shipped — gang manager (recruit + task-assign).** `gangmanager.js` runs as a
+  home-resident daemon companion: greedy recruitment, a measured money-ladder climb (probe-and-
+  compare against `moneyGain` actuals, no Formulas.exe needed), and a wanted-level watchdog with
+  enter/exit hysteresis. Equipment/ascension/territory (Tiers 2-4) are explicitly out of scope,
+  grep-rail-enforced. Live-deployed: home RAM bought 32 → 64 GB ($10.083m, one tier);
+  `gangmanager.js` measured 12.7 GB, landed in its priority slot; full resident census 59.1 GB
+  against a 63.5 GB gate.
+- **Live bug found and fixed same session: the wanted-sink baseline froze at tick zero.** A fresh
+  gang starts *at* its wanted floor, so a "strictly new minimum `wantedLevel`" recalibration
+  condition could mathematically never re-fire — the gang sat parked on the low-value sink task
+  for 8.5+ hours before the fix landed. Corrected to "at or below" the lowest `wantedLevel` seen;
+  redeployed live, confirmed recovery within a minute (first promotion of the run followed
+  immediately). Full record: `docs/phases/phase-27-gang.closeout.md`.
+
 ## 2026-07-19
 
 - **BN2 COMMITTED — the gang exists.** NiteSec, `isHacking: true`, fixed permanently. Sequence run

@@ -19,10 +19,12 @@ on request — hold to them even when the moment is uncomfortable.
     node holds no progress**, so "permanent" was mispriced as a blocker. In-node permanence is
     bounded by restart cost, not infinite. Deciding wrong and restarting beats deliberating for
     five more sessions.
-    - **NEXT: Phase 27 brainstorm — the gang manager.** Inputs now exist that didn't before:
-      `docs/gang-api.md` (full API surface) and `logs/gangprobe-1784473065811.json` (the live
-      static tables — 15 tasks, 32 equipment, `errors: []`). Gang state at handoff: respect 1,
-      territory 14.3%, **zero members recruited, nothing running.**
+    - **✅ Phase 27 Tier 1 SHIPPED 2026-07-20 — gang manager (recruit + task-assign) is live.**
+      `gangmanager.js` runs as a home-resident daemon companion; a live bug (wanted-sink baseline
+      froze at tick zero) was found and fixed same session. Full record:
+      `docs/phases/phase-27-gang.closeout.md`. Tiers 2-4 (equipment/ascension/territory) are
+      deferred — see `BACKLOG.md`'s "Gang manager Tiers 2-4" entry for each tier's blocker; none
+      is scheduled next by default.
   - *(historical — the decision above closed this)* **commit to BN2 or abort?** BN2 was locked for its gang engine (SF2 kills the
     recurring Daedalus rep tax); same-day in-node analysis then found its `w0r1d_d43m0n` gate is
     **15,000** (Difficulty 500%) — realistically needing hacking mult **M ≈ 30–35** against our
@@ -59,10 +61,11 @@ on request — hold to them even when the moment is uncomfortable.
         `logs/gangaugs-*.json` (in-game FS; `scp … home` to sync).
     - Full arithmetic + both corrections: `docs/bitnodes.md` → BN2 clearing notes. **Don't resume
       BN2 work as a default; this needs an actual decision.**
-  - **Phase 27 (gang observer) is drafted but blocked**, and not only on the above: recon proved
-    the entire gang API is inert until `createGang()` — only `inGang()` works — so the one
-    irreversible choice (gang type, fixed forever by faction) is precisely the one observation
-    can never inform. → `phase-27-gang.features.md`.
+  - *(historical — superseded by the ✅ Phase 27 Tier 1 SHIPPED bullet above)* an early Phase 27
+    draft ("gang observer") was blocked on the gang API being entirely inert pre-`createGang()`;
+    once the gang existed that blocker dissolved, and Tier 1 shipped from a from-scratch spec that
+    read the full API surface first (`docs/gang-api.md`) — see "Read the whole interface before
+    designing against it" below for why the observer framing itself was wrong, not just blocked.
   - **How it cleared — Phase 26 (A2 gate-release arming + B2 stall detection + B1 companion
     supervisor) shipped and live-validated 2026-07-18**, closing the 29/30 aug-count deadlock A1's
     runaway had uncovered (`docs/phases/phase-26-ratchet-autonomy.spec.md`). The gate-release fire
