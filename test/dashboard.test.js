@@ -391,12 +391,44 @@ describe('cloudPanel', () => {
     expect(lines.some((l) => l.includes('stale'))).toBe(true);
   });
 
-  it('shows the next upgrade and affordability', () => {
+  // The three `next`/`growth` branches after the 2026-07-20 collapse. Only the
+  // unaffordable one survived from the original panel; the other two are new
+  // and were shipped untested until this gap was caught.
+  const cloudFleet = { count: 2, minRam: 16, maxRam: 32, serverLimit: 25, ramLimit: 1_048_576 };
+
+  it('shows the next upgrade only when it cannot be afforded', () => {
     const lines = cloudPanel(
-      { timestamp: NOW, available: 100, reserved: 0, fleet: { count: 2, minRam: 16, maxRam: 32, serverLimit: 25, ramLimit: 1_048_576 }, next: { hostname: 'cloud-0', tier: 64, cost: 1000, affordable: false } },
+      { timestamp: NOW, available: 100, reserved: 0, fleet: cloudFleet, next: { hostname: 'cloud-0', tier: 64, cost: 1000, affordable: false } },
       NOW
     );
     expect(lines.some((l) => l.includes("can't afford"))).toBe(true);
+  });
+
+  // Deliberately silent: an affordable upgrade needs no attention, cloudmanager
+  // will just buy it. Asserted so the silence stays intentional rather than
+  // becoming an undetected regression.
+  it('stays silent about an affordable next upgrade', () => {
+    const lines = cloudPanel(
+      { timestamp: NOW, available: 1e9, reserved: 0, fleet: cloudFleet, next: { hostname: 'cloud-0', tier: 64, cost: 1000, affordable: true } },
+      NOW
+    );
+    expect(lines.some((l) => l.includes('next:'))).toBe(false);
+    expect(lines).toHaveLength(2); // title + fleet line only
+  });
+
+  it('reports growth status when the fleet is maxed (no next tier)', () => {
+    const lines = cloudPanel(
+      { timestamp: NOW, available: 1e9, reserved: 0, fleet: cloudFleet, next: null, growth: { status: 'at-limit' } },
+      NOW
+    );
+    expect(lines.some((l) => l.includes('fleet maxed -- growth: at-limit'))).toBe(true);
+  });
+
+  it('folds fleet shape and spend headroom into one line', () => {
+    const lines = cloudPanel({ timestamp: NOW, available: 1e9, reserved: 0, fleet: cloudFleet }, NOW);
+    expect(lines[1]).toContain('fleet 2/25');
+    expect(lines[1]).toContain('avail $1.00b');
+    expect(lines.some((l) => l.includes('last upgrade'))).toBe(false); // dropped 2026-07-20
   });
 });
 
