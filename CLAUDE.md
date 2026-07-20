@@ -22,9 +22,20 @@ on request — hold to them even when the moment is uncomfortable.
     - **✅ Phase 27 Tier 1 SHIPPED 2026-07-20 — gang manager (recruit + task-assign) is live.**
       `gangmanager.js` runs as a home-resident daemon companion; a live bug (wanted-sink baseline
       froze at tick zero) was found and fixed same session. Full record:
-      `docs/phases/phase-27-gang.closeout.md`. Tiers 2-4 (equipment/ascension/territory) are
-      deferred — see `BACKLOG.md`'s "Gang manager Tiers 2-4" entry for each tier's blocker; none
-      is scheduled next by default.
+      `docs/phases/phase-27-gang.closeout.md`.
+    - **✅ Phase 29 (Tiers 2-3: equipment + ascension + 8-rung ladder re-open) SHIPPED
+      2026-07-20 — merged to `master`, live-deployed over CDP.** RAM gate measured 24.8 GB
+      (band ≤28.0). Initial live behavior confirmed within ~90s of restart: rootkits auto-bought
+      with matching transaction records, five members promoted off the sink, `netWantedRate`
+      staying negative. Spec: `phase-29-gang-scaling.spec.md` (still at repo root — graduates to
+      `docs/phases/` once the observation window below closes).
+      **A 7-day observation window is running now (closes ~2026-07-27).** Goal metric:
+      `respectGainRate >= 1.27/tick` (10x the pre-phase 0.127 baseline) sustained within that
+      window — the spec's L3-L6 live-validation steps ride it. **Don't edit `gangmanager.js`
+      again before the window closes without flagging it first** — a change during the window
+      confounds the measurement (can't tell whether a rate change came from the shipped design or
+      the edit). This doesn't block unrelated work, only edits to this file specifically. Tier 4
+      (territory) remains deferred — see `BACKLOG.md`'s "Gang manager Tier 4" entry.
   - *(historical — the decision above closed this)* **commit to BN2 or abort?** BN2 was locked for its gang engine (SF2 kills the
     recurring Daedalus rep tax); same-day in-node analysis then found its `w0r1d_d43m0n` gate is
     **15,000** (Difficulty 500%) — realistically needing hacking mult **M ≈ 30–35** against our
