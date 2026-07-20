@@ -31,7 +31,7 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 ## Core daemon loop (`daemon.js` orchestrates; most are imported, not run)
 | Script | Role |
 |---|---|
-| `daemon.js` | Central-allocation HWGW batcher. Runs forever on home; also drives prep + `ns.share()`. Headless (Phase 24) — publishes `daemon-status.json` for `dashboard.js`. Phase 26 B1: every `SUPERVISOR_CHECK_MS` (60s) diffs `ns.ps("home")` against `RESIDENT_COMPANIONS` and relaunches any missing one (backoff-bounded; a missing-but-doesn't-fit-yet companion waits instead of relaunch-storming). Restart via `tools/bb/cli.mjs restart daemon.js`. |
+| `daemon.js` | Central-allocation HWGW batcher. Runs forever on home; also drives prep + `ns.share()`. Headless (Phase 24) — publishes `daemon-status.json` for `dashboard.js`. Phase 26 B1: every `SUPERVISOR_CHECK_MS` (60s) diffs `ns.ps("home")` against `RESIDENT_COMPANIONS` and relaunches any missing one (backoff-bounded; a missing-but-doesn't-fit-yet companion waits instead of relaunch-storming). Phase 27: `gangmanager.js` added to `RESIDENT_COMPANIONS` in the priority slot right after `cloudmanager.js` (the RAM census's designated winner). Restart via `tools/bb/cli.mjs restart daemon.js`. |
 | `scheduler.js` | *(imported)* Pure batch math — threads, `additionalMsec` timing, RAM bin-packing. No `ns`. |
 | `targets.js` | *(imported)* Decides **what to attack**, ranked. |
 | `hosts.js` | *(imported)* Discovers **where workers run** (rooting + purchased servers). |
@@ -57,6 +57,7 @@ its `ns.print` status block, so a manual `tail <script>` shows live status for f
 | `cloudmanager.js` | Always-on cloud fleet buy/upgrade (no rename, no Singularity); publishes `cloud-state.json`. |
 | `procureprograms.js` | Self-terminating Singularity fulfiller for TOR + the 5 port openers. |
 | `bootstrap.js` | Cold-start deployer that runs `bootloop.js` on the network until home RAM fits `daemon.js`, then hands off. |
+| `gangmanager.js` | Phase 27 Tier 1 -- recruits gang members (greedy) and assigns tasks (measured money-ladder climb + wanted-level sink watchdog); publishes `gang-state.json` + `gang-log.json`. Equipment/ascension/territory are future tiers (deliberately out of scope -- grep-checked). `gang-off.txt` on home suppresses all actions. |
 | `transactionsmonitor.js` | The income-side writer of the transactions log (`transactions-YYYY-MM-DD.json`) — `dashboard.js` reads that file directly, no separate summary state. |
 | `targetsmonitor.js` | Live re-rank/re-plan analysis of every eligible hack target; publishes `targets-ranking.json`. |
 | `launchmonitor.js` | Live worker-launch history (watches `ns.ps()`). |

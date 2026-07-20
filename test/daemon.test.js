@@ -155,6 +155,12 @@ describe('planRelaunches — Phase 26 B1 (S5/S10)', () => {
     expect(RESIDENT_COMPANIONS).not.toContain('backdoorwd.js');
   });
 
+  it('Phase 27: gangmanager.js is resident, in the priority slot right after cloudmanager.js', () => {
+    expect(RESIDENT_COMPANIONS).toContain('gangmanager.js');
+    const cloudIdx = RESIDENT_COMPANIONS.indexOf('cloudmanager.js');
+    expect(RESIDENT_COMPANIONS[cloudIdx + 1]).toBe('gangmanager.js');
+  });
+
   it('multiple missing residents are all handled in one pass', () => {
     const r = planRelaunches(new Set(), residents, new Set(), {}, 1000);
     expect(r.launch.sort()).toEqual(['a.js', 'b.js', 'c.js']);
