@@ -67,6 +67,9 @@ const STALE_MS = {
   xpfarm: 30_000,
   cloud: 30_000,
   augfarmer: 390_000,
+  // gangmanager.js writes once per gang tick (nextUpdate resolves 2000-5000ms),
+  // so 3x the worst cadence is 15s -- floored to the same 15s as daemon.
+  gang: 15_000,
 };
 
 // Hardcoded rather than imported from each writer -- mirrors
@@ -78,6 +81,26 @@ const TARGETS_RANKING_FILE = "targets-ranking.json";
 const CLOUD_STATE_FILE = "cloud-state.json";
 const XPFARM_STATE_FILE = "xpfarm-state.json";
 const AUGFARMER_STATE_FILE = "augfarmer-state.json";
+const GANG_STATE_FILE = "gang-state.json";
+
+// Phase 29's observation-window goal metric (respectGainRate/tick, 10x the
+// 0.127 pre-phase baseline) and gangmanager.js's ASCEND_MIN_FACTOR.
+//
+// Both hardcoded rather than imported, and this one is not merely the
+// filename-string precedent above -- importing ANY symbol from gangmanager.js
+// would charge dashboard.js that module's entire ns.gang surface (CLAUDE.md's
+// import-bleed rule: targetsmonitor.js paid 0.60 GB for a four-line pure
+// helper). dashboard.js must stay a 0 GB reader.
+export const GANG_RESPECT_GOAL = 1.27;
+export const GANG_ASCEND_MIN_FACTOR = 1.5;
+
+// Trend sampling (the dashboard is its own sampler): gang-state.json is a
+// single overwritten snapshot, so "is the rate climbing?" has nowhere to come
+// from otherwise -- and the obvious producer-side fix is barred while
+// gangmanager.js is frozen for the observation window. One sample per minute,
+// capped at an hour of history. In-memory only; a dashboard restart resets it.
+export const GANG_SAMPLE_MS = 60_000;
+export const GANG_SAMPLE_CAP = 60;
 
 // Sentinel distinguishing "file present but didn't parse" (S7: renders as
 // "unreadable") from "file missing" (null, renders as "no data yet").
@@ -172,7 +195,10 @@ export function daemonPanel(state, now) {
     const draining = state.draining ?? [];
     const drainingCount = state.drainingCount ?? draining.length;
     lines.push(`members ${state.memberCount ?? members.length}${drainingCount > 0 ? ` (+${drainingCount} draining)` : ""}:`);
-    const { shown, moreCount } = capEntries(members, PANEL_ENTRY_CAP);
+    // Cap 2 rather than PANEL_ENTRY_CAP (2026-07-20): DAEMON stays the alarm
+    // surface -- warns/stall/share/waterfall below are untouched -- but the
+    // member list itself gave up a row to fund the GANG panel.
+    const { shown, moreCount } = capEntries(members, 2);
     if (shown.length === 0) {
       lines.push("  (none)");
     } else {
@@ -224,19 +250,101 @@ export function targetsPanel(state, now) {
   const lines = [`-- ${title} --${stale}`];
   const totalCount = state.totalCount ?? 0;
   const targets = (state.targets ?? []).slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const { shown } = capEntries(targets, PANEL_ENTRY_CAP);
 
-  if (shown.length === 0) {
+  if (targets.length === 0) {
     lines.push("no eligible targets");
-  } else {
-    for (const t of shown) {
-      lines.push(
-        `  ${String(t.server ?? "?").padEnd(16)} ${t.prepped ? "PREPPED" : "DRIFTED"} | sec ${fmtNum(t.sec)}/${fmtNum(t.minSec)} | $${fmtNum(t.money)}/${fmtNum(t.maxMoney)}`
-      );
-    }
-    const moreCount = Math.max(0, totalCount - shown.length);
-    if (moreCount > 0) lines.push(`  (+${moreCount} more)`);
+    return lines;
   }
+
+  // Collapsed to a summary + the top-scored target only (2026-07-20). The
+  // batcher is a mature subsystem: the full ranked list was tuning-era detail
+  // that cost ~7 rows and was read only when something broke. Prepped count is
+  // the health signal; the per-target breakdown lives in targets-ranking.json.
+  const preppedCount = targets.filter((t) => t.prepped).length;
+  const top = targets[0];
+  lines.push(`${totalCount} eligible, ${preppedCount}/${targets.length} prepped`);
+  lines.push(
+    `top: ${String(top.server ?? "?")} ${top.prepped ? "PREPPED" : "DRIFTED"} | sec ${fmtNum(top.sec)}/${fmtNum(top.minSec)} | $${fmtNum(top.money)}/${fmtNum(top.maxMoney)}`
+  );
+  return lines;
+}
+
+/**
+ * Pure ring-append for the gang trend sampler. Returns a NEW array (never
+ * mutates), appending at most one sample per GANG_SAMPLE_MS and trimming to
+ * GANG_SAMPLE_CAP oldest-first. A missing/unreadable state is a no-op, so a
+ * transient read failure leaves the existing history intact rather than
+ * punching a hole in it.
+ */
+export function pushGangSample(samples, state, now) {
+  const list = samples ?? [];
+  if (!state || state === PARSE_FAILED) return list;
+  const rate = state.respectGainRate;
+  if (!Number.isFinite(rate)) return list;
+
+  const last = list[list.length - 1];
+  if (last && now - last.t < GANG_SAMPLE_MS) return list;
+
+  const next = list.concat([{ t: now, respect: state.respect ?? 0, rate }]);
+  return next.length > GANG_SAMPLE_CAP ? next.slice(next.length - GANG_SAMPLE_CAP) : next;
+}
+
+/** Pure. Collapses the sample ring to {spanMs, rateDelta}, or null when there isn't enough history yet. */
+export function summarizeGangTrend(samples, now) {
+  const list = samples ?? [];
+  if (list.length < 2) return null;
+  const first = list[0];
+  const last = list[list.length - 1];
+  const spanMs = last.t - first.t;
+  if (!(spanMs > 0)) return null;
+  return { spanMs, rateDelta: (last.rate ?? 0) - (first.rate ?? 0) };
+}
+
+export function gangPanel(state, trend, now) {
+  const title = "GANG";
+  if (state === null) return [`-- ${title} --`, "no data yet"];
+  if (state === PARSE_FAILED) return [`-- ${title} --`, "unreadable"];
+
+  const stale = staleSuffix(state.timestamp, now, STALE_MS.gang);
+  const lines = [`-- ${title} --${stale}`];
+
+  // Mode flags first: an off-marker or an active wanted-sink explains an
+  // otherwise alarming respect rate, so it has to precede the numbers.
+  if (state.offMarker) {
+    lines.push("OFF (gang-off.txt)");
+    return lines;
+  }
+
+  const rate = state.respectGainRate;
+  const pctOfGoal = Number.isFinite(rate) ? (rate / GANG_RESPECT_GOAL) * 100 : undefined;
+  let trendPart = "";
+  if (trend) {
+    const mins = Math.round(trend.spanMs / 60_000);
+    const arrow = trend.rateDelta > 0.0005 ? "UP" : trend.rateDelta < -0.0005 ? "DOWN" : "FLAT";
+    const sign = trend.rateDelta >= 0 ? "+" : "";
+    trendPart = ` | ${mins}m ${arrow} ${sign}${trend.rateDelta.toFixed(3)}`;
+  }
+  lines.push(
+    `respect ${fmtNum(state.respect)} (+${fmtRate(rate)}/t) goal ${GANG_RESPECT_GOAL}/t ${fmtPct(pctOfGoal)}${trendPart}`
+  );
+
+  // netWantedRate is the health signal the Phase 27 sink bug hid: negative is
+  // good (wanted draining), positive means the sink is losing ground.
+  const netWanted = state.netWantedRate;
+  const wantedFlag = !Number.isFinite(netWanted) ? "?" : netWanted <= 0 ? "OK" : "RISING";
+  lines.push(
+    `money $${fmtNum(state.moneyGainRate)}/s | wanted ${fmtRate(netWanted)} ${wantedFlag} | members ${state.memberCount ?? 0}`
+  );
+
+  // Bracket notation on ascPreviewHack deliberately -- the field name ends in
+  // a real ns method name and this build's RAM analyzer has misread names, not
+  // just calls (CLAUDE.md identifier hygiene). The field is written by the
+  // frozen gangmanager.js, so it can't be renamed at the source.
+  const members = state.members ?? [];
+  const ascReady = members.filter((m) => (m["ascPreviewHack"] ?? 0) >= GANG_ASCEND_MIN_FACTOR).length;
+  const sinkPart = state.sinkMode ? " | SINK MODE" : "";
+  lines.push(`asc-ready ${ascReady}/${members.length} (>=${GANG_ASCEND_MIN_FACTOR}x)${sinkPart}`);
+
   return lines;
 }
 
@@ -272,20 +380,14 @@ export function xpPanel(state, now) {
     lines.push("OFF (xp-off.txt)");
     return lines;
   }
-  lines.push(`usable ${fmtRam(state.usableGb)} | claim ${fmtRam(state.claimGb)} | lvl ${state.hackingLevel ?? "?"}`);
-
+  // Collapsed to one line (2026-07-20) -- same maturity argument as TARGETS.
+  // The per-target mode/thread breakdown was tuning-era detail; the counts
+  // below are enough to tell "running" from "stalled".
   const targets = state.targets ?? [];
-  const { shown, moreCount } = capEntries(targets, PANEL_ENTRY_CAP);
-  if (shown.length === 0) {
-    lines.push("no eligible XP target");
-  } else {
-    for (const t of shown) {
-      lines.push(
-        `  ${String(t.server ?? "?").padEnd(15)} ${String(t.mode ?? "?").padEnd(10)} sec ${fmtNum(t.sec)}/${fmtNum(t.minSec)} | +${t.hackThreadsLaunched ?? 0}H/${t.weakenThreadsLaunched ?? 0}W`
-      );
-    }
-    if (moreCount > 0) lines.push(`  (+${moreCount} more)`);
-  }
+  lines.push(
+    `usable ${fmtRam(state.usableGb)} | claim ${fmtRam(state.claimGb)} | lvl ${state.hackingLevel ?? "?"} | ${targets.length} target(s)`
+  );
+  if (targets.length === 0) lines.push("no eligible XP target");
   return lines;
 }
 
@@ -305,20 +407,22 @@ export function cloudPanel(state, now) {
     return lines;
   }
 
-  lines.push(`available $${fmtNum(state.available)} | reserved $${fmtNum(state.reserved)}`);
+  // Collapsed (2026-07-20): fleet shape + spend headroom folded into one line,
+  // and `last upgrade` dropped -- it is history, already in the transactions
+  // panel and translog. `next` is kept as its own line ONLY when we can't
+  // afford it, which is the one cloud state that wants attention.
   const fleet = state.fleet;
-  if (fleet) {
-    lines.push(`fleet: ${fleet.count ?? 0} server(s), ${fmtRam(fleet.minRam)} - ${fmtRam(fleet.maxRam)}`);
-  } else {
-    lines.push("no cloud servers owned");
-  }
+  const fleetPart = fleet
+    ? `fleet ${fleet.count ?? 0}/${fleet.serverLimit ?? "?"}, ${fmtRam(fleet.minRam)}-${fmtRam(fleet.maxRam)}`
+    : "no cloud servers owned";
+  lines.push(`${fleetPart} | avail $${fmtNum(state.available)}`);
+
   const next = state.next;
-  if (next) {
-    lines.push(`next: ${next.hostname ?? "?"} -> ${fmtRam(next.tier)}, $${fmtNum(next.cost)}${next.affordable ? "" : " (can't afford)"}`);
-  } else if (state.growth) {
+  if (next && !next.affordable) {
+    lines.push(`next: ${next.hostname ?? "?"} -> ${fmtRam(next.tier)}, $${fmtNum(next.cost)} (can't afford)`);
+  } else if (!next && state.growth) {
     lines.push(`fleet maxed -- growth: ${state.growth.status ?? "?"}`);
   }
-  if (state.lastUpgrade) lines.push(`last upgrade: ${state.lastUpgrade.hostname ?? "?"} @ ${state.lastUpgrade.time ?? "?"}`);
   return lines;
 }
 
@@ -413,8 +517,12 @@ export function augPanel(state, now) {
 export function renderAll(states, now) {
   const lines = [clampLine(`===== dashboard @ ${new Date(now).toLocaleTimeString()} =====`, COLUMN_BUDGET)];
 
+  // GANG sits directly under DAEMON: it is the rep engine the BN2 commitment
+  // rests on, and the batcher panels below it were collapsed to summaries to
+  // fund the rows (2026-07-20).
   const panelSpecs = [
     { name: "DAEMON", fn: daemonPanel, state: states.daemon },
+    { name: "GANG", fn: (s, n) => gangPanel(s, states.gangTrend ?? null, n), state: states.gangState },
     { name: "TARGETS", fn: targetsPanel, state: states.targets },
     { name: "XP FARM", fn: xpPanel, state: states.xp },
     { name: "CLOUD", fn: cloudPanel, state: states.cloud },
@@ -475,6 +583,11 @@ export async function main(ns) {
   ns.ui.openTail();
   ns.ui.moveTail(DASHBOARD_X, DASHBOARD_Y); // position only -- asserted once, dragging afterward persists (S10)
 
+  // Gang trend history -- the dashboard samples for itself (see
+  // GANG_SAMPLE_MS). Held in the loop rather than inside renderAll so every
+  // panel formatter stays pure and directly testable.
+  let gangSamples = [];
+
   while (true) {
     // Width/height/font are re-asserted every poll -- the no-wrap guarantee
     // is a function of these three only (S10); idempotent, 0 GB.
@@ -494,7 +607,11 @@ export async function main(ns) {
       cloud: readStateFile(ns, CLOUD_STATE_FILE),
       transactions: readStateFile(ns, transactionsFileName(new Date(now))),
       augfarmer: readStateFile(ns, AUGFARMER_STATE_FILE),
+      gangState: readStateFile(ns, GANG_STATE_FILE),
     };
+
+    gangSamples = pushGangSample(gangSamples, states.gangState, now);
+    states.gangTrend = summarizeGangTrend(gangSamples, now);
 
     const rulerOn = ns.fileExists(RULER_FLAG, "home");
     const lines = renderAll(states, now);
