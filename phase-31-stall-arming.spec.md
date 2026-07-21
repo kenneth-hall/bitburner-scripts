@@ -1,8 +1,16 @@
 # Phase 31 — Stall-arming: let a stalled auto-cycle install instead of waiting forever
 
-**Stage:** spec (brainstorm act deliberately skipped — see "Why no brainstorm" below).
-**Model:** drafted opus, cold-review by `spec-reviewer` before implement.
+**Stage:** implemented, on branch `phase31-stall-arming` (not yet merged to `master`).
+**Model:** drafted opus, cold-review by `spec-reviewer` before implement; implemented sonnet.
 **Scope:** one pure-function change + wiring + unit tests in `src/augfarmer.js`. Not a full phase.
+
+**Implementation status (2026-07-21):** all code + the 10 acceptance-criteria unit tests are in
+(`npm test` green, 752/752, incl. the `reasons` regression-handling requirement). Live-verified:
+`augfarmer.js` restarted clean over CDP (no runtime error popup), `ramcheck.js` reads 64.1 GB —
+matches the 64.10 GB pre-change baseline, confirming the pure-logic-only claim. **Still open:** the
+ship gate's live confirmation (a subsequent stalled money-blocked cycle arms and installs
+unattended) can't fire before the `STALL_MIN_MS` 12h floor elapses — next-day check, not
+same-session. Do not merge to `master` until that's confirmed.
 
 ## Problem
 
