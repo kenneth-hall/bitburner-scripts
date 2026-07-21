@@ -8,6 +8,26 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-21
 
+- **Phase 32 — BN2.1 progress tracker shipped.** Dashboard couldn't answer "are we progressing
+  toward ending BN2.1?" — the loud metrics (gang respect, faction rep) are solved subgoals, while
+  the metric that actually gates the win (installed hacking mult `M` toward the `w0r1d_d43m0n`
+  gate) had no readout. Step 1: `transactionsmonitor.js` now tracks gang income alongside hacking
+  (gang was ~96% of income this cycle, previously untracked — `translog.js` gained a per-source
+  `coalesceIndexForSource` helper so two sources landing in the same poll each fold correctly).
+  Step 2: new resident `goallog.js` (60s cadence, ~3.1 GB) samples `M` + a smoothed gang+hacking
+  $/sec + trend into a 48h ring, feeding a new `GOAL` panel — first in `dashboard.js`'s layout,
+  zero added RAM (unchanged 2.6 GB). `augfarmer.js` gained an `awaitingMoneySince` stamp
+  (restart-persisted) for the panel's elapsed awaiting-money timer. `npm test` 805/805 (28 new
+  units); `verify:log` clean against real exported logs aside from two pre-existing, unrelated
+  gaps (logged in `BACKLOG.md`). Live-validated end to end: gang income records confirmed
+  post-restart, the L2 gang-equip/`sinceInstall` reconciliation agreed to within ~25%, the GOAL
+  panel rendered correctly with no wrap/scroll, and the awaiting-money timer grew live. RAM gates
+  held exactly at their pre-change baselines (`dashboard.js` 2.6 GB, `augfarmer.js` 64.1 GB,
+  `transactionsmonitor.js` 2.6 GB, `daemon.js` 16.3 GB); `goallog.js` measured 3.1 GB against a
+  ≤4.0 GB gate. Surfaced (logged, not fixed): a dead OR-term in `augfarmer.js`'s state-write gate,
+  and an unrelated `verify-finance.test.js` whitelist gap.
+  → [phase-32-bn2-progress-tracker.spec.md](phase-32-bn2-progress-tracker.spec.md)
+
 - **Gang respect-rate sampler shipped (`src/gangratelog.js`).** The Phase 30 survivor slice:
   persists a durable `respectGainRate` / `wantedPenalty` / aggregate-hack-ascension-mult series
   that `gang-state.json`'s overwrite-in-place snapshot can't keep. Built as a thin consumer of

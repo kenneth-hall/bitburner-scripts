@@ -58,6 +58,7 @@ import {
   recentCycleIntervals,
   evalStall,
   STALL_QUEUE_FLOOR,
+  nextAwaitingSince,
 } from '../src/augfarmer.js';
 
 function statsAllOnes(overrides = {}) {
@@ -1551,6 +1552,27 @@ describe('evalStall — Phase 26 B2 (S4)', () => {
     const cleared = evalStall(stallInputs({ nowMs: 26 * H, lastAugReset: 26 * H }), t0); // fresh install -> age 0
     expect(cleared.stalled).toBe(false);
     expect(cleared.lastWarnMs).toBeNull();
+  });
+});
+
+describe('nextAwaitingSince — Phase 32 KPI 3', () => {
+  const T = 1_000_000_000;
+
+  it('stamps nowMs on entry (prev null, phase awaiting-money)', () => {
+    expect(nextAwaitingSince(null, 'awaiting-money', T)).toBe(T);
+  });
+
+  it('preserves the existing stamp while still awaiting-money', () => {
+    expect(nextAwaitingSince(T, 'awaiting-money', T + 60_000)).toBe(T);
+  });
+
+  it('clears to null on any other phase', () => {
+    expect(nextAwaitingSince(T, 'grinding', T + 60_000)).toBeNull();
+    expect(nextAwaitingSince(null, 'idle-plateau', T)).toBeNull();
+  });
+
+  it('treats undefined prev the same as null (fresh entry)', () => {
+    expect(nextAwaitingSince(undefined, 'awaiting-money', T)).toBe(T);
   });
 });
 

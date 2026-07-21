@@ -70,6 +70,8 @@ const STALE_MS = {
   // gangmanager.js writes once per gang tick (nextUpdate resolves 2000-5000ms),
   // so 3x the worst cadence is 15s -- floored to the same 15s as daemon.
   gang: 15_000,
+  // Phase 32 -- goallog.js samples every 60s; 3x that, over the 15s floor.
+  goal: 180_000,
 };
 
 // Hardcoded rather than imported from each writer -- mirrors
@@ -82,6 +84,14 @@ const CLOUD_STATE_FILE = "cloud-state.json";
 const XPFARM_STATE_FILE = "xpfarm-state.json";
 const AUGFARMER_STATE_FILE = "augfarmer-state.json";
 const GANG_STATE_FILE = "gang-state.json";
+const GOAL_STATE_FILE = "goal-state.json"; // Phase 32 -- goallog.js's overwrite-in-place snapshot
+
+// goallog.js's RATE_WINDOW_MS, hardcoded rather than imported -- goallog.js's
+// ns surface is getMoneySources+getPlayer (real RAM); importing it would
+// bleed that into dashboard.js's 0-added-RAM budget (CLAUDE.md's import-
+// bleed rule). Every real snapshot carries its own income.windowMs anyway;
+// this is only the display fallback for a partial/malformed record.
+const DEFAULT_GOAL_WINDOW_MS = 600_000;
 
 // gangmanager.js's ASCEND_MIN_FACTOR, hardcoded rather than imported:
 // importing ANY symbol from gangmanager.js would charge dashboard.js that
@@ -161,6 +171,14 @@ function fmtPct(n) {
 function fmtRate(n) {
   if (n === undefined || n === null || !Number.isFinite(n)) return "?";
   return n.toFixed(2);
+}
+
+/** Phase 32 -- elapsed-time display for the awaiting-money timer: "Nm" under an hour, else "Xh Ym". */
+function fmtElapsed(ms) {
+  if (ms === undefined || ms === null || !Number.isFinite(ms) || ms < 0) return "?";
+  const totalMin = Math.floor(ms / 60_000);
+  if (totalMin < 60) return `${totalMin}m`;
+  return `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`;
 }
 
 /** Title-line STALE marker (S7), or "" when fresh/unknown. */
@@ -506,6 +524,53 @@ export function augPanel(state, now) {
 }
 
 /**
+ * Phase 32 -- the "why everything below exists" readout: installed hacking
+ * mult `M` progress toward the w0r1d_d43m0n gate, a smoothed income
+ * $/sec + trend (fed by goallog.js's ring, NOT computed here), and the
+ * $-to-next-aug + awaiting-money elapsed timer. Display forms are pinned
+ * exactly (Phase 32 spec decision 11) so this formatter's tests are exact
+ * strings, not substring checks.
+ */
+export function goalPanel(state, now) {
+  const title = "GOAL (BN2.1)";
+  if (state === null) return [`-- ${title} --`, "no data yet"];
+  if (state === PARSE_FAILED) return [`-- ${title} --`, "unreadable"];
+
+  const stale = staleSuffix(state.timestamp, now, STALE_MS.goal);
+  const lines = [`-- ${title} --${stale}`];
+
+  const m = state.mProgress ?? {};
+  const mText = typeof m.value === "number" ? m.value.toFixed(2) : "?";
+  const pctText = typeof m.pct === "number" ? m.pct : "?";
+  lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%`);
+
+  const income = state.income ?? {};
+  const perSec = income.perSec;
+  const trend = income.trend;
+  if (perSec === undefined || perSec === null) {
+    lines.push("income (warming up)");
+  } else if (trend === undefined || trend === null) {
+    lines.push(`income $${fmtNum(perSec)}/s (warming up)`);
+  } else {
+    const mins = Math.round((income.windowMs ?? DEFAULT_GOAL_WINDOW_MS) / 60_000);
+    lines.push(`income $${fmtNum(perSec)}/s ${trend} (${mins}m)`);
+  }
+
+  const next = state.nextAug;
+  if (!next || !next.aug) {
+    lines.push("next: none");
+  } else {
+    let line = `next: ${next.aug} $${fmtNum(next.price)}`;
+    if (next.phase === "awaiting-money" && next.waitingMs !== undefined && next.waitingMs !== null) {
+      line += ` | waiting ${fmtElapsed(next.waitingMs)}`;
+    }
+    lines.push(line);
+  }
+
+  return lines;
+}
+
+/**
  * Assembles the full window: header + seven panels (S9's layout order) each
  * followed by a separator line, every emitted line hard-clamped to
  * COLUMN_BUDGET. A panel formatter that throws (a malformed record shape the
@@ -517,10 +582,13 @@ export function augPanel(state, now) {
 export function renderAll(states, now) {
   const lines = [clampLine(`===== dashboard @ ${new Date(now).toLocaleTimeString()} =====`, COLUMN_BUDGET)];
 
-  // GANG sits directly under DAEMON: it is the rep engine the BN2 commitment
-  // rests on, and the batcher panels below it were collapsed to summaries to
-  // fund the rows (2026-07-20).
+  // GOAL leads (Phase 32, decision 9): the "why everything below exists"
+  // readout goes first, DAEMON stays the alarm surface directly under it.
+  // GANG sits under DAEMON: it is the rep engine the BN2 commitment rests
+  // on, and the batcher panels below it were collapsed to summaries to fund
+  // the rows (2026-07-20).
   const panelSpecs = [
+    { name: "GOAL", fn: goalPanel, state: states.goal },
     { name: "DAEMON", fn: daemonPanel, state: states.daemon },
     { name: "GANG", fn: (s, n) => gangPanel(s, states.gangTrend ?? null, n), state: states.gangState },
     { name: "TARGETS", fn: targetsPanel, state: states.targets },
@@ -608,6 +676,7 @@ export async function main(ns) {
       transactions: readStateFile(ns, transactionsFileName(new Date(now))),
       augfarmer: readStateFile(ns, AUGFARMER_STATE_FILE),
       gangState: readStateFile(ns, GANG_STATE_FILE),
+      goal: readStateFile(ns, GOAL_STATE_FILE),
     };
 
     gangSamples = pushGangSample(gangSamples, states.gangState, now);

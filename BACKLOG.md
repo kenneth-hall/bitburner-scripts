@@ -141,6 +141,24 @@ do, and what's broken?*
   why the fix is restart"**. Related confirmed-and-fixed variant (stale *push* from a `git checkout`
   under the live watcher) is closed — see `docs/phases/phase-13-consolidation.closeout.md`.
 
+- **`augfarmer.js`'s state-write gate has a dead OR-term** — found while implementing Phase 32
+  (decision 12): `previousPhase = plan.phase;` runs, THEN the write gate checks
+  `plan.phase !== previousPhase` — always false, since `previousPhase` was just set to `plan.phase`
+  two lines up. In practice the state file only updates on the other three OR-terms (first-launch,
+  the 5-min heartbeat, or a buy this pass) — a phase flip with no buy persists only via the
+  heartbeat, up to 5 min late. Phase 32 added a narrowly-scoped new OR-term
+  (`awaitingMoneySinceChanged`) alongside the dead one rather than fixing it — reordering the two
+  lines changes write cadence for every consumer of `augfarmer-state.json`, which is real design
+  surface, not a one-line phase-32 fix. **Fix candidate:** move `previousPhase = plan.phase;` to
+  after the state-write block (or capture `plan.phase !== previousPhase` into a local before the
+  reassignment). Not fixed here — logged per CLAUDE.md's "dropped objections get logged" rule.
+
+- **`npm run verify:log`'s finance checker has its own reservation-key whitelist gap** — found while
+  running the Phase 32 ship gate: `test/verify-finance.test.js`'s `KNOWN_RESERVATION_KEYS` doesn't
+  include `next-aug`, which a real exported `finance-log.json` entry already carries. Unrelated to
+  Phase 32 (no `resourcemanager.js`/`financestate.js` file was touched this phase) — flagged here
+  rather than silently loosening that checker outside this phase's scope.
+
 ## Ideas
 
 ### Game / progression

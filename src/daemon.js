@@ -121,6 +121,7 @@ export const RESIDENT_COMPANIONS = [
   "xpfarm.js",
   "ratchetlog.js",
   "gangratelog.js", // Phase 30 survivor -- durable respect-rate/ascension-mult series sampler (thin gang-state.json consumer, ~0 gang-API RAM)
+  "goallog.js", // Phase 32 -- BN2.1 progress sampler (installed-M / smoothed income rate / next-aug timer), feeds dashboard.js's GOAL panel
 ];
 export const SUPERVISOR_CHECK_MS = 60_000; // time-gated inside the main loop, like the share-marker check
 export const SUPERVISOR_RETRY_MS = 5 * 60_000; // per-script backoff so an instantly-re-crashing script doesn't relaunch-storm
@@ -512,6 +513,10 @@ export async function main(ns) {
   // Thin consumer of gang-state.json (no gang API) -- persists the downsampled
   // series gangmanager's overwrite-in-place snapshot can't keep.
   launchDetached(ns, "gangratelog.js");
+  // Phase 32: BN2.1 progress sampler -- installed hacking mult `M` toward the
+  // w0r1d_d43m0n gate, a smoothed gang+hacking income $/sec + trend, and the
+  // $-to-next-aug/awaiting-money timer. ~3.1 GB (getMoneySources+getPlayer).
+  launchDetached(ns, "goallog.js");
   launchDetached(ns, "procureprograms.js");
   // Phase 22: Singularity-heavy self-terminating fulfiller for the four
   // hacking-faction backdoors -- resident until all four are done (never

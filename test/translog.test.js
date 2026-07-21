@@ -5,6 +5,7 @@ import {
   transactionsFileName,
   recordTransaction,
   shouldCoalesce,
+  coalesceIndexForSource,
   INCOME_COALESCE_GAP_MS,
   INCOME_WINDOW_MAX_MS,
 } from '../src/translog.js';
@@ -58,6 +59,48 @@ describe('shouldCoalesce', () => {
   it('never folds when there is no last record', () => {
     expect(shouldCoalesce(undefined, T)).toBe(false);
     expect(shouldCoalesce(null, T)).toBe(false);
+  });
+});
+
+describe('coalesceIndexForSource', () => {
+  const T = 1_000_000_000;
+
+  it('finds the last same-source income record across an interleaved fixture, ignoring other sources', () => {
+    const entries = [
+      { type: 'income', source: 'gang', amount: 1, firstTimestamp: T - 30_000, lastTimestamp: T - 30_000 },
+      { type: 'income', source: 'hacking', amount: 2, firstTimestamp: T - 20_000, lastTimestamp: T - 20_000 },
+      { type: 'expense', source: 'auto-aug', amount: 3, timestamp: T - 15_000 },
+      { type: 'income', source: 'gang', amount: 4, firstTimestamp: T - 10_000, lastTimestamp: T - 10_000 },
+    ];
+    expect(coalesceIndexForSource(entries, 'gang', T)).toBe(3);
+    expect(coalesceIndexForSource(entries, 'hacking', T)).toBe(1);
+  });
+
+  it('returns -1 once the gap since lastTimestamp is exceeded', () => {
+    const entries = [{ type: 'income', source: 'gang', firstTimestamp: T, lastTimestamp: T }];
+    expect(coalesceIndexForSource(entries, 'gang', T + INCOME_COALESCE_GAP_MS + 1)).toBe(-1);
+  });
+
+  it('returns -1 once the projected window would exceed the max', () => {
+    const entries = [{ type: 'income', source: 'gang', firstTimestamp: T, lastTimestamp: T + 250_000 }];
+    expect(coalesceIndexForSource(entries, 'gang', T + INCOME_WINDOW_MAX_MS + 1)).toBe(-1);
+  });
+
+  it('returns -1 when no record of that source exists', () => {
+    const entries = [{ type: 'income', source: 'hacking', firstTimestamp: T, lastTimestamp: T }];
+    expect(coalesceIndexForSource(entries, 'gang', T)).toBe(-1);
+  });
+
+  it('never returns an expense record\'s index, even one with a matching source string', () => {
+    const entries = [
+      { type: 'expense', source: 'gang-equip', amount: 5, timestamp: T - 1000 },
+      { type: 'income', source: 'gang', firstTimestamp: T - 500, lastTimestamp: T - 500 },
+    ];
+    expect(coalesceIndexForSource(entries, 'gang-equip', T)).toBe(-1);
+  });
+
+  it('returns -1 on an empty array', () => {
+    expect(coalesceIndexForSource([], 'gang', T)).toBe(-1);
   });
 });
 

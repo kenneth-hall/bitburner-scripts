@@ -1465,6 +1465,18 @@ export function buildReserveRecord(amount, target, now) {
   };
 }
 
+/**
+ * Pure (Phase 32 KPI 3). `prev` is the PREVIOUS awaitingMoneySince timestamp
+ * (ms epoch or null), not the previous phase -- entry stamps `nowMs`,
+ * staying-in preserves `prev` unchanged, anything else clears to null. The
+ * elapsed time itself is left to readers (`now - awaitingMoneySince`), so a
+ * stamp written up to one heartbeat late costs nothing.
+ */
+export function nextAwaitingSince(prev, phase, nowMs) {
+  if (phase !== "awaiting-money") return null;
+  return prev === null || prev === undefined ? nowMs : prev;
+}
+
 /** Reads FACTION_SCOPE + augs/factions live and builds the static catalog (S5/S3). */
 function buildCatalog(ns, factionScope, utilityAllowlist) {
   const factions = {};
@@ -1599,6 +1611,11 @@ export async function main(ns) {
   // without this a mid-stall B1 relaunch would lose lastWarnMs and immediately
   // re-warn instead of respecting the remaining STALL_REWARN_MS window.
   let stallState = null;
+  // Phase 32 (decision 7): restored the same way, but ONLY when the saved
+  // record's own phase was still "awaiting-money" -- a relaunch that landed
+  // mid-grind (or after a buy) has nothing to restore, and restoring a stale
+  // stamp across a phase change would misreport elapsed time.
+  let awaitingMoneySince = null;
   if (savedState && savedState.lastAugReset === lastAugReset) {
     nfgBoughtThisCycle = savedState.nfgBoughtThisCycle ?? false;
     boughtThisCycle = savedState.boughtThisCycle ?? [];
@@ -1609,6 +1626,9 @@ export async function main(ns) {
         thresholdMs: savedState.stall.thresholdMs ?? STALL_FALLBACK_MS,
         lastWarnMs: savedState.stall.lastWarnMs ?? null,
       };
+    }
+    if (savedState.phase === "awaiting-money" && typeof savedState.awaitingMoneySince === "number") {
+      awaitingMoneySince = savedState.awaitingMoneySince;
     }
   }
 
@@ -1650,6 +1670,7 @@ export async function main(ns) {
       installSeq = null;
       previousCampKey = null;
       stallState = null;
+      awaitingMoneySince = null; // Phase 32: an install boundary invalidates any elapsed-time stamp
       tprintTs(ns, "INFO: new install cycle detected (lastAugReset changed) -- resetting NFG cap + bought-this-cycle tracking");
     }
 
@@ -2328,17 +2349,30 @@ export async function main(ns) {
     if (previousPhase === "yielded" && plan.phase !== "yielded") {
       tprintTs(ns, "INFO: resuming -- action slot free");
     }
+    // Phase 32 KPI 3: computed BEFORE previousPhase is reassigned below (the
+    // function only needs the current phase + the prior stamp, but the
+    // ordering keeps this next to the other phase-transition bookkeeping).
+    const priorAwaitingMoneySince = awaitingMoneySince;
+    awaitingMoneySince = nextAwaitingSince(awaitingMoneySince, plan.phase, nowMs);
+    const awaitingMoneySinceChanged = awaitingMoneySince !== priorAwaitingMoneySince;
     previousPhase = plan.phase;
     previousTargetAug = target?.aug ?? null;
 
     const stateChanged = !launchedSummary;
     const heartbeatDue = nowMs - lastStateWrite >= 5 * 60_000;
-    if (stateChanged || heartbeatDue || boughtThisPass || plan.phase !== previousPhase) {
+    // `plan.phase !== previousPhase` is a known-dead OR-term (BACKLOG.md,
+    // Phase 32 decision 12): previousPhase was just set to plan.phase two
+    // lines up, so this never fires. Left as-is -- fixing it changes the
+    // write cadence for every consumer, out of scope here. The new
+    // awaitingMoneySinceChanged term is what actually gets this stamp
+    // persisted promptly instead of waiting up to 5min for the heartbeat.
+    if (stateChanged || heartbeatDue || boughtThisPass || plan.phase !== previousPhase || awaitingMoneySinceChanged) {
       const stateRecord = {
         timestamp: nowMs,
         time: timeLabel,
         phase: plan.phase,
         mode,
+        awaitingMoneySince,
         target: target ? { aug: target.aug, faction: target.faction, repReq: target.repReq, deficit: target.deficit, livePrice } : null,
         joinedFactions: [...joined].filter((f) => FACTION_SCOPE_SET.has(f)),
         campLocksInForce: FACTION_SCOPE.filter((f) => !joined.has(f) && campBlocked(f, Object.fromEntries(FACTION_SCOPE.map((ff) => [ff, catalog.factions[ff]?.enemies ?? []])), joined)),

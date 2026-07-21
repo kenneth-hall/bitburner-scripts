@@ -17,6 +17,7 @@ import {
   gangPanel,
   pushGangSample,
   summarizeGangTrend,
+  goalPanel,
   renderAll,
   COLUMN_BUDGET,
   ROW_BUDGET,
@@ -86,6 +87,7 @@ const PANELS = [
   { name: 'xpPanel', fn: xpPanel },
   { name: 'cloudPanel', fn: cloudPanel },
   { name: 'augPanel', fn: augPanel },
+  { name: 'goalPanel', fn: goalPanel },
 ];
 
 describe('every stateful panel formatter', () => {
@@ -535,10 +537,73 @@ describe('augPanel', () => {
   });
 });
 
+// --- goalPanel (Phase 32) -----------------------------------------------------
+
+describe('goalPanel', () => {
+  it('renders the M-progress line exactly (decision 11)', () => {
+    const lines = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9 } }, NOW);
+    expect(lines).toContain('M 1.51/16.7 (core) ~9%');
+  });
+
+  it('income: perSec null (warming up, no value)', () => {
+    const lines = goalPanel({ timestamp: NOW, mProgress: {}, income: { perSec: null, trend: null } }, NOW);
+    expect(lines).toContain('income (warming up)');
+  });
+
+  it('income: perSec non-null but trend null (warming up, with value)', () => {
+    const lines = goalPanel({ timestamp: NOW, mProgress: {}, income: { perSec: 5_090_000, trend: null } }, NOW);
+    expect(lines).toContain('income $5.09m/s (warming up)');
+  });
+
+  it('income: both perSec and trend present', () => {
+    const lines = goalPanel({ timestamp: NOW, mProgress: {}, income: { perSec: 5_090_000, trend: 'UP', windowMs: 600_000 } }, NOW);
+    expect(lines).toContain('income $5.09m/s UP (10m)');
+  });
+
+  it('next: none when nextAug is null', () => {
+    const lines = goalPanel({ timestamp: NOW, mProgress: {}, income: {}, nextAug: null }, NOW);
+    expect(lines).toContain('next: none');
+  });
+
+  it('next: aug + price, no waiting segment outside awaiting-money', () => {
+    const lines = goalPanel(
+      { timestamp: NOW, mProgress: {}, income: {}, nextAug: { aug: 'Cranial Signal Processors V', price: 15_400_000_000, phase: 'grinding' } },
+      NOW
+    );
+    expect(lines).toContain('next: Cranial Signal Processors V $15.40b');
+    expect(lines.some((l) => l.includes('waiting'))).toBe(false);
+  });
+
+  it('next: waiting segment shown only when awaiting-money with a waitingMs stamp', () => {
+    const lines = goalPanel(
+      {
+        timestamp: NOW,
+        mProgress: {},
+        income: {},
+        nextAug: { aug: 'The Red Pill', price: 0, phase: 'awaiting-money', awaitingSince: NOW - 12 * 60_000, waitingMs: 12 * 60_000 },
+      },
+      NOW
+    );
+    expect(lines).toContain('next: The Red Pill $0.0 | waiting 12m');
+  });
+
+  it('elapsed formatting: under an hour is "Nm", an hour or more is "Xh Ym"', () => {
+    const under = goalPanel({ timestamp: NOW, mProgress: {}, income: {}, nextAug: { aug: 'x', price: 1, phase: 'awaiting-money', waitingMs: 45 * 60_000 } }, NOW);
+    expect(under.some((l) => l.endsWith('waiting 45m'))).toBe(true);
+    const over = goalPanel({ timestamp: NOW, mProgress: {}, income: {}, nextAug: { aug: 'x', price: 1, phase: 'awaiting-money', waitingMs: 135 * 60_000 } }, NOW);
+    expect(over.some((l) => l.endsWith('waiting 2h 15m'))).toBe(true);
+  });
+});
+
 // --- renderAll ---------------------------------------------------------------
 
 describe('renderAll', () => {
-  const allMissing = { daemon: null, targets: null, finance: null, xp: null, cloud: null, transactions: null, augfarmer: null };
+  const allMissing = { daemon: null, targets: null, finance: null, xp: null, cloud: null, transactions: null, augfarmer: null, goal: null };
+
+  it('GOAL renders as the first panel (lines[0] is the dashboard header)', () => {
+    const lines = renderAll(allMissing, NOW);
+    expect(lines[1]).toContain('-- GOAL (BN2.1) --');
+  });
 
   it('every line is within COLUMN_BUDGET on an all-missing render', () => {
     const lines = renderAll(allMissing, NOW);
@@ -599,8 +664,27 @@ describe('renderAll', () => {
     };
     const worstGangTrend = { spanMs: 3_600_000, rateDelta: -999.999 };
 
+    // GOAL at its widest: every optional segment present (trend + waiting).
+    const worstGoal = {
+      timestamp: NOW,
+      mProgress: { value: 16.699, target: 16.7, targetLabel: 'core', pct: 99 },
+      income: { perSec: 9.99e12, trend: 'DOWN', windowMs: 600_000 },
+      nextAug: { aug: 'Cranial Signal Processors V', price: 9.99e12, phase: 'awaiting-money', awaitingSince: NOW - 599 * 60_000, waitingMs: 599 * 60_000 },
+    };
+
     const lines = renderAll(
-      { daemon: worstDaemon, targets: worstTargets, finance: worstFinance, xp: worstXp, cloud: worstCloud, transactions: worstTransactions, augfarmer: worstAug, gangState: worstGangState, gangTrend: worstGangTrend },
+      {
+        daemon: worstDaemon,
+        targets: worstTargets,
+        finance: worstFinance,
+        xp: worstXp,
+        cloud: worstCloud,
+        transactions: worstTransactions,
+        augfarmer: worstAug,
+        gangState: worstGangState,
+        gangTrend: worstGangTrend,
+        goal: worstGoal,
+      },
       NOW
     );
 

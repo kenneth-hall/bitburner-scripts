@@ -33,8 +33,9 @@ const VALID_EXPENSE_SOURCES = new Set([
   'auto-formulas', // procureformulas.js -- pre-existing bug (missing from this whitelist), folded into Phase 23's ship gate
   'auto-donation', // augfarmer.js (Phase 25, S6) -- the generalized donation route
   'home-cores-upgrade', // installer.js (Phase 25, S10) -- mirrors home-ram-upgrade's shape
+  'gang-equip', // gangmanager.js (Phase 27) -- pre-existing bug (missing from this whitelist since that phase), found alongside the Phase 32 income-source edit
 ]);
-const VALID_INCOME_SOURCES = new Set(['hacking']);
+const VALID_INCOME_SOURCES = new Set(['hacking', 'gang']); // Phase 32 -- gang income ledger completed
 
 let files; // [{ name, entries }]
 
@@ -72,7 +73,7 @@ describe('log format', () => {
           expect(VALID_INCOME_SOURCES.has(r.source), `${f.name}: unknown income source ${r.source}`).toBe(true);
           expect(r).toMatchObject({
             type: 'income',
-            source: 'hacking',
+            source: expect.any(String), // whitelisted above -- 'hacking' or 'gang' (Phase 32)
             amount: expect.any(Number),
             firstTimestamp: expect.any(Number),
             lastTimestamp: expect.any(Number),

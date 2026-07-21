@@ -52,4 +52,25 @@ function shouldCoalesce(lastRecord, nowTimestamp) {
   return true;
 }
 
-export { transactionsFileName, recordTransaction, shouldCoalesce, INCOME_COALESCE_GAP_MS, INCOME_WINDOW_MAX_MS };
+/**
+ * Pure (Phase 32). Reverse-scans `entries` for the LAST income record whose
+ * `source` matches, returning its index iff `shouldCoalesce` passes against
+ * it at `nowTimestamp` -- else -1. Per-source rather than tail-only: with
+ * two writers landing in the same poll (gang + hacking), the literal last
+ * array entry alternates sources and a tail-only check would never
+ * coalesce anything. Folding into this record (rather than the tail) is
+ * safe against the verify checker's ordering assertion because income
+ * records are ordered by firstTimestamp, which a fold never touches (only
+ * amount/lastTimestamp/time change).
+ */
+function coalesceIndexForSource(entries, source, nowTimestamp) {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const record = entries[i];
+    if (record.type === "income" && record.source === source) {
+      return shouldCoalesce(record, nowTimestamp) ? i : -1;
+    }
+  }
+  return -1;
+}
+
+export { transactionsFileName, recordTransaction, shouldCoalesce, coalesceIndexForSource, INCOME_COALESCE_GAP_MS, INCOME_WINDOW_MAX_MS };
