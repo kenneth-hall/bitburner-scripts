@@ -363,6 +363,18 @@ export function gangPanel(state, trend, now) {
   const sinkPart = state.sinkMode ? " | SINK MODE" : "";
   lines.push(`asc-ready ${ascReady}/${members.length} (>=${GANG_ASCEND_MIN_FACTOR}x)${sinkPart}`);
 
+  const taskCounts = new Map();
+  for (const m of members) {
+    const t = m.task ?? "?";
+    taskCounts.set(t, (taskCounts.get(t) ?? 0) + 1);
+  }
+  if (taskCounts.size > 0) {
+    const taskEntries = [...taskCounts.entries()].sort((a, b) => b[1] - a[1]);
+    const { shown, moreCount } = capEntries(taskEntries, PANEL_ENTRY_CAP);
+    const taskPart = shown.map(([task, n]) => `${task} ${n}`).join(" | ");
+    lines.push(`tasks: ${taskPart}${moreCount > 0 ? ` (+${moreCount} distinct more)` : ""}`);
+  }
+
   return lines;
 }
 

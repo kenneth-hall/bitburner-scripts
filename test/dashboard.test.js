@@ -322,6 +322,39 @@ describe('gangPanel', () => {
     expect(lines.length).toBeGreaterThan(1);
     expect(lines.some((l) => l.includes('asc-ready 0/0'))).toBe(true);
   });
+
+  it('summarizes the member task split, most-populous first', () => {
+    const withTasks = {
+      ...state,
+      members: [
+        { task: 'Ransomware' }, { task: 'Ransomware' }, { task: 'Ransomware' },
+        { task: 'Ethical Hacking' }, { task: 'Ethical Hacking' },
+        { task: 'Money Laundering' },
+      ],
+    };
+    const lines = gangPanel(withTasks, null, NOW);
+    expect(lines.some((l) => l === 'tasks: Ransomware 3 | Ethical Hacking 2 | Money Laundering 1' || l.startsWith('tasks: Ransomware 3 | Ethical Hacking 2'))).toBe(true);
+  });
+
+  it('caps distinct task entries at PANEL_ENTRY_CAP with a "+N distinct more" suffix', () => {
+    const manyTasks = {
+      ...state,
+      members: [
+        { task: 'A' }, { task: 'A' },
+        { task: 'B' },
+        { task: 'C' },
+        { task: 'D' },
+      ],
+    };
+    const lines = gangPanel(manyTasks, null, NOW);
+    const taskLine = lines.find((l) => l.startsWith('tasks:'));
+    expect(taskLine).toBe('tasks: A 2 | B 1 | C 1 (+1 distinct more)');
+  });
+
+  it('omits the tasks line entirely when there are no members', () => {
+    const lines = gangPanel({ ...state, members: [] }, null, NOW);
+    expect(lines.some((l) => l.startsWith('tasks:'))).toBe(false);
+  });
 });
 
 // --- financePanel ----------------------------------------------------------
@@ -660,7 +693,19 @@ describe('renderAll', () => {
       wantedLevel: 99999,
       memberCount: 8,
       sinkMode: true,
-      members: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({ ascPreviewHack: 1.5 + i / 10 })),
+      // Task names deliberately long/varied so the new tasks: line stress-tests
+      // both COLUMN_BUDGET (long names) and the PANEL_ENTRY_CAP "+N distinct
+      // more" path (5 distinct tasks across 8 members).
+      members: [
+        { ascPreviewHack: 1.6, task: 'Human Trafficking' },
+        { ascPreviewHack: 1.7, task: 'Human Trafficking' },
+        { ascPreviewHack: 1.8, task: 'Money Laundering' },
+        { ascPreviewHack: 1.9, task: 'Vigilante Justice' },
+        { ascPreviewHack: 2.0, task: 'Territory Warfare' },
+        { ascPreviewHack: 2.1, task: 'Ethical Hacking' },
+        { ascPreviewHack: 2.2, task: 'Cyberterrorism' },
+        { ascPreviewHack: 2.3, task: 'Vigilante Justice' },
+      ],
     };
     const worstGangTrend = { spanMs: 3_600_000, rateDelta: -999.999 };
 
