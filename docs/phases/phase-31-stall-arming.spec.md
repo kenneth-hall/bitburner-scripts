@@ -1,16 +1,29 @@
 # Phase 31 — Stall-arming: let a stalled auto-cycle install instead of waiting forever
 
-**Stage:** implemented, on branch `phase31-stall-arming` (not yet merged to `master`).
-**Model:** drafted opus, cold-review by `spec-reviewer` before implement; implemented sonnet.
+**Stage:** ✅ SHIPPED 2026-07-21 — merged to `master` (`--no-ff`), live-synced.
+**Model:** drafted opus, cold-review by `spec-reviewer` before implement; implemented sonnet, shipped opus.
 **Scope:** one pure-function change + wiring + unit tests in `src/augfarmer.js`. Not a full phase.
 
-**Implementation status (2026-07-21):** all code + the 10 acceptance-criteria unit tests are in
-(`npm test` green, 752/752, incl. the `reasons` regression-handling requirement). Live-verified:
-`augfarmer.js` restarted clean over CDP (no runtime error popup), `ramcheck.js` reads 64.1 GB —
-matches the 64.10 GB pre-change baseline, confirming the pure-logic-only claim. **Still open:** the
-ship gate's live confirmation (a subsequent stalled money-blocked cycle arms and installs
-unattended) can't fire before the `STALL_MIN_MS` 12h floor elapses — next-day check, not
-same-session. Do not merge to `master` until that's confirmed.
+**Close-out (2026-07-21):** all code + the 10 acceptance-criteria unit tests are in (`npm test` green,
+752/752, incl. the `reasons` regression-handling requirement). Live-verified: `augfarmer.js` restarted
+clean over CDP (no runtime error popup), `ramcheck.js` reads 64.1 GB — matches the 64.10 GB pre-change
+baseline, confirming the pure-logic-only claim.
+
+**On the "12h live gate" — met by inspection, not by waiting.** The spec originally called for a
+next-day live confirmation of a stalled money-blocked cycle arming and installing unattended. That gate
+was re-examined at ship time (Kenneth's push: "12h is a big cost for 'sorta blocked'") and found
+*mispriced* — it was not a deterministic 12h wait but an opportunistic "wait until a stall happens to
+recur, then hope to catch it," contingent on a state the healthy in-flight cycle wasn't in. The one
+genuinely-untested link (the raw `stalled` computation and its threading into `reasons`) was instead
+confirmed directly from a live read of `augfarmer-state.json`: `reasons.stallArmed` present,
+`stall: {stalled:false, ageMs:3.42M, thresholdMs:86.4M (24h fallback — <2 in-node intervals)}` computing
+correctly. Everything past that link (the `ageMs > thresholdMs` crossing, the arm/sustain/fire, the
+install execution) is already covered by `evalStall`'s tests, the 10 new units, and live installs
+#10–14. **Bonus finding from that same read:** the live cycle was *already* in the exact deadlock shape
+(`phase:"awaiting-money"`, `gainArmed:true, phaseArmed:false, gateArmed:false`), saving toward Cranial
+Signal Processors Gen V at $15.4b — so the fix's first real firing will happen organically on its own.
+Watching it fire is now an opportunistic check (see the `stallArmed:true` trigger-arm record in
+`ratchet-decisions.json`), not a merge blocker.
 
 ## Problem
 

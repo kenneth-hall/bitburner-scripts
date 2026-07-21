@@ -8,6 +8,17 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-21
 
+- **Phase 31 (stall-arming) shipped — the money-blocked auto-install deadlock is fixed.** Adds a
+  fourth install-trigger arming reason, `stallArmed`: the symmetric counterpart to the rep-side grind
+  horizon, so a cycle stuck in `awaiting-money` past the adaptive stall threshold (12–48h, 24h
+  fallback) now installs on its own instead of waiting forever (observed live: a 71.4h stall broken
+  only by a manual `installer.js`). Arms on either the queued mult-gain gate or a new
+  `STALL_QUEUE_FLOOR`=5 purchase-count floor (covers pure-padding queues), gated off during a
+  productive grind. Pure-logic change — RAM unchanged at 64.1 GB; `npm test` 752/752 (10 new units +
+  `reasons` regression handling). The spec's "next-day live gate" was re-priced at ship and met by
+  inspection of `augfarmer-state.json` (the only untested link — the live `stalled` computation and
+  its threading into `reasons` — confirmed directly) rather than by a passive 24h wait.
+  → [phase-31-stall-arming.spec.md](phase-31-stall-arming.spec.md)
 - **Phase 29 observation window closed early (day 1 of 7); `gangmanager.js` unfrozen.** Goal
   metric `respectGainRate ≥ 1.27/tick` was overshot ~425× (live 539.6) with 19h of clean
   autonomous soak, so the window was retired by decision rather than run to ~2026-07-27. Phase 29
