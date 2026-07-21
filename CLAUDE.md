@@ -205,14 +205,16 @@ Corollary: **documented RAM cost tells you nothing about preconditions.** `getTa
 `getEquipmentNames` are 0 GB and still throw without a gang. Verify availability empirically with
 a read-only probe before assuming a call is usable.
 
-**Building a read-only probe to collect data is pre-authorized — don't ask, just build it.** If the
-next useful step is "write a throwaway script to read game state and get the actual numbers," the
+**Building a read-only probe or check to collect data is pre-authorized — don't ask, just build it.**
+This covers both a throwaway probe you write *and* running an existing check script (`augcheck.js`,
+`auginfo.js`, `ramcheck.js`, and the like). If the next useful step is "write a throwaway script to
+read game state and get the actual numbers," or "run the check script that already reads them," the
 answer is always yes. Go down that side path *before* finishing the prompt response — a measured
 number beats a hedged answer, and probing is exactly how the "read the interface first" rule gets
 enforced. **Fence: ≤10 min of work**, and **read-only only** — touches nothing in the Gang API's
-action group (or any other mutating/irreversible call). A probe that would *change* game state,
-even reversibly (a temporary task reassignment, a test purchase), is not covered here and still
-gets flagged first. Log the output to a file per the one-off-scripts convention; don't make Kenneth
+action group (or any other mutating/irreversible call). A probe or check that would *change* game
+state, even reversibly (a temporary task reassignment, a test purchase), is not covered here and
+still gets flagged first. Log the output to a file per the one-off-scripts convention; don't make Kenneth
 paste results back.
 
 ## Development workflow
@@ -347,6 +349,12 @@ front-end**, distinct from the RFA file bridge (which only moves files) — see
   crash. If a script doesn't produce its expected output (no log file, missing tprint lines), check
   the game for an error popup (`shot` / `aria`, or ask Kenneth) before assuming it worked or
   re-running blindly.
+- **`cat <file>.txt` opens a blocking modal viewer, not terminal text** — so a `read-terminal`
+  after a `cat` shows the file content *nowhere* (it renders in a popup the terminal capture can't
+  see) and, worse, the modal blocks subsequent clicks/commands until dismissed (`cli.mjs dismiss`).
+  Don't `cat` a file to verify its contents over CDP — it looks empty and wedges the UI. To read a
+  synced file, read the repo copy (or its `dist/` mirror) directly; to confirm what actually
+  reached the game, have a script `ns.read` it and `tprint`, or take a `shot`.
 
 ### Story popups — Claude clears them, no permission needed
 
