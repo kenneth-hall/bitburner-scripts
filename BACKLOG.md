@@ -144,6 +144,15 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
+- **Phase 31 (stall-arming) — implemented, awaiting its 12h live-validation gate before merge.**
+  Code + all 10 acceptance-criteria tests are in on branch `phase31-stall-arming` (`npm test`
+  752/752, RAM confirmed unchanged at 64.1 GB live). Not merged to `master` yet — the spec's ship
+  gate requires a live confirmation that a stalled money-blocked cycle actually auto-arms and
+  installs, which can't fire before `STALL_MIN_MS` (12h) elapses from the last install. **Trigger
+  to revisit:** 12h+ after the last install (check `ratchet-log.json`'s latest `installTime`), then
+  look for a `trigger-arm` record with `reasons.stallArmed:true` in `ratchet-decisions.json`
+  followed by an actual install. If it fires clean, merge the branch and graduate the spec doc to
+  `docs/phases/`. Full detail: `phase-31-stall-arming.spec.md`.
 - **Gang manager Tier 4 (territory warfare) — ❌ DEFERRED PERMANENTLY 2026-07-21.** Tiers 1-3
   (recruit + task-assign, equipment, ascension) shipped: Tier 1 as `src/gangmanager.js` 2026-07-20
   (`docs/phases/phase-27-gang.closeout.md`), Tiers 2+3 as Phase 29
