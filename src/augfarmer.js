@@ -156,6 +156,13 @@ export const STALL_MAX_MS = 48 * 3600_000;
 export const STALL_FALLBACK_MS = 24 * 3600_000;
 export const STALL_REWARN_MS = 6 * 3600_000;
 
+// Phase 31. Stall-arming's queue-floor sub-condition: arm a stalled cycle once
+// >=5 purchases are queued even if their mult gain is under MIN_TOTAL_GAIN --
+// see phase-31-stall-arming.spec.md's "New constant (provisional)" for why 5
+// (roughly 47x escalation at the measured 2.166 ladder) and why a plain
+// integer rather than an escalation-power formula.
+export const STALL_QUEUE_FLOOR = 5;
+
 // Kept for the fixture helper in test/augfarmer.test.js (statsAllOnes) --
 // scoreAug itself only reads hacking/hacking_exp/faction_rep.
 export const MULT_FILTER_KEYS = [
@@ -839,10 +846,28 @@ export function updateRepRates(prevRates, prevReps, reps, dtMs) {
  * never sees the catalog. `gateArmed := gateRelease?.closedByQueue &&
  * queuedCount >= 1 && !paused`, deliberately NOT gated on `endgameHold` (the
  * whole point of the exception), MIN_TOTAL_GAIN, or the phase label -- an
- * install this narrow is justified by the unlock itself. `armed := (gainArmed
- * && phaseArmed) || gateArmed`; everything downstream (sustain, the auto-mode
- * latch, the abort levers) is unchanged and applies to a gate-armed state
- * exactly as it does to a gain-armed one.
+ * install this narrow is justified by the unlock itself.
+ *
+ * Phase 31: the fourth arming reason, `stallArmed`, is the money-blocked
+ * symmetric counterpart to the rep-side horizon above -- rep-blocked-too-long
+ * already installs (the horizon), but money-blocked-too-long previously
+ * waited forever. `stalled` is a raw boolean the caller derives the same way
+ * evalStall does (age since lastAugReset vs computeStallThreshold) and passes
+ * in; this function never reads wall-clock state itself. `stallArmed :=
+ * stalled && queuedCount >= 1 && !paused && !endgameHold && phase !==
+ * "grinding" && (gainArmed || queuedCount >= STALL_QUEUE_FLOOR)` -- the
+ * `grinding` exclusion protects a sub-8h-horizon grind that is about to
+ * finish from being clobbered by a stale stall reading (that case is already
+ * correctly handled by the horizon `phaseArmed` path above), and the
+ * queue-floor sub-condition covers a stalled padding queue whose gain never
+ * clears MIN_TOTAL_GAIN (all-hacking-1.0 count-gate augs) but whose price
+ * ladder has still escalated. See phase-31-stall-arming.spec.md for the full
+ * rationale.
+ *
+ * `armed := (gainArmed && phaseArmed) || gateArmed || stallArmed`; everything
+ * downstream (sustain, the auto-mode latch, the abort levers) is unchanged
+ * and applies to a stall-armed (or gate-armed) state exactly as it does to a
+ * gain-armed one.
  */
 export function evalTrigger(inputs, priorState) {
   const {
@@ -862,6 +887,7 @@ export function evalTrigger(inputs, priorState) {
     endgameHold = false,
     mode = "observe",
     gateRelease = null,
+    stalled = false,
     now,
   } = inputs;
 
@@ -963,7 +989,19 @@ export function evalTrigger(inputs, priorState) {
   // gate can never arm this way.
   const gateArmed = !!(gateRelease?.closedByQueue && queuedCount >= 1 && !paused);
 
-  const armed = (gainArmed && phaseArmed) || gateArmed;
+  // Phase 31: the fourth arming reason -- see this function's header for the
+  // full rationale. Phase-blind except for the deliberate `grinding`
+  // exclusion (never override a productive grind; the horizon above already
+  // handles a grind that has genuinely run out of runway).
+  const stallArmed =
+    stalled &&
+    queuedCount >= 1 &&
+    !paused &&
+    !endgameHold &&
+    phase !== "grinding" &&
+    (gainArmed || queuedCount >= STALL_QUEUE_FLOOR);
+
+  const armed = (gainArmed && phaseArmed) || gateArmed || stallArmed;
   const wasArmedSince = priorState?.armed ? priorState.armedSinceMs : null;
   const armedSinceMs = armed ? (wasArmedSince ?? now) : null;
   const sustainedMs = armed ? now - armedSinceMs : 0;
@@ -981,7 +1019,7 @@ export function evalTrigger(inputs, priorState) {
     nfgBoundBy,
     horizonMs,
     gateRelease,
-    reasons: { gainArmed, phaseArmed, gateArmed },
+    reasons: { gainArmed, phaseArmed, gateArmed, stallArmed },
   };
 }
 
@@ -1920,6 +1958,18 @@ export async function main(ns) {
     // including queued.
     const gateRelease = computeGateRelease(catalog, playerFacts, ownedSet.size, joined, FACTION_SCOPE_SET);
 
+    // Phase 31: hoisted above evalTrigger so `stalled` can feed stallArmed.
+    // Recomputed raw here from lastAugReset/cycleIntervalsMs -- NOT reused
+    // from evalStall's output below, which gates off (reports stalled:false)
+    // during installSeqActive/paused/observe-mode and is computed later in
+    // this same pass. cycleIntervalsMs itself is unaffected by the hoist
+    // (recentCycleIntervals only reads ratchetLogRecords/resetInfo, both
+    // already available here) -- evalStall below reuses this same value, no
+    // double read.
+    const ratchetLogRecords = readJSON(ns, RATCHET_LOG_FILE) ?? [];
+    const cycleIntervalsMs = recentCycleIntervals(ratchetLogRecords, resetInfo.lastNodeReset ?? 0);
+    const stalled = nowMs - lastAugReset > computeStallThreshold(cycleIntervalsMs);
+
     const triggerInputs = {
       queuedGain,
       queuedCount: queuedNames.length,
@@ -1937,6 +1987,7 @@ export async function main(ns) {
       endgameHold,
       mode,
       gateRelease,
+      stalled,
       now: nowMs,
     };
     const prevTrigger = triggerState;
@@ -2017,11 +2068,8 @@ export async function main(ns) {
 
     // Phase 26 B2 (S4). Progress-watch, evaluated after installSeq is current
     // for this pass so a running spend-down/install correctly gates it off.
-    // Cycle intervals: the last <=5 install-to-install deltas from
-    // ratchet-log.json, bounded to the CURRENT node (lastNodeReset) so a
-    // previous node's cadence can't leak into this node's thin sample.
-    const ratchetLogRecords = readJSON(ns, RATCHET_LOG_FILE) ?? [];
-    const cycleIntervalsMs = recentCycleIntervals(ratchetLogRecords, resetInfo.lastNodeReset ?? 0);
+    // ratchetLogRecords/cycleIntervalsMs are computed once, above, before
+    // evalTrigger (Phase 31 hoist) -- reused here, no double read.
     const priorStall = stallState;
     stallState = evalStall(
       { nowMs, lastAugReset, mode, installSeqActive: installSeq !== null, paused, cycleIntervalsMs },

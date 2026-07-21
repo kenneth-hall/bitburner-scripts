@@ -57,6 +57,7 @@ import {
   computeStallThreshold,
   recentCycleIntervals,
   evalStall,
+  STALL_QUEUE_FLOOR,
 } from '../src/augfarmer.js';
 
 function statsAllOnes(overrides = {}) {
@@ -1048,7 +1049,11 @@ describe('evalTrigger', () => {
   });
 
   it('arms at idle-plateau once the gain floor is cleared', () => {
-    expect(evalTrigger(baseInputs(), null).armed).toBe(true);
+    const t = evalTrigger(baseInputs(), null);
+    expect(t.armed).toBe(true);
+    // Phase 31: not stalled (default) -- pins this as a gainArmed/phaseArmed
+    // arm, not accidentally masked by stallArmed.
+    expect(t.reasons.stallArmed).toBe(false);
   });
 
   it('queuedCount 0 blocks arming even with a huge projected gain', () => {
@@ -1087,7 +1092,10 @@ describe('evalTrigger', () => {
     expect(evalTrigger(shortHorizon, null).armed).toBe(false);
 
     const longHorizon = baseInputs({ phase: 'grinding', targetFaction: 'F1', deficit: GRIND_HORIZON_MS * 2, repRates: { F1: 1 }, rateSamples: { F1: 40 } });
-    expect(evalTrigger(longHorizon, null).armed).toBe(true);
+    const t = evalTrigger(longHorizon, null);
+    expect(t.armed).toBe(true);
+    // Phase 31: rep-horizon arm, not stallArmed (which excludes phase "grinding" anyway).
+    expect(t.reasons.stallArmed).toBe(false);
   });
 
   describe('gap 7 -- grinding with nothing owed rep is a plateau, and must arm', () => {
@@ -1101,7 +1109,7 @@ describe('evalTrigger', () => {
 
     it('arms when pickHorizonGrind found no faction still owed rep', () => {
       const t = evalTrigger(baseInputs(noOwedGrind), null);
-      expect(t.reasons).toEqual({ gainArmed: true, phaseArmed: true, gateArmed: false });
+      expect(t.reasons).toEqual({ gainArmed: true, phaseArmed: true, gateArmed: false, stallArmed: false });
       expect(t.armed).toBe(true);
       expect(t.horizonMs).toBeNull();
     });
@@ -1249,6 +1257,9 @@ describe('evalTrigger', () => {
       expect(t.reasons.gateArmed).toBe(true);
       expect(t.armed).toBe(true);
       expect(t.gateRelease).toEqual(closedTrue);
+      // Phase 31: pins this as a gateArmed arm, not masked by stallArmed
+      // (which is structurally false here anyway -- endgameHold excludes it).
+      expect(t.reasons.stallArmed).toBe(false);
     });
 
     it('does NOT arm when a gate exists but the queue does not close it (the A2-runaway-analog guard)', () => {
@@ -1324,6 +1335,118 @@ describe('evalTrigger', () => {
       const t = evalTrigger(baseInputs(), null);
       expect(t.nfgBoundBy).toBe('none');
       expect(t.nfgLevelsProjected).toBe(0);
+    });
+  });
+
+  describe('Phase 31 — stall-arming (the money-blocked-deadlock fix)', () => {
+    // Models the live 71h deadlock's gain branch: money-blocked, gain-side
+    // queue already clears MIN_TOTAL_GAIN, but queuedCount is below the floor
+    // -- gainArmed alone is what should arm stallArmed here.
+    const moneyBlockedGainCase = { phase: 'awaiting-money', queuedGain: 1.18, queuedCount: 3, stalled: true };
+    // A padding queue whose gain never clears MIN_TOTAL_GAIN (all hacking
+    // 1.0 count-gate augs) but has queued enough purchases to have escalated
+    // the price ladder -- the queue-floor sub-condition's reason to exist.
+    const paddingQueueCase = { phase: 'idle-plateau', queuedGain: 1.0, queuedCount: STALL_QUEUE_FLOOR, stalled: true };
+
+    it('1. stalled + gain, money-blocked -> arms via the gain sub-condition', () => {
+      const t = evalTrigger(baseInputs(moneyBlockedGainCase), null);
+      expect(t.totalGain).toBeGreaterThanOrEqual(MIN_TOTAL_GAIN);
+      expect(t.armed).toBe(true);
+      expect(t.reasons.stallArmed).toBe(true);
+      // Confirms this is the NEW hatch, not the pre-existing ones.
+      expect(t.reasons.phaseArmed).toBe(false);
+      expect(t.reasons.gateArmed).toBe(false);
+    });
+
+    it('2. stalled + padding queue, plateaued, queuedCount at the floor -> arms via the queue-floor sub-condition', () => {
+      const t = evalTrigger(baseInputs(paddingQueueCase), null);
+      expect(t.totalGain).toBeLessThan(MIN_TOTAL_GAIN);
+      expect(t.reasons.gainArmed).toBe(false);
+      expect(t.armed).toBe(true);
+      expect(t.reasons.stallArmed).toBe(true);
+    });
+
+    it('3. stalled + tiny queue, below the floor and below the gain gate -> keeps waiting', () => {
+      const t = evalTrigger(baseInputs({ phase: 'idle-plateau', queuedGain: 1.0, queuedCount: 2, stalled: true }), null);
+      expect(t.armed).toBe(false);
+      expect(t.reasons.stallArmed).toBe(false);
+    });
+
+    it('4. boundary: queuedCount exactly STALL_QUEUE_FLOOR arms (pins the >= boundary against regressing to >)', () => {
+      const atFloor = evalTrigger(baseInputs({ phase: 'idle-plateau', queuedGain: 1.0, queuedCount: STALL_QUEUE_FLOOR, stalled: true }), null);
+      expect(atFloor.armed).toBe(true);
+      expect(atFloor.reasons.stallArmed).toBe(true);
+      const belowFloor = evalTrigger(baseInputs({ phase: 'idle-plateau', queuedGain: 1.0, queuedCount: STALL_QUEUE_FLOOR - 1, stalled: true }), null);
+      expect(belowFloor.armed).toBe(false);
+      expect(belowFloor.reasons.stallArmed).toBe(false);
+    });
+
+    it("5. stalled + productive grind (fable's blocker) -- stallArmed never overrides a sub-horizon grind", () => {
+      // Same shortHorizon shape as the pre-existing horizon-fire test: gainArmed
+      // true, phaseArmed false (horizon under GRIND_HORIZON_MS). Without the
+      // `phase !== "grinding"` gate this would wrongly install mid-grind.
+      const t = evalTrigger(
+        baseInputs({ phase: 'grinding', targetFaction: 'F1', deficit: 1000, repRates: { F1: 1 }, rateSamples: { F1: 40 }, stalled: true }),
+        null,
+      );
+      expect(t.reasons.gainArmed).toBe(true);
+      expect(t.reasons.phaseArmed).toBe(false);
+      expect(t.armed).toBe(false);
+      expect(t.reasons.stallArmed).toBe(false);
+    });
+
+    it('6. grinding, long horizon (regression) -- arms via the pre-existing phaseArmed path, not stallArmed', () => {
+      const t = evalTrigger(
+        baseInputs({ phase: 'grinding', targetFaction: 'F1', deficit: GRIND_HORIZON_MS * 2, repRates: { F1: 1 }, rateSamples: { F1: 40 }, stalled: true }),
+        null,
+      );
+      expect(t.armed).toBe(true);
+      expect(t.reasons.phaseArmed).toBe(true);
+      expect(t.reasons.stallArmed).toBe(false);
+    });
+
+    it('7. not stalled -- no regression for the non-stalled money-blocked case', () => {
+      const t = evalTrigger(baseInputs({ ...moneyBlockedGainCase, stalled: false }), null);
+      expect(t.armed).toBe(false);
+      expect(t.reasons.stallArmed).toBe(false);
+    });
+
+    it('8. paused / endgameHold honor their guards even against an otherwise-arming stalled state', () => {
+      const paused = evalTrigger(baseInputs({ ...paddingQueueCase, paused: true }), null);
+      expect(paused.armed).toBe(false);
+      expect(paused.reasons.stallArmed).toBe(false);
+
+      const endgameHeld = evalTrigger(baseInputs({ ...moneyBlockedGainCase, endgameHold: true }), null);
+      expect(endgameHeld.armed).toBe(false);
+      expect(endgameHeld.reasons.stallArmed).toBe(false);
+    });
+
+    it('9. default -- stalled omitted from inputs behaves as stalled:false (explicit-default check)', () => {
+      const { stalled, ...withoutStalled } = moneyBlockedGainCase;
+      const t = evalTrigger(baseInputs(withoutStalled), null);
+      expect(t.armed).toBe(false);
+      expect(t.reasons.stallArmed).toBe(false);
+    });
+
+    it('10. sustain + latch -- parity with gateArmed\'s existing coverage', () => {
+      const t0 = evalTrigger(baseInputs({ ...paddingQueueCase, now: 0 }), null);
+      expect(t0.armed).toBe(true);
+      expect(t0.fired).toBe(false);
+      const t1 = evalTrigger(baseInputs({ ...paddingQueueCase, now: TRIGGER_SUSTAIN_MS }), t0);
+      expect(t1.fired).toBe(true);
+      expect(t1.reasons.stallArmed).toBe(true);
+
+      // Auto-mode latch: once fired, inputs that would no longer arm (queue
+      // spent down, no longer stalled) stay fired/latched.
+      const t0Auto = evalTrigger(baseInputs({ ...paddingQueueCase, now: 0, mode: 'auto' }), null);
+      const t1Auto = evalTrigger(baseInputs({ ...paddingQueueCase, now: TRIGGER_SUSTAIN_MS, mode: 'auto' }), t0Auto);
+      expect(t1Auto.fired).toBe(true);
+      const duringSpendDown = evalTrigger(
+        baseInputs({ now: TRIGGER_SUSTAIN_MS + 60_000, mode: 'auto', phase: 'spend-down', queuedGain: 1, queuedCount: 0, stalled: false }),
+        t1Auto,
+      );
+      expect(duringSpendDown.fired).toBe(true);
+      expect(duringSpendDown.latched).toBe(true);
     });
   });
 });
