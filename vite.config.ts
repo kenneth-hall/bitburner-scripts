@@ -87,6 +87,7 @@ export default defineConfig({
         if (/^ascendrecon-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 29 -- ascension preview + the rep-tracks-rate probe, one file per run
         if (/^bn2probe-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 29 -- player mults / faction rep / owned-aug recon, one file per run
         if (/^gangtaskcompare-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 29 -- hacking-vs-combat gang task yield comparison, one file per run
+        if (/^worldprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/worldprobe.js -- w0r1d_d43m0n gate probe, one file per run; Phase 33's WD-gate checkpoint (was never wired in before -- see that script's header)
         if (file === 'gang-state.json') return 'logs/gang-state.json'; // Phase 27 Tier 1 -- gangmanager.js overwrite-in-place snapshot + restart-persistence source
         if (file === 'gang-log.json') return 'logs/gang-log.json'; // Phase 27 Tier 1 -- gangmanager.js ring-capped event log (recruit/promote/demote/sink/startup/off-marker)
         if (file === 'gang-rate-log.json') return 'logs/gang-rate-log.json'; // Phase 30 survivor -- gangratelog.js durable respect-rate/ascension-mult series (ring-capped, 5min samples)

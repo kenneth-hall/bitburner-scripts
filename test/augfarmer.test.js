@@ -22,6 +22,12 @@ import {
   SPEND_DOWN_BUY_CAP,
   NFG_PRICE_LADDER,
   NFG_REP_LADDER,
+  AUG_PRICE_LADDER,
+  FUNDING_HORIZON_MS,
+  FUND_CAP_FALLBACK,
+  GOAL_STALE_MS,
+  MUSTBUY_HOLD_MAX_MS,
+  MUSTBUY_HOLD_CAP_FALLBACK,
   nfgLevelsByRep,
   scoreAug,
   filterAugs,
@@ -34,6 +40,7 @@ import {
   evaluateInviteReqs,
   pickWorkType,
   slotAvailable,
+  computeFundCap,
   pickTarget,
   pickWorkFaction,
   pickHorizonGrind,
@@ -43,6 +50,7 @@ import {
   updateRepRates,
   evalTrigger,
   spendDownPlan,
+  mustBuyTotal,
   daedalusInviteReserve,
   daedalusDonationReserve,
   shouldDonateToDaedalus,
@@ -444,7 +452,10 @@ describe('pickTarget', () => {
     expect(target.aug).toBe('HighScore');
   });
 
-  it('among rep-met candidates with equal score, cheaper price sorts first', () => {
+  // Phase 33 decision 1: tier 0 sorts price-DESC (escalation-optimal), not
+  // price-ASC -- the buy-order fix this spec exists for. Score is only a
+  // tie-break within equal price now.
+  it('among rep-met candidates with equal score, PRICIER sorts first (phase-33-money-throughput.spec.md decision 1)', () => {
     const catalog = {
       augs: {
         AugCheap: augFx({ sellers: ['F1'], repReq: 0, price: 500 }),
@@ -453,7 +464,7 @@ describe('pickTarget', () => {
       factions: { F1: faction() },
     };
     const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), false);
-    expect(target.aug).toBe('AugCheap');
+    expect(target.aug).toBe('AugPricey');
   });
 
   it('unmet candidates sort by score/deficit descending', () => {
@@ -612,6 +623,87 @@ describe('pickTarget', () => {
     };
     const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), false);
     expect(target.candidates.map((c) => c.aug)).toEqual(['A', 'B']);
+  });
+});
+
+// Phase 33 (phase-33-money-throughput.spec.md decisions 1/3): the tiered
+// rep-met sort + fundCap. Its own fixtures, mirroring the `pickTarget'
+// describe block above (self-contained per this file's convention).
+describe('pickTarget — Phase 33 fundCap + tiers', () => {
+  function augFx(overrides = {}) {
+    return { prereqs: [], sellers: [], repReq: 0, price: 0, passesFilter: true, isNFG: false, score: 1, ...overrides };
+  }
+  function faction(overrides = {}) {
+    return { enemies: [], inviteReqs: [], workTypes: ['hacking'], ...overrides };
+  }
+  function facts(overrides = {}) {
+    return { city: 'Sector-12', money: 0, skills: {}, karma: 0, jobs: new Set(), invites: new Set(), factionRep: {}, ...overrides };
+  }
+
+  it('tier ordering: buyable discretes, then NFG, then fundBlocked discretes, then buyBlocked NFG', () => {
+    const catalog = {
+      augs: {
+        Cheap: augFx({ sellers: ['F1'], repReq: 0, price: 100 }),
+        Costly: augFx({ sellers: ['F1'], repReq: 0, price: 100_000 }), // fundBlocked (over cap)
+        [NFG_NAME]: augFx({ sellers: ['F1'], repReq: 0, isNFG: true, price: 5000 }),
+      },
+      factions: { F1: faction() },
+    };
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), true, 1000);
+    // nfgCapped=true -> NFG is buyBlocked (tier 3); Costly's price (100,000)
+    // exceeds fundCap (1000) -> fundBlocked (tier 2); Cheap is tier 0.
+    expect(target.candidates.map((c) => c.aug)).toEqual(['Cheap', 'Costly', NFG_NAME]);
+  });
+
+  it('an unblocked NFG (tier 1) sorts between buyable discretes (tier 0) and fundBlocked discretes (tier 2)', () => {
+    const catalog = {
+      augs: {
+        Cheap: augFx({ sellers: ['F1'], repReq: 0, price: 100 }),
+        Costly: augFx({ sellers: ['F1'], repReq: 0, price: 100_000 }), // fundBlocked
+        [NFG_NAME]: augFx({ sellers: ['F1'], repReq: 0, isNFG: true, price: 5000 }),
+      },
+      factions: { F1: faction() },
+    };
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), false, 1000);
+    expect(target.candidates.map((c) => c.aug)).toEqual(['Cheap', NFG_NAME, 'Costly']);
+  });
+
+  it('a $0 utility-style aug sorts LAST among tier-0 buyable discretes (price-DESC)', () => {
+    const catalog = {
+      augs: {
+        Utility: augFx({ sellers: ['F1'], repReq: 0, price: 0, score: 0.25 }),
+        Expensive: augFx({ sellers: ['F1'], repReq: 0, price: 1_000_000, score: 2 }),
+      },
+      factions: { F1: faction() },
+    };
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), false);
+    expect(target.candidates.map((c) => c.aug)).toEqual(['Expensive', 'Utility']);
+  });
+
+  it('fundCap boundary: price === fundCap is still fundable (strict > only)', () => {
+    const catalog = { augs: { AtCap: augFx({ sellers: ['F1'], repReq: 0, price: 1000 }) }, factions: { F1: faction() } };
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), false, 1000);
+    expect(target.fundBlocked).toBe(false);
+  });
+
+  it('a deficit>0 candidate is never marked fundBlocked, however low the cap', () => {
+    const catalog = { augs: { Unmet: augFx({ sellers: ['F1'], repReq: 5000, price: 1_000_000 }) }, factions: { F1: faction() } };
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), false, 1);
+    expect(target.fundBlocked).toBe(false);
+    expect(target.deficit).toBeGreaterThan(0);
+  });
+
+  it('default fundCap (Infinity, 5-arg call) preserves rep-met-before-deficit grouping and never fundBlocks', () => {
+    const catalog = {
+      augs: {
+        Met: augFx({ sellers: ['F1'], repReq: 0, price: 1_000_000_000 }),
+        Unmet: augFx({ sellers: ['F1'], repReq: 5000, price: 1 }),
+      },
+      factions: { F1: faction() },
+    };
+    const target = pickTarget(catalog, facts({ factionRep: { F1: 0 } }), new Set(['F1']), new Set(), false);
+    expect(target.aug).toBe('Met');
+    expect(target.fundBlocked).toBe(false);
   });
 });
 
@@ -1450,6 +1542,61 @@ describe('evalTrigger', () => {
       expect(duringSpendDown.latched).toBe(true);
     });
   });
+
+  describe('Phase 33 — must-buy hold (decision 6a)', () => {
+    it('holds: suppresses an otherwise-gainArmed idle-plateau while money < mustBuyCost <= mustBuyCap', () => {
+      const t = evalTrigger(baseInputs({ mustBuyCost: 1000, mustBuyCap: 5000, money: 0 }), null);
+      expect(t.mustBuyHold).toBe(true);
+      expect(t.armed).toBe(false);
+    });
+
+    it('holds: suppresses stallArmed the same way', () => {
+      // phase deliberately NOT "grinding" -- stallArmed's own exclusion (see
+      // evalTrigger's header) would otherwise make this test's premise false
+      // regardless of the must-buy hold.
+      const t = evalTrigger(
+        baseInputs({ phase: 'awaiting-money', queuedGain: 1, stalled: true, queuedCount: STALL_QUEUE_FLOOR, mustBuyCost: 1000, mustBuyCap: 5000, money: 0 }),
+        null,
+      );
+      expect(t.reasons.stallArmed).toBe(true); // the raw reason still fires...
+      expect(t.mustBuyHold).toBe(true);
+      expect(t.armed).toBe(false); // ...but the hold suppresses the overall arm
+    });
+
+    it('does NOT hold gateArmed — the one arming reason exempt by design', () => {
+      const t = evalTrigger(
+        baseInputs({ endgameHold: true, gateRelease: { faction: 'Daedalus', gap: 1, closedByQueue: true }, mustBuyCost: 1000, mustBuyCap: 5000, money: 0 }),
+        null,
+      );
+      expect(t.mustBuyHold).toBe(true);
+      expect(t.reasons.gateArmed).toBe(true);
+      expect(t.armed).toBe(true);
+    });
+
+    it('releases once money clears mustBuyCost', () => {
+      const t = evalTrigger(baseInputs({ mustBuyCost: 1000, mustBuyCap: 5000, money: 1000 }), null);
+      expect(t.mustBuyHold).toBe(false);
+      expect(t.armed).toBe(true);
+    });
+
+    it('waives when mustBuyCost exceeds mustBuyCap, however little money there is', () => {
+      const t = evalTrigger(baseInputs({ mustBuyCost: 10_000, mustBuyCap: 5000, money: 0 }), null);
+      expect(t.mustBuyHold).toBe(false);
+      expect(t.armed).toBe(true);
+    });
+
+    it('mustBuyCost 0 (nothing to must-buy) never holds', () => {
+      const t = evalTrigger(baseInputs({ mustBuyCost: 0, mustBuyCap: 5000, money: 0 }), null);
+      expect(t.mustBuyHold).toBe(false);
+      expect(t.armed).toBe(true);
+    });
+
+    it('defaults (mustBuyCost/mustBuyCap omitted) change nothing from pre-Phase-33 behavior', () => {
+      const t = evalTrigger(baseInputs(), null);
+      expect(t.mustBuyHold).toBe(false);
+      expect(t.armed).toBe(true);
+    });
+  });
 });
 
 describe('computeStallThreshold — Phase 26 B2 (S4)', () => {
@@ -1679,6 +1826,107 @@ describe('spendDownPlan', () => {
     const actions = spendDownPlan([], { augs: {} }, Infinity, nfgState);
     expect(actions.length).toBe(SPEND_DOWN_BUY_CAP);
   });
+
+  describe('Phase 33 decision 6b — must-buy head', () => {
+    it('empty mustBuyNames reproduces today\'s plan exactly (regression pin)', () => {
+      const candidates = [candidate({ aug: 'A', price: 100 }), candidate({ aug: 'B', price: 200 }), candidate({ aug: 'C', price: 50 })];
+      const actions = spendDownPlan(candidates, { augs: {} }, 150, null);
+      expect(actions.map((a) => a.aug)).toEqual(['A', 'C']);
+      const explicit = spendDownPlan(candidates, { augs: {} }, 150, null, new Set());
+      expect(explicit.map((a) => a.aug)).toEqual(['A', 'C']);
+    });
+
+    it('must-buys are planned FIRST despite sorting behind an expensive non-must-buy discrete', () => {
+      // Expensive (price 900, not a must-buy) sorts ahead of the must-buys in
+      // S3's caller-sorted order, but the must-buy head still plans first.
+      const candidates = [
+        candidate({ aug: 'Expensive', price: 900 }),
+        candidate({ aug: 'Neuroreceptor', price: 550 }),
+        candidate({ aug: 'CashRoot', price: 125 }),
+      ];
+      const mustBuyNames = new Set(['Neuroreceptor', 'CashRoot']);
+      const actions = spendDownPlan(candidates, { augs: {} }, 10_000, null, mustBuyNames);
+      expect(actions.map((a) => a.aug)).toEqual(['Neuroreceptor', 'CashRoot', 'Expensive']);
+    });
+
+    it('within the must-buy set, price-DESC -- a $0 aug (Red Pill) lands last of them', () => {
+      const candidates = [
+        candidate({ aug: 'The Red Pill', price: 0 }),
+        candidate({ aug: 'CashRoot', price: 125 }),
+        candidate({ aug: 'Neuroreceptor', price: 550 }),
+      ];
+      const mustBuyNames = new Set(['The Red Pill', 'CashRoot', 'Neuroreceptor']);
+      const actions = spendDownPlan(candidates, { augs: {} }, 10_000, null, mustBuyNames);
+      expect(actions.map((a) => a.aug)).toEqual(['Neuroreceptor', 'CashRoot', 'The Red Pill']);
+    });
+
+    it('NFG still plans last, after both the must-buy head and the rest', () => {
+      const candidates = [candidate({ aug: 'MustBuy', price: 100 }), candidate({ aug: 'Rest', price: 200 })];
+      const nfgState = { livePrice: 50, faction: 'BitRunners', repMet: true };
+      const actions = spendDownPlan(candidates, { augs: {} }, 10_000, nfgState, new Set(['MustBuy']));
+      expect(actions[0].aug).toBe('MustBuy');
+      expect(actions[1].aug).toBe('Rest');
+      expect(actions[2].aug).toBe(NFG_NAME);
+    });
+
+    it('affordability and SPEND_DOWN_BUY_CAP still apply to the must-buy head', () => {
+      const candidates = [candidate({ aug: 'TooExpensive', price: 100_000 }), candidate({ aug: 'Affordable', price: 50 })];
+      const actions = spendDownPlan(candidates, { augs: {} }, 100, null, new Set(['TooExpensive', 'Affordable']));
+      expect(actions.map((a) => a.aug)).toEqual(['Affordable']);
+    });
+  });
+});
+
+describe('mustBuyTotal — Phase 33 decision 6b', () => {
+  it('empty list -> 0', () => {
+    expect(mustBuyTotal([])).toBe(0);
+    expect(mustBuyTotal()).toBe(0);
+  });
+
+  it('a single price has no escalation applied (i=0 -> ladder^0 == 1)', () => {
+    expect(mustBuyTotal([1000])).toBe(1000);
+  });
+
+  it('pins the decision-6 worked example: Neuroreceptor 7.17b, CashRoot*1.9 3.10b (approx), Red Pill 0', () => {
+    // Values as read live at the spec's measurement point (already-escalated
+    // live prices, decision 6): Neuroreceptor $7.17b (index 0), CashRoot's
+    // OWN live price at that same moment was ~$1.629b (index 1), Red Pill $0
+    // (index 2). Total: 7.17b + 1.629b*1.9 + 0 ≈ 10.27b.
+    const total = mustBuyTotal([7.17e9, 1.629e9, 0]);
+    expect(total).toBeCloseTo(7.17e9 + 1.629e9 * AUG_PRICE_LADDER, -6);
+    expect(total / 1e9).toBeCloseTo(10.27, 1);
+  });
+
+  it('sequential ×1.9 arithmetic pinned exactly for a simple fixture', () => {
+    // price_0*1 + price_1*1.9 + price_2*1.9^2
+    const total = mustBuyTotal([100, 100, 100]);
+    expect(total).toBeCloseTo(100 + 100 * AUG_PRICE_LADDER + 100 * AUG_PRICE_LADDER ** 2, 6);
+  });
+});
+
+describe('computeFundCap — Phase 33 decision 3', () => {
+  it('invariant: fundCap >= money always, with a real income signal', () => {
+    const fundCap = computeFundCap(11_870_000_000, 2_920_000);
+    expect(fundCap).toBeGreaterThanOrEqual(11_870_000_000);
+    expect(fundCap).toBe(11_870_000_000 + 2_920_000 * (FUNDING_HORIZON_MS / 1000));
+  });
+
+  it('invariant: fundCap >= money always, on the no-income fallback (null incomePerSec)', () => {
+    const fundCap = computeFundCap(0, null);
+    expect(fundCap).toBeGreaterThanOrEqual(0);
+    expect(fundCap).toBe(FUND_CAP_FALLBACK);
+  });
+
+  it('the fallback is ADDITIVE to money, not a replacement -- an already-affordable aug can never be capped', () => {
+    const money = 999_999_999_999;
+    const fundCap = computeFundCap(money, undefined);
+    expect(fundCap).toBe(money + FUND_CAP_FALLBACK);
+  });
+
+  it('zero income reads as a real (if tiny) signal, not "unreadable" -- 0 !== null/undefined', () => {
+    const fundCap = computeFundCap(1000, 0);
+    expect(fundCap).toBe(1000);
+  });
 });
 
 describe('daedalusInviteReserve', () => {
@@ -1810,6 +2058,40 @@ describe('planPass', () => {
       expect(plan.actions.some((a) => a.type === 'buy')).toBe(false);
       expect(plan.actions.some((a) => a.type === 'reserve')).toBe(false);
       expect(plan.actions).toContainEqual({ type: 'work', faction: 'F1', workType: 'hacking' });
+    });
+
+    describe('Phase 33 decision 4 -- fundBlocked head', () => {
+      const fundBlockedTarget = { ...metTarget, fundBlocked: true, workTypes: ['hacking'] };
+
+      it('no buy/donate; reserves the WHOLE balance (not livePrice); phase is "grinding"; work still fires', () => {
+        const plan = planPass({
+          target: fundBlockedTarget, workTarget: fundBlockedTarget, currentWork: null,
+          factionScope: scope, money: 12_000_000_000, livePrice: 500, paused: false,
+        });
+        expect(plan.actions.some((a) => a.type === 'buy')).toBe(false);
+        expect(plan.actions.some((a) => a.type === 'donate')).toBe(false);
+        expect(plan.reserve).toBe(12_000_000_000);
+        expect(plan.phase).toBe('grinding');
+        expect(plan.actions).toContainEqual({ type: 'reserve', amount: 12_000_000_000, aug: 'X', faction: 'F1' });
+        expect(plan.actions).toContainEqual({ type: 'work', faction: 'F1', workType: 'hacking' });
+      });
+
+      it('yields the slot exactly like any other target when currentWork is out-of-scope, but phase stays "grinding" (not "yielded")', () => {
+        const plan = planPass({
+          target: fundBlockedTarget, workTarget: fundBlockedTarget, currentWork: { type: 'COMPANY' },
+          factionScope: scope, money: 1e9, livePrice: 500, paused: false,
+        });
+        expect(plan.actions).toContainEqual({ type: 'yield' });
+        expect(plan.actions.some((a) => a.type === 'work')).toBe(false);
+        expect(plan.phase).toBe('grinding');
+      });
+
+      it('observe-mode rail (out-of-scope faction) still wins over fundBlocked', () => {
+        const outOfScopeFundBlocked = { ...fundBlockedTarget, faction: 'SlumSnakes' };
+        const plan = planPass({ target: outOfScopeFundBlocked, currentWork: null, factionScope: scope, money: 1e9, livePrice: 500, paused: false });
+        expect(plan.actions.every((a) => a.type !== 'buy' && a.type !== 'work' && a.type !== 'donate' && a.type !== 'reserve')).toBe(true);
+        expect(plan.phase).toBe('awaiting-invite');
+      });
     });
   });
 

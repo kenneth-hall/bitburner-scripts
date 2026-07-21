@@ -94,6 +94,12 @@ export const CATALOG_FILE = "augfarmer-catalog.json";
 // Phase 26 B2: ratchetlog.js's append-only ring (its own LOG_FILE constant,
 // not exported/imported -- read-only from here, the writer is unchanged).
 const RATCHET_LOG_FILE = "ratchet-log.json";
+// Phase 33 (decision 3): goallog.js's overwrite-in-place snapshot -- its own
+// SNAPSHOT_FILE constant, hardcoded rather than imported (goallog.js's own
+// precedent for AUGFARMER_STATE_FILE: importing a companion module bleeds its
+// whole `ns` surface into this file's RAM cost, per CLAUDE.md's import-bleed
+// rule -- this file only needs the filename string). Read-only from here.
+const GOAL_STATE_FILE = "goal-state.json";
 export const PAUSE_FILE = "augfarmer-pause.txt";
 export const TRAVEL_COST = 200_000;
 const DAEDALUS_AUG_GATE = 30;
@@ -126,6 +132,29 @@ export const SPEND_DOWN_BUY_CAP = 50;
 // under-projected every level past the first. If a future node re-prices NFG,
 // re-measure the same way.
 export const NFG_PRICE_LADDER = 2.166;
+
+// Discrete (non-NFG) augmentation price escalation. MEASURED 2026-07-21
+// (phase-33-money-throughput.spec.md decision 1) from every `auto-aug` `paid`
+// entry in logs/transactions-2026-07-20/21.json: paid == base * 1.9^(buys so
+// far this cycle) to the dollar, uniform across the whole catalog. This is
+// what makes buy ORDER matter -- see mustBuyTotal below.
+export const AUG_PRICE_LADDER = 1.9;
+
+// Phase 33 (decision 3): the fundability guard's lookahead horizon + the
+// no-income-signal fallback. Additive to money (fundCap = money + lookahead),
+// which keeps fundCap >= money always -- an already-affordable aug can never
+// be marked fundBlocked. See decision 3's header for the sizing rationale.
+export const FUNDING_HORIZON_MS = 4 * 3600_000;
+export const FUND_CAP_FALLBACK = 500e9;
+// goal-state.json (goallog.js's snapshot) is considered stale past this age --
+// past it, incomePerSec is treated as unreadable and the fallback applies.
+export const GOAL_STALE_MS = 600_000;
+
+// Phase 33 (decision 6): the must-buy hold's worst-case delay bound + its
+// no-income-signal fallback cap. Once mustBuyCost exceeds mustBuyCap the hold
+// is waived (logged) rather than deadlocking stall-arming forever.
+export const MUSTBUY_HOLD_MAX_MS = 6 * 3600_000;
+export const MUSTBUY_HOLD_CAP_FALLBACK = 25e9;
 
 // NeuroFlux Governor's REP requirement escalates per level too -- ×1.14, the
 // same shape as its base price. Measured across install #9 (2026-07-18):
@@ -608,22 +637,49 @@ export function slotAvailable(currentWork, factionScope) {
 }
 
 /**
- * Pure (S1/S3/S4/D5/D6). The whole targeting decision for one pass: expands
- * every unowned, score-positive (or prereq-linked), reachable-seller aug to
- * its actionable (deepest-unowned) link, dedupes shared prereqs (keeping the
- * max inheriting score), and sorts by S3's key: rep-met targets first (score
- * descending, then price ascending), then deficit>0 targets by
- * score/deficit descending (tie-break deficit asc, price asc, name asc).
- * Returns the head target's fields spread at the top level (back-compat with
- * Phase 23 call sites/tests) plus `candidates`, the full sorted list S5's
- * pickWorkFaction needs -- or null on plateau.
+ * Pure (Phase 33 decision 3). The fundability guard's wiring formula, pulled
+ * out of main() for unit coverage of its one invariant: fundCap >= money
+ * ALWAYS, whichever source feeds it -- `FUND_CAP_FALLBACK` is additive to
+ * money, not a replacement for it, so an already-affordable aug can never be
+ * marked fundBlocked. `incomePerSec` null/undefined means "unreadable this
+ * pass" -- the fallback lookahead applies, not zero lookahead.
+ * @param {number} money
+ * @param {number|null} incomePerSec
+ * @param {number} horizonMs
+ * @param {number} fallback
+ */
+export function computeFundCap(money, incomePerSec, horizonMs = FUNDING_HORIZON_MS, fallback = FUND_CAP_FALLBACK) {
+  const lookahead = incomePerSec != null ? incomePerSec * (horizonMs / 1000) : fallback;
+  return money + lookahead;
+}
+
+/**
+ * Pure (S1/S3/S4/D5/D6; tiered sort + fundCap added Phase 33 decisions 1/3).
+ * The whole targeting decision for one pass: expands every unowned,
+ * score-positive (or prereq-linked), reachable-seller aug to its actionable
+ * (deepest-unowned) link, dedupes shared prereqs (keeping the max inheriting
+ * score), and sorts rep-met targets into four tiers (escalation-optimal
+ * price-DESC ordering, phase-33-money-throughput.spec.md decision 1): tier 0
+ * buyable discretes (price-DESC, score-DESC tie-break, then name), tier 1 NFG
+ * (not buyBlocked), tier 2 fundBlocked discretes (price-DESC for determinism),
+ * tier 3 buyBlocked NFG. deficit>0 targets are untouched: score/deficit
+ * descending (tie-break deficit asc, price asc, name asc). Returns the head
+ * target's fields spread at the top level (back-compat with Phase 23 call
+ * sites/tests) plus `candidates`, the full sorted list S5's pickWorkFaction
+ * needs -- or null on plateau.
+ *
+ * `fundCap` (decision 3, default Infinity == no cap): a rep-met, non-NFG
+ * candidate whose (per decision 11, live-refreshed) price exceeds it is
+ * marked `fundBlocked` -- deficit>0 candidates are never marked, since their
+ * group's rep-grind semantics are untouched. `price === fundCap` is fundable
+ * (strict `>` only).
  *
  * `catalog` is {augs: {[name]: {repReq, price, prereqs, sellers, passesFilter,
  * isNFG, score, hackingMult}}, factions: {[faction]: {enemies, inviteReqs, workTypes}}}.
  * `playerFacts` extends evaluateInviteReqs's shape with `invites` (Set) and
  * `factionRep` ({[faction]: number}).
  */
-export function pickTarget(catalog, playerFacts, joinedSet, ownedSet, nfgCapped) {
+export function pickTarget(catalog, playerFacts, joinedSet, ownedSet, nfgCapped, fundCap = Infinity) {
   const invites = playerFacts.invites ?? new Set();
   const factionRep = playerFacts.factionRep ?? {};
   const enemiesByFaction = Object.fromEntries(Object.entries(catalog.factions).map(([f, v]) => [f, v.enemies]));
@@ -686,31 +742,47 @@ export function pickTarget(catalog, playerFacts, joinedSet, ownedSet, nfgCapped)
       }
     }
 
+    const deficit = Math.max(0, info.repReq - bestRep);
     actionableByName.set(actionable, {
       aug: actionable,
       faction: chosen.faction,
       repReq: info.repReq,
       price: info.price,
-      deficit: Math.max(0, info.repReq - bestRep),
+      deficit,
       wantedFor: wanted === actionable ? undefined : wanted,
       status: chosen.reach.status,
       gapCity: chosen.reach.gapCity,
       workTypes: catalog.factions[chosen.faction]?.workTypes ?? [],
       score: wantedScore,
       buyBlocked: info.isNFG && nfgCapped,
+      // Phase 33 decision 3: rep-met, non-NFG only -- deficit>0 candidates
+      // are never marked (their group's rep-grind semantics are untouched).
+      fundBlocked: !info.isNFG && deficit <= 0 && info.price > fundCap,
     });
   }
 
   const candidates = [...actionableByName.values()];
   if (candidates.length === 0) return null;
 
+  // Phase 33 decision 1: rep-met tier -- 0 buyable discrete, 1 NFG (unblocked),
+  // 2 fundBlocked discrete, 3 buyBlocked NFG. Tiers 1/3 are always a single
+  // NFG candidate, so no further comparison is needed inside them.
+  function repMetTier(c) {
+    if (c.aug === NFG_NAME) return c.buyBlocked ? 3 : 1;
+    return c.fundBlocked ? 2 : 0;
+  }
+
   candidates.sort((a, b) => {
     const aMet = a.deficit <= 0;
     const bMet = b.deficit <= 0;
     if (aMet !== bMet) return aMet ? -1 : 1;
     if (aMet) {
+      const aTier = repMetTier(a);
+      const bTier = repMetTier(b);
+      if (aTier !== bTier) return aTier - bTier;
+      if (aTier === 1 || aTier === 3) return 0; // singleton NFG tiers
+      if (a.price !== b.price) return b.price - a.price; // escalation-optimal: price DESC
       if (a.score !== b.score) return b.score - a.score;
-      if (a.price !== b.price) return a.price - b.price;
       return a.aug < b.aug ? -1 : a.aug > b.aug ? 1 : 0;
     }
     const aRatio = a.score / a.deficit;
@@ -864,10 +936,18 @@ export function updateRepRates(prevRates, prevReps, reps, dtMs) {
  * ladder has still escalated. See phase-31-stall-arming.spec.md for the full
  * rationale.
  *
- * `armed := (gainArmed && phaseArmed) || gateArmed || stallArmed`; everything
- * downstream (sustain, the auto-mode latch, the abort levers) is unchanged
- * and applies to a stall-armed (or gate-armed) state exactly as it does to a
- * gain-armed one.
+ * Phase 33 (decision 6a): `mustBuyHold := mustBuyCost > 0 && mustBuyCost <=
+ * mustBuyCap && money < mustBuyCost` -- suppresses gainArmed/stallArmed while
+ * a nonzero, capped must-buy total (the sequential-escalation cost of the
+ * allow-listed utility augs, `mustBuyTotal`) is still unaffordable, so an
+ * install never fires having skipped a cheap must-buy it could have waited a
+ * few more polls for. Over the cap the hold is waived (the caller logs this).
+ * `gateArmed` is deliberately exempt -- see this constant's own header.
+ *
+ * `armed := (gainArmed && phaseArmed && !mustBuyHold) || gateArmed ||
+ * (stallArmed && !mustBuyHold)`; everything downstream (sustain, the
+ * auto-mode latch, the abort levers) is unchanged and applies to a
+ * stall-armed (or gate-armed) state exactly as it does to a gain-armed one.
  */
 export function evalTrigger(inputs, priorState) {
   const {
@@ -888,6 +968,8 @@ export function evalTrigger(inputs, priorState) {
     mode = "observe",
     gateRelease = null,
     stalled = false,
+    mustBuyCost = 0,
+    mustBuyCap = Infinity,
     now,
   } = inputs;
 
@@ -1001,7 +1083,16 @@ export function evalTrigger(inputs, priorState) {
     phase !== "grinding" &&
     (gainArmed || queuedCount >= STALL_QUEUE_FLOOR);
 
-  const armed = (gainArmed && phaseArmed) || gateArmed || stallArmed;
+  // Phase 33 (decision 6a): the must-buy hold -- while a nonzero must-buy
+  // total is both under its cap and still unaffordable, suppress the
+  // gain/stall arming reasons so the install waits for the must-buy set to be
+  // affordable rather than firing (and spending it down out of the
+  // escalation-optimal order) too early. gateArmed is deliberately exempt --
+  // an A2 gate-release install stays narrow and next cycle retries at reset
+  // prices regardless of this hold.
+  const mustBuyHold = mustBuyCost > 0 && mustBuyCost <= mustBuyCap && money < mustBuyCost;
+
+  const armed = (gainArmed && phaseArmed && !mustBuyHold) || gateArmed || (stallArmed && !mustBuyHold);
   const wasArmedSince = priorState?.armed ? priorState.armedSinceMs : null;
   const armedSinceMs = armed ? (wasArmedSince ?? now) : null;
   const sustainedMs = armed ? now - armedSinceMs : 0;
@@ -1019,6 +1110,9 @@ export function evalTrigger(inputs, priorState) {
     nfgBoundBy,
     horizonMs,
     gateRelease,
+    mustBuyHold,
+    mustBuyCost,
+    mustBuyCap,
     reasons: { gainArmed, phaseArmed, gateArmed, stallArmed },
   };
 }
@@ -1169,33 +1263,57 @@ export function nfgLevelsByRep(rep, repReq) {
 }
 
 /**
- * Pure (S10 step 1). One pass's spend-down buy list: rep-met discrete augs
- * first in S3's sorted order (skipping NFG, handled below), then repeated
+ * Pure (Phase 33, decision 6b). The sequential-escalation total of buying
+ * `prices` (assumed caller-sorted price-DESC -- each already-live price) back
+ * to back in that order: price_i (0-indexed) is taxed by an extra
+ * AUG_PRICE_LADDER^i for the i purchases planned ahead of it. Empty list -> 0.
+ * @param {number[]} prices
+ */
+export function mustBuyTotal(prices) {
+  return (prices ?? []).reduce((sum, price, i) => sum + price * Math.pow(AUG_PRICE_LADDER, i), 0);
+}
+
+/**
+ * Pure (S10 step 1; must-buy head added Phase 33 decision 6b). One pass's
+ * spend-down buy list: **must-buy** rep-met discrete augs first (`mustBuyNames`,
+ * among themselves price-DESC -- the escalation-optimal order applies within
+ * the must-buy set too, so a $0 utility aug like The Red Pill naturally lands
+ * last of them), then the remaining rep-met discrete augs in S3's sorted order
+ * (skipping already-planned must-buys and NFG, handled below), then repeated
  * NFG levels using the observed NFG_PRICE_LADDER escalation from
- * `nfgState.livePrice`, bounded by SPEND_DOWN_BUY_CAP. `nfgState` is
+ * `nfgState.livePrice`, bounded by SPEND_DOWN_BUY_CAP throughout. `nfgState` is
  * {livePrice, faction, repMet, rep, repReq} -- repMet false suppresses the NFG
  * tail (money-only affordability can't buy past its own rep requirement).
  *
- * The tail is bounded by BOTH ladders (2026-07-18): money escalates ×2.166 per
- * level and the rep requirement escalates ×1.14, so rep can run out first even
- * though it cleared level 1. Before this the tail was money-bounded only and
- * planned levels the game would refuse -- harmless at the buy site (a failed
- * spend records nothing) but it fed a `totalGain` that overstated the fire.
- * `rep`/`repReq` omitted => rep is not treated as binding, preserving the old
- * behavior for callers that don't supply them.
+ * Must-buys plan FIRST, not last, deliberately: plan-time prices drift
+ * ×AUG_PRICE_LADDER per executed buy, so a last-place plan could fail
+ * affordability at execution even though evalTrigger's must-buy hold verified
+ * `money >= mustBuyCost` against the same live prices. Planning first keeps
+ * that guarantee exact -- see the spec's decision 6 for the arithmetic.
+ *
+ * The NFG tail is bounded by BOTH ladders (2026-07-18): money escalates ×2.166
+ * per level and the rep requirement escalates ×1.14, so rep can run out first
+ * even though it cleared level 1. Before this the tail was money-bounded only
+ * and planned levels the game would refuse -- harmless at the buy site (a
+ * failed spend records nothing) but it fed a `totalGain` that overstated the
+ * fire. `rep`/`repReq` omitted => rep is not treated as binding, preserving
+ * the old behavior for callers that don't supply them.
  * @param {object[]} sortedCandidates
  * @param {{augs: Record<string, {price: number}>}} catalog
  * @param {number} money
  * @param {{livePrice: number, faction: string, repMet: boolean}|null} nfgState
+ * @param {Set<string>} mustBuyNames
  */
-export function spendDownPlan(sortedCandidates, catalog, money, nfgState) {
+export function spendDownPlan(sortedCandidates, catalog, money, nfgState, mustBuyNames = new Set()) {
   const actions = [];
   let remaining = money;
 
-  for (const c of sortedCandidates) {
+  const eligible = sortedCandidates.filter((c) => c.aug !== NFG_NAME && c.deficit <= 0);
+  const mustBuys = eligible.filter((c) => mustBuyNames.has(c.aug)).sort((a, b) => b.price - a.price);
+  const rest = eligible.filter((c) => !mustBuyNames.has(c.aug));
+
+  for (const c of [...mustBuys, ...rest]) {
     if (actions.length >= SPEND_DOWN_BUY_CAP) return actions;
-    if (c.aug === NFG_NAME) continue;
-    if (c.deficit > 0) continue;
     if (c.price > remaining) continue;
     actions.push({ type: "buy", aug: c.aug, faction: c.faction, price: c.price });
     remaining -= c.price;
@@ -1306,6 +1424,11 @@ export function buildDecisionRecord(kind, inputs) {
       STALL_MAX_MS,
       STALL_FALLBACK_MS,
       STALL_REWARN_MS,
+      FUNDING_HORIZON_MS,
+      FUND_CAP_FALLBACK,
+      GOAL_STALE_MS,
+      MUSTBUY_HOLD_MAX_MS,
+      MUSTBUY_HOLD_CAP_FALLBACK,
     },
   };
 }
@@ -1326,7 +1449,9 @@ export function buildDecisionRecord(kind, inputs) {
  * auto-mode phases -- {phase: "spend-down", actions, execReady} or
  * {phase: "installing"} -- and is defense-in-depth cleared to null whenever
  * `mode !== "auto"` so a misused installSeq can never leak a spend-down/
- * exec/install action in observe mode (the rail test).
+ * exec/install action in observe mode (the rail test). Phase 33 decision 4:
+ * a `target.fundBlocked` head takes its own branch before the repMet check --
+ * see that branch's inline comment.
  */
 export function planPass({
   target,
@@ -1405,6 +1530,29 @@ export function planPass({
 
   if (target.status === "city-gap" || target.status === "awaiting-invite" || target.status === "invite-pending") {
     return { actions, reserve: 0, phase: target.status === "invite-pending" ? "grinding" : "awaiting-invite" };
+  }
+
+  // Phase 33 decision 4. The head is rep-met but its live price exceeds
+  // fundCap -- no buy, no reserve-for-target, no donation (donating rep
+  // toward an unfundable aug is dead spend). Reserve the WHOLE balance
+  // (money belongs to the imminent spend-down's must-buys/NFG tail, not a
+  // fleet purchase the next install wipes anyway) and fall through to the
+  // normal work-slot logic, but always report phase "grinding" -- not
+  // whatever the slot outcome would otherwise imply -- so evalTrigger's
+  // existing gap-7 path (grinding + no rep-owed faction -> phaseArmed) can
+  // still let gain-arming end the cycle without new trigger plumbing.
+  if (target.fundBlocked) {
+    actions.push({ type: "reserve", amount: money, aug: target.aug, faction: target.faction });
+    const slot = slotAvailable(currentWork, factionScope);
+    if (!slot.available) {
+      actions.push({ type: "yield" });
+    } else if (workTarget?.faction) {
+      const workType = pickWorkType(workTarget.workTypes);
+      const alreadyWorking =
+        currentWork?.type === "FACTION" && currentWork.factionName === workTarget.faction && currentWork.factionWorkType === workType;
+      if (!alreadyWorking) actions.push({ type: "work", faction: workTarget.faction, workType });
+    }
+    return { actions, reserve: money, phase: "grinding" };
   }
 
   // status === "joined". buyBlocked (NFG's D3 cap) forces the grind branch
@@ -1648,6 +1796,10 @@ export async function main(ns) {
   let previousCampKey = null;
   let previousEndgameHold = null;
   let installerExecWarned = false;
+  // Phase 33 (decision 9): target-capped rising-edge tracker + the must-buy
+  // hold's once-per-cycle waived-log latch.
+  let lastCappedAug = null;
+  let holdWaivedLogged = false;
 
   while (true) {
     const nowMs = Date.now();
@@ -1671,6 +1823,8 @@ export async function main(ns) {
       previousCampKey = null;
       stallState = null;
       awaitingMoneySince = null; // Phase 32: an install boundary invalidates any elapsed-time stamp
+      lastCappedAug = null;
+      holdWaivedLogged = false;
       tprintTs(ns, "INFO: new install cycle detected (lastAugReset changed) -- resetting NFG cap + bought-this-cycle tracking");
     }
 
@@ -1728,6 +1882,24 @@ export async function main(ns) {
       continue;
     }
     const ownedSet = new Set(ownedTrueRaw);
+
+    // Phase 33 decision 11: discrete prices otherwise freeze at buildCatalog
+    // time (rebuilt only on join-state change) and drift stale by the whole
+    // cycle's escalation -- fundCap/mustBuyCost math needs live absolute
+    // prices, not just a live-consistent sort order. One WARN per pass on
+    // failure (stale value kept), same shape as the NFG live-read above.
+    let priceRefreshWarned = false;
+    for (const name of Object.keys(catalog.augs)) {
+      if (name === NFG_NAME || ownedSet.has(name)) continue;
+      try {
+        catalog.augs[name].price = ns.singularity.getAugmentationPrice(name);
+      } catch (e) {
+        if (!priceRefreshWarned) {
+          tprintTs(ns, `WARN: getAugmentationPrice(${name}) threw during price refresh (${e?.message ?? e}) -- keeping stale price(s)`);
+          priceRefreshWarned = true;
+        }
+      }
+    }
 
     let invites;
     try {
@@ -1796,7 +1968,34 @@ export async function main(ns) {
       augCount: ownedInstalled.length,
     };
 
-    const target = pickTarget(catalog, playerFacts, joined, ownedSet, nfgBoughtThisCycle);
+    // Phase 33 decision 3: the fundability guard. incomePerSec comes from
+    // goallog.js's snapshot (a RESIDENT_COMPANIONS-supervised standing
+    // daemon, not tied to the dashboard being open); a missing/stale/
+    // malformed snapshot falls back to FUND_CAP_FALLBACK rather than reading
+    // no cap at all, which would let a QLink-sized aug stay the head forever.
+    const goalState = readJSON(ns, GOAL_STATE_FILE);
+    const goalFresh = !!goalState && typeof goalState.timestamp === "number" && nowMs - goalState.timestamp <= GOAL_STALE_MS;
+    const incomePerSec = goalFresh && typeof goalState.income?.perSec === "number" ? goalState.income.perSec : null;
+    const fundCapSource = incomePerSec != null ? "income" : "fallback";
+    const fundCap = computeFundCap(player.money, incomePerSec);
+
+    const target = pickTarget(catalog, playerFacts, joined, ownedSet, nfgBoughtThisCycle, fundCap);
+
+    // Phase 33 decision 9: target-capped rising edge -- logged when the head
+    // becomes fundBlocked, cleared (not re-logged) once it isn't.
+    if (target?.fundBlocked && target.aug !== lastCappedAug) {
+      appendDecision(ns, "target-capped", {
+        now: nowMs,
+        mode,
+        phase: previousPhase,
+        target,
+        money: player.money,
+        detail: { fundCap, fundCapSource },
+      });
+      lastCappedAug = target.aug;
+    } else if (!target?.fundBlocked) {
+      lastCappedAug = null;
+    }
 
     const endgameHold = joined.has(FactionName.Daedalus) || player.skills.hacking >= ENDGAME_HACK_LEVEL;
     if (endgameHold !== previousEndgameHold) {
@@ -1979,6 +2178,27 @@ export async function main(ns) {
     // including queued.
     const gateRelease = computeGateRelease(catalog, playerFacts, ownedSet.size, joined, FACTION_SCOPE_SET);
 
+    // Phase 33 decision 6: the must-buy set this pass -- allow-listed,
+    // rep-met, reachable candidates (a candidate only exists if unowned, per
+    // pickTarget's wantedNames filter). mustBuyCost is the sequential-
+    // escalation total of buying them price-DESC (spendDownPlan's own head
+    // order), via live catalog prices (decision 11's refresh).
+    const mustBuyCandidates = (target?.candidates ?? []).filter((c) => UTILITY_ALLOWLIST.includes(c.aug) && c.deficit <= 0);
+    const mustBuyNames = new Set(mustBuyCandidates.map((c) => c.aug));
+    const mustBuyCost = mustBuyTotal(mustBuyCandidates.map((c) => c.price).sort((a, b) => b - a));
+    const mustBuyCap = incomePerSec != null ? incomePerSec * (MUSTBUY_HOLD_MAX_MS / 1000) : MUSTBUY_HOLD_CAP_FALLBACK;
+    const mustBuyWaived = mustBuyCost > 0 && mustBuyCost > mustBuyCap;
+    if (mustBuyWaived && !holdWaivedLogged) {
+      appendDecision(ns, "mustbuy-hold-waived", {
+        now: nowMs,
+        mode,
+        phase: previousPhase,
+        money: player.money,
+        detail: { mustBuyCost, mustBuyCap, mustBuyNames: [...mustBuyNames] },
+      });
+      holdWaivedLogged = true;
+    }
+
     // Phase 31: hoisted above evalTrigger so `stalled` can feed stallArmed.
     // Recomputed raw here from lastAugReset/cycleIntervalsMs -- NOT reused
     // from evalStall's output below, which gates off (reports stalled:false)
@@ -2009,6 +2229,8 @@ export async function main(ns) {
       mode,
       gateRelease,
       stalled,
+      mustBuyCost,
+      mustBuyCap,
       now: nowMs,
     };
     const prevTrigger = triggerState;
@@ -2048,6 +2270,16 @@ export async function main(ns) {
     if (!triggerState.armed && prevTrigger?.armed && mode !== "auto") {
       appendDecision(ns, "trigger-clear", { now: nowMs, mode, phase: previousPhase, trigger: triggerState, money: player.money });
     }
+    // Phase 33 decision 9: must-buy hold rising edge (arming suppressed).
+    if (triggerState.mustBuyHold && !prevTrigger?.mustBuyHold) {
+      appendDecision(ns, "mustbuy-hold", {
+        now: nowMs,
+        mode,
+        phase: previousPhase,
+        money: player.money,
+        detail: { mustBuyCost, mustBuyCap, mustBuyNames: [...mustBuyNames] },
+      });
+    }
 
     // S10: (re)build/advance the auto-mode install sequence. Aborts (mode
     // left auto, or paused) drop it back to null with a decision record --
@@ -2083,7 +2315,7 @@ export async function main(ns) {
         rep: nfgSeller ? (factionRep[nfgSeller] ?? 0) : 0,
         repReq: catalog.augs[NFG_NAME]?.repReq ?? 0,
       };
-      installSeq.actions = spendDownPlan(target?.candidates ?? [], catalog, player.money, nfgState);
+      installSeq.actions = spendDownPlan(target?.candidates ?? [], catalog, player.money, nfgState, mustBuyNames);
       installSeq.execReady = installSeq.actions.length === 0;
     }
 
@@ -2118,7 +2350,7 @@ export async function main(ns) {
     // left": six passing augs were unowned during the live deadlock, all sold
     // exclusively by the endgame factions the gate locks us out of.
     const normalBuyAvailable =
-      !!target && target.deficit <= 0 && !target.buyBlocked && livePrice !== null && player.money >= livePrice;
+      !!target && target.deficit <= 0 && !target.buyBlocked && !target.fundBlocked && livePrice !== null && player.money >= livePrice;
     let gateFill = null;
     if (!paused && !normalBuyAvailable) {
       // The gate check must count distinct augs INCLUDING QUEUED ones, which
@@ -2373,7 +2605,9 @@ export async function main(ns) {
         phase: plan.phase,
         mode,
         awaitingMoneySince,
-        target: target ? { aug: target.aug, faction: target.faction, repReq: target.repReq, deficit: target.deficit, livePrice } : null,
+        target: target
+          ? { aug: target.aug, faction: target.faction, repReq: target.repReq, deficit: target.deficit, livePrice, fundBlocked: target.fundBlocked, fundCap, fundCapSource }
+          : null,
         joinedFactions: [...joined].filter((f) => FACTION_SCOPE_SET.has(f)),
         campLocksInForce: FACTION_SCOPE.filter((f) => !joined.has(f) && campBlocked(f, Object.fromEntries(FACTION_SCOPE.map((ff) => [ff, catalog.factions[ff]?.enemies ?? []])), joined)),
         campChoice,

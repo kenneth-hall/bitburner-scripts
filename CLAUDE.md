@@ -37,6 +37,20 @@ on request — hold to them even when the moment is uncomfortable.
       overwritten each tick) — a periodic sampler is a required input to any Tier 4 rate/decay
       reasoning; see `BACKLOG.md`'s "Gang manager Tier 4" entry. Tier 4 (territory) is now clear
       to brainstorm.
+    - **✅ Phase 33 (Workstreams A + C: escalation-aware buy ordering + utility must-buys) SHIPPED
+      2026-07-21.** `augfarmer.js`'s `pickTarget`/`spendDownPlan`/`evalTrigger`/`planPass` gained a
+      tiered, escalation-optimal (price-DESC) rep-met sort, a fundability guard (`fundCap`) that
+      retires the pathological QLink-reservation stall, and a must-buy hold that guarantees
+      CashRoot/Neuroreceptor/Red Pill are bought before the install fires. **T1/R1/R2/V1 confirmed
+      live same-session:** RAM held exactly at 64.10 GB; `worldprobe.js` (reused instead of a new
+      probe — see its header) measured 1.8 GB after trimming an unneeded `ns.getServer` call; the
+      instant the new code loaded, the live head flipped off a $325.8t QLink reservation onto a
+      fundable $63.5b aug, and the must-buy sequential-escalation arithmetic matched the spec's
+      hand-worked example almost exactly ($10.26b live vs $10.27b calculated). **V2/V4/V5 (buy
+      order across a real spend-down/cycle, 24h soak) are follow-ups** — they need real cycle time
+      the session couldn't wait for; logged in the closeout doc, not blockers to the ship.
+      `verify:log` carries two pre-existing, unrelated failures (already in `BACKLOG.md`).
+      Full record: `docs/phases/phase-33-money-throughput.closeout.md`.
   - *(historical — the decision above closed this)* **commit to BN2 or abort?** BN2 was locked for its gang engine (SF2 kills the
     recurring Daedalus rep tax); same-day in-node analysis then found its `w0r1d_d43m0n` gate is
     **15,000** (Difficulty 500%) — realistically needing hacking mult **M ≈ 30–35** against our
@@ -85,8 +99,14 @@ on request — hold to them even when the moment is uncomfortable.
           rate 425× over goal). The exact lever BN2's nerfs attack (rep) is a non-issue.
         - **Corrected bar — money is the only open resource:** core catalog (all but QLink) =
           **$149b → M≈16.7** (with SF1.3 ×1.28) + a ~50–65-level NFG tail; OR add **QLink ($25t) →
-          M≈29** with a short tail. The batcher dominates the money curve; gang *type* is immaterial
-          to the win (a combat gang gets the identical expansion). **So BN2.1 is now assessed CLEARLY
+          M≈29** with a short tail. ~~The batcher dominates the money curve~~ — **⚠️ CORRECTED
+          2026-07-21 (live `moneysources.js`, `logs/moneysources-*.json`): the *gang* dominates the
+          money curve, ~96% of income this cycle ($16.25b gang vs $0.70b hacking). The batcher is
+          throttled early-cycle while post-install hacking level rebuilds (~264 → recover); it may
+          overtake late-cycle, unverified. This *reinforces* rather than breaks the next clause —**
+          gang *type* is immaterial
+          to the win (a combat gang gets the identical expansion), and gang *income* (not the
+          batcher) is the engine regardless of type. **So BN2.1 is now assessed CLEARLY
           REACHABLE (~3–6 weeks), not "plausible ~60–70%"** — the two scary unknowns (rep grind,
           catalog access) are both retired. Full analysis: `docs/bn2-gang-type-analysis.md`
           (fable, cold-context, 2026-07-21). Standing checkpoint still open: read

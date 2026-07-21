@@ -90,7 +90,10 @@ do, and what's broken?*
   the gain (16 NFG levels vs 6 discrete augs at #9). Arithmetic is fixed (both ladders now bound
   the buy loop and the projection); **the strategy is open**: donation is the only rep lever that
   scales with our money surplus, and nothing currently aims it at NFG.
-  → [docs/neuroflux.md](docs/neuroflux.md), **Phase 26 track B3**.
+  → [docs/neuroflux.md](docs/neuroflux.md), **Phase 26 track B3**. **Phase 33** (`spendDownPlan`,
+  decision 6b) added a must-buy head in front of this tail — the allow-listed utility augs plan
+  first, then the rest of the discretes, then NFG unchanged — so any future NFG-strategy work
+  should read spend-down order off that shape, not the pre-Phase-33 discretes-then-NFG one.
 
 - **`npm run verify:log`'s "amount is always positive" hard assertion is too strict for a real,
   legitimate case** — found 2026-07-18 while checking Phase 26's acceptance criteria:
@@ -195,7 +198,10 @@ do, and what's broken?*
       policy is the right shape — but if 1.5× ascensions arrive slower than ~1 per 16 installs, gang
       hack mults decay net-negative over the node. **Next:** count `ascend` events in the gang log
       against install count over the same stretch (the window it was waiting on closed early
-      2026-07-21). Needs no code change and no edit to `gangmanager.js`.
+      2026-07-21). Needs no code change and no edit to `gangmanager.js`. **Gains urgency from
+      Phase 33 decision 8:** expensive-first buy ordering makes `queuedGain` clear
+      `MIN_TOTAL_GAIN` in fewer buys, so installs are expected to come faster/cheaper post-ship —
+      run this check sooner rather than waiting for it to become visibly wrong.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe

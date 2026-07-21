@@ -8,6 +8,26 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-21
 
+- **Phase 33 (Workstreams A + C) — escalation-aware buy ordering + utility must-buys shipped.**
+  `augfarmer.js` was overpaying its aug-purchase escalation structurally: every purchase raises the
+  price of everything bought after it by ×1.9, but `pickTarget` sorted rep-met candidates
+  cheapest-first — the exact worst order (measured: $58.17b paid vs $18.15b optimal on one basket).
+  Fix: a tiered, price-DESC sort (tier 0 buyable discretes, tier 1 NFG, tier 2 fundBlocked
+  discretes, tier 3 buyBlocked NFG) plus a fundability guard (`fundCap = money + income×4h`) that
+  retires a live pathological case — the farmer had been reserving $325.8t for QLink, frozen, for
+  90+ minutes. A must-buy hold (`evalTrigger`) + must-buy-first spend-down order
+  (`spendDownPlan`) guarantee the three allow-listed utility augs (CashRoot, Neuroreceptor, Red
+  Pill) actually get bought before an install, closing a starvation bug where they'd never won
+  their score race. `npm test` 834/834 (261 in `augfarmer.test.js`, up from 232); `verify:log`
+  carries two pre-existing, unrelated failures (already in `BACKLOG.md`). RAM held exactly at
+  64.10 GB; the WD-gate probe (`worldprobe.js`, reused instead of writing a duplicate — its
+  export was also silently broken and is now fixed) measured 1.8 GB. Live-validated same session:
+  the head flipped off QLink onto a fundable aug within one poll of restart, and the live
+  must-buy-cost arithmetic ($10.263b) matched the spec's hand-worked example ($10.27b) almost
+  exactly. Buy-order-across-a-real-cycle and 24h-soak checks are logged as follow-ups, not
+  blockers (spec's own stated gate).
+  → [phase-33-money-throughput.closeout.md](phase-33-money-throughput.closeout.md)
+
 - **Phase 32 — BN2.1 progress tracker shipped.** Dashboard couldn't answer "are we progressing
   toward ending BN2.1?" — the loud metrics (gang respect, faction rep) are solved subgoals, while
   the metric that actually gates the win (installed hacking mult `M` toward the `w0r1d_d43m0n`
