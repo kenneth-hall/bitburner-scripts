@@ -5,9 +5,15 @@
 > gang (combat stats = 1, combat ascension mults = 1.0), so warfare needs a from-scratch second
 > build. Measured floor confirms it: our power 1.000 vs rivals 1,455–9,442 (weakest *and* climbing),
 > win-odds ~0%, Black Hand holds 85.7% of the map. The 1c build-rate experiment was **not run** —
-> the outcome doesn't change the call: rivals grow, members die at 0% odds while we build, and the
-> territory multiplier lands on a respect engine already 425× over goal. Structural mismatch is
-> dispositive without extrapolation. Building hacking-only was the *correct* optimization for the
+> the outcome doesn't change the call. **The reward is NOT marginal** (an earlier draft wrongly said
+> so): `gangreward.js` measured territory at **~20× on respect/money** from 14.3%→100% (we run
+> heavily *suppressed* down at 14.3%). Defer holds on three corrected grounds: (1) all takeable
+> territory sits behind the **strongest** rival — Black Hand holds 85.7%, the other five hold **0%**
+> (nothing to take), so growth means out-powering 9,442-and-climbing, not the 1,455 weakling; (2)
+> capturing it still needs the from-scratch combat rebuild with the engine offline and members dying
+> at ~0% odds; (3) the ~20× lands on respect (not our constraint, 425× over) and gang money
+> (×20 ≈ $20m/s, still minor vs the $25t catalog and below the batcher). Big prize, wrong axis,
+> hardest opponent — dispositive without extrapolation. Building hacking-only was the *correct* optimization for the
 > gang's real job (respect/money → rep → augs); territory is a side subsystem rewarding a build we
 > rightly declined. **What survives:** a slimmed respect-engine observability slice (durable
 > respect-rate sampler + wantedPenalty magnitude + aggregate ascension mult) — the warfare-specific
