@@ -184,6 +184,16 @@ Corollary: **documented RAM cost tells you nothing about preconditions.** `getTa
 `getEquipmentNames` are 0 GB and still throw without a gang. Verify availability empirically with
 a read-only probe before assuming a call is usable.
 
+**Building a read-only probe to collect data is pre-authorized — don't ask, just build it.** If the
+next useful step is "write a throwaway script to read game state and get the actual numbers," the
+answer is always yes. Go down that side path *before* finishing the prompt response — a measured
+number beats a hedged answer, and probing is exactly how the "read the interface first" rule gets
+enforced. **Fence: ≤10 min of work**, and **read-only only** — touches nothing in the Gang API's
+action group (or any other mutating/irreversible call). A probe that would *change* game state,
+even reversibly (a temporary task reassignment, a test purchase), is not covered here and still
+gets flagged first. Log the output to a file per the one-off-scripts convention; don't make Kenneth
+paste results back.
+
 ## Development workflow
 Feature work runs in three stages, each handing off a **file**, not chat. Name phase docs
 `phase-NN-slug.<stage>.md` — zero-padded number first so they sort chronologically (e.g.
