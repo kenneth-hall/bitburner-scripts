@@ -156,12 +156,16 @@ do, and what's broken?*
   `phase-30-gang-territory.features.md` → VERDICT. Hacking-only was the *correct* build for the
   gang's real job (respect/money → rep → augs); territory rewards a build we rightly declined.
   - **What survives Phase 30 — a slimmed respect-engine observability slice** (independent of
-    warfare): persist a durable `respectGainRate` series (`gang-state.json` is overwritten each
-    tick; the dashboard already samples 1h in-memory but never to disk), surface `wantedPenalty`
-    magnitude, and log the aggregate ascension multiplier (needed for the cadence check below).
-    Cheapest clean form: a standalone script reading `ns.gang.getGangInformation()` on an interval
-    and appending to a log (does not touch `gangmanager.js`). The warfare-specific instruments
-    (power/win-odds/rival panel) are dropped — we'll never act on them.
+    warfare): **✅ SHIPPED 2026-07-21 as `src/gangratelog.js`.** Persists a durable
+    `respectGainRate` series plus `wantedPenalty` magnitude and the aggregate hack ascension
+    multiplier (mean/min/max) — the inputs the cadence check below needs. Built cheaper than the
+    sketch: instead of a second `ns.gang.getGangInformation()` reader, it's a thin **consumer of
+    `gang-state.json`** (which `gangmanager.js` already writes each tick), so pure `ns.read`/
+    `ns.write`, ~0 gang-API RAM, zero coupling to `gangmanager.js`. Resident (not one-shot),
+    supervised by `daemon.js` so the series survives restarts/installs; 5-min samples, ring-capped
+    at 14 days → `logs/gang-rate-log.json`. Live-validated (first sample landed clean) + 11 unit
+    tests. The warfare-specific instruments (power/win-odds/rival panel) are dropped — we'll never
+    act on them.
   - **~~Still open — does a player aug install degrade gang ascension mults?~~ ✅ ANSWERED
     2026-07-20: yes, `hack` × 0.9747 per install (flat, floors at 1.0).** It was never "untestable
     until the first install fires" as recorded here — `getInstallResult()` is a read-only *preview*

@@ -8,6 +8,15 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-21
 
+- **Gang respect-rate sampler shipped (`src/gangratelog.js`).** The Phase 30 survivor slice:
+  persists a durable `respectGainRate` / `wantedPenalty` / aggregate-hack-ascension-mult series
+  that `gang-state.json`'s overwrite-in-place snapshot can't keep. Built as a thin consumer of
+  `gang-state.json` (pure `ns.read`/`ns.write`, ~0 gang-API RAM, no coupling to `gangmanager.js`)
+  rather than a second gang-API reader. Resident + daemon-supervised (survives restarts/installs);
+  5-min samples, ring-capped 14 days → `logs/gang-rate-log.json`. 11 unit tests, live-validated.
+  Closes BACKLOG item 1 of the Gang-Tier-4 survivor set; the cadence-count check (item 2) remains
+  open. Gang Tier 4 (territory) stays deferred permanently.
+
 - **Phase 31 (stall-arming) shipped — the money-blocked auto-install deadlock is fixed.** Adds a
   fourth install-trigger arming reason, `stallArmed`: the symmetric counterpart to the rep-side grind
   horizon, so a cycle stuck in `awaiting-money` past the adaptive stall threshold (12–48h, 24h

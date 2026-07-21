@@ -120,6 +120,7 @@ export const RESIDENT_COMPANIONS = [
   "dashboard.js",
   "xpfarm.js",
   "ratchetlog.js",
+  "gangratelog.js", // Phase 30 survivor -- durable respect-rate/ascension-mult series sampler (thin gang-state.json consumer, ~0 gang-API RAM)
 ];
 export const SUPERVISOR_CHECK_MS = 60_000; // time-gated inside the main loop, like the share-marker check
 export const SUPERVISOR_RETRY_MS = 5 * 60_000; // per-script backoff so an instantly-re-crashing script doesn't relaunch-storm
@@ -507,6 +508,10 @@ export async function main(ns) {
   // gate can't be the script that loses the startup RAM race). Recruit +
   // task-assign only (Tier 1); Tier 2-4 are future phases.
   launchDetached(ns, "gangmanager.js");
+  // Phase 30 survivor: durable respect-rate / ascension-mult series sampler.
+  // Thin consumer of gang-state.json (no gang API) -- persists the downsampled
+  // series gangmanager's overwrite-in-place snapshot can't keep.
+  launchDetached(ns, "gangratelog.js");
   launchDetached(ns, "procureprograms.js");
   // Phase 22: Singularity-heavy self-terminating fulfiller for the four
   // hacking-faction backdoors -- resident until all four are done (never

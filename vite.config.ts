@@ -89,6 +89,7 @@ export default defineConfig({
         if (/^gangtaskcompare-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 29 -- hacking-vs-combat gang task yield comparison, one file per run
         if (file === 'gang-state.json') return 'logs/gang-state.json'; // Phase 27 Tier 1 -- gangmanager.js overwrite-in-place snapshot + restart-persistence source
         if (file === 'gang-log.json') return 'logs/gang-log.json'; // Phase 27 Tier 1 -- gangmanager.js ring-capped event log (recruit/promote/demote/sink/startup/off-marker)
+        if (file === 'gang-rate-log.json') return 'logs/gang-rate-log.json'; // Phase 30 survivor -- gangratelog.js durable respect-rate/ascension-mult series (ring-capped, 5min samples)
 
         if (file === 'backdoor-status.json') return 'logs/backdoor-status.json'; // Phase 22 -- faction-backdoor status snapshot, overwritten in place, written on classification change only
         if (file === 'augfarmer-state.json') return 'logs/augfarmer-state.json'; // Phase 23 -- overwrite-in-place, written on change + a low-frequency heartbeat
