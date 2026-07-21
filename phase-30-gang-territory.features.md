@@ -1,5 +1,19 @@
 # Phase 30 features: gang territory (Tier 4) — observability-first
 
+> **VERDICT 2026-07-21 — TIER 4 WARFARE DEFERRED PERMANENTLY. Stage-1c experiment SKIPPED.**
+> The mechanic is 80% combat (str/def/dex/agi weight 20 each vs hack 15); we built a pure-hacking
+> gang (combat stats = 1, combat ascension mults = 1.0), so warfare needs a from-scratch second
+> build. Measured floor confirms it: our power 1.000 vs rivals 1,455–9,442 (weakest *and* climbing),
+> win-odds ~0%, Black Hand holds 85.7% of the map. The 1c build-rate experiment was **not run** —
+> the outcome doesn't change the call: rivals grow, members die at 0% odds while we build, and the
+> territory multiplier lands on a respect engine already 425× over goal. Structural mismatch is
+> dispositive without extrapolation. Building hacking-only was the *correct* optimization for the
+> gang's real job (respect/money → rep → augs); territory is a side subsystem rewarding a build we
+> rightly declined. **What survives:** a slimmed respect-engine observability slice (durable
+> respect-rate sampler + wantedPenalty magnitude + aggregate ascension mult) — the warfare-specific
+> instruments (power/win-odds/rival panel) are dropped since we'll never act on them. Everything
+> below is the brainstorm that reached this verdict; kept for the reasoning and the measured table.
+
 **Stage:** Brainstorm (opus). Output of this doc: decisions, rejected alternatives, open
 questions. Not a spec — the spec (fable) comes next and only after the Stage-1 gate below is
 understood.

@@ -144,22 +144,24 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
-- **Gang manager Tier 4 (territory warfare)** — Tiers 1-3 (recruit + task-assign, equipment,
-  ascension) shipped: Tier 1 as `src/gangmanager.js` 2026-07-20 (`docs/phases/phase-27-gang.closeout.md`),
-  Tiers 2+3 as Phase 29 (`docs/phases/phase-29-gang-scaling.spec.md`). Lowest priority of the four —
-  undocumented death-on-clash odds, lowest value for a hacking gang whose payoff is money/rep. May
-  end up deferred indefinitely.
-  - **`gangmanager.js` UNFROZEN 2026-07-21** — Phase 29's observation window was closed early on
-    day 1 (goal `respectGainRate ≥ 1.27/tick` overshot ~425× at 539.6, plus 19h clean soak). Full
-    rationale: `docs/phases/phase-29-gang-scaling.spec.md` → Close-out. Tier 4 is clear to brainstorm.
-  - **⚠️ BRAINSTORM INPUT — no persisted `respectGainRate` series.** `gang-state.json` is
-    overwritten each tick; `gang-log.json` carries only events (ascend/promote/demote/equip-buy),
-    no rate field. Every "sustained / trajectory / decay" claim to date rests on a single
-    instantaneous snapshot. **Any Tier 4 design that reasons about rate over time — or the
-    ascension-vs-install cadence check below — needs a periodic sampler built FIRST.** Cheapest
-    clean form: a standalone script reading `ns.gang.getGangInformation()` on an interval and
-    appending to a log (does not touch `gangmanager.js`). Do not design against a history that
-    isn't recorded.
+- **Gang manager Tier 4 (territory warfare) — ❌ DEFERRED PERMANENTLY 2026-07-21.** Tiers 1-3
+  (recruit + task-assign, equipment, ascension) shipped: Tier 1 as `src/gangmanager.js` 2026-07-20
+  (`docs/phases/phase-27-gang.closeout.md`), Tiers 2+3 as Phase 29
+  (`docs/phases/phase-29-gang-scaling.spec.md`). **Verdict:** the warfare mechanic weights power
+  80% combat / 15% hack / 5% cha; we built a pure-hacking gang (combat stats = 1, combat ascension
+  mults = 1.0), so warfare needs a from-scratch second build. Measured live (`gangterritory.js` →
+  `logs/gangterritory-1784643114199.json`): our power **1.000** vs rivals **1,455–9,442** (weakest
+  climbing), win-odds **~0%**, Black Hand holds **85.7%** of the map. Structural mismatch is
+  dispositive; the build-rate experiment was skipped as low-value. Full reasoning:
+  `phase-30-gang-territory.features.md` → VERDICT. Hacking-only was the *correct* build for the
+  gang's real job (respect/money → rep → augs); territory rewards a build we rightly declined.
+  - **What survives Phase 30 — a slimmed respect-engine observability slice** (independent of
+    warfare): persist a durable `respectGainRate` series (`gang-state.json` is overwritten each
+    tick; the dashboard already samples 1h in-memory but never to disk), surface `wantedPenalty`
+    magnitude, and log the aggregate ascension multiplier (needed for the cadence check below).
+    Cheapest clean form: a standalone script reading `ns.gang.getGangInformation()` on an interval
+    and appending to a log (does not touch `gangmanager.js`). The warfare-specific instruments
+    (power/win-odds/rival panel) are dropped — we'll never act on them.
   - **~~Still open — does a player aug install degrade gang ascension mults?~~ ✅ ANSWERED
     2026-07-20: yes, `hack` × 0.9747 per install (flat, floors at 1.0).** It was never "untestable
     until the first install fires" as recorded here — `getInstallResult()` is a read-only *preview*
