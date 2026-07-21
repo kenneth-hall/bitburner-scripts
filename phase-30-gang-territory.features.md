@@ -133,15 +133,24 @@ Only specced if Stage 1 clears the gate. Shape, subject to revision by the measu
   rejected because the measurement is cheap, safe, and the instruments are worth building anyway.
   We measure, then decide.
 
+## What Formulas.exe does and doesn't buy us
+
+**We already own Formulas.exe** (`gang-state.json` `formulasAvailable: true`; daemon panel shows
+`formulas`). The `gang-api.md` "we hold $5,695 — later capability" line is stale and there is **no
+$5b buy decision** — it's a sunk capability. But the gang formulas are
+`respectGain / moneyGain / wantedLevelGain / wantedPenalty / ascensionMultiplier /
+ascensionPointsGain` — **none is a power or clash-power formula.** So Formulas makes task
+assignment and the territory→yield multiplier *exact math*, but the pivotal power questions (Q1/Q2)
+are still live reads + the 1c experiment. Formulas does not shortcut them.
+
 ## Open questions
 
-1. **Does 15%-weight × ~30k hack yield competitive power?** → Stage 1a/1c answer. The pivotal one.
+1. **Does 15%-weight × ~30k hack yield competitive clash power?** The pivotal one. **Formulas does
+   NOT help** — no power formula exists. → Stage 1a reads (our power + `getOtherGangInformation`) +
+   Stage 1c build-rate experiment answer it.
 2. **Rival power/territory right now?** → Stage 1a read answers immediately (never called).
-3. **Is parking members on Territory Warfare worth the territory multiplier?** Needs 1c's
-   power-build rate × the measured territory→productivity gain. The earning opportunity cost is the
-   crux of Stage 2's split knob.
+3. **Is parking members on Territory Warfare worth the territory multiplier?** The
+   territory→yield gain is now **exact** (Formulas' `respectGain`/`moneyGain` take gang territory
+   as input — compute it, don't measure it). The remaining unknown is 1c's power-build rate, which
+   sets how many members for how long. That product is the crux of Stage 2's split knob.
 4. **Combat-training path — real option or trap?** Parked; revisit only if Q1 comes back hopeless.
-5. **Buy Formulas.exe ($5b) now?** The gang-api doc's "we hold $5,695" is **stale — we now hold
-   ~$16b**. Formulas.exe makes task assignment and ascension modeling exact, though it exposes no
-   direct *power* formula, so it doesn't fully answer Q1. Trade-off: $5b competes with the $49b aug
-   the augfarmer is currently saving for. Decide during Stage 1, not assumed.
