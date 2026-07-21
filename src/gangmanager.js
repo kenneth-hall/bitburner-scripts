@@ -38,25 +38,36 @@
 
 import { recordTransaction } from "./translog.js";
 
-// Respect-ordered, 8 rungs, sink as rung 0 (S1). Strictly ordered by
-// baseRespect, which is also strictly ordered by baseWanted -- every
-// promotion is more respect for more heat, exactly the trade evalLadderMove
-// prices. "Ethical Hacking" at rung 0 makes standing sink capacity emerge
-// from the existing rung machinery: a heat-demoted member lands on the sink
-// with no new concept needed. Excluded, with reasons: Fraud & Counterfeiting
-// (dominated by DDoS -- less respect, more wanted, more difficulty),
-// Vigilante Justice (dominated by Ethical Hacking), Train */Territory
-// Warfare/Unassigned (zero respect). See phase-29-gang-scaling.spec.md S1.
-export const TASK_LADDER = ["Ethical Hacking", "Ransomware", "Phishing", "Identity Theft", "DDoS Attacks", "Plant Virus", "Money Laundering", "Cyberterrorism"];
+// MONEY-ordered, 6 rungs, sink as rung 0 (money pivot 2026-07-21). Ordered by
+// baseMoney (Ransomware 3 -> Money Laundering 360); baseWanted is monotonic
+// along this set too, so "higher rung = more money for more heat" holds and
+// the mover's heat math is unchanged in shape. Paired with the money-AWARE
+// evalLadderMove (keyed on money, not respect) -- BOTH are required:
+//   - The zero-money pure-respect tasks (DDoS Attacks, Plant Virus,
+//     Cyberterrorism) are DROPPED. On a respect ladder the mover climbed every
+//     high-stat member to Cyberterrorism (max respect, ZERO money) and the
+//     heat gate never stopped it (our stats make even that task low-heat),
+//     crashing gang income. They're also removed because on a money-aware
+//     mover a zero-money rung mid-ladder would block the promote path to ML
+//     (moneyAtNextRung !> moneyAtRung).
+//   - "Ethical Hacking" stays rung 0 as the standing sink (only negative-
+//     wanted hacking task) -- a heat-demoted member lands there.
+// WHY money not respect: respect is rep-saturated (all NiteSec augs unlocked
+// at 2.5m req, gang respect well over it); money is the only open BN2.1 gate.
+// Measured prize: a Money-Laundering member earns ~40x a Ransomware member of
+// equal stats. See phase-29-gang-scaling.spec.md S1 for the original ladder.
+export const TASK_LADDER = ["Ethical Hacking", "Ransomware", "Phishing", "Identity Theft", "Fraud & Counterfeiting", "Money Laundering"];
 export const SINK_TASK = "Ethical Hacking"; // == TASK_LADDER[0]; the emergency watchdog and rung 0 deliberately share it
 export const SINK_ENTER_DEVIATION = 0.02;
 export const SINK_EXIT_DEVIATION = 0.005;
 
 // Persisted-state schema version (S7). A mismatch (including the pre-Phase-29
 // file, which has none) discards persisted rungs and rebuilds from live
-// tasks -- rung indices are ladder-relative, and the ladder was just
-// re-numbered (old rung 0 == Ransomware is new rung 1).
-export const LADDER_VERSION = 2;
+// tasks -- rung indices are ladder-relative. Bumped to 5 for the money pivot:
+// the ladder is the 6-rung money-ordered one and the mover is money-aware, so
+// any older persisted rung set (respect-ladder indices, or the reverted
+// experiments' 3/4) must be discarded and rebuilt from each member's live task.
+export const LADDER_VERSION = 5;
 
 // A fresh recruit (or any member on an unknown/off-policy task) starts
 // earning, not cooling -- shared by rebuildRungs' default and the live
@@ -181,35 +192,42 @@ export function initBaseline({ wantedLevel, wantedPenalty, persisted }) {
 }
 
 /**
- * Pure (S2). Exact, Formulas-based ladder movement -- replaces Phase 27's
- * empirical probe. At most one op per call, priced in this order:
+ * Pure (S2). Exact, Formulas-based ladder movement. Objective is MONEY (money
+ * pivot 2026-07-21): respect is rep-saturated (all NiteSec augs unlocked, gang
+ * respect well over the 2.5m req), so money is the only open BN2.1 gate. This
+ * priced on RESPECT until it was found to climb every high-stat member to the
+ * zero-money respect summit (Cyberterrorism) and crash gang income -- the
+ * money-ordered ladder alone didn't fix it because a respect-optimizing mover
+ * heat-demotes the highest-money task first. Both had to change together.
  *
+ * At most one op per call, priced in this order:
  * 1. Suppressed (sink mode / off-marker / no Formulas) -> no op.
  * 2. Heat demote -- if `netWantedActual` > 0: demote the rung>=1 member with
- *    the lowest marginal respect-per-heat `(r(rung)-r(rung-1)) /
+ *    the lowest marginal money-per-heat `(m(rung)-m(rung-1)) /
  *    max(w(rung)-w(rung-1), 1e-9)`. The 1e-9 floor is load-bearing: a
  *    clamped-to-zero (or negative) marginal wanted delta must rank that
  *    member LAST for demotion (demoting them frees no heat), not divide by
  *    zero. Sets that member's promote cooldown.
- * 3. Efficiency demote -- else if some member's `respectAtPrevRung >
- *    respectAtRung` (stats no longer carry the rung -- post-ascension /
- *    fresh recruit): demote whoever has the largest such gap. No cooldown.
+ * 3. Efficiency demote -- else if some member's `moneyAtPrevRung >
+ *    moneyAtRung` (stats no longer carry the rung -- post-ascension / fresh
+ *    recruit, or a task whose difficulty their stats can't meet): demote
+ *    whoever has the largest such gap. No cooldown.
  * 4. Promote -- else among members with `rung < top`, no active cooldown,
- *    `respectAtNextRung > respectAtRung`, and projected
+ *    `moneyAtNextRung > moneyAtRung`, and projected
  *    `netWantedActual - actualWantedGain + wantedAtNextRung <= 0`: promote
- *    the largest respect gain. The subtraction uses the member's ACTUAL
+ *    the largest money gain. The subtraction uses the member's ACTUAL
  *    current wantedLevelGain, not a Formulas prediction of their current
  *    rung -- otherwise model residual leaks into the safety margin.
  *
- * All respect/wanted-at-rung values are Formulas-computed by the caller
- * (this function only compares numbers -- it never touches `ns`).
+ * All money/wanted-at-rung values are Formulas-computed by the caller (this
+ * function only compares numbers -- it never touches `ns`).
  * @param {{
  *   suppressed: boolean,
  *   netWantedActual: number,
  *   members: {
  *     name: string, rung: number, top: number,
  *     actualWantedGain: number,
- *     respectAtRung: number, respectAtPrevRung: number|null, respectAtNextRung: number|null,
+ *     moneyAtRung: number, moneyAtPrevRung: number|null, moneyAtNextRung: number|null,
  *     wantedAtRung: number, wantedAtPrevRung: number|null, wantedAtNextRung: number|null,
  *     cooldownActive: boolean,
  *   }[]
@@ -224,9 +242,9 @@ export function evalLadderMove({ suppressed, netWantedActual, members }) {
       let best = null;
       let bestRatio = Infinity;
       for (const m of candidates) {
-        const deltaR = m.respectAtRung - m.respectAtPrevRung;
+        const deltaM = m.moneyAtRung - m.moneyAtPrevRung;
         const deltaW = m.wantedAtRung - m.wantedAtPrevRung;
-        const ratio = deltaR / Math.max(deltaW, 1e-9);
+        const ratio = deltaM / Math.max(deltaW, 1e-9);
         if (ratio < bestRatio) {
           bestRatio = ratio;
           best = m;
@@ -236,12 +254,12 @@ export function evalLadderMove({ suppressed, netWantedActual, members }) {
     }
   }
 
-  const ineff = members.filter((m) => m.rung >= 1 && m.respectAtPrevRung > m.respectAtRung);
+  const ineff = members.filter((m) => m.rung >= 1 && m.moneyAtPrevRung > m.moneyAtRung);
   if (ineff.length > 0) {
     let best = ineff[0];
-    let bestGain = best.respectAtPrevRung - best.respectAtRung;
+    let bestGain = best.moneyAtPrevRung - best.moneyAtRung;
     for (const m of ineff) {
-      const gain = m.respectAtPrevRung - m.respectAtRung;
+      const gain = m.moneyAtPrevRung - m.moneyAtRung;
       if (gain > bestGain) {
         bestGain = gain;
         best = m;
@@ -250,15 +268,15 @@ export function evalLadderMove({ suppressed, netWantedActual, members }) {
     return { op: "demote", name: best.name, rung: best.rung - 1, reason: "efficiency", netWanted: netWantedActual, setCooldown: false, projectedNetWanted: null };
   }
 
-  const eligible = members.filter((m) => m.rung < m.top && !m.cooldownActive && m.respectAtNextRung > m.respectAtRung);
+  const eligible = members.filter((m) => m.rung < m.top && !m.cooldownActive && m.moneyAtNextRung > m.moneyAtRung);
   const promotable = eligible
     .map((m) => ({ m, projected: netWantedActual - m.actualWantedGain + m.wantedAtNextRung }))
     .filter(({ projected }) => projected <= 0);
   if (promotable.length > 0) {
     let best = promotable[0];
-    let bestGain = best.m.respectAtNextRung - best.m.respectAtRung;
+    let bestGain = best.m.moneyAtNextRung - best.m.moneyAtRung;
     for (const c of promotable) {
-      const gain = c.m.respectAtNextRung - c.m.respectAtRung;
+      const gain = c.m.moneyAtNextRung - c.m.moneyAtRung;
       if (gain > bestGain) {
         bestGain = gain;
         best = c;
@@ -425,8 +443,12 @@ function ts() {
 
 /** Formulas respect/wanted pair for one member at one hypothetical task, or nulls when stats is unavailable (e.g. an off-policy current task never cached). Not pure -- touches ns.formulas.gang.*, guarded by the caller's formulasAvailable check. */
 function gainsFor(ns, gangInfo, raw, stats) {
-  if (!stats) return { respect: null, wanted: null };
-  return { respect: ns.formulas.gang.respectGain(gangInfo, raw, stats), wanted: ns.formulas.gang.wantedLevelGain(gangInfo, raw, stats) };
+  if (!stats) return { respect: null, money: null, wanted: null };
+  return {
+    respect: ns.formulas.gang.respectGain(gangInfo, raw, stats),
+    money: ns.formulas.gang.moneyGain(gangInfo, raw, stats),
+    wanted: ns.formulas.gang.wantedLevelGain(gangInfo, raw, stats),
+  };
 }
 
 /** @param {NS} ns */
@@ -678,16 +700,16 @@ export async function main(ns) {
             const rung = Math.min(rungs[m.name] ?? FRESH_RECRUIT_RUNG, top);
             const raw = rawMembers[m.name];
             const cur = gainsFor(ns, gangInfo, raw, taskStats[TASK_LADDER[rung]]);
-            const prev = rung >= 1 ? gainsFor(ns, gangInfo, raw, taskStats[TASK_LADDER[rung - 1]]) : { respect: null, wanted: null };
-            const next = rung < top ? gainsFor(ns, gangInfo, raw, taskStats[TASK_LADDER[rung + 1]]) : { respect: null, wanted: null };
+            const prev = rung >= 1 ? gainsFor(ns, gangInfo, raw, taskStats[TASK_LADDER[rung - 1]]) : { respect: null, money: null, wanted: null };
+            const next = rung < top ? gainsFor(ns, gangInfo, raw, taskStats[TASK_LADDER[rung + 1]]) : { respect: null, money: null, wanted: null };
             return {
               name: m.name,
               rung,
               top,
               actualWantedGain: m.wantedLevelGain,
-              respectAtRung: cur.respect,
-              respectAtPrevRung: prev.respect,
-              respectAtNextRung: next.respect,
+              moneyAtRung: cur.money,
+              moneyAtPrevRung: prev.money,
+              moneyAtNextRung: next.money,
               wantedAtRung: cur.wanted,
               wantedAtPrevRung: prev.wanted,
               wantedAtNextRung: next.wanted,

@@ -59,9 +59,15 @@ describe('nextRecruitName', () => {
 
 // --- TASK_LADDER / SINK_TASK shape (S1) -----------------------------------
 
-describe('TASK_LADDER (S1)', () => {
-  it('is the 8-rung respect-ordered ladder, sink at rung 0 (change deliberately, not by accident)', () => {
-    expect(TASK_LADDER).toEqual(['Ethical Hacking', 'Ransomware', 'Phishing', 'Identity Theft', 'DDoS Attacks', 'Plant Virus', 'Money Laundering', 'Cyberterrorism']);
+describe('TASK_LADDER (money pivot 2026-07-21)', () => {
+  it('is the 6-rung money-ordered ladder, sink at rung 0, Money Laundering at the top (change deliberately, not by accident)', () => {
+    expect(TASK_LADDER).toEqual(['Ethical Hacking', 'Ransomware', 'Phishing', 'Identity Theft', 'Fraud & Counterfeiting', 'Money Laundering']);
+  });
+
+  it('drops the zero-money pure-respect tasks (DDoS, Plant Virus, Cyberterrorism)', () => {
+    for (const t of ['DDoS Attacks', 'Plant Virus', 'Cyberterrorism']) {
+      expect(TASK_LADDER).not.toContain(t);
+    }
   });
 
   it('SINK_TASK is TASK_LADDER[0]', () => {
@@ -216,11 +222,11 @@ function ladderMember(overrides = {}) {
   return {
     name: 'nite-01',
     rung: 1,
-    top: 7,
+    top: 5,
     actualWantedGain: 0,
-    respectAtRung: 1,
-    respectAtPrevRung: null,
-    respectAtNextRung: null,
+    moneyAtRung: 1,
+    moneyAtPrevRung: null,
+    moneyAtNextRung: null,
     wantedAtRung: 0,
     wantedAtPrevRung: null,
     wantedAtNextRung: null,
@@ -231,66 +237,73 @@ function ladderMember(overrides = {}) {
 
 describe('evalLadderMove', () => {
   it('suppressed -> no op regardless of member data', () => {
-    const r = evalLadderMove({ suppressed: true, netWantedActual: 999, members: [ladderMember({ respectAtNextRung: 1000, respectAtRung: 1 })] });
+    const r = evalLadderMove({ suppressed: true, netWantedActual: 999, members: [ladderMember({ moneyAtNextRung: 1000, moneyAtRung: 1 })] });
     expect(r.op).toBeNull();
   });
 
-  it('heat demote: picks the lowest marginal respect-per-heat member and sets its cooldown', () => {
-    const a = ladderMember({ name: 'a', rung: 2, respectAtRung: 10, respectAtPrevRung: 8, wantedAtRung: 5, wantedAtPrevRung: 1 }); // deltaR=2, deltaW=4, ratio=0.5
-    const b = ladderMember({ name: 'b', rung: 3, respectAtRung: 20, respectAtPrevRung: 15, wantedAtRung: 10, wantedAtPrevRung: 8 }); // deltaR=5, deltaW=2, ratio=2.5
+  it('heat demote: picks the lowest marginal money-per-heat member and sets its cooldown', () => {
+    const a = ladderMember({ name: 'a', rung: 2, moneyAtRung: 10, moneyAtPrevRung: 8, wantedAtRung: 5, wantedAtPrevRung: 1 }); // deltaM=2, deltaW=4, ratio=0.5
+    const b = ladderMember({ name: 'b', rung: 3, moneyAtRung: 20, moneyAtPrevRung: 15, wantedAtRung: 10, wantedAtPrevRung: 8 }); // deltaM=5, deltaW=2, ratio=2.5
     const r = evalLadderMove({ suppressed: false, netWantedActual: 1, members: [a, b] });
     expect(r).toMatchObject({ op: 'demote', name: 'a', rung: 1, reason: 'heat', setCooldown: true });
   });
 
   it('heat demote: a clamped-to-zero (or negative) marginal wanted delta ranks that member LAST, not NaN/Infinity', () => {
     // b's deltaW is 0 (clamped) -- the 1e-9 floor makes its ratio huge, so it must NOT be picked over a's finite, low ratio.
-    const a = ladderMember({ name: 'a', rung: 1, respectAtRung: 2, respectAtPrevRung: 1, wantedAtRung: 1, wantedAtPrevRung: 0 }); // ratio = 1
-    const b = ladderMember({ name: 'b', rung: 1, respectAtRung: 100, respectAtPrevRung: 1, wantedAtRung: 5, wantedAtPrevRung: 5 }); // deltaW=0 -> ratio huge
+    const a = ladderMember({ name: 'a', rung: 1, moneyAtRung: 2, moneyAtPrevRung: 1, wantedAtRung: 1, wantedAtPrevRung: 0 }); // ratio = 1
+    const b = ladderMember({ name: 'b', rung: 1, moneyAtRung: 100, moneyAtPrevRung: 1, wantedAtRung: 5, wantedAtPrevRung: 5 }); // deltaW=0 -> ratio huge
     const r = evalLadderMove({ suppressed: false, netWantedActual: 1, members: [a, b] });
     expect(r.name).toBe('a');
     expect(Number.isFinite(r.rung)).toBe(true);
   });
 
   it('rung-0 members are never heat-demoted further, and are not promote/efficiency-demote candidates either', () => {
-    const rung0 = ladderMember({ name: 'a', rung: 0, respectAtRung: 5, respectAtPrevRung: null, respectAtNextRung: null, wantedAtRung: 1, wantedAtNextRung: null });
+    const rung0 = ladderMember({ name: 'a', rung: 0, moneyAtRung: 5, moneyAtPrevRung: null, moneyAtNextRung: null, wantedAtRung: 1, wantedAtNextRung: null });
     const r = evalLadderMove({ suppressed: false, netWantedActual: 1, members: [rung0] });
     expect(r.op).toBeNull();
   });
 
-  it('efficiency demote: fires when netWantedActual <= 0 and some rung no longer carries its stats, picks the largest gain', () => {
-    const a = ladderMember({ name: 'a', rung: 2, respectAtRung: 5, respectAtPrevRung: 8 }); // gain 3
-    const b = ladderMember({ name: 'b', rung: 3, respectAtRung: 10, respectAtPrevRung: 12 }); // gain 2
+  it('efficiency demote: fires when netWantedActual <= 0 and some rung earns LESS money than the rung below (post-ascension / difficulty), picks the largest gap', () => {
+    const a = ladderMember({ name: 'a', rung: 2, moneyAtRung: 5, moneyAtPrevRung: 8 }); // gap 3
+    const b = ladderMember({ name: 'b', rung: 3, moneyAtRung: 10, moneyAtPrevRung: 12 }); // gap 2
     const r = evalLadderMove({ suppressed: false, netWantedActual: 0, members: [a, b] });
     expect(r).toMatchObject({ op: 'demote', name: 'a', rung: 1, reason: 'efficiency', setCooldown: false });
   });
 
-  it('promote: requires rung < top, no cooldown, respectAtNextRung > respectAtRung, and a non-positive projected budget; picks max respect gain', () => {
-    const excludedByCooldown = ladderMember({ name: 'c', rung: 0, respectAtRung: 1, respectAtNextRung: 1000, wantedAtNextRung: 0.1, actualWantedGain: 0, cooldownActive: true });
-    const a = ladderMember({ name: 'a', rung: 0, respectAtRung: 1, respectAtNextRung: 3, wantedAtNextRung: 0.2, actualWantedGain: 0.1 }); // gain 2, projected = -5-0.1+0.2 = -4.9
-    const b = ladderMember({ name: 'b', rung: 0, respectAtRung: 1, respectAtNextRung: 5, wantedAtNextRung: 1, actualWantedGain: 0.1 }); // gain 4, projected = -5-0.1+1 = -4.1
+  it('promote: requires rung < top, no cooldown, moneyAtNextRung > moneyAtRung, and a non-positive projected budget; picks max money gain', () => {
+    const excludedByCooldown = ladderMember({ name: 'c', rung: 0, moneyAtRung: 1, moneyAtNextRung: 1000, wantedAtNextRung: 0.1, actualWantedGain: 0, cooldownActive: true });
+    const a = ladderMember({ name: 'a', rung: 0, moneyAtRung: 1, moneyAtNextRung: 3, wantedAtNextRung: 0.2, actualWantedGain: 0.1 }); // gain 2, projected = -5-0.1+0.2 = -4.9
+    const b = ladderMember({ name: 'b', rung: 0, moneyAtRung: 1, moneyAtNextRung: 5, wantedAtNextRung: 1, actualWantedGain: 0.1 }); // gain 4, projected = -5-0.1+1 = -4.1
     const r = evalLadderMove({ suppressed: false, netWantedActual: -5, members: [excludedByCooldown, a, b] });
     expect(r).toMatchObject({ op: 'promote', name: 'b', rung: 1, reason: null, setCooldown: false });
     expect(r.projectedNetWanted).toBeCloseTo(-4.1);
   });
 
+  it('promote: a zero-money next rung is never a promote target (guards the money-ladder path)', () => {
+    // moneyAtNextRung (0) is NOT > moneyAtRung (18) -- e.g. Identity Theft -> a zero-money task -- so no promote.
+    const stuck = ladderMember({ name: 'a', rung: 3, moneyAtRung: 18, moneyAtNextRung: 0, wantedAtNextRung: 0, actualWantedGain: 0 });
+    const r = evalLadderMove({ suppressed: false, netWantedActual: -5, members: [stuck] });
+    expect(r.op).toBeNull();
+  });
+
   it('promote boundary: a projected budget landing exactly at 0 is allowed; just above 0 is not', () => {
-    const atZero = ladderMember({ name: 'zero', rung: 0, respectAtRung: 1, respectAtNextRung: 2, wantedAtNextRung: 0, actualWantedGain: 0 });
+    const atZero = ladderMember({ name: 'zero', rung: 0, moneyAtRung: 1, moneyAtNextRung: 2, wantedAtNextRung: 0, actualWantedGain: 0 });
     const allowed = evalLadderMove({ suppressed: false, netWantedActual: 0, members: [atZero] });
     expect(allowed.op).toBe('promote');
 
-    const aboveZero = ladderMember({ name: 'above', rung: 0, respectAtRung: 1, respectAtNextRung: 2, wantedAtNextRung: 0.0001, actualWantedGain: 0 });
+    const aboveZero = ladderMember({ name: 'above', rung: 0, moneyAtRung: 1, moneyAtNextRung: 2, wantedAtNextRung: 0.0001, actualWantedGain: 0 });
     const blocked = evalLadderMove({ suppressed: false, netWantedActual: 0, members: [aboveZero] });
     expect(blocked.op).toBeNull();
   });
 
   it('promote: top-rung members are never eligible', () => {
-    const top = ladderMember({ name: 'a', rung: 7, top: 7, respectAtRung: 5, respectAtNextRung: null, actualWantedGain: 0 });
+    const top = ladderMember({ name: 'a', rung: 5, top: 5, moneyAtRung: 5, moneyAtNextRung: null, actualWantedGain: 0 });
     const r = evalLadderMove({ suppressed: false, netWantedActual: -5, members: [top] });
     expect(r.op).toBeNull();
   });
 
   it('no eligible move of any kind -> op null', () => {
-    const flat = ladderMember({ name: 'a', rung: 3, respectAtRung: 5, respectAtPrevRung: 5, respectAtNextRung: 5, wantedAtNextRung: 0, actualWantedGain: 0 });
+    const flat = ladderMember({ name: 'a', rung: 3, moneyAtRung: 5, moneyAtPrevRung: 5, moneyAtNextRung: 5, wantedAtNextRung: 0, actualWantedGain: 0 });
     const r = evalLadderMove({ suppressed: false, netWantedActual: 0, members: [flat] });
     expect(r.op).toBeNull();
   });
