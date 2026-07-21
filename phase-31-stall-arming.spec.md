@@ -13,7 +13,9 @@ value is queued or how long the wait is.
 
 **Observed live (2026-07-21):** the cycle sat in `awaiting-money` for **71.4h** (adaptive threshold
 24.0h) with `gainArmed:true, phaseArmed:false, gateArmed:false` — 7 augs queued at `queuedGain 1.18`
-(>the 1.1 gate) and escalation `1.9^7 ≈ 89×` inflating every further purchase. The stall detector
+(>the 1.1 gate) and a steeply-escalated price ladder inflating every further purchase (the per-purchase
+base is `~2.166` as measured for NFG in `NFG_PRICE_LADDER`; the generic-aug base is *unmeasured* in
+this fork — a live probe used `1.9`, so treat the exact multiple as approximate). The stall detector
 (Phase 26 B2) **already warned** about this for 3 days; it just has no action wired to it. The
 deadlock was only broken by a manual `run installer.js` (install #14, `mult.hacking 1.280 → 1.510`).
 
@@ -33,8 +35,9 @@ Add a fourth arming reason, `stallArmed`, that reuses the *existing* adaptive st
 ```
 stalled     = (nowMs - lastAugReset) > computeStallThreshold(cycleIntervalsMs)
               // recomputed raw here from lastAugReset/cycleIntervalsMs — NOT reused from evalStall's
-              // output, which is gated off during installSeqActive/paused and computed later in the loop
+              // output, which is gated off during installSeqActive/paused/observe and computed later
 stallArmed  = stalled && queuedCount >= 1 && !paused && !endgameHold
+              && phase !== "grinding"                              // never override a productive grind
               && (gainArmed || queuedCount >= STALL_QUEUE_FLOOR)
 
 armed       = (gainArmed && phaseArmed) || gateArmed || stallArmed
@@ -43,6 +46,12 @@ armed       = (gainArmed && phaseArmed) || gateArmed || stallArmed
 `stallArmed` becomes a fourth key in `evalTrigger`'s returned `reasons` object (alongside
 `gainArmed`, `phaseArmed`, `gateArmed`). `stalled` is passed into `evalTrigger` as a new input with
 an explicit `= false` default in the destructure (file convention: explicit defaults).
+
+Note (telemetry, not a bug): the raw `stalled` fed to `evalTrigger` is computed regardless of `mode`,
+whereas `evalStall` reports `stalled:false` in observe mode ("stalled has no meaning there"). So
+`augfarmer-state.json` can legitimately show `stall.stalled:false` next to `reasons.stallArmed`
+reflecting the raw value — the same benign mode-dependent split `gainArmed` already has. `stallArmed`
+still can't *act* in observe mode: the whole install sequence is gated on `mode === "auto"` downstream.
 
 Everything downstream (`TRIGGER_SUSTAIN_MS` sustain, the auto-mode latch, the abort levers) applies
 to `stallArmed` unchanged, exactly as it does to `gateArmed`.
@@ -66,6 +75,19 @@ to `stallArmed` unchanged, exactly as it does to `gateArmed`.
   entry — that is correct, because escalation applies per *purchase*, and an NFG level is a purchase
   that raises the ladder exactly like a distinct aug does. `STALL_QUEUE_FLOOR` is the one new
   constant (default below).
+- **`phase !== "grinding"` — do not override a productive grind (cold review, fable).** `stallArmed`
+  is otherwise phase-blind, and the trigger already has a *correct* handler for a too-long grind: the
+  `phaseArmed` grind-horizon (arm iff the remaining rep will take `> GRIND_HORIZON_MS` = 8h). A
+  `grinding` cycle whose horizon is *under* 8h is deliberately waited out because it's about to
+  finish. Without this gate, a cycle merely older than the (24h-fallback) stall threshold would
+  install mid-grind and throw away a near-complete rep track — turning the stall threshold into a
+  de-facto max cycle length. Excluding `grinding` leaves the two states `stallArmed` actually exists
+  for: `awaiting-money` (the money-blocked deadlock, no horizon logic at all) and `idle-plateau` (the
+  sub-10%-gain padding queue). Grinding that genuinely *should* install is already covered — long
+  horizon or no-faction-owed both set `phaseArmed = true` via the existing path, and a count-gate
+  grind arms via `gateArmed`; none of those needs `stallArmed`. A grind can't deadlock here either:
+  it's actively buying/earning, and when it runs out of reachable augs it flips to `idle-plateau`,
+  where `stallArmed` *does* apply.
 - **No circular dependency.** `stalled` uses only `nowMs`, `lastAugReset`, `cycleIntervalsMs` — none
   of which depend on `installSeq`. Compute it before `evalTrigger` and pass it in; `evalStall` (the
   WARN path, which *is* gated on `installSeqActive`) still runs afterward and recomputes/​reuses the
@@ -98,20 +120,30 @@ consumes the same already-derived `cycleIntervalsMs` — no double read.
 ## Acceptance criteria (testable — `evalTrigger` is a pure function)
 
 New unit tests in the existing augfarmer test file (`test/augfarmer.test.js`), all against `evalTrigger`:
-1. **stalled + gain** → `stalled:true`, `phase:"awaiting-money"`, `queuedGain 1.18` (totalGain ≥1.1),
-   `queuedCount` below floor → `armed:true`, `reasons.stallArmed:true`. *This is the live 71h case.*
-2. **stalled + padding queue** → `stalled:true`, `queuedGain 1.0` (totalGain <1.1), `queuedCount 5`
-   (≥ `STALL_QUEUE_FLOOR`) → `armed:true` via the queue-floor branch, `reasons.stallArmed:true`.
-3. **stalled + tiny queue** → `stalled:true`, `queuedGain 1.0`, `queuedCount 2` (< floor) →
-   `armed:false`, `reasons.stallArmed:false` (neither sub-condition met — must keep waiting).
-4. **boundary** → `stalled:true`, `queuedGain 1.0`, `queuedCount === STALL_QUEUE_FLOOR` (5) →
-   `armed:true` (the `>=` boundary is pinned so it can't regress to `>`).
-5. **not stalled** → `stalled:false`, otherwise identical to case 1's `awaiting-money` inputs →
-   `armed:false`, `reasons.stallArmed:false` (unchanged legacy behavior; no regression for
-   non-stalled money-blocked cycles).
-6. **paused / endgameHold** with an otherwise-arming stalled state → `armed:false` (guards honored).
-7. **default** → `stalled` omitted from inputs entirely → behaves as `stalled:false` (explicit-default
-   check).
+1. **stalled + gain, money-blocked** → `stalled:true`, `phase:"awaiting-money"`, `queuedGain 1.18`
+   (totalGain ≥1.1), `queuedCount` below floor → `armed:true`, `reasons.stallArmed:true`. *Models the
+   live 71h deadlock's gain branch (the live queue was 7, above floor — this isolates the gain path).*
+2. **stalled + padding queue, plateaued** → `stalled:true`, `phase:"idle-plateau"`, `queuedGain 1.0`
+   (totalGain <1.1), `queuedCount 5` (≥ `STALL_QUEUE_FLOOR`) → `armed:true` via the queue-floor
+   branch, `reasons.stallArmed:true`.
+3. **stalled + tiny queue** → `stalled:true`, `phase:"idle-plateau"`, `queuedGain 1.0`, `queuedCount 2`
+   (< floor) → `armed:false`, `reasons.stallArmed:false` (neither sub-condition met — keep waiting).
+4. **boundary** → `stalled:true`, `phase:"idle-plateau"`, `queuedGain 1.0`, `queuedCount ===
+   STALL_QUEUE_FLOOR` (5) → `armed:true` (pins the `>=` boundary so it can't regress to `>`).
+5. **stalled + productive grind (fable's blocker)** → `stalled:true`, `phase:"grinding"`, a *short*
+   rep horizon so `phaseArmed:false`, `gainArmed:true` → `armed:false`, `reasons.stallArmed:false`.
+   This pins that `stallArmed` never overrides a sub-8h grind; without the `phase !== "grinding"`
+   gate this case would wrongly install.
+6. **grinding, long horizon** (regression) → `stalled:true`, `phase:"grinding"`, horizon > 8h,
+   `gainArmed:true` → `armed:true` via the *existing* `phaseArmed` path (not `stallArmed`);
+   `reasons.stallArmed:false`, `reasons.phaseArmed:true` — confirms the grind-horizon path is intact.
+7. **not stalled** → `stalled:false`, otherwise identical to case 1's inputs → `armed:false`,
+   `reasons.stallArmed:false` (no regression for non-stalled money-blocked cycles).
+8. **paused / endgameHold** with an otherwise-arming stalled state → `armed:false` (guards honored).
+9. **default** → `stalled` omitted from inputs → behaves as `stalled:false` (explicit-default check).
+10. **sustain + latch** → parity with `gateArmed`'s existing coverage (test lines ~1271–1295): a
+    `stallArmed` state sustains to `fired` only after `TRIGGER_SUSTAIN_MS`, and once `fired` in auto
+    mode it latches across a subsequent call whose inputs would no longer arm.
 
 Regression handling (blocker from cold review): adding `stallArmed` to `reasons` **will** break the
 existing exact-match `expect(t.reasons).toEqual({...})` assertions (e.g. `test/augfarmer.test.js:1104`).
