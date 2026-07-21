@@ -370,6 +370,30 @@ export function appendGangLog(entries, record) {
   return entries;
 }
 
+/**
+ * Pure. Parses persisted GANG_LOG_FILE content into a starting buffer so a
+ * restart continues the event history instead of truncating it to zero (the
+ * write mode is "w", so an un-seeded `[]` silently wiped every prior ascend/
+ * recruit/equip-buy on each restart). Missing/empty/malformed/non-array
+ * content all fall back to `[]` -- a corrupt log must never crash startup or
+ * be preferable to a clean slate. Ring-trims to GANG_LOG_MAX_ENTRIES so a
+ * hand-grown or pre-cap file can't push the buffer over budget on the first
+ * append. NOTE: this only preserves history from this point forward -- events
+ * lost to pre-fix restarts are unrecoverable.
+ * @param {string} raw
+ */
+export function seedGangLog(raw) {
+  if (!raw) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.length > GANG_LOG_MAX_ENTRIES ? parsed.slice(parsed.length - GANG_LOG_MAX_ENTRIES) : parsed;
+}
+
 /** Pure (S8). Assembles the gang-state.json snapshot record from already-computed values. */
 export function buildGangState({ now, gangInfo, sinkMode, baselineWantedLevel, baselinePenalty, bonusMs, formulasAvailable, formulasSuspended, offMarker, netWantedRate, members }) {
   return {
@@ -458,7 +482,10 @@ export async function main(ns) {
   let promoteCooldowns = {}; // in-memory only (S7) -- a restart costs at most one premature promotion attempt
   let lastAscendTick = -Infinity; // in-memory only (S7) -- a restart can ascend immediately, self-correcting
 
-  let logEntries = [];
+  // Seed from the persisted log so a restart continues history rather than
+  // wiping it (the write below is "w"). The "startup" record then marks the
+  // restart boundary within a continuous timeline.
+  let logEntries = seedGangLog(ns.read(GANG_LOG_FILE));
   logEntries = appendGangLog(logEntries, { ...ts(), kind: "startup", sinkMode, baselineWantedLevel, baselinePenalty, memberCount: existingNames.length, ladderVersion: LADDER_VERSION });
   if (baseInit.event === "rebaseline") {
     logEntries = appendGangLog(logEntries, { ...ts(), kind: "rebaseline", wantedLevel: initialInfo["wantedLevel"], wantedPenalty: initialInfo["wantedPenalty"] });

@@ -27,6 +27,7 @@ import {
   planEquipmentBuys,
   planAssignments,
   appendGangLog,
+  seedGangLog,
   buildGangState,
   GANG_LOG_MAX_ENTRIES,
 } from '../src/gangmanager.js';
@@ -534,6 +535,44 @@ describe('appendGangLog', () => {
     let entries = [{ i: 0 }, { i: 1 }];
     entries = appendGangLog(entries, { i: 2 });
     expect(entries).toEqual([{ i: 0 }, { i: 1 }, { i: 2 }]);
+  });
+});
+
+// --- seedGangLog (restart continuity) ------------------------------------
+
+describe('seedGangLog', () => {
+  it('restores a persisted array so history survives a restart', () => {
+    const prior = [{ kind: 'ascend', name: 'nite-04' }, { kind: 'equip-buy', name: 'nite-04' }];
+    expect(seedGangLog(JSON.stringify(prior))).toEqual(prior);
+  });
+
+  it('falls back to [] on missing/empty content', () => {
+    expect(seedGangLog('')).toEqual([]);
+    expect(seedGangLog(undefined)).toEqual([]);
+    expect(seedGangLog(null)).toEqual([]);
+  });
+
+  it('falls back to [] on malformed JSON rather than throwing', () => {
+    expect(seedGangLog('{not json')).toEqual([]);
+  });
+
+  it('falls back to [] when the parsed value is not an array', () => {
+    expect(seedGangLog('{"kind":"ascend"}')).toEqual([]);
+    expect(seedGangLog('42')).toEqual([]);
+  });
+
+  it('ring-trims an oversized persisted file to GANG_LOG_MAX_ENTRIES, keeping the newest', () => {
+    const oversized = Array.from({ length: GANG_LOG_MAX_ENTRIES + 5 }, (_, i) => ({ i }));
+    const seeded = seedGangLog(JSON.stringify(oversized));
+    expect(seeded).toHaveLength(GANG_LOG_MAX_ENTRIES);
+    expect(seeded[0].i).toBe(5);
+    expect(seeded[seeded.length - 1].i).toBe(GANG_LOG_MAX_ENTRIES + 4);
+  });
+
+  it('seeded history then appends continuously via appendGangLog', () => {
+    let entries = seedGangLog(JSON.stringify([{ kind: 'ascend' }]));
+    entries = appendGangLog(entries, { kind: 'startup' });
+    expect(entries).toEqual([{ kind: 'ascend' }, { kind: 'startup' }]);
   });
 });
 
