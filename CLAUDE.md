@@ -112,6 +112,19 @@ on request — hold to them even when the moment is uncomfortable.
           (fable, cold-context, 2026-07-21). Standing checkpoint still open: read
           `getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill installs to confirm
           the 15,000 gate inference.
+          - **✅ MONEY PIVOT SHIPPED 2026-07-21 — gang income ~7× ($598k/s → $4.2M/s live).** The
+            `$16.25b gang vs $0.70b hacking` split above measured the gang while it was still
+            optimizing RESPECT — a *saturated* resource (augs all unlocked, only a 2.5m floor to
+            defend). `gangmanager.js` now optimizes MONEY (money-ordered `TASK_LADDER` + money-aware
+            `evalLadderMove`), parking high-stat members on Money Laundering (a ML member earns ~40×
+            a Ransomware member of equal stats). Since gang income *is* the engine the whole "CLEARLY
+            REACHABLE" call rests on and it stepped up ~7× live, the **~3–6-week estimate is now
+            conservative** — money was the only open gate. Companion fix: Formulas.exe autobuy is
+            gang-aware (buys at any hacking level once a gang exists), so the ladder mover no longer
+            sits dark through each post-install hacking re-climb. Two live regressions preceded the
+            fix (respect-mover heat-demoting the top-money task; the respect ladder climbing everyone
+            to zero-money Cyberterrorism) — the lesson is logged in CHANGELOG 2026-07-21. Soak
+            validation (only ~15 min observed at steady state) is a `BACKLOG.md` follow-up.
     - Full arithmetic: `docs/bitnodes.md` → BN2 clearing notes (⚠️ also predates the 2026-07-21
       correction above — its $25t/17-faction framing is superseded by the single-faction picture).
   - *(historical — superseded by the ✅ Phase 27 Tier 1 SHIPPED bullet above)* an early Phase 27
