@@ -71,8 +71,29 @@ on request — hold to them even when the moment is uncomfortable.
         Illuminati at ~$25t. **This reframes the gang's role: its value to BN2 is the money/rep
         engine that makes that catalog affordable, not the augs it sells.** Raw sweep output:
         `logs/gangaugs-*.json` (in-game FS; `scp … home` to sync).
-    - Full arithmetic + both corrections: `docs/bitnodes.md` → BN2 clearing notes. **Don't resume
-      BN2 work as a default; this needs an actual decision.**
+      - **⚠️ CORRECTION 2026-07-21 — the two bullets above are OBSOLETE; they rest on a *pre-gang*
+        catalog read.** Verified against the post-`createGang` sweep
+        (`logs/gangaugs-1784565947624.json`, checked against the raw JSON): **NiteSec — our own gang
+        faction — now sells 98 augs at hacking ×22.89**, `maxRepReq` 2.5m, **including The Red Pill
+        (free) and QLink.** The vanilla "your gang faction sells nearly the whole catalog" mechanic
+        is live in this fork; the pre-gang ×1.515 reading no longer applies. Confirmed real, not a
+        phantom read — `augfarmer.js` is live-buying from it (7 augs this cycle). Consequences:
+        - "The catalog was never going to reach ~25 from gang factions" is **false** — NiteSec alone
+          carries ×22.89 (÷1.75 QLink = ×13.08 for everything else).
+        - "$25t across 17 factions, gang = money engine not aug source" is **false** — it's ONE
+          faction, ONE rep track, and rep is **saturated** (2.5m max req vs ~18.3m banked respect,
+          rate 425× over goal). The exact lever BN2's nerfs attack (rep) is a non-issue.
+        - **Corrected bar — money is the only open resource:** core catalog (all but QLink) =
+          **$149b → M≈16.7** (with SF1.3 ×1.28) + a ~50–65-level NFG tail; OR add **QLink ($25t) →
+          M≈29** with a short tail. The batcher dominates the money curve; gang *type* is immaterial
+          to the win (a combat gang gets the identical expansion). **So BN2.1 is now assessed CLEARLY
+          REACHABLE (~3–6 weeks), not "plausible ~60–70%"** — the two scary unknowns (rep grind,
+          catalog access) are both retired. Full analysis: `docs/bn2-gang-type-analysis.md`
+          (fable, cold-context, 2026-07-21). Standing checkpoint still open: read
+          `getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill installs to confirm
+          the 15,000 gate inference.
+    - Full arithmetic: `docs/bitnodes.md` → BN2 clearing notes (⚠️ also predates the 2026-07-21
+      correction above — its $25t/17-faction framing is superseded by the single-faction picture).
   - *(historical — superseded by the ✅ Phase 27 Tier 1 SHIPPED bullet above)* an early Phase 27
     draft ("gang observer") was blocked on the gang API being entirely inert pre-`createGang()`;
     once the gang existed that blocker dissolved, and Tier 1 shipped from a from-scratch spec that

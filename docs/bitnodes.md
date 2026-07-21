@@ -339,6 +339,19 @@ them*). A near-complete catalog would be ≈×18–20 discrete → **≈25 befor
 BN2's gate needing only ~19–47 NFG levels — below the 67 already demonstrated in BN1's *weaker*
 economy. So the honest verdict is **"plausible, unverified,"** not "out of reach."
 
+**✅ RESOLVED 2026-07-21 — the catalog is verified against this fork; the "unverified" caveat is
+discharged.** Post-`createGang` sweep (`logs/gangaugs-1784565947624.json`, cross-checked against the
+raw JSON): **NiteSec, our gang faction, sells 98 augs at hacking ×22.89** (essentially the full
+non-gang union ×23.121), `maxRepReq` 2.5m, **including The Red Pill (free) and QLink ($25t, ×1.75).**
+The "your gang faction sells nearly the whole catalog" mechanic is live; the from-memory megacorp
+values (QLink, nextSENS, OmniTek, Xanipher, SPTN-97, Neuronal Densification) are confirmed present
+and purchasable (`augfarmer.js` live-buying). **Corrected bar:** everything but QLink = **$149b →
+×13.08 discrete → M≈16.7** (with SF1.3) + a ~50–65-level NFG tail; OR +QLink → **M≈29** with a short
+tail. Rep is **saturated** (2.5m max req vs ~18.3m banked respect). Verdict upgrades from "plausible,
+unverified" to **CLEARLY REACHABLE, money-gated only (~3–6 weeks)**; gang *type* is immaterial (a
+combat gang gets the identical expansion). The 15,000-gate inference below remains the last open
+checkpoint. Full analysis: `docs/bn2-gang-type-analysis.md`.
+
 **Structural argument that cuts the same way:** the in-game guide (quoted above) calls BN2 a
 *starter* node — recommended before SF6/7 exist. A 15,000 gate on a starter node only coheres if
 the designed in-node path closes it, and BN2's unique mechanic is exactly a faction selling "most
