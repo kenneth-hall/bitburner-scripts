@@ -48,12 +48,20 @@ const FORMULAS_FILE = "Formulas.exe";
  * "disabled" -> exit); the level gate is the resident wait branch; TOR is
  * required before purchaseProgram can touch the darkweb; stale state and the
  * holdback both defer the buy without exiting.
+ *
+ * The hacking-level gate exists for the BATCHER (formulas-based batching isn't
+ * worth $5b below level 400 -- servers are the better early spend). But a GANG
+ * needs Formulas.exe at ANY level: gangmanager.js's ladder mover suspends
+ * entirely without it, so post-install the gang sits un-optimized through the
+ * whole hacking re-climb. So `gangExists` (measured from gang-state.json, not
+ * the gang API -- 0 GB, no import-bleed) bypasses the level gate: with a gang,
+ * buy as soon as TOR + cash allow, regardless of hacking level.
  * @returns {{action: "done"|"disabled"|"wait-level"|"wait-tor"|"wait-stale"|"wait-cash"|"buy"}}
  */
-export function planFormulasPurchase({ hasFormulas, disabled, hacking, hasTor, money, holdback, stale }) {
+export function planFormulasPurchase({ hasFormulas, disabled, hacking, hasTor, money, holdback, stale, gangExists = false }) {
   if (hasFormulas) return { action: "done" };
   if (disabled) return { action: "disabled" };
-  if (hacking <= FORMULAS_HACKING_LEVEL_THRESHOLD) return { action: "wait-level" };
+  if (hacking <= FORMULAS_HACKING_LEVEL_THRESHOLD && !gangExists) return { action: "wait-level" };
   if (!hasTor) return { action: "wait-tor" };
   if (stale) return { action: "wait-stale" };
   if (money - FORMULAS_COST < holdback) return { action: "wait-cash" };
@@ -84,6 +92,12 @@ export async function main(ns) {
       money: ns.getPlayer().money,
       holdback: bootstrapHoldbackFrom(state),
       stale,
+      // gang-state.json presence == gangmanager.js is running a gang, which
+      // needs Formulas at any hacking level. Filename hardcoded, not imported
+      // from gangmanager.js -- importing would bleed its whole ns.gang surface
+      // into this script's RAM (CLAUDE.md import-bleed rule). ns.fileExists is
+      // 0 GB.
+      gangExists: ns.fileExists("gang-state.json", "home"),
     });
 
     // Terminal outcomes exit quietly (owned) / on a deliberate veto (disabled) --

@@ -68,6 +68,20 @@ describe('planFormulasPurchase', () => {
     ).toEqual({ action: 'wait-level' });
   });
 
+  it('a gang bypasses the level gate: below threshold but gangExists -- proceeds past wait-level', () => {
+    // The gang mover needs Formulas at any level, so a low-level gang buys.
+    expect(planFormulasPurchase({ ...ELIGIBLE, hacking: 1, gangExists: true })).toEqual({ action: 'buy' });
+  });
+
+  it('gang bypass still respects TOR/stale/cash gates below it', () => {
+    expect(planFormulasPurchase({ ...ELIGIBLE, hacking: 1, gangExists: true, hasTor: false })).toEqual({ action: 'wait-tor' });
+    expect(planFormulasPurchase({ ...ELIGIBLE, hacking: 1, gangExists: true, money: 0, holdback: 0 })).toEqual({ action: 'wait-cash' });
+  });
+
+  it('no gang + below threshold still waits on level (default gangExists=false)', () => {
+    expect(planFormulasPurchase({ ...ELIGIBLE, hacking: 1 })).toEqual({ action: 'wait-level' });
+  });
+
   it('precedence: TOR is checked before stale/cash', () => {
     expect(planFormulasPurchase({ ...ELIGIBLE, hasTor: false, stale: true, money: 0 })).toEqual({ action: 'wait-tor' });
   });
