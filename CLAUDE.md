@@ -355,6 +355,12 @@ front-end**, distinct from the RFA file bridge (which only moves files) — see
   Don't `cat` a file to verify its contents over CDP — it looks empty and wedges the UI. To read a
   synced file, read the repo copy (or its `dist/` mirror) directly; to confirm what actually
   reached the game, have a script `ns.read` it and `tprint`, or take a `shot`.
+- **Installing augmentations throws a blocking popup that must be dismissed.** After an install
+  fires (`installer.js`, or a manual `installAugmentations`), the game overlays a popup that swallows
+  clicks until cleared — the same shape as a story popup, so `cli.mjs dismiss` clears it. Do it
+  before any further CDP drive (a `read-terminal`/`goto` afterward will otherwise time out on the
+  intercepted click). The install itself still succeeds regardless — confirm via the `ratchetlog`
+  install line / a fresh `auginfo.js`, not the popup.
 
 ### Story popups — Claude clears them, no permission needed
 
