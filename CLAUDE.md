@@ -238,17 +238,28 @@ Corollary: **documented RAM cost tells you nothing about preconditions.** `getTa
 `getEquipmentNames` are 0 GB and still throw without a gang. Verify availability empirically with
 a read-only probe before assuming a call is usable.
 
-**Building a read-only probe or check to collect data is pre-authorized — don't ask, just build it.**
-This covers both a throwaway probe you write *and* running an existing check script (`augcheck.js`,
-`auginfo.js`, `ramcheck.js`, and the like). If the next useful step is "write a throwaway script to
-read game state and get the actual numbers," or "run the check script that already reads them," the
-answer is always yes. Go down that side path *before* finishing the prompt response — a measured
-number beats a hedged answer, and probing is exactly how the "read the interface first" rule gets
-enforced. **Fence: ≤10 min of work**, and **read-only only** — touches nothing in the Gang API's
-action group (or any other mutating/irreversible call). A probe or check that would *change* game
-state, even reversibly (a temporary task reassignment, a test purchase), is not covered here and
-still gets flagged first. Log the output to a file per the one-off-scripts convention; don't make Kenneth
-paste results back.
+**Gathering data to strengthen an analysis is STANDING pre-authorized — just do it, then present
+the stronger answer. Do not spend a round asking "want me to run it?"** This covers, as one blanket
+grant: writing a throwaway probe, running an existing check script (`augcheck.js`, `auginfo.js`,
+`ramcheck.js`, and the like), reading exported logs, **and running the calculations/modelling those
+numbers feed** (cost curves, break-even math, timeline projections, "is path A cheaper than path B").
+If the next useful step is *measure it, compute it, then reason from the result*, the answer is
+**always yes** — the permission is assumed, asking for it wastes a turn. Kenneth's standing position:
+"of course I'll allow you to gather data and give me a stronger thesis — making me say 'yes go ahead'
+first is pure latency." So collect the numbers and run the math *before* finishing the response, and
+lead with the grounded conclusion, not a hedge or an offer. A measured/computed number beats a hedged
+one, and probing is how the "read the interface first" rule gets enforced.
+
+Be **agentic** about this: when a claim in your own answer would be sharper with a real number, that
+is a trigger to go get the number in the same turn, not to caveat around its absence. The bias is
+toward doing the work and showing the result.
+
+**Fences (the grant is broad but bounded):** **read-only only** — touches nothing in the Gang API's
+action group or any other mutating/irreversible call; a probe/check/experiment that would *change*
+game state, even reversibly (a temporary task reassignment, a test purchase), is NOT covered and
+still gets flagged first. Keep any single side-quest to **≤10 min of work**. Log probe output to a
+file per the one-off-scripts convention; don't make Kenneth paste results back. (Calculations from
+already-gathered numbers have no such fence — just run them.)
 
 ## Development workflow
 Feature work runs in three stages, each handing off a **file**, not chat. Name phase docs
