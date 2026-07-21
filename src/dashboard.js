@@ -83,22 +83,23 @@ const XPFARM_STATE_FILE = "xpfarm-state.json";
 const AUGFARMER_STATE_FILE = "augfarmer-state.json";
 const GANG_STATE_FILE = "gang-state.json";
 
-// Phase 29's observation-window goal metric (respectGainRate/tick, 10x the
-// 0.127 pre-phase baseline) and gangmanager.js's ASCEND_MIN_FACTOR.
+// gangmanager.js's ASCEND_MIN_FACTOR, hardcoded rather than imported:
+// importing ANY symbol from gangmanager.js would charge dashboard.js that
+// module's entire ns.gang surface (CLAUDE.md's import-bleed rule:
+// targetsmonitor.js paid 0.60 GB for a four-line pure helper). dashboard.js
+// must stay a 0 GB reader.
 //
-// Both hardcoded rather than imported, and this one is not merely the
-// filename-string precedent above -- importing ANY symbol from gangmanager.js
-// would charge dashboard.js that module's entire ns.gang surface (CLAUDE.md's
-// import-bleed rule: targetsmonitor.js paid 0.60 GB for a four-line pure
-// helper). dashboard.js must stay a 0 GB reader.
-export const GANG_RESPECT_GOAL = 1.27;
+// Phase 29's observation-window goal (respectGainRate >= 1.27/tick) is retired:
+// the window closed early 2026-07-21 with the rate ~425x over it, so a
+// "% of goal" readout only ever printed five-digit noise. The trend arrow
+// below is the live health signal that replaced it.
 export const GANG_ASCEND_MIN_FACTOR = 1.5;
 
 // Trend sampling (the dashboard is its own sampler): gang-state.json is a
-// single overwritten snapshot, so "is the rate climbing?" has nowhere to come
-// from otherwise -- and the obvious producer-side fix is barred while
-// gangmanager.js is frozen for the observation window. One sample per minute,
-// capped at an hour of history. In-memory only; a dashboard restart resets it.
+// single overwritten snapshot, so "is the rate climbing?" has nowhere else to
+// come from. One sample per minute, capped at an hour of history. In-memory
+// only; a dashboard restart resets it -- durable, multi-hour history is Tier 4
+// candidate work (BACKLOG), now that the observation-window freeze is lifted.
 export const GANG_SAMPLE_MS = 60_000;
 export const GANG_SAMPLE_CAP = 60;
 
@@ -316,7 +317,6 @@ export function gangPanel(state, trend, now) {
   }
 
   const rate = state.respectGainRate;
-  const pctOfGoal = Number.isFinite(rate) ? (rate / GANG_RESPECT_GOAL) * 100 : undefined;
   let trendPart = "";
   if (trend) {
     const mins = Math.round(trend.spanMs / 60_000);
@@ -325,7 +325,7 @@ export function gangPanel(state, trend, now) {
     trendPart = ` | ${mins}m ${arrow} ${sign}${trend.rateDelta.toFixed(3)}`;
   }
   lines.push(
-    `respect ${fmtNum(state.respect)} (+${fmtRate(rate)}/t) goal ${GANG_RESPECT_GOAL}/t ${fmtPct(pctOfGoal)}${trendPart}`
+    `respect ${fmtNum(state.respect)} (+${fmtRate(rate)}/t)${trendPart}`
   );
 
   // netWantedRate is the health signal the Phase 27 sink bug hid: negative is

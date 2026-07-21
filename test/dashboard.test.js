@@ -21,7 +21,6 @@ import {
   COLUMN_BUDGET,
   ROW_BUDGET,
   PARSE_FAILED,
-  GANG_RESPECT_GOAL,
   GANG_SAMPLE_MS,
   GANG_SAMPLE_CAP,
 } from '../src/dashboard.js';
@@ -280,10 +279,11 @@ describe('gangPanel', () => {
     expect(gangPanel(PARSE_FAILED, null, NOW)).toEqual(['-- GANG --', 'unreadable']);
   });
 
-  it('shows rate against the observation-window goal as a percentage', () => {
+  it('shows the raw respect rate without the retired observation-window goal', () => {
     const lines = gangPanel(state, null, NOW);
-    expect(lines.some((l) => l.includes(`goal ${GANG_RESPECT_GOAL}/t`))).toBe(true);
-    expect(lines.some((l) => l.includes('25.1%'))).toBe(true); // 0.319 / 1.27
+    expect(lines.some((l) => l.includes('+0.32/t'))).toBe(true);
+    expect(lines.some((l) => l.includes('goal'))).toBe(false); // retired 2026-07-21
+    expect(lines.some((l) => l.includes('%'))).toBe(false);
   });
 
   it('omits the trend segment until there is history, then shows direction and delta', () => {
