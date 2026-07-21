@@ -165,6 +165,20 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
+- **Soak-validate the gang money pivot (shipped 2026-07-21).** The money-ordered ladder +
+  money-aware mover reached steady state ($4.21M/s, 8 on Money Laundering, netWanted −0.27) but
+  only ~15 min of observation. **Revisit if:** income oscillates, wanted creeps positive over
+  hours, or an install cycle (formulas wiped → re-bought via the new gang-aware autobuy → mover
+  re-converges) shows the crew *not* re-parking on Money Laundering. No action unless one of those
+  is seen; the `gangratelog.js` / `gang-state.json` series is the check surface.
+- **Unresolved: ascension respect-accounting doesn't reconcile.** The two big logged ascensions
+  claim ~24.7m respect destroyed (nite-04 −12.0m, nite-05 −12.7m) yet the pool never went near
+  that low, and a third (nite-07 −2.66m, 2026-07-21) dropped it to 1.59m then it recovered to 7.9m
+  within minutes. The gang-respect ↔ NiteSec-faction-rep coupling and how `respectLost` maps to
+  the pool aren't understood. Matters only for the "keep respect ≥ 2.5m aug floor" guardrail under
+  aggressive ascension. **Revisit if** an ascension ever visibly re-locks an aug; otherwise low
+  priority. Related: the `wantedPenalty` non-monotonic bug in Bugs above.
+
 - **Gang manager Tier 4 (territory warfare) — ❌ DEFERRED PERMANENTLY 2026-07-21.** Tiers 1-3
   (recruit + task-assign, equipment, ascension) shipped: Tier 1 as `src/gangmanager.js` 2026-07-20
   (`docs/phases/phase-27-gang.closeout.md`), Tiers 2+3 as Phase 29

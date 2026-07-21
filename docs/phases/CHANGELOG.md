@@ -8,6 +8,34 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-21
 
+- **Gang money pivot — gang income ~7× ($598k/s → $4.2M/s), 8 members on Money Laundering.**
+  The gang was optimizing RESPECT (rep-saturated: all NiteSec augs unlocked at 2.5m req, gang
+  respect well over it) while MONEY is the only open BN2.1 gate. Two changes that only work
+  together: `evalLadderMove` now optimizes money (promote by money gain, heat-demote worst
+  money-per-heat, efficiency-demote a rung earning less than the one below; `gainsFor` adds
+  `ns.formulas.gang.moneyGain`), and `TASK_LADDER` is money-ordered with the zero-money
+  pure-respect tasks (DDoS/Plant Virus/Cyberterrorism) dropped (`LADDER_VERSION` 4→5). Measured
+  prize: a Money-Laundering member earns ~40× a Ransomware member of equal stats.
+  **Two live regressions preceded the fix and are the lesson:** (1) reordering the ladder alone
+  regressed money ($598k→$138k/s) — the respect mover heat-demoted the top-money task; (2) turning
+  formulas on with the respect ladder crashed it ($0.05M/s) — the mover climbed every high-stat
+  member to Cyberterrorism (max respect, zero money) and the heat gate never stopped it (our stats
+  make even that low-heat). The real lever throughout was that Formulas.exe was OFF (hacking 325 <
+  400), which suspends the mover entirely. `npm test` 848/848; live-validated to steady state
+  ($4.21M/s, netWanted −0.27, respect 7.9m). RAM unaffected (`formulas.gang` already charged).
+- **Formulas.exe autobuy is now gang-aware.** The hacking>400 gate on the autobuy is a batcher
+  tuning; a gang needs Formulas at any level (its mover suspends without it). `planFormulasPurchase`
+  gains a `gangExists` input (from `gang-state.json` presence — 0 GB `ns.fileExists`, no gang-API
+  import-bleed) that bypasses the level gate while still respecting TOR/stale/cash. Prevents the
+  gang sitting un-optimized through the post-install hacking re-climb every cycle. +3 tests.
+- **Gang log survives restarts.** `gangmanager.js` initialized its log buffer to `[]` and wrote in
+  `"w"` mode, so every restart silently wiped all prior ascend/recruit/equip-buy events. New pure
+  `seedGangLog` seeds from the persisted file (fallback `[]` on missing/malformed/non-array,
+  ring-trimmed). Forward-only — history already lost is unrecoverable. +6 tests, live-validated.
+- **Dashboard GANG panel shows the member task split.** New `tasks: Ransomware 9 | …` line, most-
+  populous first, capped at `PANEL_ENTRY_CAP` with a `+N distinct more` suffix. Previously only
+  visible via a manual `gang-state.json` read. Row/column budgets hold; +6 tests, live-confirmed.
+
 - **Phase 33 (Workstreams A + C) — escalation-aware buy ordering + utility must-buys shipped.**
   `augfarmer.js` was overpaying its aug-purchase escalation structurally: every purchase raises the
   price of everything bought after it by ×1.9, but `pickTarget` sorted rep-met candidates
