@@ -31,14 +31,31 @@ Clash outcome is `ourPower / (ourPower + theirPower)`, exposed exactly by
 the per-clash death probability** (`docs/gang-api.md` open Q5). Low power → low win chance → our
 members die. For a hacking gang this is the whole risk.
 
-**Two things are genuinely unknown and decide the phase:**
-1. Does `15 × (hack ~30k)` still produce *competitive* power? A huge hack number against a small
-   weight might or might not beat a combat gang's `80 × (their combat stats)`. Unknown until read.
-2. What is each rival's current `power` and `territory`? We have never called
-   `getOtherGangInformation()`. Unknown until read.
+### MEASURED 2026-07-21 (`gangterritory.js` read-only probe → `logs/gangterritory-1784643114199.json`)
 
-Both are answerable **safely and immediately** — pure reads, no irreversible action, clashes stay
-OFF. That is the phase's whole shape.
+| gang | power | territory | our win-odds |
+|---|---|---|---|
+| **US (NiteSec)** | **1.000** | **14.3%** | — |
+| Speakers for the Dead | 1,455 | 0% | **0.1%** |
+| The Dark Army | 2,330 | 0% | 0.0% |
+| The Syndicate | 2,385 | 0% | 0.0% |
+| Tetrads | 2,402 | 0% | 0.0% |
+| Slum Snakes | 2,546 | 0% | 0.0% |
+| **The Black Hand** | **9,442** | **85.7%** | 0.0% |
+
+Two hard facts fall out:
+- **Our power is 1.000 — the floor.** No member has ever run Territory Warfare, so power has never
+  been built. This is *not* proof a hacking gang can't build power; it means power-build rate
+  (Stage 1c) is the one thing still genuinely unknown.
+- **The territory map is not the default even split.** The Black Hand holds **85.7%**, we hold
+  **14.3%**, the other five rivals are squeezed to **0%**. Growing means out-powering gangs at
+  1,455 (weakest) to 9,442 (Black Hand, which holds all the territory worth taking). Even the
+  *weakest* rival out-powers us ~1,455×; current win-odds against the whole field are ~0%.
+
+**Remaining unknown (Q1/Q3):** can a combat-starved hacking gang build power fast enough — at 15%
+weight, combat stats at 1 — to reach the low thousands, and is the earning time it costs worth the
+territory multiplier? That needs the Stage 1c build-rate experiment (a *reversible task
+reassignment* — flagged, not covered by the read-only probe authorization).
 
 ---
 
@@ -62,9 +79,10 @@ Everything here is read-only or a bounded, reversible experiment. Clashes stay O
 ### 1a. Surface the missing KPIs (pure reads)
 Add to the dashboard GANG panel / a durable log:
 - **Territory %** (ours) — `GangGenInfo.territory`. The headline number that appears *nowhere*
-  today. We hold ~14.28% (1/7, the default even split).
+  today. We hold 14.3% — the rest is The Black Hand's 85.7% (measured; not an even split).
 - **Our power** + **each rival's power and territory** — `GangGenInfo.power` +
-  `getOtherGangInformation()`. Tells us instantly if we are hopelessly outclassed.
+  `getAllGangInformation()` (NOT `getOtherGangInformation` — removed in this 3.0.0 fork). Told us
+  instantly we are outclassed ~1,455×–9,442× (see MEASURED table above).
 - **Clash win-odds vs each rival** — `getChanceToWinClash(rival)`. The single most important
   safety instrument; if these sit near 0, Stage 2 is dead on arrival.
 - **wantedPenalty magnitude** — `GangGenInfo.wantedPenalty` (the actual productivity multiplier,
@@ -148,7 +166,8 @@ are still live reads + the 1c experiment. Formulas does not shortcut them.
 1. **Does 15%-weight × ~30k hack yield competitive clash power?** The pivotal one. **Formulas does
    NOT help** — no power formula exists. → Stage 1a reads (our power + `getOtherGangInformation`) +
    Stage 1c build-rate experiment answer it.
-2. **Rival power/territory right now?** → Stage 1a read answers immediately (never called).
+2. **~~Rival power/territory right now?~~ ✅ ANSWERED 2026-07-21** — see MEASURED table. We're at
+   power 1 vs 1,455–9,442; Black Hand holds 85.7% of the map; win-odds ~0% across the field.
 3. **Is parking members on Territory Warfare worth the territory multiplier?** The
    territory→yield gain is now **exact** (Formulas' `respectGain`/`moneyGain` take gang territory
    as input — compute it, don't measure it). The remaining unknown is 1c's power-build rate, which
