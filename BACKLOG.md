@@ -165,6 +165,25 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
+- **[SCHEDULE — the gate read is THE next BN2.1 milestone] Confirm the `w0r1d_d43m0n` requirement
+  the moment The Red Pill installs.** The 15,000 hacking-level gate is an ~85% inference and it's
+  the whole clear-plan's linear scale factor (at 7,500 the catalog alone nearly clears; at 30,000
+  the plan is infeasible). Red Pill is free + a Phase 33 must-buy, so it installs on its own —
+  read `getServerRequiredHackingLevel("w0r1d_d43m0n")` (and the true M needed) that cycle. Every
+  number in CLAUDE.md's clear plan is provisional until this lands. **Next action:** watch for the
+  Red Pill install; run the read then.
+- **[MEASURE — decides deep-NFG pacing] Does NiteSec faction rep survive an install?** Unestablished
+  in the repo. NFG rep-req grows (0.7m@L56 → 8.1m@L75 → 26.4m@L84) and the money pivot cut
+  respect-gain-rate ~2.4× (539.6 → ~220/tick). If faction rep resets each install, the deep ladder
+  (level ~69+) is rep-paced (waits ~0.5–1 day on re-accrual per late install), not money-paced —
+  which would favor bigger late NFG batches. **Next action:** one `getFactionRep("NiteSec")` read
+  immediately after the next install (compare to pre-install).
+- **NFG tail batching policy (from the 2026-07-21 fable review).** One-NFG-per-install over-optimizes
+  money that doesn't matter; variable batches (fat early while levels cost millions, taper to 1–3
+  per install past ~level 65 where each costs $5–25b) get ~75 levels for ~$160–250b vs $99b/$2.17t at
+  the extremes. **Revisit when** the ratchet actually reaches the NFG tail (M≈16.7, catalog done) —
+  check whether `augfarmer.js`'s escalation-aware ordering already approximates this or needs a
+  per-install NFG cap. Not actionable until the catalog is bought.
 - **Soak-validate the gang money pivot (shipped 2026-07-21).** The money-ordered ladder +
   money-aware mover reached steady state ($4.21M/s, 8 on Money Laundering, netWanted −0.27) but
   only ~15 min of observation. **Revisit if:** income oscillates, wanted creeps positive over

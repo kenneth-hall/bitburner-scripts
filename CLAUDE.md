@@ -125,6 +125,37 @@ on request — hold to them even when the moment is uncomfortable.
             fix (respect-mover heat-demoting the top-money task; the respect ladder climbing everyone
             to zero-money Cyberterrorism) — the lesson is logged in CHANGELOG 2026-07-21. Soak
             validation (only ~15 min observed at steady state) is a `BACKLOG.md` follow-up.
+          - **✅ CLEAR PLAN REFINED 2026-07-21 (two independent analyses agree — sonnet's bridge calc
+            + a cold-context fable review).** Measured state: **M=1.51, 7 augs, NFG 0** — the very
+            start of the climb. The path and its real constraints:
+            - **QLink is a TRAP for the gate — never buy it.** QLink's ×1.75 hacking = ~56 NFG levels
+              (NFG is +1%/level, base $750k, cost grows only ×1.14/level). QLink costs **$25t**; the
+              equivalent NFG costs **~$8b base / ~$100–150b with real escalation** — ~200–3000×
+              cheaper. QLink's other mults (money ×4, speed ×2) only help the batcher (~4% of income),
+              not the hacking-*level* mult that gates WD.
+            - **Money is NOT the bottleneck; stocks are NOT needed.** Whole path (catalog ~$149b → M≈16.7
+              + NFG tail) is gang-fundable in ~2–3 days at current income. If income ever regresses,
+              Tier-4 territory would be the cheaper lever than a from-scratch stock engine — but
+              neither is needed.
+            - **DON'T stop at M≈29 — overshoot to M≈35–37 (NFG ~76–80).** The omitted tail is the
+              *terminal XP grind*: every install wipes XP, only the last cycle counts, and XP-to-15,000
+              is brutally M-sensitive (M=29 → 7–36 days of grind; M=35–37 → hours). Cheap NFG funds the
+              overshoot for ~$100–150b extra (hours of income). Binding constraint is therefore
+              *money-rate for ~2–3 days, then the terminal XP grind sized by where you stop the ladder*
+              — NOT install throughput (~25 automated installs ≈ half a day) and NOT a second engine.
+            - **Buy NFG in variable batches** (fat early while levels cost millions, taper to 1–3/install
+              past ~level 65 where each costs $5–25b) — ~$160–250b for 75 levels; one-per-install
+              over-optimizes money that doesn't matter.
+            - **Estimate: 5–10 days if income holds, 2.5–3.5 weeks if it regresses** — both inside the
+              3–6-week band. ~90% confident *conditional on the gate being ~15,000*, ~75% unconditional.
+            - **TWO cheap measurements dominate the residual risk (schedule both):** (1) **the gate read
+              is THE next milestone** — Red Pill is free + a Phase 33 must-buy, so the next install
+              converts the 15,000 *inference* to a `getServerRequiredHackingLevel` *reading*; every
+              number above scales linearly off it (at 7,500 the catalog nearly clears; at 30,000 it's
+              infeasible). (2) **does NiteSec faction rep survive an install?** — unestablished; NFG
+              rep-req grows (0.7m@L56 → 8.1m@L75 → 26.4m@L84) and the pivot cut respect-gain-rate ~2.4×,
+              so if rep resets each install the *deep* ladder is rep-paced not money-paced. One
+              `getFactionRep` read next install settles it. Both are in `BACKLOG.md`.
     - Full arithmetic: `docs/bitnodes.md` → BN2 clearing notes (⚠️ also predates the 2026-07-21
       correction above — its $25t/17-faction framing is superseded by the single-faction picture).
   - *(historical — superseded by the ✅ Phase 27 Tier 1 SHIPPED bullet above)* an early Phase 27
