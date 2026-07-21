@@ -6,6 +6,15 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-21
+
+- **Phase 29 observation window closed early (day 1 of 7); `gangmanager.js` unfrozen.** Goal
+  metric `respectGainRate ≥ 1.27/tick` was overshot ~425× (live 539.6) with 19h of clean
+  autonomous soak, so the window was retired by decision rather than run to ~2026-07-27. Phase 29
+  docs graduated to `docs/phases/`. Surfaced gap carried to Tier 4 brainstorm: no persisted
+  `respectGainRate` series exists (`gang-state.json` is overwritten each tick).
+  `docs/phases/phase-29-gang-scaling.spec.md` → Close-out.
+
 ## 2026-07-20
 
 - **Gang rep pivot — the task ladder is pinned to Ransomware.** Tier 1's ladder was ordered by

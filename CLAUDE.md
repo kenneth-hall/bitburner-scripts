@@ -27,15 +27,16 @@ on request — hold to them even when the moment is uncomfortable.
       2026-07-20 — merged to `master`, live-deployed over CDP.** RAM gate measured 24.8 GB
       (band ≤28.0). Initial live behavior confirmed within ~90s of restart: rootkits auto-bought
       with matching transaction records, five members promoted off the sink, `netWantedRate`
-      staying negative. Spec: `phase-29-gang-scaling.spec.md` (still at repo root — graduates to
-      `docs/phases/` once the observation window below closes).
-      **A 7-day observation window is running now (closes ~2026-07-27).** Goal metric:
-      `respectGainRate >= 1.27/tick` (10x the pre-phase 0.127 baseline) sustained within that
-      window — the spec's L3-L6 live-validation steps ride it. **Don't edit `gangmanager.js`
-      again before the window closes without flagging it first** — a change during the window
-      confounds the measurement (can't tell whether a rate change came from the shipped design or
-      the edit). This doesn't block unrelated work, only edits to this file specifically. Tier 4
-      (territory) remains deferred — see `BACKLOG.md`'s "Gang manager Tier 4" entry.
+      staying negative. Spec (graduated): `docs/phases/phase-29-gang-scaling.spec.md`.
+      **✅ Observation window CLOSED EARLY 2026-07-21 (day 1 of 7).** Goal metric
+      `respectGainRate >= 1.27/tick` was overshot **~425×** (live 539.6), plus 19h of clean
+      autonomous soak — sustainability was no longer a live question, so the window was retired
+      by decision with Kenneth rather than run to ~2026-07-27. Rationale logged in the spec's
+      Close-out. **`gangmanager.js` is UNFROZEN** — edits no longer confound a measurement.
+      **Carried gap:** no persisted `respectGainRate` series exists (`gang-state.json` is
+      overwritten each tick) — a periodic sampler is a required input to any Tier 4 rate/decay
+      reasoning; see `BACKLOG.md`'s "Gang manager Tier 4" entry. Tier 4 (territory) is now clear
+      to brainstorm.
   - *(historical — the decision above closed this)* **commit to BN2 or abort?** BN2 was locked for its gang engine (SF2 kills the
     recurring Daedalus rep tax); same-day in-node analysis then found its `w0r1d_d43m0n` gate is
     **15,000** (Difficulty 500%) — realistically needing hacking mult **M ≈ 30–35** against our

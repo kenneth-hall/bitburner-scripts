@@ -432,6 +432,33 @@ reserve comment updated if it names the old figure.
 `test/verify-gang.test.js` · `test/hosts.test.js` · `docs/scripts.md` · `docs/gang-api.md` ·
 `BACKLOG.md` · `docs/phases/CHANGELOG.md`.
 
+## Close-out — observation window closed EARLY, 2026-07-21
+
+The 7-day window (opened 2026-07-20, scheduled close ~2026-07-27) is **closed early on day 1**,
+by explicit decision with Kenneth. Rationale, logged so the dropped observation leaves an artifact
+rather than a memory:
+
+- **Goal metric overshot ~425×, not marginally met.** Window goal: `respectGainRate ≥ 1.27/tick`
+  (10× the 0.127 baseline). Live snapshot 2026-07-21 08:23: **`respectGainRate = 539.6`** — 12/12
+  members, `netWantedRate = -0.0044` (negative), wanted penalty ~1.0, money rate ~$905k/s. The
+  window was sized to prove a marginal 10× outcome; sustainability is no longer a live question
+  when even a catastrophic 100× decay still lands 4× over the bar.
+- **Latent-bug soak is ~covered.** The window's secondary job — soak the shipped design for a
+  slow-burn bug (cf. the Tier-1 wanted-sink-froze-at-tick-zero bug that only surfaced live) — has
+  **19h of clean autonomous churn** in `gang-log.json`: 317 promotes, 80 ascends, 38 demotes, 457
+  equip-buys, 0 error events. That is real soak, not a snapshot.
+
+**Consequence: `gangmanager.js` is UNFROZEN** as of 2026-07-21 — edits no longer confound a
+running measurement. Tier 4 (territory) is unblocked for brainstorm.
+
+**Surfaced gap carried into Tier 4 brainstorm — `respectGainRate` is not persisted as a series.**
+Acceptance criterion L4(e) reads "sustained **across snapshots** ... from `gang-state.json`
+history," but `gang-state.json` is *overwritten* every tick — there is no persisted history. The
+metric was validated on the **instantaneous** read only. If any future gang decision needs a
+trajectory (decay detection, ascension-vs-install cadence per BACKLOG's open cadence question), a
+periodic `respectGainRate` sampler must exist first. **This is a required input to the Tier 4
+brainstorm — do not design against a rate history that isn't being recorded.**
+
 **Deliberately untouched:** `src/daemon.js` (no new surface; gangmanager already resident in the
 priority slot) · `vite.config.ts` (no new exports — S8) · `src/dashboard.js` (Phase 24 gate) ·
 `src/augfarmer.js` + ratchet chain (its BN2 behavior is its own concern; this phase only

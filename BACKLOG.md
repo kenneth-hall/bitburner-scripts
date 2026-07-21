@@ -149,6 +149,17 @@ do, and what's broken?*
   Tiers 2+3 as Phase 29 (`docs/phases/phase-29-gang-scaling.spec.md`). Lowest priority of the four —
   undocumented death-on-clash odds, lowest value for a hacking gang whose payoff is money/rep. May
   end up deferred indefinitely.
+  - **`gangmanager.js` UNFROZEN 2026-07-21** — Phase 29's observation window was closed early on
+    day 1 (goal `respectGainRate ≥ 1.27/tick` overshot ~425× at 539.6, plus 19h clean soak). Full
+    rationale: `docs/phases/phase-29-gang-scaling.spec.md` → Close-out. Tier 4 is clear to brainstorm.
+  - **⚠️ BRAINSTORM INPUT — no persisted `respectGainRate` series.** `gang-state.json` is
+    overwritten each tick; `gang-log.json` carries only events (ascend/promote/demote/equip-buy),
+    no rate field. Every "sustained / trajectory / decay" claim to date rests on a single
+    instantaneous snapshot. **Any Tier 4 design that reasons about rate over time — or the
+    ascension-vs-install cadence check below — needs a periodic sampler built FIRST.** Cheapest
+    clean form: a standalone script reading `ns.gang.getGangInformation()` on an interval and
+    appending to a log (does not touch `gangmanager.js`). Do not design against a history that
+    isn't recorded.
   - **~~Still open — does a player aug install degrade gang ascension mults?~~ ✅ ANSWERED
     2026-07-20: yes, `hack` × 0.9747 per install (flat, floors at 1.0).** It was never "untestable
     until the first install fires" as recorded here — `getInstallResult()` is a read-only *preview*
@@ -158,9 +169,9 @@ do, and what's broken?*
     - **What's left is a cadence question, not a mechanic question.** One 1.5× ascension pays for
       ~16 installs. `ASCEND_MIN_FACTOR = 1.5` already only fires on large gains, so the shipped
       policy is the right shape — but if 1.5× ascensions arrive slower than ~1 per 16 installs, gang
-      hack mults decay net-negative over the node. **Next:** when the Phase 29 observation window
-      closes (~2026-07-27), count `ascend` events in the gang log against install count over the
-      same stretch. Needs no code change and no edit to `gangmanager.js`.
+      hack mults decay net-negative over the node. **Next:** count `ascend` events in the gang log
+      against install count over the same stretch (the window it was waiting on closed early
+      2026-07-21). Needs no code change and no edit to `gangmanager.js`.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
