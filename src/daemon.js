@@ -558,6 +558,11 @@ export async function main(ns) {
   // the instant it fires. See the script's own header for why this is a
   // separate file from backdoorfactions.js, not folded into it.
   launchDetached(ns, "backdoorwd.js");
+  // GP1 watcher (2026-07-21): captures the true w0r1d_d43m0n hacking-level gate
+  // the instant Red Pill installs (unreadable before then) + whether NiteSec
+  // faction rep survives the install. Resident, self-terminates once captured;
+  // relaunched here each install so it's alive on the far side of the boundary.
+  launchDetached(ns, "gatewatch.js");
 
   let hosts = [];
   let targets = [];

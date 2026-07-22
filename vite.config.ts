@@ -93,6 +93,8 @@ export default defineConfig({
         if (file === 'gang-rate-log.json') return 'logs/gang-rate-log.json'; // Phase 30 survivor -- gangratelog.js durable respect-rate/ascension-mult series (ring-capped, 5min samples)
         if (file === 'goal-state.json') return 'logs/goal-state.json'; // Phase 32 -- goallog.js overwrite-in-place snapshot, dashboard.js's GOAL panel source
         if (file === 'goal-log.json') return 'logs/goal-log.json'; // Phase 32 -- goallog.js ring-capped cumulative series (gangCum/hackingCum/mHacking, 60s samples)
+        if (file === 'gatewatch-log.json') return 'logs/gatewatch-log.json'; // GP1 watcher (gatewatch.js) -- ring-capped rep/M/gate series across the Red-Pill install boundary
+        if (file === 'gatewatch-result.json') return 'logs/gatewatch-result.json'; // GP1 watcher -- the durable one-shot capture (true WD gate + rep-survives verdict) written when Red Pill installs
 
         if (file === 'backdoor-status.json') return 'logs/backdoor-status.json'; // Phase 22 -- faction-backdoor status snapshot, overwritten in place, written on classification change only
         if (file === 'augfarmer-state.json') return 'logs/augfarmer-state.json'; // Phase 23 -- overwrite-in-place, written on change + a low-frequency heartbeat

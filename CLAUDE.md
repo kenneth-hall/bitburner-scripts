@@ -12,6 +12,23 @@ on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** **IN BN2.1 as of 2026-07-18** (BN1.3 cleared the
   same day — `w0r1d_d43m0n` backdoored, confirmed via BitVerse screenshot `bb-shot.png`; close-out
   with two surfaced design gaps: `docs/phases/phase-26-ratchet-autonomy.closeout.md`).
+  - **BN2.1 CLEAR GOALPOSTS (2026-07-21, from sonnet+fable analysis — the operational plan).**
+    The gang funds it automatically; the mode is "wait, but with tripwires." **Everything below GP1
+    is provisional until the gate read re-sizes it.** Live gauge = dashboard GOAL panel (`M` %).
+
+    | # | Milestone | Signal | Expected | Tripwire → intervene |
+    |---|---|---|---|---|
+    | 1 | **GATE READ** (pivotal) | Red Pill installed → `getServerRequiredHackingLevel("w0r1d_d43m0n")` + `getFactionRep("NiteSec")` pre/post | next install, ≤1 day | no install in 2 days |
+    | 2 | Core catalog, **M≈16.7** | `goal-state` `mProgress.pct`→100% (now 9%) | ~2–4 days | pct flat >12h |
+    | 3 | NFG tail, **M≈35–37** (NFG ~76–80) | `neurofluxLevel` climbs | ~2–4 more days | NFG stalls deep → rep-paced |
+    | 4 | Terminal XP grind → gate | player `hackingLevel` | hours–days | exp low → pivot fleet RAM to XP |
+    | 5 | **Backdoor WD → CLEAR** | BitVerse | — | — |
+
+    **Total ~5–10 days** (24/7 confirmed, sleep disabled). Gang income oscillates $5–25M/s
+    (auto-ascension resets), but core-catalog money is *hours*, so pacing = install-cycle sequence +
+    the terminal grind, not money. GP1 is captured automatically by `gatewatch.js` (resident
+    companion). Don't overshoot-stop at M≈29 — the terminal XP grind makes that a 7–36-day trap;
+    M≈35–37 keeps it to hours. QLink is a trap (NFG ~200–3000× cheaper for the same gate mult).
   - **✅ DECIDED 2026-07-19 — COMMITTED TO BN2, hacking gang via NiteSec.** The gang exists
     (`isHacking: true`, fixed permanently). Everything below this bullet is the *history* of that
     decision, kept because the measured numbers still bound the plan — it is no longer open.
