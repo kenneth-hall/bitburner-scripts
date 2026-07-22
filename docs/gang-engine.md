@@ -137,12 +137,21 @@ against gangs.** Availability: in BN2, or anywhere with SF2. We are in BN2.1.
 - **Bonus time** accrues while offline/tab-inactive, up to **25× normal gang speed** — one of the
   few mechanics that *rewards* idling; any gang throughput model must account for it.
 
+### BitNode dependence
+
+Two `BitNodeMultipliers` fields govern gang economics directly and are **not** general constants —
+`GangSoftcap` ("Influences the respect gain and money gain of your gang") and `GangUniqueAugs`
+("Percentage of unique augs that the gang has"). Every specific number in this doc (the ×22.89
+catalog mult, the `~territory^2.5` reward curve, the $8.7-9.3M/s income steady-state) is **BN2.1-
+local** — a product of this node's values for those two multipliers among others. Re-measure, don't
+reuse, if this engine is ever pointed at a different gang-capable node.
+
 ### Methods (RAM cost in GB)
 
 | Group | Calls |
 |---|---|
 | Lifecycle | `inGang()` 0 · `createGang(faction)` 1 — `false` if faction disallows, safe probe · `canRecruitMember()` 1 · `recruitMember(name)` 2 — **fails if at max members or name already taken** · `getRecruitsAvailable()` 1 · `respectForNextRecruit()` 1 · `renameMember` 0 |
-| State | `getGangInformation()` 2 → `GangGenInfo` · `getMemberNames()` 1 · `getMemberInformation(name)` 2 → `GangMemberInfo` · `getAllGangInformation()` 2 → rivals (⚠️ per-doc, also includes the player's own gang in the record, not rivals only) |
+| State | `getGangInformation()` 2 → `GangGenInfo` · `getMemberNames()` 1 · `getMemberInformation(name)` 2 → `GangMemberInfo` · `getAllGangInformation()` 2 → `Record<string, GangOtherInfoObject>` (⚠️ per-doc, also includes the player's own gang in the record, not rivals only) |
 | Actions (the only 4 that change anything) | `setMemberTask(member, task)` 2 — **invalid task name silently sets "Unassigned"** · `purchaseEquipment` 4 · `ascendMember` 4 → `GangMemberAscension \| undefined` (undefined below the strength floor, resolved Q3) · `setTerritoryWarfare(bool)` 2 |
 | Previews / reference (read-only) | `getTaskNames()` 0 · `getTaskStats(name)` 1 → `GangTaskStats` · `getEquipmentNames()` 0 (includes augs) · `getEquipmentStats` 2 · `getEquipmentCost` 2 (already applies cost mult; **returns `Infinity` for an invalid equipment name**) · `getEquipmentType` 2 · `getAscensionResult(member)` 2 → same `| undefined` shape as `ascendMember` · `getInstallResult(member)` 2 → `GangMemberInstall \| undefined` · `getChanceToWinClash(gangName)` 4 |
 | Loop control | `await nextUpdate()` 0 — the game's own tick (2000–5000ms), don't invent a polling interval · `getBonusTime()` 0 |
@@ -156,10 +165,18 @@ against gangs.** Availability: in BN2, or anywhere with SF2. We are in BN2.1.
 - **`GangMemberInfo`** — per stat {hack,str,def,dex,agi,cha}: `x`/`x_exp`/`x_mult`
   (equipment)/`x_asc_mult`/`x_asc_points`. Plus `task`, `earnedRespect`, `respectGain`,
   `moneyGain`, `wantedLevelGain`, `expGain` (**`GangMemberExpGain | null` — null when the member
-  has no task, a real footgun for any consumer that assumes it's always an object**),
-  `upgrades[]`, `augmentations[]`
+  has no task, a real footgun for any consumer that assumes it's always an object** — fields are
+  `agi_exp`/`cha_exp`/`def_exp`/`dex_exp`/`hack_exp`/`str_exp`, one per stat, "exp gain for a
+  member after a given task"), `upgrades[]`, `augmentations[]`
 - **`GangTaskStats`** (← the optimizer's entire input) — `baseRespect`/`baseMoney`/`baseWanted`,
-  per-stat weights, `difficulty`, `territory` impact
+  per-stat weights, `difficulty`, and `territory: GangTerritory` — **a nested object, not a
+  scalar**: `{ money, respect, wanted }`, each "gain impact on task scaling." This is very likely
+  the actual mechanism behind the `~territory^2.5` reward curve measured empirically in §4/§6
+  (`getTaskStats(currentTask).territory` would read it directly per-task instead of re-deriving
+  the aggregate curve by trial) — not yet cross-checked against the measured curve, worth doing
+  before modeling territory further.
+- **`GangOtherInfoObject`** (← `getAllGangInformation()`'s per-gang record type) — just `power`,
+  `territory` (0-1)
 - **`GangMemberAscension`** — per-stat multiplier *increase* factor + `respect` lost
 - **`GangMemberInstall`** — per-stat multiplier *decrease* factor, no respect field
 - **`EquipmentStats`** — flat per-stat multipliers
@@ -475,6 +492,12 @@ settles it for BN2.1: money saturates the remaining need (~½ day at current inc
 territory can be meaningfully built (≥3–6 days + ~$1.5-3t forgone income), so a ~124× multiplier
 that unlocks slower than the node clears is moot here.
 
+The `~territory^2.5` curve itself was measured empirically (`gangreward.js`) rather than read off
+the API — but §3's data-structures list now flags that `GangTaskStats.territory` (a `GangTerritory`
+object: `money`/`respect`/`wanted`) is very likely the actual mechanism, per-task. Not cross-checked
+against the measured curve; would be worth a quick `getTaskStats(ourCurrentTask).territory` pull if
+territory is ever revisited for a future node.
+
 Measured 2026-07-21 (clashes off, read-only): our power is 1.000 (the floor — never assigned a
 member to Territory Warfare), territory 14.3%; The Black Hand holds 85.7% at power 9,442; the
 other five rivals sit at power 1,455-2,546 with 0% territory. Win-odds against the whole field are
@@ -535,6 +558,16 @@ check there for everything else.
   order, which is expected to speed up installs.
 - **`wantedPenalty` non-monotonicity** and **ascension respect-accounting** — both open mysteries,
   neither blocking. See §5 for the full detail.
+- **Max gang member count is undocumented in-game** and was never established empirically either
+  (carried forward from `docs/archive/gang-api.md`, dropped in the 2026-07-22 consolidation — a
+  from-scratch rebuild would need to discover this the same way we did: `canRecruitMember()`
+  returns `false` once hit, no explicit cap is exposed elsewhere).
+  We're at 12/12 currently, so it's moot for BN2.1 itself, but matters for any future node's
+  timeline modeling.
+- **`createGang`'s karma-gate wording discrepancy** — the in-game doc text reads "karma must be
+  less than or equal to 54000," but karma is a negative-going stat in practice, so the real gate is
+  almost certainly "≤ −54000" (as stated in §3). Never independently reconciled; moot for BN2.1
+  (no karma gate in BN2) but would matter for a future non-BN2 gang attempt via SF2.
 
 ---
 
