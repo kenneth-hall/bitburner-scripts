@@ -200,17 +200,38 @@ do, and what's broken?*
   aggressive ascension. **Revisit if** an ascension ever visibly re-locks an aug; otherwise low
   priority. Related: the `wantedPenalty` non-monotonic bug in Bugs above.
 
-- **Gang manager Tier 4 (territory warfare) — ❌ DEFERRED PERMANENTLY 2026-07-21.** Tiers 1-3
-  (recruit + task-assign, equipment, ascension) shipped: Tier 1 as `src/gangmanager.js` 2026-07-20
-  (`docs/phases/phase-27-gang.closeout.md`), Tiers 2+3 as Phase 29
-  (`docs/phases/phase-29-gang-scaling.spec.md`). **Verdict:** the warfare mechanic weights power
-  80% combat / 15% hack / 5% cha; we built a pure-hacking gang (combat stats = 1, combat ascension
-  mults = 1.0), so warfare needs a from-scratch second build. Measured live (`gangterritory.js` →
-  `logs/gangterritory-1784643114199.json`): our power **1.000** vs rivals **1,455–9,442** (weakest
-  climbing), win-odds **~0%**, Black Hand holds **85.7%** of the map. Structural mismatch is
-  dispositive; the build-rate experiment was skipped as low-value. Full reasoning:
-  `phase-30-gang-territory.features.md` → VERDICT. Hacking-only was the *correct* build for the
-  gang's real job (respect/money → rep → augs); territory rewards a build we rightly declined.
+- **Gang manager Tier 4 (territory warfare) — ❌ DEFERRED FOR THIS NODE 2026-07-21 (rationale
+  corrected 2026-07-22).** Tiers 1-3 (recruit + task-assign, equipment, ascension) shipped: Tier 1
+  as `src/gangmanager.js` 2026-07-20 (`docs/phases/phase-27-gang.closeout.md`), Tiers 2+3 as Phase 29
+  (`docs/phases/phase-29-gang-scaling.spec.md`). The operational call — do NOT pursue territory for
+  BN2.1 — stands; but the original rationale was wrong on three counts, corrected below.
+  - **⚠️ CORRECTION 2026-07-22 (cold-context fable re-review, numbers re-measured).** The original
+    verdict ("structural combat mismatch is dispositive; ~20× reward on the wrong axis") was wrong
+    three ways: **(1)** territory income is ~territory^2.5 → **~124× money** at 100% (10.2× at 50%),
+    not ~20× — the ~20× was a `gangreward.js` bug (its "vs-current" column used the *respect* ratio
+    for both axes; fixed 2026-07-22, understated money ~8×). **(2)** "from-scratch combat build" is
+    false — Territory Warfare power weights *stat magnitudes*: 0.15 × our ~90k hack ≈ 13.5k weighted
+    power/member vs rival powers 3.3k–16.5k, so a pure-hacking gang is plausibly power-viable with
+    **zero** combat training. **(3)** "permanently" assumed a static rival field — rivals compound
+    ~+75%/day. **The real (correct) reason to defer for BN2.1:** money isn't the binding constraint
+    and saturates first — gang income ~$9.3m/s ≈ $806b/day meets the ~$310–400b need in ~½ day, while
+    building meaningful territory costs ≥3–6 days + ~$1.5–3t forgone. A 124× multiplier that unlocks
+    slower than the node clears, on a resource that stops binding first, is moot for BN2.1. **Future
+    gang nodes: re-price from scratch** (huge income curve, hacking gang probably viable, earlier =
+    cheaper). Cheapest settling measurement: one member on Territory Warfare (clashes OFF, no death
+    risk) ~15 min, sample `power`, restore. Full corrected reasoning:
+    `phase-30-gang-territory.features.md` → VERDICT.
+  - **Two audit findings CLOSED (don't re-investigate) 2026-07-22:** (a) *"we only buy 3 of 11 gang
+    augs"* is **NOT an under-buy** — the 8 skipped augs are all pure-combat (str/def/dex/agi, zero
+    hack/cha); the 3 bought (BitWire/DataJack/Neuralstimulator) are the only hack-carrying augs, and
+    **no charisma augmentation exists** in the catalog. The hardcoded-3 list is correct for a hacking
+    gang. (b) `ASCEND_MIN_FACTOR = 1.5` is a hand-set, unvalidated heuristic (confirmed) but
+    **low-stakes and self-obsoleting** — it fires cleanly (all 27 logged ascensions at preview ≈1.5),
+    mults compounded ×2.2 / income ×20 over 21h with no rebuild-churn collapse, and the whole question
+    dissolves once money saturates (~½ day). Leave it alone; the retrain-vs-earn tradeoff is unmeasured
+    but not worth measuring for this node. Low-priority open thread: post-ascension members rebuild on
+    low-difficulty ladder rungs where `Train Hacking` (difficulty 45) might rebuild faster — plausible,
+    unmeasured, not blocking.
   - **What survives Phase 30 — a slimmed respect-engine observability slice** (independent of
     warfare): **✅ SHIPPED 2026-07-21 as `src/gangratelog.js`.** Persists a durable
     `respectGainRate` series plus `wantedPenalty` magnitude and the aggregate hack ascension

@@ -8,6 +8,24 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-22
 
+- **Gang engine adversarial audit + territory-deferral rationale CORRECTED.** A cold-context fable
+  re-review (findings given as claims, methods withheld → independent re-derivation) confirmed the
+  headline finding and corrected the record. **Territory income is ~territory^2.5 → ~124× money at
+  100% (10.2× at 50%), not the ~20× Phase 30 recorded** — that was a `gangreward.js` bug (its
+  "vs-current" column used the respect ratio for both axes; **fixed** to print money- and
+  respect-multipliers separately). Phase 30's three deferral grounds were all wrong (the "80% combat
+  / from-scratch build" mismatch ignores that power weights stat *magnitudes* — 0.15 × ~90k hack ≈
+  13.5k vs rival powers 3.3k–16.5k, so a hacking gang is plausibly power-viable with zero combat
+  training; "$25t catalog / below batcher" was stale; "permanent" assumed a static rival field that
+  compounds ~+75%/day). **The operational call still holds** — territory is moot for BN2.1 because
+  money isn't the binding constraint and saturates first (~$806b/day income meets the ~$310–400b need
+  in ~½ day, vs ≥3–6 days to build meaningful territory) — but "PERMANENTLY deferred" is re-scoped to
+  "deferred for this node"; future gang nodes must re-price. Two of the auditor's own sub-findings
+  were **refuted** by the review and closed so they aren't re-worked: the 3-of-11 gang-aug "under-buy"
+  (skipped 8 are pure-combat, no cha aug exists — the 3 are correct) and `ASCEND_MIN_FACTOR` (unvalidated
+  but self-obsoleting, leave alone). Records: `phase-30-gang-territory.features.md` VERDICT,
+  `BACKLOG.md` Tier 4, `src/gangreward.js`. No `gangmanager.js` change — audit only.
+
 - **GOAL panel shows projected (post-install) M from queued augs.** Installed M sits flat through
   an entire buy cycle and only steps at install, so the GP2 tripwire reads "STALLED 12h" during
   normal money-paced buying — the flat installed-M gave no sign the queued augs are climbing.

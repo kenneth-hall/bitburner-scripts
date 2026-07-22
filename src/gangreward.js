@@ -49,14 +49,20 @@ export async function main(ns) {
   if (out.rows.length) {
     const cur = out.rows.find((r) => r.territory === 0.143) || out.rows[0];
     ns.tprint(`INFO gangreward: member=${out.member.name} task=${out.task}`);
-    ns.tprint(`  territory   respect/t     money/t     vs-current`);
+    // Money and respect scale with territory at DIFFERENT exponents (money
+    // ~territory^2.5, respect much flatter) -- print a separate vs-current
+    // multiplier for each. A single shared column caused the Phase 30 verdict
+    // to apply the respect ratio (~20x) to money too, understating the real
+    // money prize (~124x at 100%) ~8x (fixed 2026-07-22).
+    ns.tprint(`  territory   respect/t   respect-x     money/t   money-x`);
     for (const r of out.rows) {
-      const mult = cur.respect > 0 ? r.respect / cur.respect : 0;
+      const rMult = cur.respect > 0 ? r.respect / cur.respect : 0;
+      const mMult = cur.money > 0 ? r.money / cur.money : 0;
       const mark = r.territory === 0.143 ? '  <- current' : '';
       ns.tprint(
         `  ${(r.territory * 100).toFixed(1).padStart(5)}%   ` +
-          `${ns.format.number(r.respect).padStart(10)}  ${ns.format.number(r.money).padStart(10)}   ` +
-          `${mult.toFixed(2)}x${mark}`,
+          `${ns.format.number(r.respect).padStart(9)}  ${(rMult.toFixed(2) + 'x').padStart(8)}   ` +
+          `${ns.format.number(r.money).padStart(9)}  ${(mMult.toFixed(2) + 'x').padStart(7)}${mark}`,
       );
     }
   }

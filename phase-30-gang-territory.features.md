@@ -1,24 +1,45 @@
 # Phase 30 features: gang territory (Tier 4) — observability-first
 
-> **VERDICT 2026-07-21 — TIER 4 WARFARE DEFERRED PERMANENTLY. Stage-1c experiment SKIPPED.**
-> The mechanic is 80% combat (str/def/dex/agi weight 20 each vs hack 15); we built a pure-hacking
-> gang (combat stats = 1, combat ascension mults = 1.0), so warfare needs a from-scratch second
-> build. Measured floor confirms it: our power 1.000 vs rivals 1,455–9,442 (weakest *and* climbing),
-> win-odds ~0%, Black Hand holds 85.7% of the map. The 1c build-rate experiment was **not run** —
-> the outcome doesn't change the call. **The reward is NOT marginal** (an earlier draft wrongly said
-> so): `gangreward.js` measured territory at **~20× on respect/money** from 14.3%→100% (we run
-> heavily *suppressed* down at 14.3%). Defer holds on three corrected grounds: (1) all takeable
-> territory sits behind the **strongest** rival — Black Hand holds 85.7%, the other five hold **0%**
-> (nothing to take), so growth means out-powering 9,442-and-climbing, not the 1,455 weakling; (2)
-> capturing it still needs the from-scratch combat rebuild with the engine offline and members dying
-> at ~0% odds; (3) the ~20× lands on respect (not our constraint, 425× over) and gang money
-> (×20 ≈ $20m/s, still minor vs the $25t catalog and below the batcher). Big prize, wrong axis,
-> hardest opponent — dispositive without extrapolation. Building hacking-only was the *correct* optimization for the
-> gang's real job (respect/money → rep → augs); territory is a side subsystem rewarding a build we
-> rightly declined. **What survives:** a slimmed respect-engine observability slice (durable
-> respect-rate sampler + wantedPenalty magnitude + aggregate ascension mult) — the warfare-specific
-> instruments (power/win-odds/rival panel) are dropped since we'll never act on them. Everything
-> below is the brainstorm that reached this verdict; kept for the reasoning and the measured table.
+> **VERDICT 2026-07-21 — TIER 4 WARFARE DEFERRED FOR BN2.1. Stage-1c experiment SKIPPED.**
+>
+> **⚠️ RATIONALE CORRECTED 2026-07-22 after a cold-context fable re-review (numbers re-measured
+> independently). The operational call — do NOT pursue territory for THIS node — STANDS. But all
+> three of the original grounds were wrong, and "PERMANENTLY" is downgraded to "for this node." Read
+> the correction below, not the original reasoning that follows it.**
+>
+> **Corrected numbers.** Gang money income scales ~territory^2.5: at our 14.3% a Money-Laundering
+> member earns ~$1.07m/s; at 50% ~$10.9m/s (**10.2×**); at 100% ~$132m/s (**~124×**). Respect scales
+> far less (~15.8× at 100%). The original "**~20× on respect/money**" was a bug: `gangreward.js`
+> line 54 computed its "vs-current" column from the **respect** ratio only, and this verdict applied
+> it to money too — understating the money prize **~8×**. (`gangreward.js` fixed 2026-07-22 to print
+> money- and respect-multipliers separately.)
+>
+> **Why the three original grounds were wrong:** (1) "from-scratch combat build / 80% of the weight
+> is inert" — Territory Warfare power weights apply to *stat magnitudes*: 0.15 × our ~90k hack ≈
+> **13.5k weighted power per top member**, vs rival gang powers of **3.3k–16.5k**. A pure-hacking gang
+> is plausibly power-*viable* with **zero** combat training; the handicap was multiplied by nothing.
+> (2) "money is minor vs the $25t catalog / below the batcher" — both stale: the real remaining bar is
+> ~$310–400b and the gang is **~96%** of income. (3) "permanently" assumed a **static** rival field —
+> rivals compound fast (Black Hand ~+75%/day), so any future re-open only gets more expensive.
+>
+> **The ground that actually holds (the real reason to defer for BN2.1):** money is not the binding
+> constraint and it *saturates first*. Gang income ~$9.3m/s ≈ ~$806b/day and compounding (×20 in the
+> last 21h); the ~$310–400b need is met in **~half a day**. Building meaningful territory costs **≥3–6
+> days** of near-zero gang income + ~$1.5–3t forgone to out-power a compounding field. **A ~124×
+> multiplier that unlocks slower than the node clears, on a resource that stops being binding first,
+> is moot for BN2.1.** Correct deferral — for this reason, not the three above.
+>
+> **For any FUTURE gang-capable node, re-price from scratch:** the income curve is enormous, a
+> hacking gang is probably power-viable, and earlier = cheaper (rivals compound). The one cheap
+> measurement that settles it: put **one** member on Territory Warfare (clashes OFF → zero death risk)
+> for ~15 min, sample `GangGenInfo.power`, restore — converts the ±order-of-magnitude power-accrual
+> rate into a number. (Reversible task reassignment; not run here.)
+>
+> **What survives (unchanged):** a slimmed respect-engine observability slice (`gangratelog.js` —
+> durable respect-rate sampler + wantedPenalty magnitude + aggregate ascension mult); the
+> warfare-specific instruments (power/win-odds/rival panel) stay dropped. Everything below is the
+> original brainstorm that reached the (rightly-directioned, wrongly-argued) verdict; kept for the
+> reasoning and the measured table, now superseded by the correction above.
 
 **Stage:** Brainstorm (opus). Output of this doc: decisions, rejected alternatives, open
 questions. Not a spec — the spec (fable) comes next and only after the Stage-1 gate below is
