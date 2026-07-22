@@ -75,12 +75,12 @@ been tried.
 |---|---|---|---|
 | 2026-07-18 | `docs/archive/gang-api.md` written from a full read of the API surface | A brainstorm draft's premise ("every threshold is empirical") was false and had been invalidated twice already — see `CLAUDE.md`'s "Read the whole interface" rule | — |
 | 2026-07-19 | **Committed to BN2, NiteSec hacking gang.** Permanent. | SF2 kills the recurring Daedalus rep tax; restart is cheap when a node holds no progress (Kenneth's closing argument) | N/A — irreversible, no `leaveGang()` |
-| 2026-07-19 | Pre-gang catalog reading: gang factions only add ~+6% M (×1.061 union of criminal factions) | Measured via `gangaugs.js` sweep run *before* `createGang()` | **Superseded 2026-07-20** — see next row |
-| 2026-07-20 | Phase 27 Tier 1 ships: task ladder ordered by **money** | Initial build; no data yet on the wanted-level cost of climbing | **Reversed same day** — see next row |
+| 2026-07-19 | Pre-gang catalog reading: gang factions only add ~+6% M (×1.061 union of criminal factions) | Measured via `gangaugs.js` sweep run *before* `createGang()` | **Superseded 2026-07-20** — see the "post-gang catalog re-sweep" row below |
+| 2026-07-20 | Phase 27 Tier 1 ships: task ladder ordered by **money** | Initial build; no data yet on the wanted-level cost of climbing | **Reversed same day** — see the Phase 28 row below |
 | 2026-07-20 | **Phase 28 reverses the ladder to money's opposite — pins to Ransomware (near-zero heat)** | The money ladder caused a wanted-level death spiral (Ransomware→Identity Theft ×750 wanted vs ×2 respect); gang was rep-gated, not money-gated, at the time (Neurotrainer I needed 1,000 rep vs ~41 held, while $4.1b sat banked) | Reopened 2026-07-21 once rep saturated — see below |
 | 2026-07-20 | **Post-gang catalog re-sweep: NiteSec sells 98/99 augs at ×22.89**, not ×1.515 | Pre-gang sweep (07-19) measured before the gang existed; re-run after `createGang()` shows the "your gang faction sells nearly everything" mechanic is live in this fork | Confirmed catalog access is solved — money is the only open resource (below) |
 | 2026-07-20 | Phase 29 ships Tiers 2-3 (equipment + ascension), ladder re-opened up to 8 rungs | Phase 28's pin worked (validated: sink duty cycle 71.6%→0%, respect rate ×15) but exposed a 200× gap to the top (respect) rung that gear+ascension exist to close | Observation window closed early 2026-07-21 — goal overshot 425× |
-| 2026-07-21 | **Gang-type analysis: keep the hacking gang, don't restart for combat** (~85% confidence) | Combat's ~20×-territory case rests on a stream (money ×20) that's ~$8.5m/s marginal vs the batcher, and forfeits a rep-complete 12-member gang to rebuild from 3; catalog access is gang-type-independent either way | Direct evidence combat task money ≥10× hacking's at equal development (only obtainable by restarting) |
+| 2026-07-21 | **Gang-type analysis: keep the hacking gang, don't restart for combat** (~85% confidence) | Combat's ~20×-territory case rests on a stream (money ×20) that's ~$8.5m/s marginal vs the batcher, and forfeits a rep-complete 12-member gang to rebuild from 3; catalog access is *inferred* gang-type-independent (not directly measured — see §4) | Direct evidence combat task money ≥10× hacking's at equal development — **partially available without restarting**, see §4 |
 | 2026-07-21 | **Rep confirmed saturated → money identified as the sole open resource.** This is the state change that reopens Phase 28's respect-pin. | Recruiting capped at 12/12; faction rep 425× over the 2.5m catalog ceiling. "Not far enough into the game" (Phase 28's reason to stay on respect) was true when respect still bought members+rep — it no longer does | — |
 | 2026-07-21 | **Money pivot ships: task-ladder objective flips from respect to money.** Income ~7× ($598k/s → $4.2M/s, later steady-state $8.7M/s). | Direct consequence of the row above — a *new* state, not a re-argued old one. Two live regressions caught same session (see §5) before it stabilized | Soak-validated 2026-07-22 over 20.5h (below) |
 | 2026-07-21 | Phase 33 ships: `augfarmer.js` buys expensive-first (escalation-aware) + utility must-buys | Cheapest-first buying was ~2.2× overpaying the ×1.9/purchase escalation; utility augs (CashRoot etc.) were losing every score race and never getting bought | V2/V4/V5 (buy-order-across-a-real-cycle, 24h soak) still open follow-ups, not blockers |
@@ -141,21 +141,23 @@ against gangs.** Availability: in BN2, or anywhere with SF2. We are in BN2.1.
 
 | Group | Calls |
 |---|---|
-| Lifecycle | `inGang()` 0 · `createGang(faction)` 1 — `false` if faction disallows, safe probe · `canRecruitMember()` 1 · `recruitMember(name)` 2 · `getRecruitsAvailable()` 1 · `respectForNextRecruit()` 1 · `renameMember` 0 |
-| State | `getGangInformation()` 2 → `GangGenInfo` · `getMemberNames()` 1 · `getMemberInformation(name)` 2 → `GangMemberInfo` · `getAllGangInformation()` 2 → rivals |
-| Actions (the only 4 that change anything) | `setMemberTask(member, task)` 2 — **invalid task name silently sets "Unassigned"** · `purchaseEquipment` 4 · `ascendMember` 4 · `setTerritoryWarfare(bool)` 2 |
-| Previews / reference (read-only) | `getTaskNames()` 0 · `getTaskStats(name)` 1 → `GangTaskStats` · `getEquipmentNames()` 0 (includes augs) · `getEquipmentStats` 2 · `getEquipmentCost` 2 (already applies cost mult) · `getEquipmentType` 2 · `getAscensionResult(member)` 2 · `getInstallResult(member)` 2 → `GangMemberInstall` · `getChanceToWinClash(gangName)` 4 |
+| Lifecycle | `inGang()` 0 · `createGang(faction)` 1 — `false` if faction disallows, safe probe · `canRecruitMember()` 1 · `recruitMember(name)` 2 — **fails if at max members or name already taken** · `getRecruitsAvailable()` 1 · `respectForNextRecruit()` 1 · `renameMember` 0 |
+| State | `getGangInformation()` 2 → `GangGenInfo` · `getMemberNames()` 1 · `getMemberInformation(name)` 2 → `GangMemberInfo` · `getAllGangInformation()` 2 → rivals (⚠️ per-doc, also includes the player's own gang in the record, not rivals only) |
+| Actions (the only 4 that change anything) | `setMemberTask(member, task)` 2 — **invalid task name silently sets "Unassigned"** · `purchaseEquipment` 4 · `ascendMember` 4 → `GangMemberAscension \| undefined` (undefined below the strength floor, resolved Q3) · `setTerritoryWarfare(bool)` 2 |
+| Previews / reference (read-only) | `getTaskNames()` 0 · `getTaskStats(name)` 1 → `GangTaskStats` · `getEquipmentNames()` 0 (includes augs) · `getEquipmentStats` 2 · `getEquipmentCost` 2 (already applies cost mult; **returns `Infinity` for an invalid equipment name**) · `getEquipmentType` 2 · `getAscensionResult(member)` 2 → same `| undefined` shape as `ascendMember` · `getInstallResult(member)` 2 → `GangMemberInstall \| undefined` · `getChanceToWinClash(gangName)` 4 |
 | Loop control | `await nextUpdate()` 0 — the game's own tick (2000–5000ms), don't invent a polling interval · `getBonusTime()` 0 |
 
 ### Data structures
 
 - **`GangGenInfo`** — `faction` · `isHacking` (fixed, permanent) · `respect` · `respectGainRate` ·
-  `moneyGainRate` · `power` · `territory` (0-1) · `territoryClashChance` ·
+  `respectForNextRecruit` · `moneyGainRate` · `power` · `territory` (0-1) · `territoryClashChance` ·
   `territoryWarfareEngaged` · `wantedLevel` · `wantedLevelGainRate` · `wantedPenalty` ·
   `equipmentCostMult`
 - **`GangMemberInfo`** — per stat {hack,str,def,dex,agi,cha}: `x`/`x_exp`/`x_mult`
   (equipment)/`x_asc_mult`/`x_asc_points`. Plus `task`, `earnedRespect`, `respectGain`,
-  `moneyGain`, `wantedLevelGain`, `expGain`, `upgrades[]`, `augmentations[]`
+  `moneyGain`, `wantedLevelGain`, `expGain` (**`GangMemberExpGain | null` — null when the member
+  has no task, a real footgun for any consumer that assumes it's always an object**),
+  `upgrades[]`, `augmentations[]`
 - **`GangTaskStats`** (← the optimizer's entire input) — `baseRespect`/`baseMoney`/`baseWanted`,
   per-stat weights, `difficulty`, `territory` impact
 - **`GangMemberAscension`** — per-stat multiplier *increase* factor + `respect` lost
@@ -194,6 +196,10 @@ defer.
 | Vigilante Justice (sink) | 0 | 0 | −0.001 | 1 | 20/0 |
 | Territory Warfare | 0 | 0 | 0 | 5 | 15/5 (str/def/dex/agi each 20) |
 
+(Table omits 4 of the 15: `Train Hacking` / `Train Charisma` / `Train Combat` — zero yield, pure
+stat-training tasks — and `Unassigned`, the idle default. `Train Hacking`'s difficulty 45 is the
+one open thread in §5's post-ascension-rebuild question.)
+
 Money ladder is strictly ordered by difficulty (Ransomware → … → Money Laundering, 8× the next
 best). Respect comes almost solely from Cyberterrorism (10× Money Laundering) at a brutal 6
 wanted — the central tension the whole design is built around. Only two wanted sinks exist, both
@@ -217,7 +223,10 @@ is not an under-buy: no charisma augmentation exists in the catalog at all.
    (cadence, not policy, is the open risk — see BACKLOG).
 2. **Faction rep tracks the respect *gain rate*, not the total.** Ascending drops respect by
    exactly the preview; faction rep doesn't move, then resumes climbing at the new rate. Ascension
-   claws back nothing from faction rep — **ascend aggressively** is the settled policy.
+   claws back nothing from faction rep — **ascend aggressively** is the settled policy. Rep gain
+   is proportional to respect gain (≈ Δrespect/59 in one measured sample — treat the constant as
+   indicative, the proportionality as solid); this is *why* every lever in §4's economics
+   "multiplies straight through to the gate."
 3. **`getAscensionResult` has an undocumented minimum-strength floor** — below it, returns
    `undefined` (not a zero result). Policy: skip silently, the member crosses the floor on its own.
 4. **Which factions allow gang creation** isn't documented anywhere; confirmed NiteSec does
@@ -251,7 +260,13 @@ gap is closed almost entirely by the gang's aug catalog, not by exp.
 
 Post-`createGang` sweep: **NiteSec sells 98 of 99 augs in the whole game at hacking ×22.89**
 (essentially the full non-gang-faction union, ×23.121), max rep requirement 2.5m — trivial against
-our banked respect. Catalog splits into three tiers:
+our banked respect. **The 99th aug NiteSec doesn't carry is NeuroFlux Governor** (`docs/bitnodes.md`:
+"in BN2 the gang offers The Red Pill → only need 1 more faction for NFG") — NFG has to be bought
+from some other joined faction, not NiteSec. `augfarmer.js`'s `pickNfgSeller()` already handles
+this dynamically (picks whichever joined faction currently holds the most rep), so it's not an
+implementation gap — but it means the §7 "does faction rep survive an install" tripwire is really
+about *whichever faction is currently selling NFG*, not necessarily NiteSec specifically. Catalog
+splits into three tiers:
 
 | Purchase | Price | Hacking mult | Verdict |
 |---|---|---|---|
@@ -285,20 +300,34 @@ win territory (80% of the power-weighting is combat stats). **Rejected because:*
 1. The multiplier lands on the wrong axis at the wrong time — money isn't binding once catalog
    money exists, it saturates in ~½ day; territory takes ≥3–6 days to build meaningfully. The
    marginal gain arrives after the need is already gone.
-2. The catalog gain is exactly zero — NiteSec's 98-aug catalog expansion is **gang-type
-   independent**; a combat gang's own faction gets the identical expansion.
+2. The catalog gain is expected to be zero — NiteSec's 98-aug catalog expansion is **assumed
+   gang-type independent**; a combat gang's own faction would get the same expansion. ⚠️ This is
+   an *inference*, not a direct measurement (unmeasurable without restarting), flagged as a known
+   unknown by Phase 29 — treat "identical expansion" as likely, not confirmed.
 3. Restarting forfeits a rep-complete 12-member gang (18m+ respect, all requirements met including
    The Red Pill) to rebuild from 3 members at stat 1, run a territory war from scratch against a
    compounding rival field (Black Hand ~+75%/day), before the multiplier even exists.
-4. The batcher dominates the money curve in both worlds regardless of gang type — the gang's
+4. Whichever engine dominates income, it does so **regardless of gang type** — the gang's
    irreplaceable contributions (catalog access, saturated rep, free Red Pill) are delivered
-   identically by either type.
+   identically by either type. (⚠️ Correcting the record: this point originally claimed "the
+   batcher dominates the money curve," inherited from the pre-gang-type-analysis steelman. Live
+   `moneysources.js` measured the *opposite* — gang ≈ 94-96% of income, batcher ~4-6% (§1, §5) —
+   but the conclusion is unchanged either way: gang-type-independence is what matters here, not
+   which engine leads.)
 
 **Rough timelines:** stay ≈ 3-6 weeks mostly unattended; restart ≈ 5-9 weeks with new death-risk
 surface, strictly more variance. Asymmetry favors staying. What would flip it: direct evidence
-combat task money is ≥10× hacking's at equal development (only obtainable by actually restarting),
-or the 15,000 gate reading coming back ≥30,000-class (would force QLink + deep NFG, re-weighting
-the calculus).
+combat task money is ≥10× hacking's at equal development, or the 15,000 gate reading coming back
+≥30,000-class (would force QLink + deep NFG, re-weighting the calculus).
+
+**Base task money is partially checkable without restarting.** `getTaskStats(name)` accepts
+*arbitrary* task names, not just your own gang type's menu (`gangtaskcompare.js`, Phase 29) — a
+direct pull of the combat task table found peak respect a **dead tie** (Cyberterrorism 0.01 =
+Terrorism 0.01, same wanted 6, same difficulty 36) and, at the mid-tier money task, **identical
+money and wanted** between Human Trafficking (combat) and Money Laundering (hacking), with combat
+earning 4× the respect at that parity. This is evidence *against* the "combat money is secretly
+enormous" case (the ~10× bar above), though it isn't dispositive — full per-member yields still
+depend on stat/ascension/equipment multipliers that only exist inside an actual gang.
 
 ### Money-throughput fixes (Phase 33, 2026-07-21)
 
@@ -330,7 +359,10 @@ positive) — heat is not creeping.
 
 **`gangmanager.js`** (headless daemon companion, `RESIDENT_COMPANIONS` priority slot) — recruits
 greedily, assigns tasks via the ladder, buys equipment, ascends members. `gang-off.txt` on home
-suppresses all actions while it keeps observing/logging.
+suppresses all actions while it keeps observing/logging. **To create it:** this build's terminal
+has no `write` command — drop the file under `src/gang-off.txt` and let viteburner sync it to
+`@home:/gang-off.txt` (same mechanism `share-off.txt`/`xp-off.txt` use), or `nano <file>` + Save
+in-game.
 
 ### Task ladder history
 
@@ -453,8 +485,13 @@ other five rivals sit at power 1,455-2,546 with 0% territory. Win-odds against t
 (power/win-odds/rival panel) were dropped — a `phase-30-gang-territory.features.md` deliverable —
 since we'll never act on them for this node.
 
-**For any future gang-capable node: re-price from scratch.** The income curve is enormous, a
-hacking gang is probably power-viable, and earlier is cheaper since rivals compound. The cheapest
+**For any future gang-capable node: re-price from scratch — and don't assume the catalog/Red-Pill
+route transfers.** The in-game gang doc is explicit that creating a gang in other BitNodes "will
+offer more Augmentations than other Factions, but they will not be a way to destroy the BitNode
+alone" — the gang-sells-The-Red-Pill shortcut this whole plan leans on appears to be **BN2-specific
+mechanic**, not a general gang property. Territory's re-pricing advice (income curve is enormous, a
+hacking gang is probably power-viable, earlier is cheaper since rivals compound) still holds
+independent of that. The cheapest
 settling measurement: one member on Territory Warfare (clashes off, zero death risk) for ~15 min,
 sample `power`, restore. Full record: `phase-30-gang-territory.features.md` (repo root — unshipped,
 Stage 2 is conditional on a gate this node never needed to clear).
@@ -474,11 +511,16 @@ check there for everything else.
   `getServerRequiredHackingLevel("w0r1d_d43m0n")` (and the true M needed) that cycle. Every number
   in §1/§4 is provisional until this lands. **Next action:** watch for the Red Pill install; run
   the read then. (Auto-captured by `gatewatch.js`.)
-- **[MEASURE — decides deep-NFG pacing] Does NiteSec faction rep survive an install?**
-  Unestablished. NFG rep-req grows (0.7m@L56 → 8.1m@L75 → 26.4m@L84) and the money pivot cut
-  respect-gain-rate ~2.4× (539.6 → ~220/tick at the time). If faction rep resets each install, the
-  deep ladder (level ~69+) is rep-paced (waits ~0.5–1 day on re-accrual per late install), not
-  money-paced — which would favor bigger late NFG batches. **Next action:** one
+- **[MEASURE — decides deep-NFG pacing] Does the NFG-selling faction's rep survive an install?**
+  Unestablished. **Correction:** NFG is NOT part of NiteSec's catalog (§4 — NiteSec sells 98 of 99
+  augs, everything except NeuroFlux Governor), so this is a question about whichever faction
+  `augfarmer.js`'s `pickNfgSeller()` currently targets, not necessarily NiteSec. NFG rep-req grows
+  (0.7m@L56 → 8.1m@L75 → 26.4m@L84) and the money pivot cut gang respect-gain-rate ~2.4× (539.6 →
+  ~220/tick at the time) — relevant only if the NFG seller happens to be NiteSec and depends on
+  gang-driven rep; for any other seller faction, rep comes from `augfarmer.js`'s own work/donation
+  path instead. If faction rep resets each install, the deep ladder (level ~69+) is rep-paced
+  (waits ~0.5–1 day on re-accrual per late install), not money-paced — which would favor bigger
+  late NFG batches. **Next action:** one
   `getFactionRep("NiteSec")` read immediately after the next install (compare to pre-install).
 - **NFG tail batching policy** (from the 2026-07-21 fable review, numbers in §4). One-NFG-per-install
   over-optimizes money that doesn't matter; variable batches (fat early while levels cost millions,
