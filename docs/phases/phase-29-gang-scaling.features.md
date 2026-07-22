@@ -93,7 +93,7 @@ different plan.** That is the phase's real risk, and it is measurable early (see
 ## Decided
 
 - **Spec Tiers 2 and 3 as one phase.** They are not separable: ascension **wipes ordinary
-  equipment** but **not member augmentations** (`docs/gang-api.md:58-60`). So what gear is worth
+  equipment** but **not member augmentations** (`docs/archive/gang-api.md:58-60`). So what gear is worth
   buying depends entirely on the ascension policy. Speccing Tier 2 alone would design purchase
   logic against assumptions Tier 3 then invalidates.
 - **Equipment splits into two classes, and they get different policies.** Of 32 items, only 8 carry
@@ -164,7 +164,7 @@ docs don't specify. The spec needs a policy for members below it.
 
 ### ⏳ 2. Still open — does a player aug install degrade gang ascension multipliers?
 
-(`docs/gang-api.md` open
+(`docs/archive/gang-api.md` open
    question 1, still open.) `GangMemberInstall` reads as a *decrease*; the in-game doc says gang
    stats "will not reset" on install. Reduce ≠ reset. Was moot while the ratchet was dormant —
    **no longer moot**, because this phase's whole output is ascension multipliers and the ratchet

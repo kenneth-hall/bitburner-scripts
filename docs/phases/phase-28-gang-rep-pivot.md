@@ -44,7 +44,7 @@ We are **rep-gated, not money-gated.** Measured the same day: $4.128b held, and 
 the ratchet is chasing (Neurotrainer I) costs **$4m** — but needs 1,000 NiteSec reputation against
 ~41 held.
 
-Respect is what generates faction reputation (`docs/gang-api.md:42`, and it bypasses BN2's Work Rep
+Respect is what generates faction reputation (`docs/archive/gang-api.md:42`, and it bypasses BN2's Work Rep
 50% / Passive Rep 0% nerfs). Gang *money* is ~$918k/hr against a batcher funding $30b server
 upgrades — about 0.003% of income, i.e. noise.
 

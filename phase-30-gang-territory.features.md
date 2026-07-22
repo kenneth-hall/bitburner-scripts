@@ -45,7 +45,7 @@
 questions. Not a spec — the spec (fable) comes next and only after the Stage-1 gate below is
 understood.
 
-**Working dir:** `C:\Users\admin\bitburner-scripts`. Foundation read: `docs/gang-api.md`
+**Working dir:** `C:\Users\admin\bitburner-scripts`. Foundation read: `docs/archive/gang-api.md`
 (territory/power/clash surface + task weights), `logs/gangprobe-1784562548352.json` (raw
 `GangTaskStats`), `logs/gang-state.json` (live member stats). `gangmanager.js` is **unfrozen** as
 of 2026-07-21 (Phase 29 observation window closed early — `docs/phases/phase-29-gang-scaling.spec.md`
@@ -64,12 +64,12 @@ Territory Warfare builds `power`. Power is a weighted sum of member stats, and t
 
 Combat (str+def+dex+agi) is **80 of the 100 weight**. Our gang is pure-hacking: every member has
 **hack ~20k–34k but str/def/dex/agi = 1**, and their combat *ascension* multipliers are 1.0 too
-(we have never trained or ascended combat — `docs/gang-api.md` open Q1). So **80% of the
+(we have never trained or ascended combat — `docs/archive/gang-api.md` open Q1). So **80% of the
 power-building engine is inert for us.** Only the 15% hack term does any work.
 
 Clash outcome is `ourPower / (ourPower + theirPower)`, exposed exactly by
 `getChanceToWinClash(rival)`. ⚠️ **Members can die in clashes even when we win, and no API exposes
-the per-clash death probability** (`docs/gang-api.md` open Q5). Low power → low win chance → our
+the per-clash death probability** (`docs/archive/gang-api.md` open Q5). Low power → low win chance → our
 members die. For a hacking gang this is the whole risk.
 
 ### MEASURED 2026-07-21 (`gangterritory.js` read-only probe → `logs/gangterritory-1784643114199.json`)
@@ -195,7 +195,7 @@ Only specced if Stage 1 clears the gate. Shape, subject to revision by the measu
 ## What Formulas.exe does and doesn't buy us
 
 **We already own Formulas.exe** (`gang-state.json` `formulasAvailable: true`; daemon panel shows
-`formulas`). The `gang-api.md` "we hold $5,695 — later capability" line is stale and there is **no
+`formulas`). The `docs/archive/gang-api.md` "we hold $5,695 — later capability" line is stale and there is **no
 $5b buy decision** — it's a sunk capability. But the gang formulas are
 `respectGain / moneyGain / wantedLevelGain / wantedPenalty / ascensionMultiplier /
 ascensionPointsGain` — **none is a power or clash-power formula.** So Formulas makes task

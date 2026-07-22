@@ -4,7 +4,7 @@ Everything about the NiteSec hacking gang that isn't a live TODO or a frozen pha
 current strategy, the full decision history (so a fresh session can check "was this already tried"
 before re-deriving it), the API/mechanics reference, the economics, and `gangmanager.js`'s design.
 
-**Consolidated 2026-07-22** from `docs/gang-api.md`, `docs/bn2-gang-type-analysis.md`,
+**Consolidated 2026-07-22** from `docs/archive/gang-api.md`, `docs/archive/bn2-gang-type-analysis.md`,
 `docs/bitnodes.md`'s BN2 clearing notes, `CLAUDE.md`'s gang decision history, and the closeout/
 features docs of Phases 27-30/32-33. Those two standalone docs are archived (superseded, not
 deleted) at `docs/archive/`; the phase docs stay where they are (`docs/phases/`, or repo root for
@@ -73,7 +73,7 @@ been tried.
 
 | Date | Decision | Reason | What would reopen it |
 |---|---|---|---|
-| 2026-07-18 | `docs/gang-api.md` written from a full read of the API surface | A brainstorm draft's premise ("every threshold is empirical") was false and had been invalidated twice already — see `CLAUDE.md`'s "Read the whole interface" rule | — |
+| 2026-07-18 | `docs/archive/gang-api.md` written from a full read of the API surface | A brainstorm draft's premise ("every threshold is empirical") was false and had been invalidated twice already — see `CLAUDE.md`'s "Read the whole interface" rule | — |
 | 2026-07-19 | **Committed to BN2, NiteSec hacking gang.** Permanent. | SF2 kills the recurring Daedalus rep tax; restart is cheap when a node holds no progress (Kenneth's closing argument) | N/A — irreversible, no `leaveGang()` |
 | 2026-07-19 | Pre-gang catalog reading: gang factions only add ~+6% M (×1.061 union of criminal factions) | Measured via `gangaugs.js` sweep run *before* `createGang()` | **Superseded 2026-07-20** — see next row |
 | 2026-07-20 | Phase 27 Tier 1 ships: task ladder ordered by **money** | Initial build; no data yet on the wanted-level cost of climbing | **Reversed same day** — see next row |

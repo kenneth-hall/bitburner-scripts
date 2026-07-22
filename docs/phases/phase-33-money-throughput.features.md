@@ -12,7 +12,7 @@ spec — the spec (fable) + `spec-reviewer` pass come next.
 
 **Working dir:** `C:\Users\admin\bitburner-scripts`. `gangmanager.js` is **unfrozen** (Phase 29
 observation window closed early). Foundation reads: `src/augfarmer.js` (`pickTarget` +
-`planActions`), `src/gangmanager.js` (`evalLadderMove` + `TASK_LADDER`), `docs/gang-api.md`
+`planActions`), `src/gangmanager.js` (`evalLadderMove` + `TASK_LADDER`), `docs/archive/gang-api.md`
 (task weights / Formulas surface), `logs/gangtaskcompare-1784562548352.json` (base task yields).
 
 ---

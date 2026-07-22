@@ -18,7 +18,7 @@ respect 1, territory 14.3%, **zero members recruited, nothing running.**
 
 A first Phase 27 attempt was drafted and invalidated twice before this one: it assumed every
 gang threshold was empirical ("observe first, derive later"). That premise was **false** —
-`docs/gang-api.md` (full-surface read, 2026-07-18) shows `GangTaskStats` exposes exact base
+`docs/archive/gang-api.md` (full-surface read, 2026-07-18) shows `GangTaskStats` exposes exact base
 yields + per-stat weights, and `ns.formulas.gang.*` computes yields outright once Formulas.exe is
 affordable. This doc starts from that corrected foundation.
 
@@ -36,7 +36,7 @@ Not in scope for this phase: the batcher/XP-farm engine itself, which stays unto
 - **RAM approach: reserve, don't disable.** Phase 20's XP-farm deliberately saturates 100% of
   surplus fleet RAM, so a new resident script genuinely has nowhere to land today — the instinct
   that raised this was correct. But the gang manager's own footprint is small (per
-  `docs/gang-api.md`: `setMemberTask`/`purchaseEquipment`/`ascendMember` are 2-4 GB each,
+  `docs/archive/gang-api.md`: `setMemberTask`/`purchaseEquipment`/`ascendMember` are 2-4 GB each,
   `nextUpdate` is 0 GB, task assignment is a ~7×20 brute-force eval) — nothing like the one-off
   29 GB `gangaugs.js` sweep. Disabling a large slice of the batcher would throw away Phase 20's
   measured income/XP value and open a money gap during the gang's ramp-up (0 members today, so 0
@@ -71,7 +71,7 @@ The full gang manager splits into 4 tiers by information-readiness and risk, not
 **Phase 27 ships Tier 1 only** — the rest are future phases, not milestones inside this one:
 
 1. **Tier 1 — recruit + task-assign (this phase).** Everything needed is already known: full task
-   table measured (`docs/gang-api.md`), wanted-sink logic identified (Ethical Hacking dominates
+   table measured (`docs/archive/gang-api.md`), wanted-sink logic identified (Ethical Hacking dominates
    Vigilante Justice). No blocking open question. Gets respect/money flowing.
 2. **Tier 2 — equipment (future phase).** Blocked on the `gangprobe.js` cost/type fix (open
    question #2 below).
@@ -141,7 +141,7 @@ The full gang manager splits into 4 tiers by information-readiness and risk, not
 
 - **"Observe first, derive thresholds later"** — the original Phase 27 draft's premise, invalidated
   twice by facts sitting unread in `markdown/`: `GangTaskStats` + `ns.formulas.gang.*` make almost
-  everything computable, not empirical (see `docs/gang-api.md` → "What this means for design").
+  everything computable, not empirical (see `docs/archive/gang-api.md` → "What this means for design").
 - **"Disable a lot of the old engine for RAM"** — Kenneth's opening framing this session, revised
   in conversation: the RAM conflict is real (Phase 20 saturates 100% of surplus fleet RAM by
   design) but the gang manager's actual footprint doesn't justify disabling the batcher. Replaced
@@ -149,7 +149,7 @@ The full gang manager splits into 4 tiers by information-readiness and risk, not
 
 ## Related in-repo
 
-- `docs/gang-api.md` — full API surface + measured task/equipment tables; read before drafting
+- `docs/archive/gang-api.md` — full API surface + measured task/equipment tables; read before drafting
   the spec.
 - `logs/gangprobe-1784473065811.json` — live static dump (15 tasks, 32 equipment, `errors: []`).
 - `src/gangprobe.js` (needs the cost/type fix, #2 above) · `src/gangcreate.js` · `src/gangaugs.js`

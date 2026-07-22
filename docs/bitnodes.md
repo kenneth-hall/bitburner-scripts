@@ -350,7 +350,7 @@ and purchasable (`augfarmer.js` live-buying). **Corrected bar:** everything but 
 tail. Rep is **saturated** (2.5m max req vs ~18.3m banked respect). Verdict upgrades from "plausible,
 unverified" to **CLEARLY REACHABLE, money-gated only (~3–6 weeks)**; gang *type* is immaterial (a
 combat gang gets the identical expansion). The 15,000-gate inference below remains the last open
-checkpoint. Full analysis: `docs/bn2-gang-type-analysis.md`.
+checkpoint. Full analysis: `docs/archive/bn2-gang-type-analysis.md`.
 
 **Structural argument that cuts the same way:** the in-game guide (quoted above) calls BN2 a
 *starter* node — recommended before SF6/7 exist. A 15,000 gate on a starter node only coheres if

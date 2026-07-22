@@ -8,7 +8,7 @@ gear but not member augs, so purchase policy depends on ascension policy), the t
 split (rootkits cheap/disposable, member augs expensive/permanent), ascend-aggressively (settled by
 the live probe: **faction rep tracks the respect gain rate, not the total** — ascension claws back
 nothing), re-opening the task ladder as the success measure, and money being a non-constraint
-except for the member-aug tier. Foundation docs: `docs/gang-api.md`,
+except for the member-aug tier. Foundation docs: `docs/archive/gang-api.md`,
 `logs/gangprobe-1784562548352.json` (full task + equipment tables with cost/type),
 `logs/ascendrecon-1784568236075.json` (rep-tracks-rate probe + all-member ascension previews),
 `docs/phases/phase-28-gang-rep-pivot.md` (why the ladder is pinned and what re-opening must not
@@ -261,7 +261,7 @@ game-progression pre-authorization) the home-RAM purchase, all of which Claude m
     (`hack_asc_mult`), `ascPreviewHack` (bracket-read preview factor or null),
     `upgrades`, `augmentations`, and `predictedRespectGain` **+ `predictedWantedGain`**
     (Formulas at the member's current task; null while suspended) beside the existing actuals —
-    the predicted-vs-actual pairs are the model-validation instrument `docs/gang-api.md` calls
+    the predicted-vs-actual pairs are the model-validation instrument `docs/archive/gang-api.md` calls
     the cheapest path to a trustworthy model, and L4 reads them. Wanted is validated as well as
     respect (cold-review note 1) because the promote budget — the phase's sole anti-thrash
     guard — trusts the *wanted* formula, not the respect one.
@@ -341,7 +341,7 @@ reserve comment updated if it names the old figure.
 
 - `docs/scripts.md`: `gangmanager.js` row updated (Tiers 1–3 scope, new events, spends money →
   transactions); `upgradehomeramonce.js` row gains "used by Phase 29 L1" note if not present.
-- `docs/gang-api.md`: append the two measured Phase 29 facts (rep tracks rate; ascension floor
+- `docs/archive/gang-api.md`: append the two measured Phase 29 facts (rep tracks rate; ascension floor
   exists — `getAscensionResult` returns nothing below it) with log pointers — the reference doc
   should not go stale against its own open questions.
 - `BACKLOG.md`: the "Gang manager Tiers 2-4" entry shrinks to Tier 4 only; Phase 29 lines move
@@ -387,7 +387,7 @@ reserve comment updated if it names the old figure.
 - **L5 — Install rider (opportunistic, not schedulable).** The ratchet is awake; when its
   first BN2 install fires (~Neurotrainer I, ~20h away at pre-phase rates — sooner as rep
   accelerates): diff `hackAscMult` per member across the install boundary from `gang-state.json`
-  snapshots (ratchetlog.js marks the boundary). Unchanged ⇒ `docs/gang-api.md` open question 1
+  snapshots (ratchetlog.js marks the boundary). Unchanged ⇒ `docs/archive/gang-api.md` open question 1
   resolved benign; reduced ⇒ the ratchet-vs-gang conflict is real and goes straight to Kenneth
   with the measured magnitude. Also confirm `formulas-suspend` fires at the install and
   `formulas-resume` after `procureformulas.js` re-buys — Prominent flag 3's degradation path,
@@ -429,7 +429,7 @@ reserve comment updated if it names the old figure.
 
 `src/gangmanager.js` (major extension) · `src/hosts.js` (constant + comment) ·
 `src/bootstrap.js` (comment only, if stale) · `test/gangmanager.test.js` (rewrite) ·
-`test/verify-gang.test.js` · `test/hosts.test.js` · `docs/scripts.md` · `docs/gang-api.md` ·
+`test/verify-gang.test.js` · `test/hosts.test.js` · `docs/scripts.md` · `docs/archive/gang-api.md` ·
 `BACKLOG.md` · `docs/phases/CHANGELOG.md`.
 
 ## Close-out — observation window closed EARLY, 2026-07-21

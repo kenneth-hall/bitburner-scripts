@@ -146,7 +146,7 @@ install** — which is what this spec builds.
    $550m × 1.9⁴ = $7.17b, then CashRoot $125m × 1.9⁵ = $3.10b, then Red Pill $0 =
    **$10.27b ≤ money $11.9b — the hold is already satisfied**, so the first post-ship install
    buys all three.
-7. **Gang equipment is a separate price track (features A-Q4, confirmed).** `docs/gang-api.md`:
+7. **Gang equipment is a separate price track (features A-Q4, confirmed).** `docs/archive/gang-api.md`:
    `getEquipmentCost` applies `equipmentCostMult` (a gang-side multiplier) — aug purchase count
    appears nowhere in it. No coupling; nothing in this phase touches gang spend.
 8. **Install cadence will shorten — flagged deviation (features A-Q3's second half).**

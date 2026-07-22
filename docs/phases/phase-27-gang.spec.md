@@ -7,7 +7,7 @@ first; this spec assumes it, including the scope decision (**Tier 1 only**: recr
 equipment/ascension/territory are future phases), the RAM decisions (reserve-don't-disable;
 `HOME_RESERVE_GB` 80 → 100; run `gangmanager.js` as a daemon-launched home companion), greedy
 recruitment, and log-only observability (no dashboard panel — Phase 24 gate, decided in the
-brainstorm). Foundation docs: `docs/gang-api.md` (full API surface + measured task table) and
+brainstorm). Foundation docs: `docs/archive/gang-api.md` (full API surface + measured task table) and
 `logs/gangprobe-1784473065811.json` (live static dump, `errors: []`).
 
 Game state this spec was drafted against (measured 2026-07-19, ~8:45 PM):
@@ -80,7 +80,7 @@ No [live] step requires editing code.
   export changes," since Tier 1's entire observability story is these files. `dashboard.js`
   untouched.
 - **This build's API only:** every `ns.gang.*` signature used is verified against
-  `markdown/bitburner.gang.md` / `docs/gang-api.md` at implementation time, not recalled from
+  `markdown/bitburner.gang.md` / `docs/archive/gang-api.md` at implementation time, not recalled from
   upstream. Formatting via `ns.format.*` if needed (not `ns.formatNumber`).
 - One branch (`phase27-gang-tier1`) — unlike Phase 26 there is no endgame fuse to sequence
   around; the reserve bump is inert below an 80 GB home and the new companion is additive.
@@ -94,7 +94,7 @@ No [live] step requires editing code.
   resolves features open question 3. The features' default direction ("stat-readiness check…
   exact thresholds need the weight-table math") turns out to be **unresolvable as stated**:
   without Formulas.exe the *functional form* combining weights, difficulty, and stats into yield
-  is unknown (docs/gang-api.md, "Without Formulas.exe"), so any absolute readiness constant
+  is unknown (docs/archive/gang-api.md, "Without Formulas.exe"), so any absolute readiness constant
   (e.g. "weightedStat ≥ k × difficulty") would be an invented number — exactly the class of
   fabricated threshold the gang-api doc warns against. What IS exact without Formulas is the
   per-member **actuals**: `GangMemberInfo.moneyGain` / `.respectGain` / `.wantedLevelGain` report
@@ -162,7 +162,7 @@ No [live] step requires editing code.
   (features decision). Each success logs a `recruit` event. Recruiting is **one-way** (no
   remove/fire API) — restated in the header.
 - **S4 — Loop cadence: `await ns.gang.nextUpdate()` (0 GB), not a sleep interval.** The game's
-  own tick, per docs/gang-api.md ("don't invent a polling interval"). All policy windows
+  own tick, per docs/archive/gang-api.md ("don't invent a polling interval"). All policy windows
   (`EVAL_TICKS`, `PROBE_TICKS`, state-write cadence) count **ticks, not wall-clock**, so
   bonus-time acceleration (up to 25×) speeds the policy up in lockstep with the gang instead of
   desynchronizing it. `getBonusTime()` (0 GB) is read each tick and logged in the state file —
@@ -239,12 +239,12 @@ No [live] step requires editing code.
     purchase of exactly one tier (32 → 64), with a price sanity guard in L1.
 - **S7 — Restart/install resilience: rebuild from game state, persist only the baseline.** The
   manager will be killed by any future install and by daemon restarts; the gang itself survives
-  installs (install-immunity, docs/gang-api.md). On startup:
+  installs (install-immunity, docs/archive/gang-api.md). On startup:
   - `inGang()` false ⇒ ERROR tprint + exit (can't happen with a permanent gang; fail loud, not
     silent).
   - **Validate** `MONEY_LADDER` + `SINK_TASK` ⊆ `getTaskNames()`; any miss ⇒ ERROR tprint +
     exit. This guards the API's nastiest foot-gun: an invalid name in `setMemberTask` silently
-    sets "Unassigned" (docs/gang-api.md) — fail loud at startup instead of idling members
+    sets "Unassigned" (docs/archive/gang-api.md) — fail loud at startup instead of idling members
     silently forever.
   - Read own `gang-state.json` if present: restore `baselinePenalty` (+ its `wantedLevel`,
     S2), `sinkMode`, and **each member's `rung`** (matched by name; unknown or new names fall
