@@ -1,12 +1,15 @@
 # Stock engine (prep — no engine built yet)
 
-**Status (2026-07-22): research phase.** No stock code exists beyond `src/stockprobe.js`
-(read-only access/constants probe). No access is owned in the current BN2.1 save — WSE
-account, TIX API, and both 4S feeds all read `false` (BN1's TIX purchase did **not**
-survive BitNode entry; probe `logs/stockprobe-1784755786874.json`). This doc is the
-single authoritative reference for stock-market mechanics, the full `ns.stock` API
-surface, gates/costs, and the design considerations a future engine phase starts from —
-the same role `gang-engine.md` and `batcher-engine.md` play for their engines.
+**Status (2026-07-22): research phase, TIX now owned.** No engine code exists yet. Tooling:
+`src/stockprobe.js` (read-only access/constants probe), `src/buystockaccess.js` (logged
+tier-purchase helper), `src/stockrecon.js` (post-TIX read-only harvest). **TIX API access
+was purchased 2026-07-22 ($5b, logged as a `stock-access` expense) to run the recon** —
+WSE, 4S UI, and 4S TIX remain unowned. This resolved four open questions in one pass (see
+§6/§7). BN1's original TIX did **not** survive BitNode entry (all four flags read `false`
+before this purchase; probe `logs/stockprobe-1784755786874.json`). This doc is the single
+authoritative reference for stock-market mechanics, the full `ns.stock` API surface,
+gates/costs, and the design considerations a future engine phase starts from — the same
+role `gang-engine.md` and `batcher-engine.md` play for their engines.
 
 Sources: this build's API docs (`markdown/bitburner.stock*.md` + related), the in-game
 **Documentation → Basic Mechanics → Stock market** page (captured over CDP 2026-07-22,
@@ -158,11 +161,11 @@ call works at runtime (RAM cost is static regardless).
 | `hasWseAccount()` / `hasTixApiAccess()` / `has4SData()` / `has4SDataTixApi()` | 0.05 ea | none | The four access flags. Verified callable with nothing owned. |
 | `getConstants()` | 0 | none (verified live) | Returns `StockMarketConstants` (see below). |
 | `getBonusTime()` | 0 | **TIX (verified live — throws without it)** | 0 GB ≠ no precondition, same trap class as the gang API. |
-| `nextUpdate()` | 0 | TIX (assumed, untested) | `await` = sleep until next tick; the engine's main-loop primitive. |
-| `getSymbols()` | 2 | TIX | All tradable symbols. |
-| `getPrice(sym)` | 2 | doc says **WSE + TIX** (see open Q) | avg of bid/ask. |
-| `getAskPrice(sym)` / `getBidPrice(sym)` | 2 ea | TIX (no WSE mentioned) | The real transaction prices. |
-| `getOrganization(sym)` | 2 | doc says **WSE + TIX** (see open Q) | Company name behind a symbol — builds the server↔stock map. |
+| `nextUpdate()` | 0 | **TIX (verified — works TIX-only, no 4S; returns 6000)** | `await` = sleep until next tick; the engine's main-loop primitive. |
+| `getSymbols()` | 2 | TIX | All tradable symbols (**33 in this fork — verified**). |
+| `getPrice(sym)` | 2 | doc says WSE + TIX; **likely TIX-only (see OQ3)** | avg of bid/ask. Not directly tested, but its twin `getOrganization` works TIX-only. |
+| `getAskPrice(sym)` / `getBidPrice(sym)` | 2 ea | TIX (no WSE mentioned) | The real transaction prices. **Verified TIX-only.** |
+| `getOrganization(sym)` | 2 | **TIX-only (verified — WSE not required despite the docs)** | Company name behind a symbol — builds the server↔stock map. |
 | `getMaxShares(sym)` | 2 | TIX | Long+short combined cap. |
 | `getPosition(sym)` | 2 | TIX | `[sharesLong, avgLongPrice, sharesShort, avgShortPrice]`. |
 | `getPurchaseCost(sym, n, pos)` / `getSaleGain(sym, n, pos)` | 2 ea | TIX | Include spread + commission + own price impact. |
@@ -174,8 +177,8 @@ call works at runtime (RAM cost is static regardless).
 | `purchaseWseAccount()` / `purchaseTixApi()` | 2.5 ea | money | True if bought or already owned. |
 | `purchase4SMarketData()` | 2.5 | WSE + money | UI columns only. |
 | `purchase4SMarketDataTixApi()` | 2.5 | TIX + money | Unlocks the two calls below. |
-| `getForecast(sym)` | 2.5 | 4S TIX | P(rise next tick), 0–1. **The** trading signal. |
-| `getVolatility(sym)` | 2.5 | 4S TIX | Max %-move per tick, 0–1. |
+| `getForecast(sym)` | 2.5 | 4S TIX | P(rise next tick), 0–1. **The** trading signal. **Verified: throws `"You don't have 4S Market Data TIX API Access!"` on TIX-only** — the signal is genuinely gated behind the $25b buy. |
+| `getVolatility(sym)` | 2.5 | 4S TIX | Max %-move per tick, 0–1. Same 4S gate. |
 
 ### Data structures & enums
 
@@ -234,27 +237,97 @@ call works at runtime (RAM cost is static regardless).
 
 ## 6. Measured state (2026-07-22, BN2.1)
 
+### Pre-purchase probe
 `logs/stockprobe-1784755786874.json` (`run stockprobe.js`, repeatable any time):
-all four access flags `false`; constants as in §4. Player net worth at probe time
-~$397b cash (fully reserved by augfarmer) — access is affordability-trivial but buying
-it now serves no BN2.1 goal, so nothing was purchased.
+all four access flags `false`; constants as in §4.
 
-## 7. Open questions (carry defaults, revisit when a stock phase opens)
+### TIX-owned recon (`logs/stockrecon-1784757368546.json`)
+TIX API was purchased ($5b, logged) and `stockrecon.js` harvested everything TIX unlocks
+read-only. **Findings:**
 
+- **Symbol count: 33** — the fork's list is vanilla-identical (the API-doc examples
+  `FSIG`/`ECP`/`NVMD`/`SYSC` are all real). Full symbol↔organization map below.
+- **`getOrganization` works on TIX alone** (`wse: false` throughout) — the docs' "requires
+  WSE Account" claim is **not enforced** in this fork. The server↔stock map needs no $200m
+  WSE purchase. (`getPrice` shares that doc claim and was not directly tested, but its twin
+  passing is strong evidence it's also TIX-only; the engine uses ask/bid regardless.)
+- **`nextUpdate()` works on TIX alone**, returns 6000 — the loop primitive is TIX-gated,
+  not 4S-gated.
+- **`getForecast()` throws on TIX-only** (`"You don't have 4S Market Data TIX API Access!"`)
+  — the trading signal is genuinely locked behind the $25b 4S TIX buy. TIX gives prices, not
+  P(up).
+- **Spread is the friction floor.** At a sample position of 5% of each stock's max shares
+  (long, market), the measured round-trip loss (`getPurchaseCost − getSaleGain`) equals the
+  bid/ask spread almost exactly — i.e. the flat $200k round-trip commission and own-price
+  impact are both **negligible at sane position sizes** (a 5%-of-max ECP position is already
+  ~$24b; $200k on that is 0.0008%). Price impact only bites at much larger fractions of
+  float. This refines §5's economics: **the edge a trade must clear is essentially its
+  stock's spread**, not commission.
+
+**Spread ranking (= round-trip friction floor), 33 stocks:**
+
+| Spread | Symbols |
+|---|---|
+| **~0.40%** (cheapest) | ECP, BLD, CLRK |
+| ~0.60% | KGI, HLS |
+| ~0.80% | OMTK |
+| ~1.00% | MGCP, FLCM, STM, RHOC |
+| ~1.19% | NVMD, NTLK, MDYN |
+| ~1.39% | FSIG |
+| ~1.59% | LXO, SYSC |
+| ~1.78% | VITA, ICRS, UNV, GPH, FNS, SGC, TITN |
+| ~1.98% | DCOMM, AERO |
+| ~2.18% | OMN, SLRS, WDS, OMGA |
+| ~2.37% | CTK, CTYS |
+| ~2.76% | JGN |
+| **~3.15%** (priciest) | APHE |
+
+**Symbol ↔ organization map (33, for the server/company↔stock wiring):**
+
+| Sym | Organization | Sym | Organization | Sym | Organization |
+|---|---|---|---|---|---|
+| ECP | ECorp | HLS | Helios Labs | NTLK | NetLink Technologies |
+| MGCP | MegaCorp | VITA | VitaLife | OMGA | Omega Software |
+| BLD | Blade Industries | ICRS | Icarus Microsystems | FNS | FoodNStuff |
+| CLRK | Clarke Incorporated | UNV | Universal Energy | JGN | Joe's Guns |
+| OMTK | OmniTek Incorporated | AERO | AeroCorp | SGC | Sigma Cosmetics |
+| FSIG | Four Sigma | OMN | Omnia Cybersystems | CTYS | Catalyst Ventures |
+| KGI | KuaiGong International | SLRS | Solaris Space Systems | MDYN | Microdyne Technologies |
+| FLCM | Fulcrum Technologies | GPH | Global Pharmaceuticals | TITN | Titan Laboratories |
+| STM | Storm Technologies | NVMD | Nova Medical | | |
+| DCOMM | DefComm | WDS | Watchdog Security | | |
+| | | LXO | LexoCorp | | |
+| | | RHOC | Rho Construction | | |
+| | | APHE | Alpha Enterprises | | |
+| | | SYSC | SysCore Securities | | |
+| | | CTK | CompuTek | | |
+
+(The server↔stock mapping — which of these orgs own hackable servers, for the `{stock:true}`
+batcher synergy — still needs cross-referencing org names against the server list; that's a
+pure local computation now that the map exists.)
+
+## 7. Open questions
+
+### Resolved 2026-07-22 (TIX-owned recon)
+- ~~**OQ3 — `getPrice`/`getOrganization` WSE claim.**~~ **RESOLVED:** `getOrganization`
+  works on TIX alone; the docs' WSE requirement is not enforced in this fork. Engine uses
+  ask/bid regardless, so `getPrice` never needs calling.
+- ~~**OQ4 — symbol list / map.**~~ **RESOLVED:** 33 symbols, full symbol↔org map captured
+  (§6). The remaining server↔stock cross-reference is a local computation, not a probe.
+- ~~**`nextUpdate` / `getForecast` gates.**~~ **RESOLVED:** `nextUpdate` works TIX-only;
+  `getForecast`/`getVolatility` are hard-gated behind the $25b 4S TIX buy (§4/§6).
+
+### Still open (carry defaults, revisit when a stock phase opens)
 1. **Do access flags survive an aug install in this fork?** Default assumption for
-   planning: *yes* (vanilla behavior) but **unverified** — run `stockprobe.js` across the
-   next install boundary (free to do: installs happen constantly in BN2.1, the probe
-   needs no access). Cheapest possible resolution, worth doing opportunistically.
+   planning: *yes* (vanilla behavior) but still **unverified**. **Now cleanly testable:**
+   TIX is owned, so `stockprobe.js` before/after the next auto-install actually measures
+   survival (before this purchase the probe read `false` either way and proved nothing).
+   Cheap — do it opportunistically at the next install boundary.
 2. **Do open positions convert to cash on install, or vaporize?** No default — treat as
-   *engine-blocking* until answered (testable only after TIX purchase, with a minimal
-   position across a planned install).
-3. **`getPrice`/`getOrganization` doc claim of needing WSE even via script** contradicts
-   `purchaseTixApi`'s "TIX without WSE" note and every sibling call's docs. Test with TIX
-   only (carried over from the 2026-07-04 notes; unresolvable until TIX is bought).
-   Fallback either way: `getAskPrice`/`getBidPrice` carry no WSE claim and reconstruct
-   price exactly.
-4. **Symbol list / server↔stock map in this fork** — enumerate post-TIX
-   (`getSymbols` × `getOrganization` × server list).
+   *engine-blocking* until answered. **Now testable** (TIX owned): take a minimal position,
+   let one of BN2.1's constant auto-installs fire, and check where the money went. This is
+   the single biggest lifecycle constraint (§2) and the one remaining thing that needs an
+   actual trade + install boundary rather than a read-only probe.
 
 ## 8. Further reading
 
