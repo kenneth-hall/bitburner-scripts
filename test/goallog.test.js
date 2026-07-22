@@ -6,9 +6,12 @@ import {
   computeRateRange,
   computeTrend,
   buildSnapshot,
+  evalTripwire,
   M_TARGET,
   M_TARGET_LABEL,
+  M_GATE_TARGET,
   RATE_WINDOW_MS,
+  FLAT_WINDOW_MS,
 } from '../src/goallog.js';
 
 const T = 1_000_000_000;
@@ -128,7 +131,13 @@ describe('buildSnapshot', () => {
   it('mProgress: rounds pct and echoes the target/label', () => {
     const s = [{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.51 }];
     const snap = buildSnapshot(s, null, T);
-    expect(snap.mProgress).toEqual({ value: 1.51, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct: Math.round((1.51 / M_TARGET) * 100) });
+    expect(snap.mProgress).toEqual({ value: 1.51, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct: Math.round((1.51 / M_TARGET) * 100), gateTarget: M_GATE_TARGET });
+  });
+
+  it('includes the tripwire status in the snapshot', () => {
+    const snap = buildSnapshot([{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.51 }], null, T);
+    expect(snap.tripwire).toBeDefined();
+    expect(snap.tripwire.status).toBe('WARMING'); // single sample -> not enough span
   });
 
   it('mProgress.value/pct are null on an empty series', () => {
@@ -168,5 +177,43 @@ describe('buildSnapshot', () => {
     const s = [{ t: T, gangCum: 100, hackingCum: 50, mHacking: 1 }];
     const snap = buildSnapshot(s, null, T);
     expect(snap.income.trend).toBeNull();
+  });
+});
+
+describe('evalTripwire (GP2)', () => {
+  const H = 3_600_000;
+
+  it('UNKNOWN on an empty series', () => {
+    expect(evalTripwire([], T)).toEqual({ status: 'UNKNOWN', flatHours: null });
+  });
+
+  it('WARMING until there is >=11h of history', () => {
+    const s = [{ t: T, mHacking: 1.5 }, { t: T + 5 * H, mHacking: 1.5 }]; // only 5h span
+    expect(evalTripwire(s, T + 5 * H).status).toBe('WARMING');
+  });
+
+  it('ON TRACK when M grew across a full 12h window', () => {
+    const start = T;
+    const s = [{ t: start, mHacking: 1.5 }, { t: start + FLAT_WINDOW_MS, mHacking: 2.0 }];
+    expect(evalTripwire(s, start + FLAT_WINDOW_MS).status).toBe('ON TRACK');
+  });
+
+  it('STALLED when M is flat across a full 12h window', () => {
+    const start = T;
+    const s = [{ t: start, mHacking: 1.51 }, { t: start + FLAT_WINDOW_MS, mHacking: 1.51 }];
+    const r = evalTripwire(s, start + FLAT_WINDOW_MS);
+    expect(r.status).toBe('STALLED');
+    expect(r.flatHours).toBe(12);
+  });
+
+  it('references the oldest sample WITHIN the window, not the whole series, so an old jump does not mask a recent stall', () => {
+    const start = T;
+    // M jumped 24h ago but has been flat for the last 12h -> STALLED.
+    const s = [
+      { t: start, mHacking: 1.0 },
+      { t: start + 12 * H, mHacking: 5.0 }, // the jump, 12h into the series
+      { t: start + 24 * H, mHacking: 5.0 }, // flat since
+    ];
+    expect(evalTripwire(s, start + 24 * H).status).toBe('STALLED');
   });
 });

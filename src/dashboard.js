@@ -554,7 +554,19 @@ export function goalPanel(state, now) {
   const m = state.mProgress ?? {};
   const mText = typeof m.value === "number" ? m.value.toFixed(2) : "?";
   const pctText = typeof m.pct === "number" ? m.pct : "?";
-  lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%`);
+  const gatePart = m.gateTarget ? ` -> gate ~${m.gateTarget}` : "";
+  lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%${gatePart}`);
+
+  // Goalpost tripwire (GP2): M only climbs, so a 12h-flat M means the ratchet
+  // stalled. STALLED is the alarm; ON TRACK/warming are quiet confirmations.
+  const tw = state.tripwire ?? {};
+  if (tw.status === "STALLED") {
+    lines.push(`WARN: goalposts STALLED -- M flat ${tw.flatHours ?? "?"}h (ratchet stuck?)`);
+  } else if (tw.status === "ON TRACK") {
+    lines.push("goalposts: ON TRACK (M climbing)");
+  } else if (tw.status === "WARMING") {
+    lines.push(`goalposts: warming up (${tw.flatHours ?? "?"}h history)`);
+  }
 
   const income = state.income ?? {};
   const perSec = income.perSec;

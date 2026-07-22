@@ -42,6 +42,38 @@ export const TREND_DOWN_RATIO = 0.95;
 // conversation at that milestone (Phase 32 OQ1), never silent.
 export const M_TARGET = 16.7;
 export const M_TARGET_LABEL = "core";
+// Overshoot target (fable 2026-07-21): stopping at M≈29 leaves a 7–36-day
+// terminal XP grind; M≈35–37 keeps it to hours. Display-only context.
+export const M_GATE_TARGET = 36;
+
+// GP2 tripwire (BN2.1 goalposts): M only ever climbs (installs), so "M has not
+// increased across the last FLAT_WINDOW" == the ratchet is stuck (no install /
+// income stalled). 12h matches the goalpost table; require ~11h of history
+// before asserting so a fresh series reads "warming up", not a false stall.
+export const FLAT_WINDOW_MS = 43_200_000; // 12h
+export const TRIPWIRE_MIN_SPAN_MS = 39_600_000; // 11h
+
+/**
+ * Pure. GP2 tripwire from the persistent M series: STALLED when we have
+ * >=TRIPWIRE_MIN_SPAN_MS of history and M hasn't grown across the last
+ * FLAT_WINDOW_MS; WARMING when there isn't enough history yet; else ON TRACK.
+ * M is monotonic within a node, so a strict increase is all "on track" needs.
+ * @param {{t:number, mHacking:number}[]} series
+ */
+export function evalTripwire(series, nowMs) {
+  const list = (Array.isArray(series) ? series : []).filter(
+    (s) => s && typeof s.t === "number" && typeof s.mHacking === "number"
+  );
+  if (list.length === 0) return { status: "UNKNOWN", flatHours: null };
+  const last = list[list.length - 1];
+  const windowStart = nowMs - FLAT_WINDOW_MS;
+  const ref = list.find((s) => s.t >= windowStart) ?? list[0];
+  const spanMs = last.t - ref.t;
+  const flatHours = Math.round((spanMs / 3_600_000) * 10) / 10;
+  if (spanMs < TRIPWIRE_MIN_SPAN_MS) return { status: "WARMING", flatHours };
+  if (last.mHacking > ref.mHacking) return { status: "ON TRACK", flatHours };
+  return { status: "STALLED", flatHours };
+}
 
 /**
  * Pure. $/sec over [fromMs, toMs] for `field` ("gangCum" | "hackingCum" |
@@ -121,8 +153,9 @@ export function buildSnapshot(series, augState, nowMs) {
   return {
     timestamp: nowMs,
     time: new Date(nowMs).toLocaleString(),
-    mProgress: { value: mValue, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct },
+    mProgress: { value: mValue, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct, gateTarget: M_GATE_TARGET },
     income: { perSec, trend, windowMs: RATE_WINDOW_MS, gangPerSec, hackingPerSec },
+    tripwire: evalTripwire(list, nowMs),
     nextAug,
   };
 }

@@ -573,9 +573,22 @@ describe('augPanel', () => {
 // --- goalPanel (Phase 32) -----------------------------------------------------
 
 describe('goalPanel', () => {
-  it('renders the M-progress line exactly (decision 11)', () => {
+  it('renders the M-progress line exactly (decision 11); gate target appended only when present', () => {
     const lines = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9 } }, NOW);
     expect(lines).toContain('M 1.51/16.7 (core) ~9%');
+    const withGate = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, gateTarget: 36 } }, NOW);
+    expect(withGate).toContain('M 1.51/16.7 (core) ~9% -> gate ~36');
+  });
+
+  it('tripwire: STALLED renders a WARN line; ON TRACK/WARMING render quiet lines; absent/UNKNOWN render nothing', () => {
+    const stalled = goalPanel({ timestamp: NOW, mProgress: {}, tripwire: { status: 'STALLED', flatHours: 13.2 } }, NOW);
+    expect(stalled.some((l) => l === 'WARN: goalposts STALLED -- M flat 13.2h (ratchet stuck?)')).toBe(true);
+    const onTrack = goalPanel({ timestamp: NOW, mProgress: {}, tripwire: { status: 'ON TRACK', flatHours: 12 } }, NOW);
+    expect(onTrack).toContain('goalposts: ON TRACK (M climbing)');
+    const warming = goalPanel({ timestamp: NOW, mProgress: {}, tripwire: { status: 'WARMING', flatHours: 3.5 } }, NOW);
+    expect(warming).toContain('goalposts: warming up (3.5h history)');
+    const none = goalPanel({ timestamp: NOW, mProgress: {} }, NOW);
+    expect(none.some((l) => l.startsWith('goalposts') || l.includes('goalposts'))).toBe(false);
   });
 
   it('income: perSec null (warming up, no value)', () => {
@@ -709,11 +722,13 @@ describe('renderAll', () => {
     };
     const worstGangTrend = { spanMs: 3_600_000, rateDelta: -999.999 };
 
-    // GOAL at its widest: every optional segment present (trend + waiting).
+    // GOAL at its widest: every optional segment present (gate target + trend +
+    // STALLED tripwire + waiting).
     const worstGoal = {
       timestamp: NOW,
-      mProgress: { value: 16.699, target: 16.7, targetLabel: 'core', pct: 99 },
+      mProgress: { value: 16.699, target: 16.7, targetLabel: 'core', pct: 99, gateTarget: 36 },
       income: { perSec: 9.99e12, trend: 'DOWN', windowMs: 600_000 },
+      tripwire: { status: 'STALLED', flatHours: 47.9 },
       nextAug: { aug: 'Cranial Signal Processors V', price: 9.99e12, phase: 'awaiting-money', awaitingSince: NOW - 599 * 60_000, waitingMs: 599 * 60_000 },
     };
 
