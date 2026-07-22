@@ -184,12 +184,14 @@ do, and what's broken?*
   the extremes. **Revisit when** the ratchet actually reaches the NFG tail (M≈16.7, catalog done) —
   check whether `augfarmer.js`'s escalation-aware ordering already approximates this or needs a
   per-install NFG cap. Not actionable until the catalog is bought.
-- **Soak-validate the gang money pivot (shipped 2026-07-21).** The money-ordered ladder +
-  money-aware mover reached steady state ($4.21M/s, 8 on Money Laundering, netWanted −0.27) but
-  only ~15 min of observation. **Revisit if:** income oscillates, wanted creeps positive over
-  hours, or an install cycle (formulas wiped → re-bought via the new gang-aware autobuy → mover
-  re-converges) shows the crew *not* re-parking on Money Laundering. No action unless one of those
-  is seen; the `gangratelog.js` / `gang-state.json` series is the check surface.
+- **~~Soak-validate the gang money pivot (shipped 2026-07-21).~~ ✅ VALIDATED 2026-07-22 over 20.5h
+  of `gang-rate-log` series (247 samples).** Steady-state money $8.74M/s, spread only 13%
+  (8.12–9.26M) — not oscillating; `netWantedRate > 0` in **0/247** samples (penalty pinned ~1.0) —
+  wanted not creeping; post-install the crew re-converged on Money Laundering (money 472k/s →
+  9.26M/s this cycle, members flat at 12). Also incidentally closed the ascension-cadence worry
+  below: `ascHackMean` 41.9 → 93.1 (>2×) over the window with installs ~1/20h — ascension is
+  net-positive, not decaying. **Still revisit if** a *future* install shows the crew NOT re-parking,
+  or income oscillates/wanted creeps over hours; the series stays the tripwire. No open action.
 - **Unresolved: ascension respect-accounting doesn't reconcile.** The two big logged ascensions
   claim ~24.7m respect destroyed (nite-04 −12.0m, nite-05 −12.7m) yet the pool never went near
   that low, and a third (nite-07 −2.66m, 2026-07-21) dropped it to 1.59m then it recovered to 7.9m
