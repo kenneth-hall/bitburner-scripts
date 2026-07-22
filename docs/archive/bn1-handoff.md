@@ -1,8 +1,12 @@
+> **⚠️ ARCHIVED 2026-07-22 — BN1 was cleared 2026-07-15/18; this is a frozen status snapshot, not
+> a live playbook. Its batcher-vs-xpfarm distinction was superseded/consolidated into
+> [`docs/batcher-engine.md`](../batcher-engine.md) §2. Kept here verbatim for history.**
+
 # BN1 handoff — finishing BitNode 1
 
 **Start here to resume the endgame.** Consolidates the live state, the verified mechanics, and
-the locked sequence. Full click-by-click is [endgame-runbook.md](endgame-runbook.md); mechanics +
-numbers are [reputation-favor.md](reputation-favor.md); reasoning trail is `BACKLOG.md`.
+the locked sequence. Full click-by-click is [endgame-runbook.md](../endgame-runbook.md); mechanics +
+numbers are [reputation-favor.md](../reputation-favor.md); reasoning trail is `BACKLOG.md`.
 
 ## Status — 2026-07-11 (FINAL STEP: re-climb to 3000 → backdoor)
 
@@ -44,16 +48,16 @@ is **done**.)
   but you must **re-earn each faction's invite and rejoin** before you can donate/buy/work. Each install
   therefore inserts a full hacking re-climb before you can act on that faction — the endgame had **two**
   re-climbs (2500 to rejoin Daedalus, 3000 to backdoor), never zero.
-  ([[reference_install_resets_faction_membership]], [reset-protocol.md](reset-protocol.md).)
+  ([[reference_install_resets_faction_membership]], [reset-protocol.md](../reset-protocol.md).)
 - **Donation unlocks at 150 favor** — VERIFIED live ("Unlock donations at 150.000 favor"). Favor
   persists across installs; only money is transient. Donation curve computed authoritatively
   (`favorprobe.js`): rep is cheap vs. the pile, so over-donating removes the NFG rep-cap
-  ([reputation-favor.md](reputation-favor.md)).
+  ([reputation-favor.md](../reputation-favor.md)).
 - **`w0r1d_d43m0n` needs hacking 3000 + 5 open ports** — **CONFIRMED live** post-Red-Pill
   (`worldprobe.js`), no longer an assumption.
 - **Post-install #2 `mults.hacking` = 6.09** — CONFIRMED via `auginfo.js`. NFG capped at +16 levels this
   install (money-capped as predicted). Enough to reach 3000 in one re-climb.
-- **Grafting is out** — not available in this build's BN1, wouldn't help ([grafting.md](grafting.md)).
+- **Grafting is out** — not available in this build's BN1, wouldn't help ([grafting.md](../grafting.md)).
 
 ## The sequence (▶ = current position)
 
@@ -81,9 +85,9 @@ is **done**.)
 
 ## Pointers
 
-- [endgame-runbook.md](endgame-runbook.md) — click-by-click for the install sequence (steps 4–9).
-- [reputation-favor.md](reputation-favor.md) — rep/favor/donation mechanics + the computed donation curve.
-- [reset-protocol.md](reset-protocol.md) — the two install-reset gotchas (money, faction membership).
+- [endgame-runbook.md](../endgame-runbook.md) — click-by-click for the install sequence (steps 4–9).
+- [reputation-favor.md](../reputation-favor.md) — rep/favor/donation mechanics + the computed donation curve.
+- [reset-protocol.md](../reset-protocol.md) — the two install-reset gotchas (money, faction membership).
 - `BACKLOG.md` ("Grind 2.5m Daedalus rep" item) — full reasoning trail incl. the corrections.
 - Memories: [[reference_install_resets_money]], [[reference_install_resets_faction_membership]],
   [[project_daedalus_donation_shortcut]], [[reference_share_boost_needs_faction_work]].
@@ -93,5 +97,5 @@ is **done**.)
 Two mechanics burned the plan mid-course and were corrected live, not from stock memory: **money resets
 on install** (the accumulated pile was never donatable), and **installing drops all faction membership**
 (so donation needed a full re-climb to 2500 to rejoin Daedalus first — the doc had wrongly said "Daedalus
-is joined"). Both are now locked in [reset-protocol.md](reset-protocol.md). The lesson for the next
+is joined"). Both are now locked in [reset-protocol.md](../reset-protocol.md). The lesson for the next
 session: verify reset mechanics against the live game, don't assert them.

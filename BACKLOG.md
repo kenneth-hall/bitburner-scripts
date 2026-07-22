@@ -160,46 +160,20 @@ do, and what's broken?*
   wantedPenalty/ascension-accounting mysteries) moved to
   [`docs/gang-engine.md`](docs/gang-engine.md) §6-7, 2026-07-22.** Check there, not here, for
   anything gang-related.
+- **Batcher-specific open items (share/RAM-competition auto-suppress, core-aware grow/weaken
+  sizing, per-target realized-income/prep-duration logging, daemon.js/scheduler.js comment sweep)
+  moved to [`docs/batcher-engine.md`](docs/batcher-engine.md) §4, 2026-07-22.** Check there, not
+  here, for anything batcher-related.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
   first — does `contract.submit()` dodge `attempt`'s 10 GB charge? — it can invalidate the
   single-script architecture. → `phase-19-contracts.features.md`.
-- **⚠️ Share ran for ~7 hours on a factionless fresh node and cost us ALL income** — measured
-  2026-07-18 in BN2. `ns.share()`'s rep multiplier only applies while doing faction work
-  ([[reference_share_boost_needs_faction_work]]) and we were in **zero factions**, so its 25%
-  carve (24 GB of a 100 GB fleet) was pure waste. Worse, it wasn't merely wasteful — it was
-  *decisive*: with only 75 GB of batch budget the daemon couldn't place even a
-  `MIN_HACK_FRACTION` batch for its top-scored target (pipeline 1,891 GB vs 75 GB budget), so it
-  skipped every tick and earned **$0 for ~7 hours**. Dropping `share-off.txt` raised the budget to
-  100 GB; the daemon immediately switched to an affordable target (n00dles) and money went
-  $5,695 → $14,565 in 45 s.
-  - **The rule that's missing:** share should be suppressed automatically whenever
-    `ns.getPlayer().factions` is empty — it is *provably* worthless then, no heuristic needed.
-    That's a stronger and simpler trigger than the fleet-size floor below, and it would have
-    prevented this outright. **Still unbuilt** — the 2026-07-19 fix was manual (`share-off.txt`
-    deleted on joining NiteSec; share went back on at 1.12 TB / 280k threads, fleet utilization
-    6.4% → 27.6%). The next factionless start repeats the bug unless this lands.
-  - Also worth flagging: the daemon reserved 1,891 GB for a target it could never afford and
-    reported `floor: true` / `commitPct: 0` every tick without ever escalating. **A member that
-    has been at 0% commitment for N consecutive ticks should be dropped for an affordable one**,
-    which is what happened instantly once the budget rose. Silent permanent stall is the bug.
-
-- **Auto-suppress share on small fleets** — a resource-manager rule to drop the 25% `share.js`
-  carve below a fleet-size/income floor (today the only lever is the manual `share-off.txt`
-  toggle, which competes hard with getting the batcher's pipeline started on a fresh post-reset
-  fleet). Observed live 2026-07-09. No design yet.
 - **Augment breadth-vs-depth, narrowed (Phase 25)** — the original v1 tension (shallow rep spread
   across many factions banking favor slower than concentrating on one) is now addressed: S4's camp
   commitment concentrates city-faction joining, and S6's generalized donation route lets a faction
   banking favor fast buy past a slow grind. What remains, if anything, is Daedalus-endgame-specific
   (still the manual runbook, `docs/reset-protocol.md`) — parked with that endgame, not a v1 concern.
-- **Core-aware grow/weaken sizing** — SHELVED; `sampling.js` sizes grow/weaken at an implicit 1
-  core, but it's a safe overshoot (grow's security bump is core-independent) and only ~1% of
-  fleet RAM at home's 2 cores. **Revisit when** home cores get upgraded post-Singularity — now
-  buildable (`installer.js`'s auto-mode `upgradeHomeCores()` calls, Phase 25 S10) but still gated
-  on Kenneth flipping `ratchet-mode.txt` to `auto`; co-scope with core-weighted share placement. →
-  `phase-17-home-cores.features.md`.
 - **~~Stage-2 first auto-fire (Phase 25 S11/S2)~~ — DONE 2026-07-17, install #6.** Ran
   end-to-end unmodified on the first attempt; every step of the cycle is now proven, including
   the three that had never run in any form (spend-down, `installer.js` exec, the install itself)
@@ -234,9 +208,6 @@ do, and what's broken?*
   or a `vite.config.ts` hook) — the in-game→`logs/` bridge is exactly what's down at that moment,
   so an `ns.write` can't carry it out. Easier sub-case: `try/catch` in-game runtime errors →
   `ns.write` the normal way.
-- **Per-target logging** — (a) realized income/efficiency per target over time, to sanity-check
-  the ranking score against actual outcomes (today `batch` events log *expected* steal only); (b)
-  prep-cycle duration (drift→prepped transition), currently invisible once a target is prepped.
 - **Validate `upgradeHomeCores` Singularity call — STILL OPEN** — `installer.js:86` is the **only**
   call site and it runs in auto mode only, so no hand-run shortcut exists (unlike RAM, there is no
   `upgradehomecores.js`). The first auto fire exercises it cold; watch for a `home-cores-upgrade`
@@ -256,11 +227,6 @@ do, and what's broken?*
   (RAM gate + live daemon session). Zero-risk alternative that still fixes "tell what is what": a
   role-map (`src/README.md`) instead of moving anything. If a split ever happens, the seam is
   library-vs-entrypoint — fold it into a refactor, not a standalone tidy.
-- **Comment sweep — `daemon.js`/`scheduler.js` only** — trim `Phase N` attribution from
-  otherwise load-bearing comments (grep `Phase \d+` for the current list). Highest-value piece
-  is a real fix, not a comment: `daemon.js:471`'s `tprintTs` prints "leftover Phase 1 worker
-  file(s)" to the in-game terminal — reword to "legacy"; likewise `scheduler.js:1-3`/`:254`
-  reference a vanished `allocator.js`/`pickBatchTarget`. Behavior-preserving, `npm test` is enough.
 - **Brainstorm brief** (spec-review loop, optional Step 8) — have the opus brainstorm end by
   writing `phase-NN-slug.features.md` itself, so even the opus→fable handoff is a file, not a
   re-paste. Rest of the loop shipped (Phase 14).

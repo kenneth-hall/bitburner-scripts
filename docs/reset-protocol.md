@@ -4,7 +4,8 @@ When you install augmentations (a soft reset) or enter a new BitNode, hacking le
 membership, and faction rep reset — you re-earn progression from scratch. This is the playbook for
 getting back to where we were, focused on the **faction-unlock sequence** and its gates. Living
 doc — expand as we learn. (The *economic* rebuild — money/RAM/batcher — is handled by the existing
-`bootstrap.js` / `daemon.js` + companions, not this doc.)
+`bootstrap.js` / `daemon.js` + companions, not this doc; see [`batcher-engine.md`](./batcher-engine.md)
+for how the batcher itself behaves across a reset.)
 
 ## Soft reset vs. hard reset — what actually persists
 
@@ -186,7 +187,9 @@ of Intelligence carry over. So **every** BN1 clear re-pays the full Daedalus end
 this is the ordered playbook, distilled from clear #1's hard-won corrections. The **dominant cost is
 the rep grind**, not money and not the XP climbs — sequence around unlocking the donation shortcut
 early. The faction-join order + per-cycle hacking-aug buy-list this references lives in
-[`bn1-install-plan.md`](./bn1-install-plan.md).
+[`archive/bn1-install-plan.md`](./archive/bn1-install-plan.md) (archived — its batcher-behavior
+facts moved to [`batcher-engine.md`](./batcher-engine.md), but its BN1-specific
+faction/aug-order detail is still current and kept there).
 
 1. **Bootstrap + climb to 2500.** Let `bootstrap.js`/`daemon.js` rebuild the fleet; climb hacking to
    2500 to trigger the Daedalus invite (needs augs ≥30 ✅ persist? **no** — augs are wiped on a hard

@@ -78,7 +78,8 @@ on request — hold to them even when the moment is uncomfortable.
     second engine exists. That reasoning was written pre-1.3-clear and hasn't been re-checked
     against what Phase 26 now proves (unattended clears are cheaper than assumed) — worth
     revisiting, not assuming still holds. Full prior reasoning + all 15 nodes' multiplier tables
-    lives in `docs/bitnodes.md` → "Our next-node plan (mature batcher)" and in git history.
+    lives in `docs/bitnodes.md` → "Our next-node plan (mature batcher)" and in git history; the
+    batcher engine itself (architecture/lifecycle/strategy) is `docs/batcher-engine.md`.
   - **In parallel:** (a) **Phase 20 XP-farm engine shipped 2026-07-13** (`docs/phases/phase-20-xpfarm.spec.md`)
     — hack-saturation of surplus fleet RAM, S7 ON/OFF A/B gate measured 5.15× exp/sec; (b) **prototype
     a second engine** — only **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator +
@@ -431,6 +432,10 @@ sessions — no need to ask.
 
 ## Task-specific detail
 See `docs/INDEX.md` for on-demand references (logging patterns, dev-server / Remote API).
+**All things batcher engine — `daemon.js`/`scheduler.js`/`targets.js`/`hosts.js`/`sampling.js`
+architecture, lifecycle behavior across installs, strategy across BitNodes, open tripwires — live
+in [`docs/batcher-engine.md`](docs/batcher-engine.md).** Read it before designing or recommending
+anything batcher-related, the same way `docs/gang-engine.md` gates gang-related work.
 
 **Check the script library before hand-doing a task or writing a one-off.** `docs/scripts.md`
 indexes every `src/` script. A network/scan/**path**/aug/rep/backdoor task, or anything that

@@ -30,9 +30,11 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 | `killscripts.js` | Kill everything (daemon runs it once at startup). |
 
 ## Core daemon loop (`daemon.js` orchestrates; most are imported, not run)
+**Full architecture, lifecycle behavior, and BitNode strategy for the batcher:
+[`docs/batcher-engine.md`](batcher-engine.md).**
 | Script | Role |
 |---|---|
-| `daemon.js` | Central-allocation HWGW batcher. Runs forever on home; also drives prep + `ns.share()`. Headless (Phase 24) — publishes `daemon-status.json` for `dashboard.js`. Phase 26 B1: every `SUPERVISOR_CHECK_MS` (60s) diffs `ns.ps("home")` against `RESIDENT_COMPANIONS` and relaunches any missing one (backoff-bounded; a missing-but-doesn't-fit-yet companion waits instead of relaunch-storming). Phase 27: `gangmanager.js` added to `RESIDENT_COMPANIONS` in the priority slot right after `cloudmanager.js` (the RAM census's designated winner). Restart via `tools/bb/cli.mjs restart daemon.js`. |
+| `daemon.js` | Central-allocation HWGW batcher + companion supervisor. Runs forever on home. |
 | `scheduler.js` | *(imported)* Pure batch math — threads, `additionalMsec` timing, RAM bin-packing. No `ns`. |
 | `targets.js` | *(imported)* Decides **what to attack**, ranked. |
 | `hosts.js` | *(imported)* Discovers **where workers run** (rooting + purchased servers). |
@@ -44,10 +46,10 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 ## Workers (scp'd to hosts, import-free by design)
 | Script | Role |
 |---|---|
-| `hack.js` / `grow.js` / `weaken.js` | One-shot batch workers; daemon sets threads + timing. |
+| `hack.js` / `grow.js` / `weaken.js` | One-shot batch workers; daemon sets threads + timing. Detail: [`docs/batcher-engine.md`](batcher-engine.md). |
 | `xphack.js` / `xpweaken.js` | Fire-and-forget XP-farm workers (distinct filenames keep the batcher's in-flight sweep blind to them). Launched by `xpfarm.js`. |
 | `share.js` | One-cycle faction-share worker; daemon relaunches each tick. |
-| `bootloop.js` | Self-contained cold-start worker (retargets via a re-scp'd control file). |
+| `bootloop.js` | Self-contained cold-start worker (retargets via a re-scp'd control file). Detail: [`docs/batcher-engine.md`](batcher-engine.md). |
 
 ## Daemon companions (`exec`'d by `daemon.js` — restart via `tools/bb/cli.mjs restart <name>`)
 All headless as of Phase 24 (`dashboard.js` below is the only standing tail) — each still keeps
@@ -61,8 +63,8 @@ its `ns.print` status block, so a manual `tail <script>` shows live status for f
 | `gangmanager.js` | Phase 29 -- Tiers 1-3: recruits gang members (greedy), assigns tasks via an 8-rung respect ladder moved by an exact Formulas-based mover (`evalLadderMove`, suspends without Formulas.exe), buys rootkits broadly + member augmentations on ascension-rotation members only (`planEquipmentBuys`), and ascends members aggressively once their preview clears ×1.5 (`evalAscension`, staggered one per cooldown window). Publishes `gang-state.json` + `gang-log.json`; gang-equip spends also land in `transactions-YYYY-MM-DD.json`. Territory (Tier 4, `setTerritoryWarfare`) stays deliberately out of scope -- grep-checked. `gang-off.txt` on home suppresses all actions (recruit/task-move/ascend/equip-buy). |
 | `transactionsmonitor.js` | The income-side writer of the transactions log (`transactions-YYYY-MM-DD.json`) — `dashboard.js` reads that file directly, no separate summary state. Phase 32: diffs BOTH `getMoneySources().sinceStart.hacking` and `.gang` per poll (gang was ~96% of income this cycle, previously untracked), folding each source into its own tail record via `translog.js`'s `coalesceIndexForSource`. |
 | `goallog.js` | Phase 32 -- durable BN2.1 progress sampler. Every 60s, diffs `getMoneySources().sinceStart` (gang + hacking) and `getPlayer().mults.hacking` into a ring-capped cumulative series (`goal-log.json`, 48h), and republishes a snapshot (`goal-state.json`): installed hacking-mult `M` progress toward the `w0r1d_d43m0n` gate (target `M_TARGET`, currently the ~16.7 core-NiteSec-catalog floor), a 10-min-smoothed income $/sec + UP/DOWN/FLAT trend, and the $-to-next-aug + awaiting-money elapsed timer (echoed from `augfarmer-state.json`). Clears the series on a node-entry reset (cumulative drop). `dashboard.js`'s `GOAL` panel (first panel, above `DAEMON`) is a pure reader of the snapshot -- zero added `ns` RAM. ~3.1 GB (`getMoneySources` + `getPlayer`). |
-| `targetsmonitor.js` | Live re-rank/re-plan analysis of every eligible hack target; publishes `targets-ranking.json`. |
-| `launchmonitor.js` | Live worker-launch history (watches `ns.ps()`). |
+| `targetsmonitor.js` | Live re-rank/re-plan analysis of every eligible hack target; publishes `targets-ranking.json`. Detail: [`docs/batcher-engine.md`](batcher-engine.md). |
+| `launchmonitor.js` | Live worker-launch history (watches `ns.ps()`). Detail: [`docs/batcher-engine.md`](batcher-engine.md). |
 | `xpfarm.js` | Hack-saturation XP engine — fills the fleet's surplus RAM (whatever the batcher/share leave unclaimed) with capped, held hack waves plus an overflow absorber; self-scales from ~0 to near-total. Publishes `xpfarm-state.json`. Toggle: `xp-off.txt` on home. |
 | `augfarmer.js` | Always-on Singularity aug farmer — proactively joins every reachable, camp-allowed `FACTION_SCOPE` faction (D11-authorized, see `docs/reset-protocol.md`), targets augs by mult-per-rep score, allocates the single work slot around passive-rep factions, donates once a faction's favor clears the threshold, and evaluates the install trigger every pass. The trigger arms on a queued-mult-gain floor OR (Phase 26 A2) a gate-release: queued augs that would close an in-scope faction's aug-count gate, independent of `endgameHold`/the gain floor. Also self-reports a stall (Phase 26 B2) — hours since the last install far exceeding the observed cycle time with no install in progress — as a `stall-warning` decision record + terminal WARN. Observe mode (default) only logs "would install now" to `ratchet-decisions.json`; auto mode (Kenneth writes `auto` into `ratchet-mode.txt`) runs the spend-down sequence and execs `installer.js`. Publishes `augfarmer-state.json`. Pause: `augfarmer-pause.txt` on home. |
 | `installer.js` | Phase 25 — the one script authorized to call `installAugmentations`. Exec'd only from `augfarmer.js`'s auto-mode branch; refuses to act unless `ratchet-mode.txt` reads exactly `auto`. Maxes home RAM then cores, appends a final decision record, then installs with `bootstrap.js` as the post-reset callback. |

@@ -1,9 +1,15 @@
+> **⚠️ ARCHIVED 2026-07-22 — its batcher-behavior facts (batcher self-funds, ignore money-mult
+> augs, `bootstrap.js` recovery, xpfarm-vs-batcher RAM competition) were superseded/consolidated
+> into [`docs/batcher-engine.md`](../batcher-engine.md) §2. The faction-join-order and
+> per-cycle aug-buy-list content below is BN1-specific and kept here verbatim for history —
+> `reset-protocol.md`'s BN1 endgame checklist still points here for that detail.**
+
 # BN1 install plan — faction join order, hacking-aug buy-list, install cadence
 
 The per-cycle decision sheet for the manual half of a BN1 clear: **which factions to join, which
 augs to buy, in what order, and when to install.** Built from
-[`aug-catalog-known-factions.json`](./aug-catalog-known-factions.json); pairs with the ordered
-endgame in [`reset-protocol.md`](./reset-protocol.md) (this doc is the aug/faction detail that
+[`aug-catalog-known-factions.json`](../aug-catalog-known-factions.json); pairs with the ordered
+endgame in [`reset-protocol.md`](../reset-protocol.md) (this doc is the aug/faction detail that
 checklist points at). **Not** an optimizer and **not** about servers/home-RAM (servers are
 automated by `cloudmanager.js`; home RAM is the one-line "buy when rich, it persists" rule in
 reset-protocol). Glance at it once per install cycle.
