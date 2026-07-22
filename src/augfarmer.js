@@ -2624,6 +2624,14 @@ export async function main(ns) {
         boughtThisCycle,
         nfg: { level: ownedTrueRaw.filter((a) => a === NFG_NAME).length, cappedThisCycle: nfgBoughtThisCycle },
         daedalusGate: { installed: ownedInstalled.length, queued: ownedTrueRaw.length - ownedInstalled.length, target: DAEDALUS_AUG_GATE },
+        // goallog.js projects post-install M from these (installed M x
+        // queuedGain). queuedGain = product of the queued-but-uninstalled augs'
+        // hacking mults -- purchased-only, does NOT fold in the speculative NFG
+        // tail (that's trigger.totalGain). queuedCount duplicates
+        // daedalusGate.queued but is published plainly so goallog need not read
+        // the legacy-named field.
+        queuedGain,
+        queuedCount: queuedNames.length,
         trigger: triggerState,
         endgameHold,
         lastAugReset,

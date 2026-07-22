@@ -131,7 +131,23 @@ describe('buildSnapshot', () => {
   it('mProgress: rounds pct and echoes the target/label', () => {
     const s = [{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.51 }];
     const snap = buildSnapshot(s, null, T);
-    expect(snap.mProgress).toEqual({ value: 1.51, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct: Math.round((1.51 / M_TARGET) * 100), gateTarget: M_GATE_TARGET });
+    expect(snap.mProgress).toEqual({ value: 1.51, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct: Math.round((1.51 / M_TARGET) * 100), gateTarget: M_GATE_TARGET, queuedValue: null, queuedPct: null, queuedCount: null });
+  });
+
+  it('mProgress: projects post-install M from augState.queuedGain (purchased-not-installed augs)', () => {
+    const s = [{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.5 }];
+    const snap = buildSnapshot(s, { queuedGain: 2, queuedCount: 9 }, T);
+    expect(snap.mProgress.queuedValue).toBe(3); // 1.5 x 2
+    expect(snap.mProgress.queuedPct).toBe(Math.round((3 / M_TARGET) * 100));
+    expect(snap.mProgress.queuedCount).toBe(9);
+  });
+
+  it('mProgress: queued projection is null when augState lacks queuedGain', () => {
+    const s = [{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.5 }];
+    const snap = buildSnapshot(s, { phase: 'grinding' }, T);
+    expect(snap.mProgress.queuedValue).toBeNull();
+    expect(snap.mProgress.queuedPct).toBeNull();
+    expect(snap.mProgress.queuedCount).toBeNull();
   });
 
   it('includes the tripwire status in the snapshot', () => {

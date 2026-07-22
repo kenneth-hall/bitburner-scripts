@@ -129,6 +129,17 @@ export function buildSnapshot(series, augState, nowMs) {
   const mValue = latest && typeof latest.mHacking === "number" ? latest.mHacking : null;
   const pct = mValue !== null ? Math.round((mValue / M_TARGET) * 100) : null;
 
+  // Projected M if the augs already PURCHASED this cycle were installed now.
+  // augfarmer publishes queuedGain (product of the queued-but-uninstalled augs'
+  // hacking mults); installed M x that == post-install M. Purchased-only -- it
+  // deliberately excludes the speculative NFG tail (that lives in
+  // trigger.totalGain, not here). Both null when augState is absent or carries
+  // no queued figures, so the dashboard just omits the projection line.
+  const queuedGain = augState && typeof augState.queuedGain === "number" ? augState.queuedGain : null;
+  const queuedCount = augState && typeof augState.queuedCount === "number" ? augState.queuedCount : null;
+  const queuedValue = mValue !== null && queuedGain !== null ? mValue * queuedGain : null;
+  const queuedPct = queuedValue !== null ? Math.round((queuedValue / M_TARGET) * 100) : null;
+
   const perSec = computeRateRange(list, nowMs - RATE_WINDOW_MS, nowMs, "total");
   const gangPerSec = computeRateRange(list, nowMs - RATE_WINDOW_MS, nowMs, "gangCum");
   const hackingPerSec = computeRateRange(list, nowMs - RATE_WINDOW_MS, nowMs, "hackingCum");
@@ -153,7 +164,7 @@ export function buildSnapshot(series, augState, nowMs) {
   return {
     timestamp: nowMs,
     time: new Date(nowMs).toLocaleString(),
-    mProgress: { value: mValue, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct, gateTarget: M_GATE_TARGET },
+    mProgress: { value: mValue, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct, gateTarget: M_GATE_TARGET, queuedValue, queuedPct, queuedCount },
     income: { perSec, trend, windowMs: RATE_WINDOW_MS, gangPerSec, hackingPerSec },
     tripwire: evalTripwire(list, nowMs),
     nextAug,

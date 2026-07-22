@@ -557,6 +557,17 @@ export function goalPanel(state, now) {
   const gatePart = m.gateTarget ? ` -> gate ~${m.gateTarget}` : "";
   lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%${gatePart}`);
 
+  // Projected M if the augs already bought this cycle were installed now
+  // (installed M x queuedGain). Only shown while augs are actually pending --
+  // M sits flat through the whole buy phase and only steps at install, so this
+  // is the line that makes the flat installed-M readable as progress, not a
+  // stall. Omitted when nothing's queued (queuedCount 0) to keep the panel
+  // quiet.
+  if (typeof m.queuedValue === "number" && typeof m.queuedCount === "number" && m.queuedCount > 0) {
+    const qPctText = typeof m.queuedPct === "number" ? m.queuedPct : "?";
+    lines.push(`+queued: M ${m.queuedValue.toFixed(2)} ~${qPctText}% (${m.queuedCount} aug${m.queuedCount === 1 ? "" : "s"} pending install)`);
+  }
+
   // Goalpost tripwire (GP2): M only climbs, so a 12h-flat M means the ratchet
   // stalled. STALLED is the alarm; ON TRACK/warming are quiet confirmations.
   const tw = state.tripwire ?? {};

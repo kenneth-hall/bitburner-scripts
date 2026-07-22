@@ -580,6 +580,18 @@ describe('goalPanel', () => {
     expect(withGate).toContain('M 1.51/16.7 (core) ~9% -> gate ~36');
   });
 
+  it('renders a +queued projection line when augs are pending install; omits it when none/zero', () => {
+    const withQueued = goalPanel(
+      { timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, gateTarget: 36, queuedValue: 3.42, queuedPct: 20, queuedCount: 9 } },
+      NOW
+    );
+    expect(withQueued).toContain('+queued: M 3.42 ~20% (9 augs pending install)');
+    const singular = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, queuedValue: 1.7, queuedPct: 10, queuedCount: 1 } }, NOW);
+    expect(singular).toContain('+queued: M 1.70 ~10% (1 aug pending install)');
+    const none = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, queuedValue: 1.51, queuedPct: 9, queuedCount: 0 } }, NOW);
+    expect(none.some((l) => l.startsWith('+queued'))).toBe(false);
+  });
+
   it('tripwire: STALLED renders a WARN line; ON TRACK/WARMING render quiet lines; absent/UNKNOWN render nothing', () => {
     const stalled = goalPanel({ timestamp: NOW, mProgress: {}, tripwire: { status: 'STALLED', flatHours: 13.2 } }, NOW);
     expect(stalled.some((l) => l === 'WARN: goalposts STALLED -- M flat 13.2h (ratchet stuck?)')).toBe(true);

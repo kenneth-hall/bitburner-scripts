@@ -6,6 +6,18 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-22
+
+- **GOAL panel shows projected (post-install) M from queued augs.** Installed M sits flat through
+  an entire buy cycle and only steps at install, so the GP2 tripwire reads "STALLED 12h" during
+  normal money-paced buying — the flat installed-M gave no sign the queued augs are climbing.
+  `augfarmer.js` now publishes `queuedGain` (product of the purchased-but-uninstalled augs' hacking
+  mults) + `queuedCount`; `goallog.js`'s snapshot projects `queuedValue = installed M × queuedGain`
+  + `queuedPct`; `dashboard.js` renders a `+queued: M 3.42 ~20% (9 augs pending install)` line under
+  the M line (only when augs are pending). Purchased-only — excludes the speculative NFG tail
+  (`trigger.totalGain`). Live-verified (M 1.51→3.42 queued, 9 pending). `npm test` 866/866; no RAM
+  change (object-field reads only, no new `ns` surface).
+
 ## 2026-07-21
 
 - **Gang money pivot — gang income ~7× ($598k/s → $4.2M/s), 8 members on Money Laundering.**
