@@ -31,15 +31,6 @@ do, and what's broken?*
   way. Low priority — cheap to rediscover, now recorded here and in
   `docs/phases/phase-27-gang.closeout.md`.
 
-- **`GangGenInfo.wantedPenalty` is not simply monotonic in `wantedLevel`** — observed live 2026-07-19/20:
-  `wantedPenalty` kept drifting upward over ~8.5 hours while `wantedLevel` sat exactly at its floor
-  (1) the entire time. Caused a real bug in `gangmanager.js`'s wanted-sink baseline (fixed, see
-  `docs/phases/phase-27-gang.closeout.md`), but the underlying cause of the drift itself
-  (respect? territory? gang size? all looked roughly constant while it happened) is still
-  unexplained. Doesn't block Tier 1 — the fix works regardless of cause — but worth understanding
-  before Tier 2+ tries to model `wantedPenalty` more precisely, or before assuming any other
-  `GangGenInfo` field behaves the way its name suggests.
-
 - **The log-download bridge silently stalls, and nothing detects it mid-session** — found
   2026-07-19: no file synced to `logs/` between 09:55 and 10:19 (24 min), so `gangaugs.js`'s and
   `gangprobe.js`'s output simply never appeared on disk while every in-game read looked healthy. A
@@ -165,99 +156,10 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
-- **[SCHEDULE — the gate read is THE next BN2.1 milestone] Confirm the `w0r1d_d43m0n` requirement
-  the moment The Red Pill installs.** The 15,000 hacking-level gate is an ~85% inference and it's
-  the whole clear-plan's linear scale factor (at 7,500 the catalog alone nearly clears; at 30,000
-  the plan is infeasible). Red Pill is free + a Phase 33 must-buy, so it installs on its own —
-  read `getServerRequiredHackingLevel("w0r1d_d43m0n")` (and the true M needed) that cycle. Every
-  number in CLAUDE.md's clear plan is provisional until this lands. **Next action:** watch for the
-  Red Pill install; run the read then.
-- **[MEASURE — decides deep-NFG pacing] Does NiteSec faction rep survive an install?** Unestablished
-  in the repo. NFG rep-req grows (0.7m@L56 → 8.1m@L75 → 26.4m@L84) and the money pivot cut
-  respect-gain-rate ~2.4× (539.6 → ~220/tick). If faction rep resets each install, the deep ladder
-  (level ~69+) is rep-paced (waits ~0.5–1 day on re-accrual per late install), not money-paced —
-  which would favor bigger late NFG batches. **Next action:** one `getFactionRep("NiteSec")` read
-  immediately after the next install (compare to pre-install).
-- **NFG tail batching policy (from the 2026-07-21 fable review).** One-NFG-per-install over-optimizes
-  money that doesn't matter; variable batches (fat early while levels cost millions, taper to 1–3
-  per install past ~level 65 where each costs $5–25b) get ~75 levels for ~$160–250b vs $99b/$2.17t at
-  the extremes. **Revisit when** the ratchet actually reaches the NFG tail (M≈16.7, catalog done) —
-  check whether `augfarmer.js`'s escalation-aware ordering already approximates this or needs a
-  per-install NFG cap. Not actionable until the catalog is bought.
-- **~~Soak-validate the gang money pivot (shipped 2026-07-21).~~ ✅ VALIDATED 2026-07-22 over 20.5h
-  of `gang-rate-log` series (247 samples).** Steady-state money $8.74M/s, spread only 13%
-  (8.12–9.26M) — not oscillating; `netWantedRate > 0` in **0/247** samples (penalty pinned ~1.0) —
-  wanted not creeping; post-install the crew re-converged on Money Laundering (money 472k/s →
-  9.26M/s this cycle, members flat at 12). Also incidentally closed the ascension-cadence worry
-  below: `ascHackMean` 41.9 → 93.1 (>2×) over the window with installs ~1/20h — ascension is
-  net-positive, not decaying. **Still revisit if** a *future* install shows the crew NOT re-parking,
-  or income oscillates/wanted creeps over hours; the series stays the tripwire. No open action.
-- **Unresolved: ascension respect-accounting doesn't reconcile.** The two big logged ascensions
-  claim ~24.7m respect destroyed (nite-04 −12.0m, nite-05 −12.7m) yet the pool never went near
-  that low, and a third (nite-07 −2.66m, 2026-07-21) dropped it to 1.59m then it recovered to 7.9m
-  within minutes. The gang-respect ↔ NiteSec-faction-rep coupling and how `respectLost` maps to
-  the pool aren't understood. Matters only for the "keep respect ≥ 2.5m aug floor" guardrail under
-  aggressive ascension. **Revisit if** an ascension ever visibly re-locks an aug; otherwise low
-  priority. Related: the `wantedPenalty` non-monotonic bug in Bugs above.
-
-- **Gang manager Tier 4 (territory warfare) — ❌ DEFERRED FOR THIS NODE 2026-07-21 (rationale
-  corrected 2026-07-22).** Tiers 1-3 (recruit + task-assign, equipment, ascension) shipped: Tier 1
-  as `src/gangmanager.js` 2026-07-20 (`docs/phases/phase-27-gang.closeout.md`), Tiers 2+3 as Phase 29
-  (`docs/phases/phase-29-gang-scaling.spec.md`). The operational call — do NOT pursue territory for
-  BN2.1 — stands; but the original rationale was wrong on three counts, corrected below.
-  - **⚠️ CORRECTION 2026-07-22 (cold-context fable re-review, numbers re-measured).** The original
-    verdict ("structural combat mismatch is dispositive; ~20× reward on the wrong axis") was wrong
-    three ways: **(1)** territory income is ~territory^2.5 → **~124× money** at 100% (10.2× at 50%),
-    not ~20× — the ~20× was a `gangreward.js` bug (its "vs-current" column used the *respect* ratio
-    for both axes; fixed 2026-07-22, understated money ~8×). **(2)** "from-scratch combat build" is
-    false — Territory Warfare power weights *stat magnitudes*: 0.15 × our ~90k hack ≈ 13.5k weighted
-    power/member vs rival powers 3.3k–16.5k, so a pure-hacking gang is plausibly power-viable with
-    **zero** combat training. **(3)** "permanently" assumed a static rival field — rivals compound
-    ~+75%/day. **The real (correct) reason to defer for BN2.1:** money isn't the binding constraint
-    and saturates first — gang income ~$9.3m/s ≈ $806b/day meets the ~$310–400b need in ~½ day, while
-    building meaningful territory costs ≥3–6 days + ~$1.5–3t forgone. A 124× multiplier that unlocks
-    slower than the node clears, on a resource that stops binding first, is moot for BN2.1. **Future
-    gang nodes: re-price from scratch** (huge income curve, hacking gang probably viable, earlier =
-    cheaper). Cheapest settling measurement: one member on Territory Warfare (clashes OFF, no death
-    risk) ~15 min, sample `power`, restore. Full corrected reasoning:
-    `phase-30-gang-territory.features.md` → VERDICT.
-  - **Two audit findings CLOSED (don't re-investigate) 2026-07-22:** (a) *"we only buy 3 of 11 gang
-    augs"* is **NOT an under-buy** — the 8 skipped augs are all pure-combat (str/def/dex/agi, zero
-    hack/cha); the 3 bought (BitWire/DataJack/Neuralstimulator) are the only hack-carrying augs, and
-    **no charisma augmentation exists** in the catalog. The hardcoded-3 list is correct for a hacking
-    gang. (b) `ASCEND_MIN_FACTOR = 1.5` is a hand-set, unvalidated heuristic (confirmed) but
-    **low-stakes and self-obsoleting** — it fires cleanly (all 27 logged ascensions at preview ≈1.5),
-    mults compounded ×2.2 / income ×20 over 21h with no rebuild-churn collapse, and the whole question
-    dissolves once money saturates (~½ day). Leave it alone; the retrain-vs-earn tradeoff is unmeasured
-    but not worth measuring for this node. Low-priority open thread: post-ascension members rebuild on
-    low-difficulty ladder rungs where `Train Hacking` (difficulty 45) might rebuild faster — plausible,
-    unmeasured, not blocking.
-  - **What survives Phase 30 — a slimmed respect-engine observability slice** (independent of
-    warfare): **✅ SHIPPED 2026-07-21 as `src/gangratelog.js`.** Persists a durable
-    `respectGainRate` series plus `wantedPenalty` magnitude and the aggregate hack ascension
-    multiplier (mean/min/max) — the inputs the cadence check below needs. Built cheaper than the
-    sketch: instead of a second `ns.gang.getGangInformation()` reader, it's a thin **consumer of
-    `gang-state.json`** (which `gangmanager.js` already writes each tick), so pure `ns.read`/
-    `ns.write`, ~0 gang-API RAM, zero coupling to `gangmanager.js`. Resident (not one-shot),
-    supervised by `daemon.js` so the series survives restarts/installs; 5-min samples, ring-capped
-    at 14 days → `logs/gang-rate-log.json`. Live-validated (first sample landed clean) + 11 unit
-    tests. The warfare-specific instruments (power/win-odds/rival panel) are dropped — we'll never
-    act on them.
-  - **~~Still open — does a player aug install degrade gang ascension mults?~~ ✅ ANSWERED
-    2026-07-20: yes, `hack` × 0.9747 per install (flat, floors at 1.0).** It was never "untestable
-    until the first install fires" as recorded here — `getInstallResult()` is a read-only *preview*
-    and answered it immediately; nothing had ever called it. Measured via `ascendrecon.js` (now
-    reads it for every member). Full numbers + break-even arithmetic:
-    `docs/gang-api.md` open question 1.
-    - **What's left is a cadence question, not a mechanic question.** One 1.5× ascension pays for
-      ~16 installs. `ASCEND_MIN_FACTOR = 1.5` already only fires on large gains, so the shipped
-      policy is the right shape — but if 1.5× ascensions arrive slower than ~1 per 16 installs, gang
-      hack mults decay net-negative over the node. **Next:** count `ascend` events in the gang log
-      against install count over the same stretch (the window it was waiting on closed early
-      2026-07-21). Needs no code change and no edit to `gangmanager.js`. **Gains urgency from
-      Phase 33 decision 8:** expensive-first buy ordering makes `queuedGain` clear
-      `MIN_TOTAL_GAIN` in fewer buys, so installs are expected to come faster/cheaper post-ship —
-      run this check sooner rather than waiting for it to become visibly wrong.
+- **Gang-specific open items (gate read, NFG-vs-rep pacing, ascension cadence, territory,
+  wantedPenalty/ascension-accounting mysteries) moved to
+  [`docs/gang-engine.md`](docs/gang-engine.md) §6-7, 2026-07-22.** Check there, not here, for
+  anything gang-related.
 - **Coding contracts** (Phase 19, brainstorm only — nothing decided). Blocking question is
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe

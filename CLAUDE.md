@@ -30,156 +30,24 @@ on request — hold to them even when the moment is uncomfortable.
     companion). Don't overshoot-stop at M≈29 — the terminal XP grind makes that a 7–36-day trap;
     M≈35–37 keeps it to hours. QLink is a trap (NFG ~200–3000× cheaper for the same gate mult).
   - **✅ DECIDED 2026-07-19 — COMMITTED TO BN2, hacking gang via NiteSec.** The gang exists
-    (`isHacking: true`, fixed permanently). Everything below this bullet is the *history* of that
-    decision, kept because the measured numbers still bound the plan — it is no longer open.
-    Kenneth's closing argument, which is the reusable part: **a BitNode restart is cheap when the
-    node holds no progress**, so "permanent" was mispriced as a blocker. In-node permanence is
-    bounded by restart cost, not infinite. Deciding wrong and restarting beats deliberating for
-    five more sessions.
-    - **✅ Phase 27 Tier 1 SHIPPED 2026-07-20 — gang manager (recruit + task-assign) is live.**
-      `gangmanager.js` runs as a home-resident daemon companion; a live bug (wanted-sink baseline
-      froze at tick zero) was found and fixed same session. Full record:
-      `docs/phases/phase-27-gang.closeout.md`.
-    - **✅ Phase 29 (Tiers 2-3: equipment + ascension + 8-rung ladder re-open) SHIPPED
-      2026-07-20 — merged to `master`, live-deployed over CDP.** RAM gate measured 24.8 GB
-      (band ≤28.0). Initial live behavior confirmed within ~90s of restart: rootkits auto-bought
-      with matching transaction records, five members promoted off the sink, `netWantedRate`
-      staying negative. Spec (graduated): `docs/phases/phase-29-gang-scaling.spec.md`.
-      **✅ Observation window CLOSED EARLY 2026-07-21 (day 1 of 7).** Goal metric
-      `respectGainRate >= 1.27/tick` was overshot **~425×** (live 539.6), plus 19h of clean
-      autonomous soak — sustainability was no longer a live question, so the window was retired
-      by decision with Kenneth rather than run to ~2026-07-27. Rationale logged in the spec's
-      Close-out. **`gangmanager.js` is UNFROZEN** — edits no longer confound a measurement.
-      **Carried gap:** no persisted `respectGainRate` series exists (`gang-state.json` is
-      overwritten each tick) — a periodic sampler is a required input to any Tier 4 rate/decay
-      reasoning; see `BACKLOG.md`'s "Gang manager Tier 4" entry. Tier 4 (territory) is now clear
-      to brainstorm.
-    - **✅ Phase 33 (Workstreams A + C: escalation-aware buy ordering + utility must-buys) SHIPPED
-      2026-07-21.** `augfarmer.js`'s `pickTarget`/`spendDownPlan`/`evalTrigger`/`planPass` gained a
-      tiered, escalation-optimal (price-DESC) rep-met sort, a fundability guard (`fundCap`) that
-      retires the pathological QLink-reservation stall, and a must-buy hold that guarantees
-      CashRoot/Neuroreceptor/Red Pill are bought before the install fires. **T1/R1/R2/V1 confirmed
-      live same-session:** RAM held exactly at 64.10 GB; `worldprobe.js` (reused instead of a new
-      probe — see its header) measured 1.8 GB after trimming an unneeded `ns.getServer` call; the
-      instant the new code loaded, the live head flipped off a $325.8t QLink reservation onto a
-      fundable $63.5b aug, and the must-buy sequential-escalation arithmetic matched the spec's
-      hand-worked example almost exactly ($10.26b live vs $10.27b calculated). **V2/V4/V5 (buy
-      order across a real spend-down/cycle, 24h soak) are follow-ups** — they need real cycle time
-      the session couldn't wait for; logged in the closeout doc, not blockers to the ship.
-      `verify:log` carries two pre-existing, unrelated failures (already in `BACKLOG.md`).
-      Full record: `docs/phases/phase-33-money-throughput.closeout.md`.
-  - *(historical — the decision above closed this)* **commit to BN2 or abort?** BN2 was locked for its gang engine (SF2 kills the
-    recurring Daedalus rep tax); same-day in-node analysis then found its `w0r1d_d43m0n` gate is
-    **15,000** (Difficulty 500%) — realistically needing hacking mult **M ≈ 30–35** against our
-    demonstrated **10.077**, ~2× BN4's ask. Grinding can't substitute (level is logarithmic in
-    XP). **BN5's requirement (M ≈ 9.73) we have already exceeded.**
-    - **Verdict after an independent fable review: "plausible but unverified, ~60–70%, 4–10
-      weeks"** — *not* "unreachable," which an earlier pass here overstated on two counts (a stale
-      9.16 multiplier, and treating our BN1 aug catalog as a ceiling when it was a ratchet
-      stopping point at M≈6.5; the untouched megacorp tier is worth ~×5 more).
-    - **Two cheap checks settle it, in this order:** (1) run `augcheck.js faction "<gang faction>"`
-      — that one file answers whether the catalog reaches ~25-before-NFG; (2) read
-      `getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill installs — the 15,000
-      figure is an *inference* (~85% confidence), unreadable until then.
-      - **Correction 2026-07-19:** check (1) previously read "*once in the gang faction*" — that
-        precondition is **false**, verified live. `singularity.getAugmentationsFromFaction` does
-        **not** require membership; `augcheck.js faction "NiteSec"` returned the full catalog with
-        zero factions joined and no gang created. The check is available *now*, with nothing
-        irreversible spent, which makes the whole BN2 decision cheaper than it has been priced.
-        (It needs 29.10 GB, so it won't fit a crowded 32 GB home — run it from a fleet server.)
-      - **…and check (1) was aimed at the wrong factions.** Measured 2026-07-19 via the new
-        `src/gangaugs.js` catalog sweep (read-only, pre-gang): the union of all five *pure-criminal*
-        gang factions (Slum Snakes / Tetrads / Speakers / Dark Army / Syndicate) is **hacking
-        ×1.061** across 33 augs — they share one hacking aug between them. NiteSec ×1.515 and
-        The Black Hand ×1.511 are the only gang-capable factions with real hacking catalogs, and
-        **both are reachable without a gang.** So a gang buys ~**+6%** M that nothing else offers.
-        The catalog was never going to reach ~25 from gang factions.
-      - **The real ceiling, measured the same way:** union of the 17 non-gang factions
-        (megacorps + BitRunners + endgame) = **hacking ×23.121** across 69 distinct augs, NFG
-        counted once. Against a demonstrated 10.077 and a needed ~30–35, that puts the target
-        inside reach *only* with a substantial NFG tail on top (~×1.3–1.5, i.e. ~26–38 levels)
-        **and** with essentially the whole catalog bought — whose union price is dominated by
-        Illuminati at ~$25t. **This reframes the gang's role: its value to BN2 is the money/rep
-        engine that makes that catalog affordable, not the augs it sells.** Raw sweep output:
-        `logs/gangaugs-*.json` (in-game FS; `scp … home` to sync).
-      - **⚠️ CORRECTION 2026-07-21 — the two bullets above are OBSOLETE; they rest on a *pre-gang*
-        catalog read.** Verified against the post-`createGang` sweep
-        (`logs/gangaugs-1784565947624.json`, checked against the raw JSON): **NiteSec — our own gang
-        faction — now sells 98 augs at hacking ×22.89**, `maxRepReq` 2.5m, **including The Red Pill
-        (free) and QLink.** The vanilla "your gang faction sells nearly the whole catalog" mechanic
-        is live in this fork; the pre-gang ×1.515 reading no longer applies. Confirmed real, not a
-        phantom read — `augfarmer.js` is live-buying from it (7 augs this cycle). Consequences:
-        - "The catalog was never going to reach ~25 from gang factions" is **false** — NiteSec alone
-          carries ×22.89 (÷1.75 QLink = ×13.08 for everything else).
-        - "$25t across 17 factions, gang = money engine not aug source" is **false** — it's ONE
-          faction, ONE rep track, and rep is **saturated** (2.5m max req vs ~18.3m banked respect,
-          rate 425× over goal). The exact lever BN2's nerfs attack (rep) is a non-issue.
-        - **Corrected bar — money is the only open resource:** core catalog (all but QLink) =
-          **$149b → M≈16.7** (with SF1.3 ×1.28) + a ~50–65-level NFG tail; OR add **QLink ($25t) →
-          M≈29** with a short tail. ~~The batcher dominates the money curve~~ — **⚠️ CORRECTED
-          2026-07-21 (live `moneysources.js`, `logs/moneysources-*.json`): the *gang* dominates the
-          money curve, ~96% of income this cycle ($16.25b gang vs $0.70b hacking). The batcher is
-          throttled early-cycle while post-install hacking level rebuilds (~264 → recover); it may
-          overtake late-cycle, unverified. This *reinforces* rather than breaks the next clause —**
-          gang *type* is immaterial
-          to the win (a combat gang gets the identical expansion), and gang *income* (not the
-          batcher) is the engine regardless of type. **So BN2.1 is now assessed CLEARLY
-          REACHABLE (~3–6 weeks), not "plausible ~60–70%"** — the two scary unknowns (rep grind,
-          catalog access) are both retired. Full analysis: `docs/bn2-gang-type-analysis.md`
-          (fable, cold-context, 2026-07-21). Standing checkpoint still open: read
-          `getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill installs to confirm
-          the 15,000 gate inference.
-          - **✅ MONEY PIVOT SHIPPED 2026-07-21 — gang income ~7× ($598k/s → $4.2M/s live).** The
-            `$16.25b gang vs $0.70b hacking` split above measured the gang while it was still
-            optimizing RESPECT — a *saturated* resource (augs all unlocked, only a 2.5m floor to
-            defend). `gangmanager.js` now optimizes MONEY (money-ordered `TASK_LADDER` + money-aware
-            `evalLadderMove`), parking high-stat members on Money Laundering (a ML member earns ~40×
-            a Ransomware member of equal stats). Since gang income *is* the engine the whole "CLEARLY
-            REACHABLE" call rests on and it stepped up ~7× live, the **~3–6-week estimate is now
-            conservative** — money was the only open gate. Companion fix: Formulas.exe autobuy is
-            gang-aware (buys at any hacking level once a gang exists), so the ladder mover no longer
-            sits dark through each post-install hacking re-climb. Two live regressions preceded the
-            fix (respect-mover heat-demoting the top-money task; the respect ladder climbing everyone
-            to zero-money Cyberterrorism) — the lesson is logged in CHANGELOG 2026-07-21. Soak
-            validation (only ~15 min observed at steady state) is a `BACKLOG.md` follow-up.
-          - **✅ CLEAR PLAN REFINED 2026-07-21 (two independent analyses agree — sonnet's bridge calc
-            + a cold-context fable review).** Measured state: **M=1.51, 7 augs, NFG 0** — the very
-            start of the climb. The path and its real constraints:
-            - **QLink is a TRAP for the gate — never buy it.** QLink's ×1.75 hacking = ~56 NFG levels
-              (NFG is +1%/level, base $750k, cost grows only ×1.14/level). QLink costs **$25t**; the
-              equivalent NFG costs **~$8b base / ~$100–150b with real escalation** — ~200–3000×
-              cheaper. QLink's other mults (money ×4, speed ×2) only help the batcher (~4% of income),
-              not the hacking-*level* mult that gates WD.
-            - **Money is NOT the bottleneck; stocks are NOT needed.** Whole path (catalog ~$149b → M≈16.7
-              + NFG tail) is gang-fundable in ~2–3 days at current income. If income ever regresses,
-              Tier-4 territory would be the cheaper lever than a from-scratch stock engine — but
-              neither is needed.
-            - **DON'T stop at M≈29 — overshoot to M≈35–37 (NFG ~76–80).** The omitted tail is the
-              *terminal XP grind*: every install wipes XP, only the last cycle counts, and XP-to-15,000
-              is brutally M-sensitive (M=29 → 7–36 days of grind; M=35–37 → hours). Cheap NFG funds the
-              overshoot for ~$100–150b extra (hours of income). Binding constraint is therefore
-              *money-rate for ~2–3 days, then the terminal XP grind sized by where you stop the ladder*
-              — NOT install throughput (~25 automated installs ≈ half a day) and NOT a second engine.
-            - **Buy NFG in variable batches** (fat early while levels cost millions, taper to 1–3/install
-              past ~level 65 where each costs $5–25b) — ~$160–250b for 75 levels; one-per-install
-              over-optimizes money that doesn't matter.
-            - **Estimate: 5–10 days if income holds, 2.5–3.5 weeks if it regresses** — both inside the
-              3–6-week band. ~90% confident *conditional on the gate being ~15,000*, ~75% unconditional.
-            - **TWO cheap measurements dominate the residual risk (schedule both):** (1) **the gate read
-              is THE next milestone** — Red Pill is free + a Phase 33 must-buy, so the next install
-              converts the 15,000 *inference* to a `getServerRequiredHackingLevel` *reading*; every
-              number above scales linearly off it (at 7,500 the catalog nearly clears; at 30,000 it's
-              infeasible). (2) **does NiteSec faction rep survive an install?** — unestablished; NFG
-              rep-req grows (0.7m@L56 → 8.1m@L75 → 26.4m@L84) and the pivot cut respect-gain-rate ~2.4×,
-              so if rep resets each install the *deep* ladder is rep-paced not money-paced. One
-              `getFactionRep` read next install settles it. Both are in `BACKLOG.md`.
-    - Full arithmetic: `docs/bitnodes.md` → BN2 clearing notes (⚠️ also predates the 2026-07-21
-      correction above — its $25t/17-faction framing is superseded by the single-faction picture).
-  - *(historical — superseded by the ✅ Phase 27 Tier 1 SHIPPED bullet above)* an early Phase 27
-    draft ("gang observer") was blocked on the gang API being entirely inert pre-`createGang()`;
-    once the gang existed that blocker dissolved, and Tier 1 shipped from a from-scratch spec that
-    read the full API surface first (`docs/gang-api.md`) — see "Read the whole interface before
-    designing against it" below for why the observer framing itself was wrong, not just blocked.
+    (`isHacking: true`, fixed permanently, no `leaveGang()`). Kenneth's closing argument, kept
+    because it's the reusable part: **a BitNode restart is cheap when the node holds no
+    progress**, so "permanent" was mispriced as a blocker — deciding wrong and restarting beats
+    deliberating for five more sessions.
+  - **Gang engine is built and live.** Tiers 1-3 shipped (recruit/assign, equipment, ascension);
+    the task-ladder objective pivoted from respect to **money** 2026-07-21 once rep saturated
+    (income ~7×, later validated at $8.7-9.3M/s steady state); `augfarmer.js` buys
+    escalation-aware + utility must-buys (Phase 33, 2026-07-21); territory (Tier 4) is deferred
+    for this node, not permanently (re-priced 2026-07-22, verdict held, reasoning corrected).
+    **Verdict: BN2.1 is CLEARLY REACHABLE, money-gated only, ~3–6 weeks** (conservative, given the
+    money pivot's ~7× income jump). The gate-read (GP1 above) is the one number that rescales
+    every estimate here.
+  - **Full decision history (why hacking-not-combat, the catalog corrections, the two
+    respect↔money reversals and why they weren't circular, the QLink-is-a-trap math, territory's
+    corrected deferral rationale), the gang API/mechanics reference, and `gangmanager.js`'s
+    architecture all live in one place: [`docs/gang-engine.md`](docs/gang-engine.md).** Read it
+    before proposing any gang-strategy change — it's where "was this already tried, and why"
+    gets answered, so the gang decision doesn't get re-derived from scratch each session.
   - **How it cleared — Phase 26 (A2 gate-release arming + B2 stall detection + B1 companion
     supervisor) shipped and live-validated 2026-07-18**, closing the 29/30 aug-count deadlock A1's
     runaway had uncovered (`docs/phases/phase-26-ratchet-autonomy.spec.md`). The gate-release fire
@@ -280,7 +148,8 @@ than reconsidered. **Three invalidations of one document means the foundation is
 patching and re-read the source material.**
 
 Cost of doing it right: the full read here was ~10 minutes of bulk `grep` over ~30 meaningful
-files (see `docs/gang-api.md`, which that read produced). Cost of skipping it: most of a session.
+files (see `docs/gang-engine.md`'s API reference, which that read produced). Cost of skipping it:
+most of a session.
 
 Corollary: **documented RAM cost tells you nothing about preconditions.** `getTaskNames` and
 `getEquipmentNames` are 0 GB and still throw without a gang. Verify availability empirically with
