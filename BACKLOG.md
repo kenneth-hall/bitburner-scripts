@@ -233,7 +233,7 @@ do, and what's broken?*
 
 ## Reference (not backlog — mechanics captured for a future design pass)
 
-- **Stock market** (`ns.stock`) — access doors, 4S data, progression locks: [docs/stock-market.md](docs/stock-market.md).
+- **Stock market** (`ns.stock`) — full API/mechanics/gates reference + engine design considerations: [docs/stock-engine.md](docs/stock-engine.md) (consolidated 2026-07-22; old notes archived).
 - **Darknet** (`ns.dnet`) — access chain, network volatility, three extraction paths: [docs/darknet.md](docs/darknet.md).
 
 ## Done

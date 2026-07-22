@@ -31,8 +31,8 @@ can appear. `getDarknetInstability()` is a cost/budget gate tied to backdooring 
    is "grab it when it appears," not a plannable target.
 3. **Stock** — `promoteStock(sym)` needs no server access at all, just a symbol; raises a
    stock's *volatility* (not its forecast), decays without reapplication, and is only useful if
-   paired with actual trading (see [stock-market.md](stock-market.md) — 4S feed not active yet,
-   so `promoteStock` has no trading strategy to pair with today).
+   paired with actual trading (see [stock-engine.md](stock-engine.md) — no stock access owned
+   yet, so `promoteStock` has no trading strategy to pair with today).
 
 ## Karma
 `CrimeStats.karma` and `CacheReward.karmaLoss` both use "loss" terminology, and documented

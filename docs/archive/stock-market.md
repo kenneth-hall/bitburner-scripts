@@ -1,4 +1,9 @@
-# Stock market — mechanics reference
+# Stock market — mechanics reference [ARCHIVED 2026-07-22]
+
+**Superseded in full by [`../stock-engine.md`](../stock-engine.md)** — the consolidation
+absorbed everything here, resolved the progression-lock question (BN8/SF8 gates), and
+re-measured the save state (the 2026-07-04 state below is stale: BN2 entry wiped the TIX
+purchase). Kept for history only.
 
 Mechanics straightened out for a future design pass — **no architecture decided, no code
 written.** This is a reference to design against later, not a spec. If/when stock work

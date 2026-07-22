@@ -8,6 +8,13 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-22
 
+- **Stock docs consolidated into [`docs/stock-engine.md`](../stock-engine.md)** (research/prep, no
+  engine code). Full `ns.stock` API surface + in-game mechanics doc captured; costs measured live via
+  new `stockprobe.js` (all access flags `false` in BN2.1 — BN1's TIX wiped by node entry; WSE $200m /
+  TIX $5b / 4S-TIX $25b, commission $100k, 6s ticks, TicksPerCycle 75). Shorts/limit-stop resolved as
+  BN8-or-SF8.2/8.3 gates → current-save engine is long-only. Old `docs/stock-market.md` archived.
+  Side finds: `getBonusTime()` throws without TIX (0 GB ≠ no precondition, gang-API class); viteburner
+  never uploads brand-new files (silent `pending` — wget-seed workaround in `docs/dev-server.md`).
 - **Gang engine adversarial audit + territory-deferral rationale CORRECTED.** A cold-context fable
   re-review (findings given as claims, methods withheld → independent re-derivation) confirmed the
   headline finding and corrected the record. **Territory income is ~territory^2.5 → ~124× money at

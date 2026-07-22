@@ -17,6 +17,7 @@ authoritative detail; this is the index. `run <name>.js` unless noted "imported"
 | `sharecurve.js` | Predicted `sharePower` curve across share fractions (needs Formulas.exe). |
 | `favorprobe.js` | Donation ↔ rep curve probe (Formulas-authoritative; favor is a hand-entered UI read). |
 | `worldprobe.js` | Confirm `w0r1d_d43m0n` has spawned (post-Red-Pill) and read its live gates → log. Reused for Phase 33's WD-gate checkpoint (was written pre-BN2); its export was fixed 2026-07-21 to the bare-filename + `vite.config.ts`-filter convention (was writing `logs/...` directly, so it never actually synced). |
+| `stockprobe.js` | Stock-market access flags (WSE/TIX/4S×2) + `getConstants()` costs/tick constants → `stockprobe-<epoch>.json`. Safe with zero access owned (1.8 GB); run across install/reset boundaries to test access persistence. See [stock-engine.md](stock-engine.md). |
 
 ## Manual fleet / money utilities (run by hand, log purchases)
 | Script | What it does |

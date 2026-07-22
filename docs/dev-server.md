@@ -64,3 +64,24 @@ Procedure:
    side; only ask the user to reconnect manually if it stays disconnected.
 
 Related backlog items: "viteburner dev-server silently stops auto-exporting".
+
+## Brand-new files silently never upload (observed 2026-07-22)
+
+A **newly created `src/` file with no in-game counterpart** gets `hmr add <file> (pending)`
+and then **nothing** — no `(done)`, no `(ignored)`, no error — while every pre-existing
+file uploads fine (64/65 on a fresh startup flush, the new file being the one skipped).
+Restarting the dev server does **not** fix it; touches re-queue it as `(pending)` forever.
+Editing *existing* files kept working throughout, so this is invisible until you wait on a
+new script that never arrives in-game (`ls --grep <name>` is the authoritative check).
+
+**Workaround (proven):** seed the file into the game once, then normal sync takes over —
+after the in-game copy existed, the next touch uploaded and dumped to `dist/` normally.
+Seeding recipe: serve the file over localhost with CORS and pull it with in-game `wget`:
+
+1. `node -e "<one-liner http server on :18777 serving src/ with Access-Control-Allow-Origin:*>"`
+2. `node tools/bb/cli.mjs terminal "wget http://localhost:18777/<file>.js <file>.js"`
+3. Kill the server; verify with `ls --grep`, then edit/touch normally.
+
+Caveat from the same session: the game decodes `wget` bytes in a way that mangled UTF-8
+punctuation (em-dashes in comments) into a **syntax error at parse time** — keep seeded
+files ASCII-only, or re-push via viteburner (which is UTF-8-clean) once seeded.
