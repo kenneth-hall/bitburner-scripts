@@ -31,6 +31,7 @@ import {
   nfgLevelsByRep,
   scoreAug,
   filterAugs,
+  BUY_BLOCKLIST,
   expandPrereqs,
   campBlocked,
   cityFactionNames,
@@ -176,6 +177,26 @@ describe('filterAugs', () => {
   it('keeps The Red Pill -- allow-listed 2026-07-15 (Kenneth\'s explicit ask, reverses the prior "drops by construction" property)', () => {
     const kept = filterAugs({ 'The Red Pill': statsAllOnes() }, UTILITY_ALLOWLIST);
     expect(kept.has('The Red Pill')).toBe(true);
+  });
+
+  it('drops QLink even with a strong hacking mult -- BUY_BLOCKLIST wins over score (the 2026-07-23 $47.5t-trap guard)', () => {
+    const kept = filterAugs({ QLink: statsAllOnes({ hacking: 1.75, hacking_money: 4, hacking_speed: 2 }) }, []);
+    expect(kept.has('QLink')).toBe(false);
+  });
+
+  it('BUY_BLOCKLIST wins over the allowlist too (defense-in-depth: a blocked name never passes)', () => {
+    const kept = filterAugs({ QLink: statsAllOnes() }, ['QLink'], ['QLink']);
+    expect(kept.has('QLink')).toBe(false);
+  });
+
+  it('an explicit empty blocklist restores pure score behavior (QLink kept)', () => {
+    const kept = filterAugs({ QLink: statsAllOnes({ hacking: 1.75 }) }, [], []);
+    expect(kept.has('QLink')).toBe(true);
+  });
+
+  it('BUY_BLOCKLIST names both QLink and Hydroflame Left Arm', () => {
+    expect(BUY_BLOCKLIST).toContain('QLink');
+    expect(BUY_BLOCKLIST).toContain('Hydroflame Left Arm');
   });
 });
 

@@ -61,9 +61,17 @@ to keep current; GP1 is auto-captured by `gatewatch.js`):
 utility must-buys) → `goallog.js`/dashboard GOAL panel (M-progress tracking) → 2026-07-22 territory
 audit (corrected the Tier-4 deferral's *reasoning*, not its verdict).
 
-**Don't buy QLink for the gate.** Its ×1.75 hacking mult costs $25t; the equivalent ~56 NFG levels
-cost ~$8b base (~$100–150b with real escalation) — 200–3000× cheaper for the same gate contribution.
-QLink's money/speed mults only help the batcher (~4-6% of income), not the level gate. See §4.
+**Don't buy QLink for the gate — now enforced in code (`BUY_BLOCKLIST`, 2026-07-23).** Its ×1.75
+hacking mult costs **$47.5t** (live-measured — the earlier $25t figure was stale); the equivalent
+~56 NFG levels cost ~$8b base (~$100–150b with real escalation) — 200–3000× cheaper for the same
+gate contribution. QLink's money/speed mults only help the batcher (~4-6% of income), not the level
+gate. See §4. **This is not just "optional" — it was a live trap:** Phase 33's escalation-optimal
+price-DESC sort buys most-expensive-first, so QLink (the single costliest aug, score 1.35,
+`deficit 0`, never `fundBlocked` at gang income) became the **#1 buy target**. Caught 2026-07-23
+with money climbing unobstructed toward $47.5t (cloudmanager had just been paused — see below).
+`augfarmer.js`'s `BUY_BLOCKLIST` now forces `passesFilter=false` for QLink + Hydroflame Left Arm so
+the buy path can never select them. The root cause is that `scoreAug` ranks by raw mult, not
+mult-per-dollar; cost-aware scoring is the durable fix (its own future phase).
 
 **Don't stop the ladder at M≈29.** Overshoot to **M≈45** (NFG ~80+) — the terminal XP grind to
 15,000 is brutally M-sensitive (M=36 → 6.1B exp; M=45 → 234M exp ≈ what we hold), and the NFG
@@ -320,7 +328,22 @@ NFG tail is money-paced, not rep-paced. Catalog splits into three tiers:
 $750k, escalating only ×1.14/level — so those 56 levels cost roughly **$8b base / ~$100–150b with
 real escalation**, against QLink's **$25t** — **200–3000× cheaper** for the same gate
 contribution. QLink's other mults (money ×4, speed ×2) only help the batcher, which is ~4-6% of
-income — not the level mult that gates WD. **Verdict: never buy QLink for this node.**
+income — not the level mult that gates WD. **Verdict: never buy QLink for this node.** As of
+2026-07-23 this is enforced by `BUY_BLOCKLIST` in `augfarmer.js` (not left to the score filter,
+which QLink *passes* at score 1.35) — see the top-of-doc note for the live incident that prompted
+it. (Live QLink price read $47.5t, not the $25t in the table above.)
+
+**Open issue — cloudmanager has no aug reserve (discovered 2026-07-23).** The finance-reservation
+chain (`augfarmer.js` → `augfarmer-reserve.json` → `resourcemanager.js` "next-aug" reservation →
+`cloudmanager.js` subtracts `totalReserved`) is a **no-op for the NFG spend-down**: augfarmer only
+ever reserves (at most) the single next aug, never the projected spend-down batch (~$500b+), and in
+the grinding/awaiting phases writes an **empty** reserve. Result: `cloudmanager` saw the entire pile
+as free and spent **$5.08t in ~2.5 min** upgrading fleet servers toward 1 PB — RAM the batcher
+almost certainly can't use (income only helps the batcher, ~4-6% of the gate), while starving the
+NFG batch that actually moves M. **Interim mitigation: `cloudmanager` is paused** via
+`cloud-upgrade-off.txt` (present on `home`). **Durable fix (unbuilt, needs a phase):** make
+augfarmer reserve the *projected spend-down total* so cloudmanager is safe to re-enable. Until then,
+leave cloud paused during the NFG climb.
 
 **Don't stop the ladder at M≈29 either way — overshoot to M≈35–37 (NFG ~76–80).** The reason is
 the *terminal XP grind*, not the aug math: every install wipes XP, only the final cycle's grind to

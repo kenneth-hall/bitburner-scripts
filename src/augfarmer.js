@@ -237,6 +237,21 @@ export const MULT_FILTER_KEYS = [
 // $0 buy that fires through the normal pipeline.
 export const UTILITY_ALLOWLIST = ["Neuroreceptor Management Implant", "CashRoot Starter Kit", "The Red Pill"];
 
+// Augs that pass the raw-mult score filter but must NEVER be bought: their
+// mult-per-DOLLAR is a trap. scoreAug ranks by raw mult, not mult/price, and
+// Phase 33's escalation-optimal sort buys most-expensive-FIRST -- so the single
+// costliest aug in the catalog becomes the #1 buy target. That aug is QLink:
+// ×1.75 hacking for $47.5t, the same gate contribution as ~56 NFG levels at
+// 200-3000x the cost (docs/gang-engine.md §4 "QLink is a trap"). Confirmed live
+// 2026-07-23: with cloudmanager paused, money climbed unobstructed toward
+// $47.5t with QLink as the rep-met, non-fundBlocked head. Hydroflame Left Arm
+// (×1.0, no gate mult) already scores 0 and so is already filtered out -- it's
+// listed here only to make the intent explicit and stay robust if its stats
+// ever read nonzero. The durable fix is cost-aware scoring (mult/price); until
+// that's its own phase, block by name. A blocked aug gets passesFilter=false,
+// the single gate pickTarget's buy path (wantedNames) respects.
+export const BUY_BLOCKLIST = ["QLink", "Hydroflame Left Arm"];
+
 /**
  * Pure (S3, amended 2026-07-15 at Kenneth's request). `(hacking-1) +
  * SCORE_W_EXP*(hacking_exp-1) + SCORE_W_REP*(faction_rep-1) +
@@ -277,14 +292,21 @@ export function scoreAug(name, stats, allowSet) {
  * not on UTILITY_ALLOWLIST still drops here by construction (The Red Pill
  * used to be the canonical example of this until it was allow-listed
  * 2026-07-15 -- see that constant's header).
+ *
+ * `blocklist` (default BUY_BLOCKLIST) wins over score AND allowlist: a blocked
+ * name never passes, however well it scores. This is the QLink guard -- see
+ * BUY_BLOCKLIST's header.
  * @param {Record<string, Record<string, number>>} augStatsByName
  * @param {string[]} allowlist
+ * @param {string[]} blocklist
  * @returns {Set<string>}
  */
-export function filterAugs(augStatsByName, allowlist) {
+export function filterAugs(augStatsByName, allowlist, blocklist = BUY_BLOCKLIST) {
   const allowSet = new Set(allowlist);
+  const blockSet = new Set(blocklist);
   const kept = new Set();
   for (const [name, stats] of Object.entries(augStatsByName)) {
+    if (blockSet.has(name)) continue;
     if (scoreAug(name, stats, allowSet) > 0) kept.add(name);
   }
   return kept;
