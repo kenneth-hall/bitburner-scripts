@@ -42,9 +42,19 @@ export const TREND_DOWN_RATIO = 0.95;
 // conversation at that milestone (Phase 32 OQ1), never silent.
 export const M_TARGET = 16.7;
 export const M_TARGET_LABEL = "core";
-// Overshoot target (fable 2026-07-21): stopping at M≈29 leaves a 7–36-day
-// terminal XP grind; M≈35–37 keeps it to hours. Display-only context.
-export const M_GATE_TARGET = 36;
+// Overshoot target. Raised 36 -> 45 on 2026-07-23, once the WD gate read live at
+// hacking level 15,000 and the BN2 skill curve was fit to four auginfo dumps
+// (<0.5% error):  level = floor(0.8 * M * (32*ln(exp + 534.6) - 200)).
+// The 0.8 is BN2's hacking-level multiplier -- the upstream formula overstates
+// level by 25% here, so anything derived from vanilla docs is wrong.
+// Inverted, exp needed for 15,000 collapses super-exponentially in M:
+//   M=30 -> 157B   M=36 -> 6.1B   M=40 -> 1.2B   M=45 -> 234M   M=48.5 -> 91M
+// i.e. every +3 on M divides the terminal XP grind by ~5, and M=36 is 26x
+// harder than M=45. NFG is money-gated (rep req is a trivial 1.6k; the wall is
+// the x1.14 * x1.9 = x2.166 per-purchase escalation an install resets), so the
+// extra ~9 M is a couple more install cycles against a multi-billion-exp grind.
+// Display-only context. Full derivation: docs/bitnodes.md.
+export const M_GATE_TARGET = 45;
 
 // GP2 tripwire (BN2.1 goalposts): M only ever climbs (installs), so "M has not
 // increased across the last FLAT_WINDOW" == the ratchet is stuck (no install /

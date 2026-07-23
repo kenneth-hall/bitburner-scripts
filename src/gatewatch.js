@@ -45,12 +45,35 @@ export function seedSamples(raw, cap = MAX_SAMPLES) {
   return parsed.length > cap ? parsed.slice(parsed.length - cap) : parsed;
 }
 
-/** Pure. Given the seeded series and a fresh post-install rep, the rep-survives verdict vs the last pre-install sample. */
+/**
+ * Pure. Is `name` in the owned-augmentation collection `ns.getResetInfo()` returns?
+ *
+ * It is a Map<name, level>, NOT a plain object -- so `name in owned` checks the Map object's own
+ * properties and is ALWAYS false. That bug silently suppressed the GP1 capture through the entire
+ * Red-Pill install (found 2026-07-23: the log read `redPill: false` with the aug demonstrably
+ * installed). The object branch is a defensive fallback if the API shape ever changes back.
+ */
+export function ownsAug(owned, name) {
+  if (typeof owned?.has === "function") return owned.has(name);
+  return owned ? name in owned : false;
+}
+
+/**
+ * Pure. Given the seeded series and a fresh post-install rep, the rep-survives verdict.
+ *
+ * Baseline is the PEAK pre-install rep, not the most recent one. "Most recent" was fragile: the
+ * seeded series can carry samples that are mis-flagged `redPill: false` (exactly what the Map bug
+ * above produced -- every post-install sample in the persisted history is flagged pre-install), and
+ * a post-install sample landing in the tail would silently become the baseline and compare rep
+ * against itself -> a false `survived: true`. A reset-to-zero is unmistakable against the peak,
+ * and if rep genuinely survives, post ~= peak, so the max is the strictly more robust read.
+ */
 export function repSurvivesVerdict(samples, postRep) {
-  const lastPre = [...samples].reverse().find((s) => s && s.redPill === false && Number.isFinite(s.niteSecRep));
-  if (!lastPre) return { known: false, preRep: null, postRep, survived: null };
+  const pre = samples.filter((s) => s && s.redPill === false && Number.isFinite(s.niteSecRep));
+  if (pre.length === 0) return { known: false, preRep: null, postRep, survived: null };
+  const preRep = Math.max(...pre.map((s) => s.niteSecRep));
   // "survived" = post-install rep is not a reset-to-zero (allow a small tolerance for rounding).
-  return { known: true, preRep: lastPre.niteSecRep, postRep, survived: postRep > lastPre.niteSecRep * 0.5 };
+  return { known: true, preRep, postRep, survived: postRep > preRep * 0.5 };
 }
 
 /** @param {NS} ns */
@@ -61,8 +84,7 @@ export async function main(ns) {
 
   while (true) {
     const now = Date.now();
-    const owned = ns.getResetInfo().ownedAugs ?? {};
-    const redPill = RED_PILL in owned;
+    const redPill = ownsAug(ns.getResetInfo().ownedAugs, RED_PILL);
 
     let niteSecRep = null;
     try {

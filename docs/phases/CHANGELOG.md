@@ -8,6 +8,24 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-23
 
+- **GP1 capture unblocked, and the M gate target re-sized off it (36 → 45).** `gatewatch.js` read
+  `RED_PILL in owned`, but `ns.getResetInfo().ownedAugs` is a **`Map`** — `in` checks the Map
+  object's own properties, so `redPill` was **always `false`** and the milestone-1 capture silently
+  never fired through the entire Red-Pill install. Extracted a tested `ownsAug()` helper (Map branch
+  + object fallback). `repSurvivesVerdict()` now baselines on the **peak** pre-install rep instead of
+  the most recent one: every sample the Map bug persisted reads `redPill: false`, including
+  post-install ones, so a "last pre-install sample" baseline would have picked a post-reset sample
+  and compared rep against itself → a false `survived: true`. Live-validated: GP1 fired on restart —
+  **gate = hacking level 15,000**, NiteSec rep does **not** survive an install (21.5m → 3.8m).
+  With the gate finally read, the BN2 skill curve was fit to four `auginfo` dumps (<0.5% error):
+  `level = floor(0.8 * M * (32*ln(exp + 534.6) - 200))` — the **0.8 is BN2's hacking-level
+  multiplier**, so the upstream formula overstates level by 25% here. Inverted, exp needed for
+  15,000 collapses super-exponentially in M (M=36 → 6.1B, M=45 → 234M, M=48.5 → 91M ≈ exp on hand),
+  i.e. every +3 on M divides the terminal XP grind by ~5 — so `M_GATE_TARGET` moved 36 → 45, since
+  NFG is money-gated (rep req a trivial 1.6k; the wall is the ×1.14 × ×1.9 = ×2.166 per-purchase
+  escalation an install resets) and the extra ~9 M is a couple of install cycles against a
+  multi-billion-exp grind. 890 tests pass; both residents restarted and confirmed live.
+
 - **Phase 34 — escalation-aware install timing (`decideInstall` restructure).** Fixes the
   `awaiting-money`-is-escalation-blind deadlock: a money-blocked cycle with a deep queue waited on
   prices the queue's own escalation (`AUG_PRICE_LADDER` per queued buy) had inflated, and Phase 31's
