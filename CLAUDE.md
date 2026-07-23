@@ -9,54 +9,58 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **IN BN2.1 as of 2026-07-18** (BN1.3 cleared the
-  same day — `w0r1d_d43m0n` backdoored, confirmed via BitVerse screenshot `bb-shot.png`; close-out
-  with two surfaced design gaps: `docs/phases/phase-26-ratchet-autonomy.closeout.md`).
-  - **BN2.1 CLEAR GOALPOSTS (2026-07-21, from sonnet+fable analysis — the operational plan).**
-    The gang funds it automatically; the mode is "wait, but with tripwires." **Everything below GP1
-    is provisional until the gate read re-sizes it.** Live gauge = dashboard GOAL panel (`M` %).
-
-    | # | Milestone | Signal | Expected | Tripwire → intervene |
-    |---|---|---|---|---|
-    | 1 | **GATE READ** (pivotal) | Red Pill installed → `getServerRequiredHackingLevel("w0r1d_d43m0n")` + `getFactionRep("NiteSec")` pre/post | next install, ≤1 day | no install in 2 days |
-    | 2 | Core catalog, **M≈16.7** | `goal-state` `mProgress.pct`→100% (now 9%) | ~2–4 days | pct flat >12h |
-    | 3 | NFG tail, **M≈35–37** (NFG ~76–80) | `neurofluxLevel` climbs | ~2–4 more days | NFG stalls deep → rep-paced |
-    | 4 | Terminal XP grind → gate | player `hackingLevel` | hours–days | exp low → pivot fleet RAM to XP |
-    | 5 | **Backdoor WD → CLEAR** | BitVerse | — | — |
-
-    **Total ~5–10 days** (24/7 confirmed, sleep disabled). Gang income oscillates $5–25M/s
-    (auto-ascension resets), but core-catalog money is *hours*, so pacing = install-cycle sequence +
-    the terminal grind, not money. GP1 is captured automatically by `gatewatch.js` (resident
-    companion). Don't overshoot-stop at M≈29 — the terminal XP grind makes that a 7–36-day trap;
-    M≈35–37 keeps it to hours. QLink is a trap (NFG ~200–3000× cheaper for the same gate mult).
-  - **✅ DECIDED 2026-07-19 — COMMITTED TO BN2, hacking gang via NiteSec.** The gang exists
-    (`isHacking: true`, fixed permanently, no `leaveGang()`). Kenneth's closing argument, kept
-    because it's the reusable part: **a BitNode restart is cheap when the node holds no
-    progress**, so "permanent" was mispriced as a blocker — deciding wrong and restarting beats
-    deliberating for five more sessions.
-  - **Gang engine is built and live.** Tiers 1-3 shipped (recruit/assign, equipment, ascension);
-    the task-ladder objective pivoted from respect to **money** 2026-07-21 once rep saturated
-    (income ~7×, later validated at $8.7-9.3M/s steady state); `augfarmer.js` buys
-    escalation-aware + utility must-buys (Phase 33, 2026-07-21); territory (Tier 4) is deferred
-    for this node, not permanently (re-priced 2026-07-22, verdict held, reasoning corrected).
-    **Verdict: BN2.1 is CLEARLY REACHABLE, money-gated only, ~3–6 weeks** (conservative, given the
-    money pivot's ~7× income jump). The gate-read (GP1 above) is the one number that rescales
-    every estimate here.
-  - **Full decision history (why hacking-not-combat, the catalog corrections, the two
-    respect↔money reversals and why they weren't circular, the QLink-is-a-trap math, territory's
-    corrected deferral rationale), the gang API/mechanics reference, and `gangmanager.js`'s
-    architecture all live in one place: [`docs/gang-engine.md`](docs/gang-engine.md).** Read it
-    before proposing any gang-strategy change — it's where "was this already tried, and why"
-    gets answered, so the gang decision doesn't get re-derived from scratch each session.
-  - **How it cleared — Phase 26 (A2 gate-release arming + B2 stall detection + B1 companion
-    supervisor) shipped and live-validated 2026-07-18**, closing the 29/30 aug-count deadlock A1's
-    runaway had uncovered (`docs/phases/phase-26-ratchet-autonomy.spec.md`). The gate-release fire
-    (install #10) needed no manual help; two further installs did (#11 to bank Daedalus favor
-    early, #12 to activate the already-bought Red Pill) — both are recorded as open automation
-    gaps in the close-out, not fixed in-flight, since fixing them is real design surface, not a
-    patch.
-  - **NEXT ACTION: decide what comes after BN1.3.** Nothing is scheduled — this needs an actual
-    conversation with Kenneth, not an assumption either way.
+- **Current goal (keep this line current):** **IN BN5.1 (Artificial Intelligence) as of
+  2026-07-23** — entered straight off the BN2.1 clear.
+  - **✅ BN2.1 CLEARED 2026-07-23** — `w0r1d_d43m0n` backdoored (`backdoorwd.js` auto-fired once
+    hacking crossed the gate), confirmed on the BitVerse screen (`bb-shot.png`). **Cleared at
+    M≈34.3, NOT the M≈45 target**: the exp stack overshot (13.9B exp) and put the level at
+    **15,019 ≥ the 15,000 gate** first. Full record + retrospective in
+    [`docs/gang-engine.md`](docs/gang-engine.md).
+  - **🔨 FIRST TASK IN BN5 — document and make durable the SF5 feature facts.** SF5 unlocks three
+    things. Each must be **verified live in-node** and written into a durable doc (not left in
+    chat), per the standing "read the whole interface before designing against it" rule:
+      1. **`getBitNodeMultipliers()` Netscript function** — returns any node's multiplier table
+         programmatically. `docs/bitnodes.md` currently carries hand-read tables plus an explicit
+         note that this call *requires BN5/SF5*; that note is now dischargeable. Verify the real
+         signature + return shape **against this fork** (it is not vanilla) and record it.
+      2. **Permanent access to `Formulas.exe`** — no longer a $5b in-node purchase. Check what this
+         means for `procureformulas.js` (is that companion now a no-op here?) and for the
+         formulas-gated code paths that currently guard on ownership.
+      3. **BitNode multiplier information on the Stats page** — the in-UI surface.
+    Deliverable: durable doc updates (extend `docs/bitnodes.md`, or a new reference) **plus** any
+    script/companion changes the three imply.
+  - **BN5 operating facts** (from `docs/bitnodes.md` — read it before planning a BN5 clear).
+    Gate = **`w0r1d_d43m0n` 4,500** (Difficulty 150%), needing **M ≈ 9.7** — a bar our BN1 stack
+    already exceeded. **No BN10-style wall**: Hacking Level mult and Server Max Money are both 100%,
+    so the ceiling is reachable.
+    - **The primary earner is the hacking batcher (`daemon.js`)** — BN5 un-benches it, unlike BN2's
+      8% money cap. **There is no gang crutch here.** SF2.1 makes gangs portable but they are
+      karma-gated at ≤ **−54,000**, and our pure-hacker build (Str 5 / Def 4 / Dex 7 / Agi 4) is
+      badly suited to grinding it. **Decided 2026-07-23: don't force a gang in BN5** — bank SF2 for
+      a later node where **SF10 Sleeves** makes karma cheap (the counter the docs name).
+    - **Economy nerfs that throttle the mult lever:** Stolen Money From Hack **15%**, Server Starting
+      Money **50%**, Starting Security **200%**, Hacking Exp **50%**, Aug Money Cost **200%**.
+      Budget BN5 as a **2–3 install-cycle mult grind**, not a quick clear — money is the binding
+      constraint on NFG, exactly as in BN1.
+    - **cloudmanager must be ON in BN5** (the opposite of BN2's endgame): fleet RAM feeds the
+      batcher, now the only earner. The BN2-era pause marker `cloud-upgrade-off.txt` has been
+      deleted. ⚠️ **Its underlying gap is unfixed** — the finance reserve never covers the NFG
+      *spend-down batch*, so cloudmanager can starve a deep NFG tail. Re-check before BN5's endgame;
+      see `docs/gang-engine.md`'s "cloudmanager has no aug reserve" open issue.
+  - **⚠️ Ordering lesson carried out of BN2 — don't repeat it.** The counter-map put BN2 before BN5
+    because "the gang is a rep-tax killer." But in BN2 **rep saturated and was a non-issue**; the
+    binding constraint was money→mult. Worse, BN2's gate is *mult*-gated while BN5's reward is **+8%
+    hacking mult**, so BN5-first would have made BN2 cheaper — we did it in the harder order.
+    **Before committing to a node order, check which constraint actually binds in the target node**
+    rather than trusting the general map.
+  - **Reusable decision lesson from the BN2 commit (kept — it generalises):** a BitNode restart is
+    cheap when the node holds no progress, so "permanent/irreversible" was mispriced as a blocker —
+    deciding wrong and restarting beats deliberating for five more sessions.
+  - **Gang history is closed but not deleted:** why hacking-not-combat, the catalog corrections, the
+    two respect↔money reversals, the QLink-trap math, territory's deferral, and `gangmanager.js`'s
+    architecture all live in [`docs/gang-engine.md`](docs/gang-engine.md). Read it before any future
+    gang work (a BN2.2 repeat, or a Sleeves-backed gang elsewhere) so it isn't re-derived from
+    scratch.
   - **Phase 25's aug-ratchet controller is the reusable asset going forward** (Phase 25 L7 passed
     2026-07-17; supervision/stall-detection/gate-release all added by Phase 26). Whatever node
     comes next that still fits BN1-shaped mechanics can reuse this toolchain largely unchanged —

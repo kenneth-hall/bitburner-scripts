@@ -22,6 +22,33 @@ do, and what's broken?*
 
 ## Bugs
 
+- **`cloudmanager.js` can starve the NFG spend-down — the finance reserve never covers the
+  *batch*.** Found live 2026-07-23 (BN2 endgame): cloudmanager spent **$5.08t in ~2.5 min** walking
+  fleet servers toward 1 PB while `finance-state.json` read `totalReserved: $0` and
+  `augfarmer-reserve.json` was empty — so it treated the entire pile as free. The chain
+  (`augfarmer.js` → `augfarmer-reserve.json` → `resourcemanager.js` "next-aug" reservation →
+  cloudmanager subtracts `totalReserved`) *works intermittently*: it reserves at most the **single
+  next aug**, and writes nothing at all during the grinding/accumulation phase — which is exactly
+  when money should be protected for the coming spend-down. Interim mitigation was a
+  `cloud-upgrade-off.txt` pause (now removed for BN5, where the batcher needs the fleet).
+  **Impact scales with income** — harmless for most of BN2 (upgrades capped ~$28.8b), acute only
+  once income hit tens of $b/s and fleet tiers cost $0.5–1.4t per doubling. **Next:** have augfarmer
+  reserve the *projected spend-down total*, not the next single aug; consider a fleet-growth ceiling
+  so cloud can't outbid the mult lever. **Revisit before BN5's endgame NFG tail** (money is BN5's
+  binding constraint too). Context: `docs/gang-engine.md` "cloudmanager has no aug reserve".
+
+- **Aug scoring ranks by raw mult, not mult-per-dollar — QLink is blocked by name, not by logic.**
+  `scoreAug` (`src/augfarmer.js`) scores on multipliers alone, and Phase 33's escalation-optimal sort
+  buys **most-expensive-first** — so the single costliest aug in a catalog becomes the #1 buy target
+  regardless of how bad its value-per-dollar is. Caught live 2026-07-23: QLink (score 1.35, **$47.5t**,
+  rep-met, never `fundBlocked` at gang income) was the head target with money climbing toward it;
+  it delivers the same gate contribution as ~56 NFG levels at 200–3000× the cost. Patched with
+  `BUY_BLOCKLIST` (QLink + Hydroflame Left Arm → `passesFilter=false`, tested), which is a
+  **name-based guard, not a fix** — any future node with a different overpriced-but-high-mult aug
+  hits the same trap. **Next:** cost-aware scoring (mult per dollar, or a value floor gating the
+  price-DESC sort). Its own phase, not a patch. **Revisit when** entering a node whose catalog we
+  haven't hand-checked for trap augs.
+
 - **`augfarmer.js` throws every poll trying to do faction work for NiteSec — our gang faction
   offers none.** Found 2026-07-23: `WARN: action work threw (TYPE ERROR ... singularity.workForFaction:
   factionWorkType expected to be a string. Is undefined) -- retrying next poll`, forever.
