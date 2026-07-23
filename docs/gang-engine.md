@@ -37,16 +37,29 @@ As of **2026-07-22**:
 | Faction rep | Saturated, non-issue | confirmed 2026-07-20/21 | 98-aug catalog tops out at 2.5m rep req; gang holds ~18m+ banked respect |
 | Catalog access | Solved — NiteSec sells 98 of 99 augs (×22.89 hacking), incl. free Red Pill | 2026-07-20/21 | Post-`createGang` sweep; pre-gang reading (×1.515) was stale and is superseded everywhere |
 
-**BN2.1 clear goalposts** (the live tripwire table, mirrored in `CLAUDE.md` — that copy is the one
-to keep current; GP1 is auto-captured by `gatewatch.js`):
+**✅ BN2.1 CLEARED 2026-07-23.** `w0r1d_d43m0n` backdoored (`backdoorwd.js` auto-fired once hacking
+crossed the gate), BitNode destroyed, confirmed live on the BitVerse selection screen (screenshot
+`bb-shot.png`). **It cleared at M≈34.3 — NOT the M≈45 target.** The exp overshoot did it: we'd
+banked **13.9B hacking exp**, more than enough to put the level at **15,019 ≥ the 15,000 gate** at
+only M≈34.3. The M≈45 bar (below) was conservative — it assumed we'd need the mult to make a *lean*
+exp stack reach the gate; in practice the exp ran ahead of the mult and tipped the level over first.
+Two same-day fixes materially helped the final stretch: pausing cloudmanager (fed the last NFG
+batches instead of petabyte fleet RAM) and the QLink `BUY_BLOCKLIST` guard (kept the spend-down
+buying M, not a $47.5t brick). **Lesson for the next high-gate node: track `hackingLevel` vs the
+gate directly, not just M vs a derived M-target — the level can cross the gate below the M bar when
+exp overshoots, and every further install *resets* that level, so an M-target can overshoot into
+wasted installs that throw the gate away.**
 
-| # | Milestone | Signal | Tripwire → intervene |
+**BN2.1 clear goalposts** (historical — the live tripwire table, was mirrored in `CLAUDE.md`; GP1
+was auto-captured by `gatewatch.js`):
+
+| # | Milestone | Signal | Outcome |
 |---|---|---|---|
 | 1 | ~~Gate read~~ **✅ DONE 2026-07-23** | GP1 fired: gate = **hacking 15,000** (confirmed live, was inference); **NiteSec rep does NOT survive an install** (21.5m → 3.8m) | — |
-| 2 | Core catalog, M≈16.7 | `goal-state` `mProgress.pct` → 100% | pct flat >12h |
-| 3 | NFG tail, **M≈45** (NFG ~80+) | `neurofluxLevel` climbs | NFG stalls deep → rep-paced |
-| 4 | Terminal XP grind → gate | player `hackingLevel` | exp low → pivot fleet RAM to XP |
-| 5 | Backdoor WD → CLEAR | BitVerse | — |
+| 2 | Core catalog, M≈16.7 | `goal-state` `mProgress.pct` → 100% | ✅ passed |
+| 3 | NFG tail, M≈45 (NFG ~80+) | `neurofluxLevel` climbs | ⚠️ **overshot the need** — cleared at M≈34.3 |
+| 4 | Terminal XP grind → gate | player `hackingLevel` | ✅ exp overshot; level hit 15,019 |
+| 5 | Backdoor WD → CLEAR | BitVerse | ✅ **CLEARED 2026-07-23** |
 
 > **2026-07-23 landmine (fixed):** `augfarmer.js`'s `endgameHold` (`joined(Daedalus) || hacking≥2500`)
 > was a BN1 constant — it froze the ratchet at M 9.73 the moment BN2's hacking crossed 2500, because
@@ -79,6 +92,13 @@ overshoot only costs ~$100–150b more. The bar rose from the earlier M≈35–3
 read live and the skill curve was re-fit with BN2's **0.8 hacking-level multiplier** (see §4) — the
 0.8 means you need 1.25× the M for a given level, i.e. the old 36 becomes 45. `M_GATE_TARGET = 45`
 in `goallog.js`. See §4.
+
+> **Retrospective (2026-07-23, post-clear):** M≈45 was never reached — the node cleared at **M≈34.3**
+> because the exp stack overshot the "lean stack" the M≈45 math assumed. The M-target is a *sufficient*
+> bar for a minimal exp stack, not a *necessary* one; with surplus exp the level crosses the gate
+> earlier. If a future node reuses `M_GATE_TARGET`, treat it as an upper bound and let a direct
+> `hackingLevel ≥ gate` check short-circuit it — otherwise the ratchet keeps installing past the
+> real finish, and each install resets the very level that clears the node.
 
 ---
 
