@@ -22,6 +22,30 @@ do, and what's broken?*
 
 ## Bugs
 
+- **`endgameHold` freezes the ratchet at hacking 2500 in BN2 — a BN1-calibrated constant blocking
+  the whole mid-game climb.** Root-caused 2026-07-23. `endgameHold = joined.has(Daedalus) ||
+  hacking >= ENDGAME_HACK_LEVEL` (`augfarmer.js:2153`, `ENDGAME_HACK_LEVEL = 2500`). In BN1, hacking
+  2500 = the Daedalus gate = genuinely endgame; in **BN2 the WD gate is 15,000**, so 2500 is ~17% of
+  the way and Daedalus is merely an aug source (we're joined). Both clauses trip far below the real
+  gate, and `endgameHold` blocks the gain-phase **and** stall install rules (both carry
+  `!endgameHold`). The only remaining install path is `gateArmed` (Red-Pill gate release), which
+  already fired and won't again. The Phase 34 **escalation** rule (no `endgameHold` conjunct) would
+  catch it — but it requires phase `awaiting-money`, and the sole remaining rep-met discrete is the
+  **QLink trap** (base price $25 quadrillion, `fundBlocked: true`), whose `fundBlocked` branch
+  (`augfarmer.js:1693`) forces phase `grinding`. So: **hard freeze at M 9.73 installed / 11 augs
+  stuck queued**, confirmed via `logs/augfarmer-state.json` (`trigger.armed: false`, blockers
+  `gainPhase: "endgame-hold"`, `escalation: "phase-not-awaiting-money"`). Flip to `endgameHold: true`
+  logged at 11:00:43 AM 2026-07-23 (`ratchet-decisions.json`); M flat at 9.7325 since. It limped
+  before only because each install reset hacking <2500, transiently clearing the hold — high BN2
+  income finally outran that race. **Next (needs a decision, this is trigger-gating design surface):**
+  `endgameHold`'s entire purpose (hold normal ratcheting to go for Daedalus→Red Pill) is already
+  accomplished in BN2 — Daedalus joined, Red Pill installed — so it should be **false in BN2**
+  (recommended), or redefined around the live node gate (15,000) instead of 2500. Check the
+  `if (endgameHold)` endgame-join path (`augfarmer.js:2240`) and the donation/spend-down gates
+  (`!endgameHold`) as part of the change. Immediate unblock while it's decided: `run installer.js`
+  (auto-mode bypasses the trigger) banks the 11 queued now — but it recurs every cycle until the
+  hold is fixed.
+
 - **`augfarmer.js` throws every poll trying to do faction work for NiteSec — our gang faction
   offers none.** Found 2026-07-23: `WARN: action work threw (TYPE ERROR ... singularity.workForFaction:
   factionWorkType expected to be a string. Is undefined) -- retrying next poll`, forever.
