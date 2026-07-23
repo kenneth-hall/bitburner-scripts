@@ -39,6 +39,8 @@ import {
   planJoins,
   evaluateInviteReqs,
   pickWorkType,
+  computeEndgameHold,
+  ENDGAME_HACK_LEVEL,
   slotAvailable,
   computeFundCap,
   pickTarget,
@@ -411,6 +413,33 @@ describe('pickWorkType', () => {
     expect(pickWorkType(['security', 'hacking', 'field'])).toBe('hacking');
     expect(pickWorkType(['security', 'field'])).toBe('field');
     expect(pickWorkType(['security'])).toBe('security');
+  });
+});
+
+describe('computeEndgameHold', () => {
+  it('BN1: holds once Daedalus is joined OR hacking clears the endgame level (unchanged legacy behavior)', () => {
+    expect(computeEndgameHold(1, true, 100)).toBe(true); // Daedalus joined, low hacking
+    expect(computeEndgameHold(1, false, ENDGAME_HACK_LEVEL)).toBe(true); // hacking at the gate
+    expect(computeEndgameHold(1, false, ENDGAME_HACK_LEVEL + 1)).toBe(true); // past it
+  });
+
+  it('BN1: does NOT hold below the endgame level with Daedalus not joined (early-cycle, ratchet runs)', () => {
+    expect(computeEndgameHold(1, false, ENDGAME_HACK_LEVEL - 1)).toBe(false);
+    expect(computeEndgameHold(1, false, 1)).toBe(false);
+  });
+
+  it('BN2+: NEVER holds -- the whole endgame path is BN1-specific, so the mid-game climb is never frozen', () => {
+    // The 2026-07-23 freeze: BN2, hacking well past 2500, Daedalus joined -- must be false now.
+    expect(computeEndgameHold(2, true, 3009)).toBe(false);
+    expect(computeEndgameHold(2, false, 15000)).toBe(false);
+    expect(computeEndgameHold(5, true, 99999)).toBe(false);
+    expect(computeEndgameHold(12, true, ENDGAME_HACK_LEVEL + 1)).toBe(false);
+  });
+
+  it('respects a custom endgame level and coerces a truthy joined flag to boolean', () => {
+    expect(computeEndgameHold(1, false, 500, 400)).toBe(true);
+    expect(computeEndgameHold(1, false, 399, 400)).toBe(false);
+    expect(computeEndgameHold(1, 1, 0)).toBe(true); // truthy joined -> true, not 1
   });
 });
 

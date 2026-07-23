@@ -8,6 +8,26 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-23
 
+- **`endgameHold` freeze fixed — a BN1 constant that deadlocked the BN2 ratchet at hacking 2500.**
+  `endgameHold = joined(Daedalus) || hacking >= 2500` (no node guard) is BN1's "stop ratcheting, go
+  for the Daedalus→Red Pill endgame" signal. In BN2 (WD gate 15,000, Red Pill already installed) both
+  clauses trip at ~17% of the way, and every install rule carries `!endgameHold` while the only exempt
+  path (gateArmed) had already fired — so the moment hacking crossed 2500 the ratchet hard-froze at
+  M 9.73 with 11 augs stuck queued (M flat 90 min; it only limped before because installs kept
+  resetting hacking <2500, a race high BN2 income finally outran). Fix: extracted a tested pure
+  `computeEndgameHold(currentNode, joinedDaedalus, hacking)` returning false in any node but BN1;
+  added `currentNode` to the `endgame-hold` decision telemetry. Consumer check cleared all five
+  `endgameHold` uses (install trigger, stall, donation, spend-down, the Daedalus invite/donation
+  reservation at `:2240` — the last is dead BN1 choreography in BN2). No RAM change (`getResetInfo`
+  already called). Correction found mid-fix: disabling `endgameHold` **alone** is sufficient — the
+  Phase 26 gap-7 path (`pickHorizonGrind` → `faction: undefined` when no rep owed → `phaseArmed`)
+  already handles the rep-met plateau, so no QLink exclusion was needed (and whether to permanently
+  drop QLink stays the M_TARGET≈29 strategy call). **Live-validated autonomously**: at hacking >2500
+  with `endgameHold: false`, the trigger armed itself via gap-7, sustained the full 10-min
+  `TRIGGER_SUSTAIN_MS`, and fired install #20 with no manual trigger. 285 augfarmer / 894 total tests
+  pass. `docs/gang-engine.md` clear-plan section updated (gate confirmed 15,000, rep-does-not-survive
+  resolved, M-bar 35–37 → 45 from the 0.8 skill-curve correction).
+
 - **GP1 capture unblocked, and the M gate target re-sized off it (36 → 45).** `gatewatch.js` read
   `RED_PILL in owned`, but `ns.getResetInfo().ownedAugs` is a **`Map`** — `in` checks the Map
   object's own properties, so `redPill` was **always `false`** and the milestone-1 capture silently

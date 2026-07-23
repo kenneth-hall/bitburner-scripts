@@ -42,11 +42,18 @@ to keep current; GP1 is auto-captured by `gatewatch.js`):
 
 | # | Milestone | Signal | Tripwire → intervene |
 |---|---|---|---|
-| 1 | **Gate read** (pivotal) | Red Pill installs → read `getServerRequiredHackingLevel("w0r1d_d43m0n")` + `getFactionRep("NiteSec")` pre/post | no install in 2 days |
+| 1 | ~~Gate read~~ **✅ DONE 2026-07-23** | GP1 fired: gate = **hacking 15,000** (confirmed live, was inference); **NiteSec rep does NOT survive an install** (21.5m → 3.8m) | — |
 | 2 | Core catalog, M≈16.7 | `goal-state` `mProgress.pct` → 100% | pct flat >12h |
-| 3 | NFG tail, M≈35–37 (NFG ~76–80) | `neurofluxLevel` climbs | NFG stalls deep → rep-paced |
+| 3 | NFG tail, **M≈45** (NFG ~80+) | `neurofluxLevel` climbs | NFG stalls deep → rep-paced |
 | 4 | Terminal XP grind → gate | player `hackingLevel` | exp low → pivot fleet RAM to XP |
 | 5 | Backdoor WD → CLEAR | BitVerse | — |
+
+> **2026-07-23 landmine (fixed):** `augfarmer.js`'s `endgameHold` (`joined(Daedalus) || hacking≥2500`)
+> was a BN1 constant — it froze the ratchet at M 9.73 the moment BN2's hacking crossed 2500, because
+> every install rule carries `!endgameHold` and the only exempt path (gateArmed) had already fired
+> with the Red Pill. Fixed by gating `endgameHold` on BN1 only (`computeEndgameHold`, tested); in BN2+
+> there is no Daedalus→Red Pill endgame to hold for. The clear plan below assumes the ratchet keeps
+> installing to the M≈45 bar — this bug is why it wouldn't, until fixed.
 
 **Shipped, in build order:** Phase 27 Tier 1 (recruit + task-assign) → Phase 29 Tiers 2-3
 (equipment + ascension) → `gangratelog.js` (durable respect-rate sampler) → money pivot
@@ -58,9 +65,12 @@ audit (corrected the Tier-4 deferral's *reasoning*, not its verdict).
 cost ~$8b base (~$100–150b with real escalation) — 200–3000× cheaper for the same gate contribution.
 QLink's money/speed mults only help the batcher (~4-6% of income), not the level gate. See §4.
 
-**Don't stop the ladder at M≈29.** Overshoot to **M≈35–37** (NFG ~76–80) — the terminal XP grind to
-15,000 is brutally M-sensitive (M=29 → 7–36 days; M=35–37 → hours), and the NFG overshoot only
-costs ~$100–150b more. See §4.
+**Don't stop the ladder at M≈29.** Overshoot to **M≈45** (NFG ~80+) — the terminal XP grind to
+15,000 is brutally M-sensitive (M=36 → 6.1B exp; M=45 → 234M exp ≈ what we hold), and the NFG
+overshoot only costs ~$100–150b more. The bar rose from the earlier M≈35–37 estimate once the gate
+read live and the skill curve was re-fit with BN2's **0.8 hacking-level multiplier** (see §4) — the
+0.8 means you need 1.25× the M for a given level, i.e. the old 36 becomes 45. `M_GATE_TARGET = 45`
+in `goallog.js`. See §4.
 
 ---
 
@@ -256,22 +266,30 @@ is not an under-buy: no charisma augmentation exists in the catalog at all.
 
 ## 4. Economics — the money arithmetic
 
-### The gate: why BN2's `w0r1d_d43m0n` needs M ≈ 30–35
+### The gate: why BN2's `w0r1d_d43m0n` needs M ≈ 45
 
 `w0r1d_d43m0n` Difficulty is **500%** (vs BN1's baseline) → required hacking level **15,000**
-(⚠️ still an *inference*, ~85% confidence — unreadable until The Red Pill installs; the standing
-checkpoint is GP1 above). Model: `level = mult × (32·ln(exp) − 200)`, validated to 0.02% error
-against our own BN1.3 endgame dump.
+(**✅ confirmed live 2026-07-23** via `getServerRequiredHackingLevel` once the Red Pill installed —
+no longer an inference). Model, re-fit to four live `auginfo` dumps at **<0.5% error**:
 
-| XP budget | BN1 gate (3,000) | BN5 (4,500) | BN4 (9,000) | **BN2 (15,000)** |
-|---|---|---|---|---|
-| our demonstrated actual (9.7e8 exp) | 6.5 | 9.7 | 19.5 | **40.6** |
-| 100× | 4.9 | 7.4 | 14.8 | **30.8** |
-| 1,000× | 4.4 | 6.6 | 13.2 | **27.4** |
+    level = floor(0.8 × M × (32·ln(exp + 534.6) − 200))
 
-Grinding can't substitute — level is logarithmic in exp (10,000× more XP only buys −39% on the
-required multiplier). **Realistic bar: M ≈ 30–35.** Our BN1.3 stack demonstrated M = 10.077; the
-gap is closed almost entirely by the gang's aug catalog, not by exp.
+The **0.8 is BN2's hacking-level multiplier** — the upstream/BN1 model (`mult × (32·ln(exp) − 200)`,
+no 0.8) *overstates* level by 25% here, so every M derived from it was 25% too optimistic. Inverted,
+the exp needed to reach 15,000 collapses super-exponentially in M:
+
+| M | exp needed for 15,000 | vs. what we hold (~10⁸–10⁹) |
+|---|---|---|
+| 30 | 157 B | ~1000× |
+| 36 | 6.1 B | ~10–60× |
+| 40 | 1.2 B | ~a few× |
+| **45** | **234 M** | **≈ on hand** |
+| 48.5 | 91 M | already past |
+
+Every +3 on M divides the terminal grind by ~5. Grinding can't substitute for M — level is
+logarithmic in exp. **Realistic bar: M ≈ 45** (was 30–35 before the 0.8 correction; the 25%
+understatement is exactly the 36→45 gap). Our BN1.3 stack demonstrated M = 10.077; the gap is
+closed almost entirely by the gang's aug catalog + the NFG tail, not by exp.
 
 ### The catalog: solved, and cheap
 
@@ -281,9 +299,12 @@ our banked respect. **The 99th aug NiteSec doesn't carry is NeuroFlux Governor**
 "in BN2 the gang offers The Red Pill → only need 1 more faction for NFG") — NFG has to be bought
 from some other joined faction, not NiteSec. `augfarmer.js`'s `pickNfgSeller()` already handles
 this dynamically (picks whichever joined faction currently holds the most rep), so it's not an
-implementation gap — but it means the §7 "does faction rep survive an install" tripwire is really
-about *whichever faction is currently selling NFG*, not necessarily NiteSec specifically. Catalog
-splits into three tiers:
+implementation gap — but it means the §7 "does faction rep survive an install" question is really
+about *whichever faction is currently selling NFG*, not necessarily NiteSec specifically.
+**Resolved 2026-07-23: faction rep does NOT survive an install** (NiteSec 21.5m → 3.8m across the
+install boundary, captured by `gatewatch.js`). So each cycle re-earns the NFG seller's rep from
+scratch — but NiteSec rep is fed by gang respect passively, so it re-climbs on its own; the deep
+NFG tail is money-paced, not rep-paced. Catalog splits into three tiers:
 
 | Purchase | Price | Hacking mult | Verdict |
 |---|---|---|---|
@@ -291,8 +312,8 @@ splits into three tiers:
 | Hydroflame Left Arm | $2.5t | ×1.00 | Skip — irrelevant to the gate |
 | QLink | **$25t** | ×1.75 | Optional, and a trap — see below |
 
-- **No-QLink path:** ×13.08 × SF1.3 (×1.28) ≈ **M ≈ 16.7**, needs an NFG tail of ×1.8–2.1
-  (~50–65 levels) to reach the 30-35 bar.
+- **No-QLink path:** ×13.08 × SF1.3 (×1.28) ≈ **M ≈ 16.7**, needs an NFG tail of ×2.7
+  (~95–100 levels) to reach the M≈45 bar.
 - **QLink path:** ×22.89 × 1.28 ≈ **M ≈ 29**, needs only ~5–15 NFG levels, but costs $25t for it.
 
 **QLink is a trap for the gate.** Its ×1.75 hacking mult ≈ 56 NFG levels. NFG is +1%/level, base

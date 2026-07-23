@@ -123,6 +123,7 @@ export const RATE_MIN_SAMPLES = 30;
 export const RATE_EWMA_ALPHA = 0.2;
 export const DONATION_BUFFER = 1.2;
 export const ENDGAME_HACK_LEVEL = 2500;
+export const BN1 = 1; // the only node whose endgame is the Daedalus->Red Pill path (see computeEndgameHold)
 export const SPEND_DOWN_BUY_CAP = 50;
 // NeuroFlux Governor's per-level price multiplier. MEASURED 2026-07-17 from
 // install #8's 11-level spend-down run (The Black Hand): the paid-price ratio
@@ -620,6 +621,31 @@ export function pickGateFiller(augs, ownedSet, factionRep) {
     if (!best || info.price < best.price) best = { aug: name, faction: seller, price: info.price };
   }
   return best;
+}
+
+/**
+ * Pure. `endgameHold` is BN1's "stop normal ratcheting, go for the Daedalus ->
+ * Red Pill endgame" signal: it holds the install trigger (decideInstall's
+ * several `!endgameHold` conjuncts) and drives the Daedalus invite/donation
+ * reservation (planPass `:2240` region). That whole endgame path is
+ * **BN1-specific** -- BN1's WD gate sits low enough (~hacking 2500, reached via
+ * Daedalus) that arriving at Daedalus IS the finish, so holding normal
+ * ratcheting there is right. In BN2+ the WD gate is far higher (15,000 in BN2),
+ * the Red Pill is already installed, and the only path to it is the normal
+ * ratchet grinding to that gate -- there is nothing to hold for, and holding at
+ * 2500 freezes the entire mid-game climb.
+ *
+ * Root-caused 2026-07-23: with the original `joined(Daedalus) || hacking>=2500`
+ * (no node guard), BN2 tripped endgameHold the moment hacking crossed 2500 and
+ * deadlocked at M 9.73 with 11 augs stuck queued -- every normal install rule
+ * carries `!endgameHold`, and the only exempt path (gateArmed) had already
+ * fired with the Red Pill. Gating on BN1 restores the exact behavior that ran
+ * all morning while hacking was still <2500. Below 2500 in BN1 the two
+ * conditions are unchanged, so BN1 is untouched.
+ */
+export function computeEndgameHold(currentNode, joinedDaedalus, hacking, endgameHackLevel = ENDGAME_HACK_LEVEL) {
+  if (currentNode !== BN1) return false;
+  return !!joinedDaedalus || hacking >= endgameHackLevel;
 }
 
 /** Pure. hacking > field > security, per S8; falls back to whatever's offered. */
@@ -2150,9 +2176,9 @@ export async function main(ns) {
       lastCappedAug = null;
     }
 
-    const endgameHold = joined.has(FactionName.Daedalus) || player.skills.hacking >= ENDGAME_HACK_LEVEL;
+    const endgameHold = computeEndgameHold(resetInfo.currentNode, joined.has(FactionName.Daedalus), player.skills.hacking);
     if (endgameHold !== previousEndgameHold) {
-      appendDecision(ns, "endgame-hold", { now: nowMs, mode, phase: previousPhase, money: player.money, detail: { endgameHold } });
+      appendDecision(ns, "endgame-hold", { now: nowMs, mode, phase: previousPhase, money: player.money, detail: { endgameHold, currentNode: resetInfo.currentNode } });
       previousEndgameHold = endgameHold;
     }
 
