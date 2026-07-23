@@ -369,6 +369,22 @@ completion, move a dated, condensed entry to `docs/phases/CHANGELOG.md` — keep
 of BACKLOG. **Update as part of the work, not after** — stage the BACKLOG/CHANGELOG edit in
 the same commit as the change it describes, so it doesn't become a separate git cycle.
 
+**Keep the engine reference docs current *without being asked*.** The three gated references —
+[`docs/gang-engine.md`](docs/gang-engine.md), [`docs/batcher-engine.md`](docs/batcher-engine.md),
+and [`docs/stock-engine.md`](docs/stock-engine.md) — are the durable homes for each subsystem's
+architecture, strategy, and open questions, and the thing future sessions read to answer "what's
+the plan / was this already tried." When a feature or bug changes what one of them asserts — a
+number that was an inference and is now measured, an open question that got answered, a target that
+got superseded, a new landmine worth warning the next session about — **take the initiative to
+update the affected doc in the same commit**, the same way BACKLOG/CHANGELOG get staged with the
+change. Don't wait to be prompted, and don't assume "it's in the CHANGELOG" is enough — the
+CHANGELOG records *that* something shipped; these docs carry the *current* state of the plan.
+(Concrete miss, 2026-07-23: `gang-engine.md`'s BN2 clear-plan section was stale on four fronts at
+once — the WD gate still called "an inference" after it read live at 15,000, the
+"does rep survive an install" question still open after it was answered *no*, the M-bar still
+"35–37" after it was re-derived to 45, and an `endgameHold` freeze that had deadlocked the ratchet
+unmentioned — none caught until Kenneth asked whether it had been captured.)
+
 ## Communication
 - **Summarize after acting.**
 - **Flag unplanned deviations** (extra changes, moved/deleted files, scope creep, a
