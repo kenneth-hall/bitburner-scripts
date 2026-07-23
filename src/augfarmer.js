@@ -192,6 +192,16 @@ export const STALL_REWARN_MS = 6 * 3600_000;
 // integer rather than an escalation-power formula.
 export const STALL_QUEUE_FLOOR = 5;
 
+// Phase 34 (decision 3). The escalation rule's fixed overhead term -- an
+// install/spend-down/re-climb cycle costs real wall-clock beyond the pure
+// money math, and the rule must charge that cost before concluding "install
+// now" dominates "wait". Measured overhead was 80.3s once; 10 min is ~7.5x
+// that headroom. Deliberately NOT adaptive (unlike computeStallThreshold) --
+// deriving it from ratchet-log.json would rebuild the same self-calibrating-
+// off-the-pathology failure mode this phase exists to fix. See
+// docs/phases/phase-34-install-timing.spec.md decision 3.
+export const INSTALL_OVERHEAD_MS = 600_000;
+
 // Kept for the fixture helper in test/augfarmer.test.js (statsAllOnes) --
 // scoreAug itself only reads hacking/hacking_exp/faction_rep.
 export const MULT_FILTER_KEYS = [
@@ -884,23 +894,238 @@ export function updateRepRates(prevRates, prevReps, reps, dtMs) {
 }
 
 /**
+ * Pure (Phase 34 restructure of S7's inline arming block). Evaluates the
+ * install trigger's four independent arming reasons -- gate, gain-phase,
+ * stall, escalation -- in that priority order, and reports both the
+ * winning reason and, for every rule, the first guard that blocked it (so
+ * "which condition should have fired and why didn't it" is a one-line read
+ * of augfarmer-state.json's trigger.blockers). See
+ * phase-34-install-timing.spec.md for the full design.
+ *
+ * `ctx`: {totalGain, queuedCount, money, phase, targetFaction, deficit,
+ * repRates, rateSamples, paused, endgameHold, gateRelease, stalled,
+ * mustBuyCost, mustBuyCap, livePrice, incomePerSec, targetIsNFG}.
+ *
+ * **gate** (Phase 26 A2 S1/S2): `gateRelease` is computeGateRelease's
+ * result (or null) -- this function never sees the catalog. `gateArmed :=
+ * gateRelease?.closedByQueue && queuedCount >= 1 && !paused`, deliberately
+ * NOT gated on endgameHold, MIN_TOTAL_GAIN, or the phase label -- an
+ * install this narrow is justified by the unlock itself.
+ *
+ * **gain-phase**: `gainArmed := totalGain >= MIN_TOTAL_GAIN && queuedCount
+ * >= 1 && !paused && !endgameHold`. `phaseArmed` (only evaluated when
+ * gainArmed) is true at idle-plateau, or at grinding with EITHER no
+ * faction still owed rep at all (gap 7: a plateau wearing the "grinding"
+ * label, because NFG's cycle cap keeps the action list non-empty) OR a
+ * measured (>=RATE_MIN_SAMPLES) rep rate whose deficit horizon exceeds
+ * GRIND_HORIZON_MS.
+ *
+ * **stall** (Phase 31): the money-blocked symmetric counterpart to the
+ * rep-side horizon above -- rep-blocked-too-long already installs (the
+ * horizon), but money-blocked-too-long previously waited forever.
+ * `stalled` is a raw boolean the caller derives (age since lastAugReset vs
+ * computeStallThreshold) and passes in; this function never reads
+ * wall-clock state. `stallArmed := stalled && queuedCount >= 1 && !paused
+ * && !endgameHold && phase !== "grinding" && (gainArmed || queuedCount >=
+ * STALL_QUEUE_FLOOR)` -- the `grinding` exclusion protects a sub-8h-horizon
+ * grind that is about to finish from a stale stall reading (already
+ * handled by the horizon path above), and the queue-floor sub-condition
+ * covers a stalled padding queue whose gain never clears MIN_TOTAL_GAIN
+ * but whose price ladder has still escalated. See
+ * phase-31-stall-arming.spec.md for the full rationale.
+ *
+ * **mustBuyHold** (Phase 33 decision 6a): `mustBuyCost > 0 && mustBuyCost
+ * <= mustBuyCap && money < mustBuyCost` -- suppresses gain-phase/stall
+ * (never gate) while a nonzero, capped must-buy total (the
+ * sequential-escalation cost of the allow-listed utility augs,
+ * `mustBuyTotal`) is still unaffordable, so an install never fires having
+ * skipped a cheap must-buy it could have waited a few more polls for. Over
+ * the cap the hold is waived (the caller logs this).
+ *
+ * **escalation** (Phase 34): the money-blocked queue's own price escalation
+ * (AUG_PRICE_LADDER per queued purchase) can make waiting strictly worse
+ * than installing now -- `awaiting-money` alone never armed anything, so a
+ * long-money-blocked cycle with a deep queue waited on prices the queue
+ * itself inflated (caught live 2026-07-23: 21.8h flat, 11 queued, waiting
+ * 2.2h more for a ~1,180x-escalated aug). `basePrice = livePrice /
+ * AUG_PRICE_LADDER**queuedCount` recovers the pre-escalation price;
+ * `waitMs` is time-to-afford at the live price from current money, `afterMs`
+ * is time-to-afford at basePrice from ~$0 (an install wipes money).
+ * `escalationArmed` requires phase "awaiting-money", gainArmed, a non-NFG
+ * target (NFG's ladder is 2.166 not 1.9 and its tail is designed to run
+ * long -- arming on it would fight spendDownPlan's ordering), a live price
+ * and positive income, and `waitMs` strictly exceeding
+ * `INSTALL_OVERHEAD_MS + afterMs` (install strictly dominates waiting).
+ * Deliberately carries NO mustBuyHold conjunct (unlike gain-phase/stall):
+ * at deep escalation the hold's cheap-must-buy premise fails, the same
+ * exemption gateArmed already gets.
+ *
+ * `armed := (gainArmed && phaseArmed && !mustBuyHold) || gateArmed ||
+ * (stallArmed && !mustBuyHold) || escalationArmed`.
+ */
+export function decideInstall(ctx) {
+  const {
+    totalGain,
+    queuedCount = 0,
+    money = 0,
+    phase,
+    targetFaction,
+    deficit = 0,
+    repRates = {},
+    rateSamples = {},
+    paused = false,
+    endgameHold = false,
+    gateRelease = null,
+    stalled = false,
+    mustBuyCost = 0,
+    mustBuyCap = Infinity,
+    livePrice = null,
+    incomePerSec = null,
+    targetIsNFG = false,
+  } = ctx;
+
+  // ---- gate ----
+  const gateArmed = !!(gateRelease?.closedByQueue && queuedCount >= 1 && !paused);
+  let gateBlocker = null;
+  if (!gateArmed) {
+    if (!gateRelease?.closedByQueue) gateBlocker = "no-gate-release";
+    else if (queuedCount < 1) gateBlocker = "no-queue";
+    else gateBlocker = "paused";
+  }
+
+  // ---- gain-phase ----
+  const gainArmed = totalGain >= MIN_TOTAL_GAIN && queuedCount >= 1 && !paused && !endgameHold;
+
+  let horizonMs = null;
+  let phaseArmed = false;
+  let phaseBlocker = null;
+  if (gainArmed) {
+    if (phase === "idle-plateau") {
+      phaseArmed = true;
+    } else if (phase === "grinding") {
+      if (!targetFaction) {
+        // Gap 7 (2026-07-18) -- see this function's header.
+        phaseArmed = true;
+      } else {
+        const rate = repRates[targetFaction];
+        const samples = rateSamples[targetFaction] ?? 0;
+        if (rate > 0 && samples >= RATE_MIN_SAMPLES) {
+          horizonMs = deficit / rate;
+          phaseArmed = horizonMs > GRIND_HORIZON_MS;
+          if (!phaseArmed) phaseBlocker = "horizon-under-bound";
+        } else {
+          phaseBlocker = "no-rate-sample";
+        }
+      }
+    } else {
+      phaseBlocker = `phase:${phase}`;
+    }
+  }
+
+  const mustBuyHold = mustBuyCost > 0 && mustBuyCost <= mustBuyCap && money < mustBuyCost;
+
+  const gainPhaseArmed = gainArmed && phaseArmed && !mustBuyHold;
+  let gainPhaseBlocker = null;
+  if (!gainPhaseArmed) {
+    if (paused) gainPhaseBlocker = "paused";
+    else if (endgameHold) gainPhaseBlocker = "endgame-hold";
+    else if (queuedCount < 1) gainPhaseBlocker = "no-queue";
+    else if (totalGain < MIN_TOTAL_GAIN) gainPhaseBlocker = "gain-below-min";
+    else if (!phaseArmed) gainPhaseBlocker = phaseBlocker;
+    else gainPhaseBlocker = "mustbuy-hold";
+  }
+
+  // ---- stall ----
+  const stallArmed =
+    stalled &&
+    queuedCount >= 1 &&
+    !paused &&
+    !endgameHold &&
+    phase !== "grinding" &&
+    (gainArmed || queuedCount >= STALL_QUEUE_FLOOR);
+  const stallRuleArmed = stallArmed && !mustBuyHold;
+  let stallBlocker = null;
+  if (!stallRuleArmed) {
+    if (!stalled) stallBlocker = "not-stalled";
+    else if (queuedCount < 1) stallBlocker = "no-queue";
+    else if (paused) stallBlocker = "paused";
+    else if (endgameHold) stallBlocker = "endgame-hold";
+    else if (phase === "grinding") stallBlocker = "grinding";
+    else if (!(gainArmed || queuedCount >= STALL_QUEUE_FLOOR)) stallBlocker = "queue-below-floor";
+    else stallBlocker = "mustbuy-hold";
+  }
+
+  // ---- escalation (Phase 34) ----
+  const escalationFactor = Math.pow(AUG_PRICE_LADDER, queuedCount);
+  const basePrice = livePrice != null ? livePrice / escalationFactor : null;
+  const incomeAvailable = incomePerSec > 0;
+  const waitMs = livePrice != null && incomeAvailable ? ((livePrice - money) / incomePerSec) * 1000 : null;
+  const afterMs = basePrice != null && incomeAvailable ? (basePrice / incomePerSec) * 1000 : null;
+
+  let escalationArmed = false;
+  let escalationBlocker = null;
+  if (phase !== "awaiting-money") {
+    escalationBlocker = "phase-not-awaiting-money";
+  } else if (!gainArmed) {
+    escalationBlocker = "gain-not-armed";
+  } else if (targetIsNFG) {
+    escalationBlocker = "nfg-target";
+  } else if (livePrice == null) {
+    escalationBlocker = "no-live-price";
+  } else if (incomePerSec == null) {
+    escalationBlocker = "no-income-signal";
+  } else if (incomePerSec <= 0) {
+    escalationBlocker = "zero-income";
+  } else if (!(waitMs > INSTALL_OVERHEAD_MS + afterMs)) {
+    escalationBlocker = "wait-not-dominant";
+  } else {
+    escalationArmed = true;
+  }
+
+  const armed = gainPhaseArmed || gateArmed || stallRuleArmed || escalationArmed;
+
+  let reason = null;
+  if (gateArmed) reason = "gate";
+  else if (gainPhaseArmed) reason = "gain-phase";
+  else if (stallRuleArmed) reason = "stall";
+  else if (escalationArmed) reason = "escalation";
+
+  return {
+    armed,
+    reason,
+    blockers: {
+      gate: gateArmed ? null : gateBlocker,
+      gainPhase: gainPhaseArmed ? null : gainPhaseBlocker,
+      stall: stallRuleArmed ? null : stallBlocker,
+      escalation: escalationArmed ? null : escalationBlocker,
+    },
+    reasons: { gainArmed, phaseArmed, gateArmed, stallArmed, escalationArmed },
+    mustBuyHold,
+    horizonMs,
+    escalation: { waitMs, afterMs, overheadMs: INSTALL_OVERHEAD_MS, basePrice, escalationFactor, incomeAvailable },
+  };
+}
+
+/**
  * Pure (S7). The install trigger, explicitly provisional. `inputs`:
  * {queuedGain, queuedCount, nfgPrice, nfgHackingMult, money, phase,
  * targetFaction, deficit, repRates, rateSamples, paused, endgameHold, mode,
- * now}. `priorState` is the previous call's return (or null).
+ * gateRelease, stalled, mustBuyCost, mustBuyCap, livePrice, incomePerSec,
+ * targetIsNFG, now}. `priorState` is the previous call's return (or null).
  *
  * totalGain = queuedGain (product of stats.hacking over queued-but-
  * uninstalled augs) x projectedNfgFactor (money-only projection of
  * additional NFG levels beyond what's already queued, from the live NFG
  * price and the observed x1.9 ladder -- NFG's rep requirement may bind
  * first and cut the real count; accepted optimism, logged so observe data
- * shows the error). armed requires totalGain >= MIN_TOTAL_GAIN, at least
- * one aug queued, not paused, not endgame-held, and either idle-plateau, or
- * grinding with EITHER no faction still owed rep at all (gap 7: a plateau
- * wearing the "grinding" label, because NFG's cycle cap keeps the action
- * list non-empty) OR a measured (>=RATE_MIN_SAMPLES) rep rate whose deficit
- * horizon exceeds GRIND_HORIZON_MS. fired := armed continuously for
- * TRIGGER_SUSTAIN_MS, recomputed fresh each call from priorState's
+ * shows the error).
+ *
+ * The arming decision itself -- which of the four independent reasons
+ * (gate/gain-phase/stall/escalation) fires, and why the others didn't --
+ * is delegated to `decideInstall` (Phase 34); see its header just above
+ * for the full per-rule rationale, including the new escalation reason
+ * added by phase-34-install-timing.spec.md. `fired := armed continuously
+ * for TRIGGER_SUSTAIN_MS`, recomputed fresh each call from priorState's
  * armedSinceMs -- so in observe mode a lapsed condition naturally clears
  * fired next call.
  *
@@ -912,42 +1137,6 @@ export function updateRepRates(prevRates, prevReps, reps, dtMs) {
  * clear it: changing ratchet-mode.txt away from "auto" (mode stops being
  * "auto", shortcut no longer applies) or creating the pause file (paused
  * flows into the shortcut's guard too).
- *
- * Phase 26 A2 (S1/S2): `gateRelease` is computeGateRelease's result (or
- * null), passed in rather than derived here -- this function stays pure and
- * never sees the catalog. `gateArmed := gateRelease?.closedByQueue &&
- * queuedCount >= 1 && !paused`, deliberately NOT gated on `endgameHold` (the
- * whole point of the exception), MIN_TOTAL_GAIN, or the phase label -- an
- * install this narrow is justified by the unlock itself.
- *
- * Phase 31: the fourth arming reason, `stallArmed`, is the money-blocked
- * symmetric counterpart to the rep-side horizon above -- rep-blocked-too-long
- * already installs (the horizon), but money-blocked-too-long previously
- * waited forever. `stalled` is a raw boolean the caller derives the same way
- * evalStall does (age since lastAugReset vs computeStallThreshold) and passes
- * in; this function never reads wall-clock state itself. `stallArmed :=
- * stalled && queuedCount >= 1 && !paused && !endgameHold && phase !==
- * "grinding" && (gainArmed || queuedCount >= STALL_QUEUE_FLOOR)` -- the
- * `grinding` exclusion protects a sub-8h-horizon grind that is about to
- * finish from being clobbered by a stale stall reading (that case is already
- * correctly handled by the horizon `phaseArmed` path above), and the
- * queue-floor sub-condition covers a stalled padding queue whose gain never
- * clears MIN_TOTAL_GAIN (all-hacking-1.0 count-gate augs) but whose price
- * ladder has still escalated. See phase-31-stall-arming.spec.md for the full
- * rationale.
- *
- * Phase 33 (decision 6a): `mustBuyHold := mustBuyCost > 0 && mustBuyCost <=
- * mustBuyCap && money < mustBuyCost` -- suppresses gainArmed/stallArmed while
- * a nonzero, capped must-buy total (the sequential-escalation cost of the
- * allow-listed utility augs, `mustBuyTotal`) is still unaffordable, so an
- * install never fires having skipped a cheap must-buy it could have waited a
- * few more polls for. Over the cap the hold is waived (the caller logs this).
- * `gateArmed` is deliberately exempt -- see this constant's own header.
- *
- * `armed := (gainArmed && phaseArmed && !mustBuyHold) || gateArmed ||
- * (stallArmed && !mustBuyHold)`; everything downstream (sustain, the
- * auto-mode latch, the abort levers) is unchanged and applies to a
- * stall-armed (or gate-armed) state exactly as it does to a gain-armed one.
  */
 export function evalTrigger(inputs, priorState) {
   const {
@@ -970,6 +1159,9 @@ export function evalTrigger(inputs, priorState) {
     stalled = false,
     mustBuyCost = 0,
     mustBuyCap = Infinity,
+    livePrice = null,
+    incomePerSec = null,
+    targetIsNFG = false,
     now,
   } = inputs;
 
@@ -1025,74 +1217,27 @@ export function evalTrigger(inputs, priorState) {
   const projectedNfgFactor = Math.pow(nfgHackingMult, nfgLevelsProjected);
   const totalGain = queuedGain * projectedNfgFactor;
 
-  const gainArmed = totalGain >= MIN_TOTAL_GAIN && queuedCount >= 1 && !paused && !endgameHold;
+  const decision = decideInstall({
+    totalGain,
+    queuedCount,
+    money,
+    phase,
+    targetFaction,
+    deficit,
+    repRates,
+    rateSamples,
+    paused,
+    endgameHold,
+    gateRelease,
+    stalled,
+    mustBuyCost,
+    mustBuyCap,
+    livePrice,
+    incomePerSec,
+    targetIsNFG,
+  });
 
-  let horizonMs = null;
-  let phaseArmed = false;
-  if (gainArmed) {
-    if (phase === "idle-plateau") {
-      phaseArmed = true;
-    } else if (phase === "grinding") {
-      if (!targetFaction) {
-        // Gap 7 (2026-07-18). `pickHorizonGrind` returning no faction means
-        // NO reachable aug still owes rep -- there is nothing left to wait
-        // on, which is a plateau however the phase is labelled. It is NOT
-        // "keep grinding": planActions labels this "grinding" only because
-        // NFG's per-cycle cap (buyBlocked) keeps the head target non-rep-met
-        // and so keeps the action list non-empty, never reaching the
-        // "idle-plateau" label. Reading undefined as "no horizon, don't arm"
-        // stalled the auto cycle for 25h with $3.3q idle and gain 2.36.
-        //
-        // Money-blocked is deliberately NOT this case: planActions returns
-        // "awaiting-money" there (see the repMet branch), and that phase
-        // never arms -- so this only fires when rep, not cash, is what has
-        // run out of things to buy.
-        //
-        // This is the fifth instance of this file's recurring faction-identity
-        // confusion (see phase-25-faction-strategy.closeout.md): the previous
-        // two fixes both widened *which* faction gets picked and neither
-        // handled "correctly picks none".
-        phaseArmed = true;
-      } else {
-        const rate = repRates[targetFaction];
-        const samples = rateSamples[targetFaction] ?? 0;
-        if (rate > 0 && samples >= RATE_MIN_SAMPLES) {
-          horizonMs = deficit / rate;
-          phaseArmed = horizonMs > GRIND_HORIZON_MS;
-        }
-      }
-    }
-  }
-
-  // Phase 26 A2 (S1/S2): the third arming reason. Deliberately independent of
-  // endgameHold/MIN_TOTAL_GAIN/phase -- see this function's header and
-  // computeGateRelease's for the full "why". Safety is entirely
-  // gateRelease.closedByQueue: an install that would not actually move the
-  // gate can never arm this way.
-  const gateArmed = !!(gateRelease?.closedByQueue && queuedCount >= 1 && !paused);
-
-  // Phase 31: the fourth arming reason -- see this function's header for the
-  // full rationale. Phase-blind except for the deliberate `grinding`
-  // exclusion (never override a productive grind; the horizon above already
-  // handles a grind that has genuinely run out of runway).
-  const stallArmed =
-    stalled &&
-    queuedCount >= 1 &&
-    !paused &&
-    !endgameHold &&
-    phase !== "grinding" &&
-    (gainArmed || queuedCount >= STALL_QUEUE_FLOOR);
-
-  // Phase 33 (decision 6a): the must-buy hold -- while a nonzero must-buy
-  // total is both under its cap and still unaffordable, suppress the
-  // gain/stall arming reasons so the install waits for the must-buy set to be
-  // affordable rather than firing (and spending it down out of the
-  // escalation-optimal order) too early. gateArmed is deliberately exempt --
-  // an A2 gate-release install stays narrow and next cycle retries at reset
-  // prices regardless of this hold.
-  const mustBuyHold = mustBuyCost > 0 && mustBuyCost <= mustBuyCap && money < mustBuyCost;
-
-  const armed = (gainArmed && phaseArmed && !mustBuyHold) || gateArmed || (stallArmed && !mustBuyHold);
+  const armed = decision.armed;
   const wasArmedSince = priorState?.armed ? priorState.armedSinceMs : null;
   const armedSinceMs = armed ? (wasArmedSince ?? now) : null;
   const sustainedMs = armed ? now - armedSinceMs : 0;
@@ -1108,12 +1253,15 @@ export function evalTrigger(inputs, priorState) {
     projectedNfgFactor,
     nfgLevelsProjected,
     nfgBoundBy,
-    horizonMs,
+    horizonMs: decision.horizonMs,
     gateRelease,
-    mustBuyHold,
+    mustBuyHold: decision.mustBuyHold,
     mustBuyCost,
     mustBuyCap,
-    reasons: { gainArmed, phaseArmed, gateArmed, stallArmed },
+    reasons: decision.reasons,
+    reason: decision.reason,
+    blockers: decision.blockers,
+    escalation: decision.escalation,
   };
 }
 
@@ -1423,6 +1571,7 @@ export function buildDecisionRecord(kind, inputs) {
       STALL_MIN_MS,
       STALL_MAX_MS,
       STALL_FALLBACK_MS,
+      INSTALL_OVERHEAD_MS,
       STALL_REWARN_MS,
       FUNDING_HORIZON_MS,
       FUND_CAP_FALLBACK,
@@ -1800,6 +1949,10 @@ export async function main(ns) {
   // hold's once-per-cycle waived-log latch.
   let lastCappedAug = null;
   let holdWaivedLogged = false;
+  // Phase 34 (decision 6): rising-edge tracker for the "escalation rule is
+  // blocked solely by a missing income signal" WARN -- one WARN per crossing,
+  // not one per poll (the terminal-flood lesson, BACKLOG.md).
+  let incomeWarnActive = false;
 
   while (true) {
     const nowMs = Date.now();
@@ -2231,10 +2384,28 @@ export async function main(ns) {
       stalled,
       mustBuyCost,
       mustBuyCap,
+      livePrice,
+      incomePerSec,
+      // Phase 34 (decision 4, corrected): NOT `target?.isNFG` -- pickTarget's
+      // return shape carries no such key (see decideInstall's header).
+      targetIsNFG: !!target && target.aug === NFG_NAME,
       now: nowMs,
     };
     const prevTrigger = triggerState;
     triggerState = evalTrigger(triggerInputs, triggerState);
+
+    // Phase 34 (decision 6): rising-edge WARN when the escalation rule is
+    // blocked solely by a missing/stale goal-state.json income signal -- a
+    // stale log would otherwise silently disable this fix (BACKLOG's
+    // recurring "silent failure" class). One WARN per crossing.
+    if (triggerState.blockers?.escalation === "no-income-signal") {
+      if (!incomeWarnActive) {
+        tprintTs(ns, "WARN: escalation rule blocked solely by missing income signal -- goal-state.json is stale/missing");
+        incomeWarnActive = true;
+      }
+    } else {
+      incomeWarnActive = false;
+    }
 
     if (triggerState.armed && !prevTrigger?.armed) {
       appendDecision(ns, "trigger-arm", {

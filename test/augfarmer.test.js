@@ -49,6 +49,8 @@ import {
   pickGateFiller,
   updateRepRates,
   evalTrigger,
+  decideInstall,
+  INSTALL_OVERHEAD_MS,
   spendDownPlan,
   mustBuyTotal,
   daedalusInviteReserve,
@@ -1202,7 +1204,9 @@ describe('evalTrigger', () => {
 
     it('arms when pickHorizonGrind found no faction still owed rep', () => {
       const t = evalTrigger(baseInputs(noOwedGrind), null);
-      expect(t.reasons).toEqual({ gainArmed: true, phaseArmed: true, gateArmed: false, stallArmed: false });
+      // Phase 34 decision 8: shape-extension edit (escalationArmed added), not
+      // an expected-value change -- see phase-34-install-timing.spec.md.
+      expect(t.reasons).toEqual({ gainArmed: true, phaseArmed: true, gateArmed: false, stallArmed: false, escalationArmed: false });
       expect(t.armed).toBe(true);
       expect(t.horizonMs).toBeNull();
     });
@@ -1595,6 +1599,264 @@ describe('evalTrigger', () => {
       const t = evalTrigger(baseInputs(), null);
       expect(t.mustBuyHold).toBe(false);
       expect(t.armed).toBe(true);
+    });
+  });
+
+  describe('Phase 34 — escalation-aware install timing (evalTrigger passthrough)', () => {
+    it('defaults regression: omitting the three new inputs reproduces pre-Phase-34 behavior', () => {
+      // Phase 31 fixture (moneyBlockedGainCase-shaped): money-blocked-alike
+      // gain arm, no livePrice/incomePerSec/targetIsNFG supplied.
+      const t = evalTrigger(baseInputs({ phase: 'awaiting-money', queuedGain: 1.18, queuedCount: 3, stalled: true }), null);
+      expect(t.reason).toBeDefined();
+      expect(t.blockers).toBeDefined();
+      expect(t.reasons.escalationArmed).toBe(false);
+      expect(t.armed).toBe(true); // stallArmed still fires exactly as before
+      expect(t.reasons.stallArmed).toBe(true);
+
+      // gap-7 fixture.
+      const gap7 = evalTrigger(baseInputs({ phase: 'grinding', targetFaction: undefined, deficit: 0 }), null);
+      expect(gap7.armed).toBe(true);
+      expect(gap7.reasons.escalationArmed).toBe(false);
+      expect(gap7.reason).toBe('gain-phase');
+    });
+
+    it('sustain + latch parity for an escalation-armed state (mirrors the gateArmed/stallArmed coverage)', () => {
+      const escFixture = {
+        phase: 'awaiting-money',
+        queuedGain: 2.118,
+        queuedCount: 11,
+        livePrice: 1.048e12,
+        money: 3.79e11,
+        incomePerSec: 8.5e7,
+        targetIsNFG: false,
+      };
+      const t0 = evalTrigger(baseInputs({ ...escFixture, now: 0 }), null);
+      expect(t0.armed).toBe(true);
+      expect(t0.reason).toBe('escalation');
+      expect(t0.fired).toBe(false);
+      const t1 = evalTrigger(baseInputs({ ...escFixture, now: TRIGGER_SUSTAIN_MS }), t0);
+      expect(t1.fired).toBe(true);
+
+      const t0Auto = evalTrigger(baseInputs({ ...escFixture, now: 0, mode: 'auto' }), null);
+      const t1Auto = evalTrigger(baseInputs({ ...escFixture, now: TRIGGER_SUSTAIN_MS, mode: 'auto' }), t0Auto);
+      expect(t1Auto.fired).toBe(true);
+      const duringSpendDown = evalTrigger(
+        baseInputs({ now: TRIGGER_SUSTAIN_MS + 60_000, mode: 'auto', phase: 'spend-down', queuedGain: 1, queuedCount: 0 }),
+        t1Auto,
+      );
+      expect(duringSpendDown.fired).toBe(true);
+      expect(duringSpendDown.latched).toBe(true);
+    });
+  });
+});
+
+describe('decideInstall — Phase 34 (escalation-aware install timing)', () => {
+  // Mirrors evalTrigger's baseInputs fixture, but at decideInstall's own
+  // ctx shape (totalGain precomputed rather than derived from
+  // queuedGain/nfgPrice/nfgHackingMult -- that projection lives one layer up
+  // in evalTrigger and is unit-tested there).
+  function baseCtx(overrides = {}) {
+    return {
+      totalGain: 2,
+      queuedCount: 3,
+      money: 0,
+      phase: 'idle-plateau',
+      targetFaction: undefined,
+      deficit: 0,
+      repRates: {},
+      rateSamples: {},
+      paused: false,
+      endgameHold: false,
+      gateRelease: null,
+      stalled: false,
+      mustBuyCost: 0,
+      mustBuyCap: Infinity,
+      livePrice: null,
+      incomePerSec: null,
+      targetIsNFG: false,
+      ...overrides,
+    };
+  }
+
+  describe('existing-path re-coverage (DECIDED 1 — every legacy arming path survives the extraction)', () => {
+    it('gate arms regardless of endgameHold/mustBuyHold', () => {
+      const closedTrue = { faction: 'Daedalus', gap: 1, closedByQueue: true };
+      const d = decideInstall(baseCtx({ totalGain: 1.02, endgameHold: true, gateRelease: closedTrue, mustBuyCost: 1000, mustBuyCap: 5000, money: 0 }));
+      expect(d.armed).toBe(true);
+      expect(d.reason).toBe('gate');
+      expect(d.reasons.gateArmed).toBe(true);
+    });
+
+    it('gain-phase arms on idle-plateau', () => {
+      const d = decideInstall(baseCtx());
+      expect(d.armed).toBe(true);
+      expect(d.reason).toBe('gain-phase');
+    });
+
+    it('gain-phase arms on gap-7 no-faction-owed grinding', () => {
+      const d = decideInstall(baseCtx({ phase: 'grinding', targetFaction: undefined, deficit: 0 }));
+      expect(d.armed).toBe(true);
+      expect(d.reason).toBe('gain-phase');
+      expect(d.horizonMs).toBeNull();
+    });
+
+    it('gain-phase arms on a long rep horizon', () => {
+      const d = decideInstall(
+        baseCtx({ phase: 'grinding', targetFaction: 'F1', deficit: GRIND_HORIZON_MS * 2, repRates: { F1: 1 }, rateSamples: { F1: 40 } }),
+      );
+      expect(d.armed).toBe(true);
+      expect(d.reason).toBe('gain-phase');
+    });
+
+    it('stall arms via the gain branch (money-blocked, gainArmed true, queue below floor)', () => {
+      const d = decideInstall(baseCtx({ phase: 'awaiting-money', totalGain: 1.18, queuedCount: 3, stalled: true }));
+      expect(d.armed).toBe(true);
+      expect(d.reason).toBe('stall');
+      expect(d.reasons.stallArmed).toBe(true);
+    });
+
+    it('stall arms via the queue-floor branch (gain below MIN_TOTAL_GAIN, queue at the floor)', () => {
+      const d = decideInstall(baseCtx({ totalGain: 1.0, queuedCount: STALL_QUEUE_FLOOR, stalled: true }));
+      expect(d.armed).toBe(true);
+      expect(d.reason).toBe('stall');
+    });
+
+    it('stall is blocked by "grinding" (never overrides a productive grind)', () => {
+      const d = decideInstall(
+        baseCtx({ phase: 'grinding', targetFaction: 'F1', deficit: 1000, repRates: { F1: 1 }, rateSamples: { F1: 40 }, stalled: true }),
+      );
+      expect(d.armed).toBe(false);
+      expect(d.blockers.stall).toBe('grinding');
+    });
+
+    it('stall is blocked by "mustbuy-hold"', () => {
+      const d = decideInstall(
+        baseCtx({ phase: 'awaiting-money', totalGain: 1.18, queuedCount: 3, stalled: true, mustBuyCost: 1000, mustBuyCap: 5000, money: 0 }),
+      );
+      expect(d.reasons.stallArmed).toBe(true);
+      expect(d.armed).toBe(false);
+      expect(d.blockers.stall).toBe('mustbuy-hold');
+    });
+  });
+
+  describe('escalation rule', () => {
+    // The 2026-07-23 live fixture (BACKLOG.md): 11 queued, waiting on an
+    // aug escalated ~1,180x by the queue itself.
+    const liveFixture = {
+      phase: 'awaiting-money',
+      queuedCount: 11,
+      totalGain: 2.118,
+      livePrice: 1.048e12,
+      money: 3.79e11,
+      incomePerSec: 8.5e7,
+      targetIsNFG: false,
+    };
+
+    it('(a) the live fixture arms', () => {
+      const d = decideInstall(baseCtx(liveFixture));
+      expect(d.armed).toBe(true);
+      expect(d.reason).toBe('escalation');
+      expect(d.reasons.escalationArmed).toBe(true);
+      expect(d.escalation.waitMs).toBeGreaterThan(7.8e6);
+      expect(d.escalation.afterMs).toBeGreaterThan(1e4);
+      expect(d.escalation.afterMs).toBeLessThan(1.1e4);
+    });
+
+    it('(b) not a wait-duration rule -- a short absolute wait still arms when it dominates', () => {
+      // Raise money so waitMs is only ~20 min, still comfortably over
+      // overhead+afterMs (~10.2 min) -- pins that this is a DOMINANCE rule,
+      // not a "wait long enough" rule.
+      const money = liveFixture.livePrice - (20 * 60_000 * liveFixture.incomePerSec) / 1000;
+      const d = decideInstall(baseCtx({ ...liveFixture, money }));
+      expect(d.escalation.waitMs).toBeCloseTo(20 * 60_000, -2);
+      expect(d.armed).toBe(true);
+      expect(d.reason).toBe('escalation');
+    });
+
+    it('(c) low escalation does not arm -- wait-not-dominant', () => {
+      const d = decideInstall(
+        baseCtx({ phase: 'awaiting-money', queuedCount: 1, totalGain: 2, livePrice: 900_000, money: 899_000, incomePerSec: 100 }),
+      );
+      expect(d.armed).toBe(false);
+      expect(d.blockers.escalation).toBe('wait-not-dominant');
+    });
+
+    it('(d) no income signal (null) -- distinct from zero income, no staleness WARN trigger elsewhere', () => {
+      const d = decideInstall(baseCtx({ ...liveFixture, incomePerSec: null }));
+      expect(d.armed).toBe(false);
+      expect(d.blockers.escalation).toBe('no-income-signal');
+      expect(d.escalation.incomeAvailable).toBe(false);
+      expect(d.escalation.waitMs).toBeNull();
+    });
+
+    it('(e) NFG target is excluded', () => {
+      const d = decideInstall(baseCtx({ ...liveFixture, targetIsNFG: true }));
+      expect(d.armed).toBe(false);
+      expect(d.blockers.escalation).toBe('nfg-target');
+    });
+
+    it('(f) wrong phase never reaches the escalation rule', () => {
+      const grinding = decideInstall(baseCtx({ ...liveFixture, phase: 'grinding', targetFaction: undefined }));
+      expect(grinding.blockers.escalation).toBe('phase-not-awaiting-money');
+
+      const idle = decideInstall(baseCtx({ ...liveFixture, phase: 'idle-plateau' }));
+      expect(idle.blockers.escalation).toBe('phase-not-awaiting-money');
+    });
+
+    it('(g) mustBuyHold exemption pin: escalation arms through an active must-buy hold', () => {
+      const fixture = {
+        ...liveFixture,
+        stalled: true,
+        // money (3.79e11) < mustBuyCost <= mustBuyCap -- the hold's actual
+        // guard shape, not merely a nonzero cost (which does nothing if it's
+        // already affordable).
+        mustBuyCost: 4e11,
+        mustBuyCap: 5e11,
+      };
+      const d = decideInstall(baseCtx(fixture));
+      expect(d.armed).toBe(true);
+      expect(d.reason).toBe('escalation');
+      expect(d.blockers.stall).toBe('mustbuy-hold');
+      // gain-phase's first failing guard is the phase mismatch, not
+      // mustbuy-hold -- gain-phase can only report mustbuy-hold from an
+      // otherwise-arming phase.
+      expect(d.blockers.gainPhase).toBe('phase:awaiting-money');
+
+      // Companion: the same fixture, NFG-targeted -- pins that the NFG
+      // exclusion, not the mustBuyHold exemption, is what's under test.
+      const nfg = decideInstall(baseCtx({ ...fixture, targetIsNFG: true }));
+      expect(nfg.armed).toBe(false);
+    });
+
+    it('(h) paused / endgameHold block via gain-not-armed', () => {
+      const paused = decideInstall(baseCtx({ ...liveFixture, paused: true }));
+      expect(paused.blockers.escalation).toBe('gain-not-armed');
+
+      const endgameHeld = decideInstall(baseCtx({ ...liveFixture, endgameHold: true }));
+      expect(endgameHeld.blockers.escalation).toBe('gain-not-armed');
+    });
+
+    it('(i) strict boundary: waitMs === overhead + afterMs exactly does not arm', () => {
+      // basePrice = livePrice / AUG_PRICE_LADDER**queuedCount; solve money so
+      // waitMs lands exactly on overhead+afterMs.
+      const queuedCount = 2;
+      const livePrice = 1_000_000_000;
+      const incomePerSec = 1000;
+      const basePrice = livePrice / Math.pow(AUG_PRICE_LADDER, queuedCount);
+      const afterMs = (basePrice / incomePerSec) * 1000;
+      const targetWaitMs = INSTALL_OVERHEAD_MS + afterMs;
+      const money = livePrice - (targetWaitMs * incomePerSec) / 1000;
+      const d = decideInstall(baseCtx({ phase: 'awaiting-money', queuedCount, totalGain: 2, livePrice, money, incomePerSec }));
+      expect(d.escalation.waitMs).toBeCloseTo(targetWaitMs, 6);
+      expect(d.armed).toBe(false);
+      expect(d.blockers.escalation).toBe('wait-not-dominant');
+    });
+
+    it('(j) zero income is distinct from missing income', () => {
+      const d = decideInstall(baseCtx({ ...liveFixture, incomePerSec: 0 }));
+      expect(d.armed).toBe(false);
+      expect(d.blockers.escalation).toBe('zero-income');
+      expect(d.escalation.incomeAvailable).toBe(false);
     });
   });
 });
