@@ -573,11 +573,13 @@ describe('augPanel', () => {
 // --- goalPanel (Phase 32) -----------------------------------------------------
 
 describe('goalPanel', () => {
-  it('renders the M-progress line exactly (decision 11); gate target appended only when present', () => {
+  it('renders the M-progress line exactly (decision 11); a separate gate line appears only when gateTarget present', () => {
     const lines = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9 } }, NOW);
     expect(lines).toContain('M 1.51/16.7 (core) ~9%');
-    const withGate = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, gateTarget: 36 } }, NOW);
-    expect(withGate).toContain('M 1.51/16.7 (core) ~9% -> gate ~36');
+    expect(lines.some((l) => l.includes('(gate)'))).toBe(false); // no gate target -> no gate line
+    const withGate = goalPanel({ timestamp: NOW, mProgress: { value: 9.73, target: 16.7, targetLabel: 'core', pct: 58, gateTarget: 45 } }, NOW);
+    expect(withGate).toContain('M 9.73/16.7 (core) ~58%'); // core % unchanged, no suffix
+    expect(withGate).toContain('M 9.73/45 (gate) ~22%'); // gate on its own line, divides by gateTarget
   });
 
   it('renders a +queued projection line when augs are pending install; omits it when none/zero', () => {
@@ -585,9 +587,9 @@ describe('goalPanel', () => {
       { timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, gateTarget: 36, queuedValue: 3.42, queuedPct: 20, queuedCount: 9 } },
       NOW
     );
-    expect(withQueued).toContain('+queued: M 3.42 ~20% (9 augs pending install)');
+    expect(withQueued).toContain('+queued: M 3.42 ~20% of core (9 augs pending install)');
     const singular = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, queuedValue: 1.7, queuedPct: 10, queuedCount: 1 } }, NOW);
-    expect(singular).toContain('+queued: M 1.70 ~10% (1 aug pending install)');
+    expect(singular).toContain('+queued: M 1.70 ~10% of core (1 aug pending install)');
     const none = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, queuedValue: 1.51, queuedPct: 9, queuedCount: 0 } }, NOW);
     expect(none.some((l) => l.startsWith('+queued'))).toBe(false);
   });
@@ -738,7 +740,7 @@ describe('renderAll', () => {
     // STALLED tripwire + waiting).
     const worstGoal = {
       timestamp: NOW,
-      mProgress: { value: 16.699, target: 16.7, targetLabel: 'core', pct: 99, gateTarget: 36 },
+      mProgress: { value: 16.699, target: 16.7, targetLabel: 'core', pct: 99, gateTarget: 45, queuedValue: 31.728, queuedPct: 190, queuedCount: 15 },
       income: { perSec: 9.99e12, trend: 'DOWN', windowMs: 600_000 },
       tripwire: { status: 'STALLED', flatHours: 47.9 },
       nextAug: { aug: 'Cranial Signal Processors V', price: 9.99e12, phase: 'awaiting-money', awaitingSince: NOW - 599 * 60_000, waitingMs: 599 * 60_000 },

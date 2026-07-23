@@ -41,7 +41,14 @@ import { readFinanceState, isStateStale } from "./financestate.js";
 import { transactionsFileName } from "./translog.js";
 
 export const DASHBOARD_W = 891;
-export const DASHBOARD_H = 1262;
+// Raised 1262 -> 1306 (+44px ~= 2 rows at 21.8px/row) 2026-07-23, in lockstep
+// with ROW_BUDGET 58 -> 60, when the GOAL panel gained a separate gate line. The
+// window is sized to exactly hold ROW_BUDGET no-wrap rows, so the budget and the
+// height must move together or the no-scroll guarantee breaks. Fits: screen usable
+// height is 1392px (CDP, 2026-07-23) and the panel top is Y=21, so the new bottom
+// at 1327 clears it by 65px. (The pre-existing 58 was already marginal -- the real
+// worst case with a +queued line present was 59; this fixes that latent gap too.)
+export const DASHBOARD_H = 1306;
 export const DASHBOARD_FONT = 16;
 export const DASHBOARD_X = 1653; // live daemon-tail anchor, confirmed via CDP 2026-07-14
 export const DASHBOARD_Y = 21;
@@ -51,7 +58,7 @@ export const DASHBOARD_Y = 21;
 // (92*9.6001=883.2px) while the 96-char ruler line rendered clipped to the
 // same width as the 92-char one, proving 93-96 get cut off, not wrapped.
 export const COLUMN_BUDGET = 92;
-export const ROW_BUDGET = 58;
+export const ROW_BUDGET = 60; // paired with DASHBOARD_H -- see its comment above
 export const POLL_MS = 1000;
 export const RULER_FLAG = "dashboard-ruler.txt";
 export const PANEL_ENTRY_CAP = 3;
@@ -554,8 +561,18 @@ export function goalPanel(state, now) {
   const m = state.mProgress ?? {};
   const mText = typeof m.value === "number" ? m.value.toFixed(2) : "?";
   const pctText = typeof m.pct === "number" ? m.pct : "?";
-  const gatePart = m.gateTarget ? ` -> gate ~${m.gateTarget}` : "";
-  lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%${gatePart}`);
+  lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%`);
+
+  // Installed M against the actual clear target (the w0r1d_d43m0n hacking-level
+  // gate), on its own line. Deliberately separate from the core-catalog % above:
+  // both that % and the +queued % below divide by M_TARGET (the near milestone,
+  // ~16.7), so without this line the panel reads far closer to the clear than it
+  // is -- e.g. "126% queued" is 126% of core but <50% of gate. The two %s are
+  // not comparable, so they get two lines, each naming its own denominator.
+  if (typeof m.value === "number" && m.gateTarget) {
+    const gatePct = Math.round((m.value / m.gateTarget) * 100);
+    lines.push(`M ${mText}/${m.gateTarget} (gate) ~${gatePct}%`);
+  }
 
   // Projected M if the augs already bought this cycle were installed now
   // (installed M x queuedGain). Only shown while augs are actually pending --
@@ -565,7 +582,10 @@ export function goalPanel(state, now) {
   // quiet.
   if (typeof m.queuedValue === "number" && typeof m.queuedCount === "number" && m.queuedCount > 0) {
     const qPctText = typeof m.queuedPct === "number" ? m.queuedPct : "?";
-    lines.push(`+queued: M ${m.queuedValue.toFixed(2)} ~${qPctText}% (${m.queuedCount} aug${m.queuedCount === 1 ? "" : "s"} pending install)`);
+    // "of core" is load-bearing: queuedPct divides by M_TARGET, not the gate, so
+    // it can read >100% (queue overshoots the core catalog) while still being
+    // well under the gate. Naming the denominator stops that from misreading.
+    lines.push(`+queued: M ${m.queuedValue.toFixed(2)} ~${qPctText}% of core (${m.queuedCount} aug${m.queuedCount === 1 ? "" : "s"} pending install)`);
   }
 
   // Goalpost tripwire (GP2): M only climbs, so a 12h-flat M means the ratchet
