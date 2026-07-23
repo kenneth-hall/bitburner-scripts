@@ -1,9 +1,10 @@
 # Stock engine (prep — no engine built yet)
 
-**Status (2026-07-22): research phase, TIX now owned.** No engine code exists yet. Tooling:
-`src/stockprobe.js` (read-only access/constants probe), `src/buystockaccess.js` (logged
-tier-purchase helper), `src/stockrecon.js` (post-TIX read-only harvest). **TIX API access
-was purchased 2026-07-22 ($5b, logged as a `stock-access` expense) to run the recon** —
+**Status (2026-07-23): research complete, TIX owned, no open measurement questions.** No
+engine code exists yet. Tooling: `src/stockprobe.js` (read-only access/constants probe),
+`src/buystockaccess.js` (logged tier-purchase helper), `src/stockrecon.js` (post-TIX
+read-only harvest), `src/stockpostest.js` (install-boundary position experiment). **TIX API
+access was purchased 2026-07-22 ($5b, logged as a `stock-access` expense) to run the recon** —
 WSE, 4S UI, and 4S TIX remain unowned. This resolved four open questions in one pass (see
 §6/§7). BN1's original TIX did **not** survive BitNode entry (all four flags read `false`
 before this purchase; probe `logs/stockprobe-1784755786874.json`). This doc is the single
@@ -69,18 +70,27 @@ tables.
 - **BitNode entry wipes all four flags — confirmed.** TIX API was owned in BN1
   (2026-07-04); the 2026-07-22 BN2.1 probe reads all four `false`. Only SF8.1 makes
   WSE+TIX permanent across nodes.
-- **Augmentation installs: persistence UNVERIFIED in this fork.** Vanilla folklore says
-  stock access survives installs (unlike TOR/programs, which we've confirmed do reset),
-  but nothing here has tested it. **Verify at the first install after purchasing** —
-  `stockprobe.js` before and after. Until verified, an engine design must not assume the
-  $30b access stack survives the aug-ratchet's auto-installs.
-- **Open positions across an install are a live capital-loss risk.** Money hard-resets to
-  ~$1k on install; whether held shares are auto-liquidated (and to where) or vaporized is
-  unknown. In a node running the aug-ratchet/installer autonomously, an engine holding
-  positions when an install fires could lose its whole float. Any real engine phase needs
-  a **liquidate-before-install** hook (installer.js / ratchet integration) or a proven
-  answer that positions convert to money pre-reset. This is the single biggest lifecycle
-  design constraint carried out of this research pass.
+- **Augmentation installs: access flags SURVIVE — verified 2026-07-23.** `stockprobe.js`
+  run either side of a real install (`stockprobe-1784814815072.json` →
+  `stockprobe-1784815070260.json`) reads `tixApi: true` both times. Unlike TOR/programs,
+  the $30b access stack is bought **once per BitNode**, not once per install cycle. This
+  makes the access spend a fixed per-node cost, not a recurring one.
+- **Open positions DO NOT survive an install — verified 2026-07-23, and liquidating first
+  does not help.** A 2,491-share ECP long ($99.987m mark-to-market) taken immediately
+  before an install read back `sharesLong: 0` immediately after (`stockpostest.js
+  buy`/`check`). The stronger conclusion, which supersedes this section's earlier
+  "liquidate-before-install hook" proposal: **no stock value crosses an install by any
+  route.** Money hard-resets to ~$1k, so selling into cash before the install loses
+  exactly as much as holding through it. There is nothing to hook.
+  - **Design consequence.** A stock engine's capital is destroyed at every install
+    boundary. Its usable working period is *one install cycle*, and profit is only
+    realized if it is **spent before the install fires** (augs, RAM, servers) rather than
+    held as float or shares. In a node running the aug-ratchet's autonomous installs on a
+    multi-hour cadence, that window is short and the engine must be built to bank into
+    purchases, not to compound. This is the single biggest lifecycle design constraint
+    carried out of this research pass — it argues a stock engine belongs in a
+    **long-cycle or install-free** context (BN8, or a node being held open), not bolted
+    onto the ratchet.
 
 ## 3. Market mechanics (in-game Documentation page, v3.0.1)
 
@@ -229,9 +239,12 @@ call works at runtime (RAM cost is static regardless).
   holding long). Zero extra RAM. Needs the server↔stock map (§3) and coordination so
   hack-phases don't fight held positions.
 - **Capital custody vs the finance manager**: a stock engine parks money *outside* the
-  cash balance that `resourcemanager`/`augfarmer` budget against. Reserved-money
-  accounting, and the install-liquidation problem (§2), are the two integration points
-  with the existing toolchain; both need explicit design, not defaults.
+  cash balance that `resourcemanager`/`augfarmer` budget against — and that money is
+  destroyed at the next install (§2, verified). Two consequences: reserved-money
+  accounting needs explicit design, and the engine is in **direct competition with the
+  aug ratchet for the same dollars**, with the ratchet holding the better claim (its
+  purchases persist; stock positions don't). Any stock phase has to answer why capital
+  sitting in shares beats the same capital sitting in an aug.
 - **Loop shape**: `await ns.stock.nextUpdate()` (0 GB) beats `sleep(6000)` polling — tick
   alignment for free, and it stretches correctly under bonus-time 4s ticks.
 
@@ -317,17 +330,25 @@ pure local computation now that the map exists.)
 - ~~**`nextUpdate` / `getForecast` gates.**~~ **RESOLVED:** `nextUpdate` works TIX-only;
   `getForecast`/`getVolatility` are hard-gated behind the $25b 4S TIX buy (§4/§6).
 
-### Still open (carry defaults, revisit when a stock phase opens)
-1. **Do access flags survive an aug install in this fork?** Default assumption for
-   planning: *yes* (vanilla behavior) but still **unverified**. **Now cleanly testable:**
-   TIX is owned, so `stockprobe.js` before/after the next auto-install actually measures
-   survival (before this purchase the probe read `false` either way and proved nothing).
-   Cheap — do it opportunistically at the next install boundary.
-2. **Do open positions convert to cash on install, or vaporize?** No default — treat as
-   *engine-blocking* until answered. **Now testable** (TIX owned): take a minimal position,
-   let one of BN2.1's constant auto-installs fire, and check where the money went. This is
-   the single biggest lifecycle constraint (§2) and the one remaining thing that needs an
-   actual trade + install boundary rather than a read-only probe.
+### Resolved 2026-07-23 (install-boundary experiment)
+
+Both remaining questions were answered in one pass, riding a forced install that the aug
+ratchet needed anyway. Tooling: `src/stockpostest.js` (`buy` before, `check` after).
+
+- ~~**OQ1 — do access flags survive an aug install?**~~ **RESOLVED: yes.** `tixApi` reads
+  `true` on both sides of the boundary (§2). Access is a per-BitNode purchase.
+- ~~**OQ2 — do open positions convert to cash on install, or vaporize?**~~ **RESOLVED:
+  neither survives, and the distinction doesn't matter.** Shares read `0` after the
+  install, and because money also hard-resets to ~$1k, pre-liquidating to cash loses the
+  same amount. **No stock value crosses an install.** See §2 for the design consequence —
+  this retires the proposed "liquidate-before-install" hook as a non-fix and reframes
+  where a stock engine can profitably live.
+
+### Still open
+
+Nothing blocking. The next question is a design one, not a measurement one: **given that
+capital cannot cross an install, what install cadence makes a stock engine worth
+building?** That belongs to a stock phase's brainstorm, not to this reference.
 
 ## 8. Further reading
 

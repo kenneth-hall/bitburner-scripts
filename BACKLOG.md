@@ -72,6 +72,25 @@ do, and what's broken?*
   bought up. In BN2 that's slow (8% max money). **Next:** decide whether the fresh-node companion
   set should be priority-ordered rather than launch-ordered.
 
+- **`awaiting-money` is escalation-blind, so the ratchet waits hours to buy augs at 1,000×+
+  markup** — caught live 2026-07-23 after **21.8h of flat M** (`goal-state.json` read
+  `tripwire: STALLED, flatHours: 12`; last install 2026-07-22 11:04). State at the time: 11 augs
+  queued, `totalGain` **2.118** (`gainArmed: true`), waiting on **FocusWire at $1.048t** — that's
+  ~$888m base × 1.9¹¹ (≈1,180×) escalation from the queue itself. Nothing armed because
+  `phase === "awaiting-money"` never sets `phaseArmed`, and Phase 31's `stallArmed` backstop uses
+  a **48h** threshold (`stall.ageMs` 78.4M vs `thresholdMs` 172.8M) — so the designed rescue was
+  ~26h away. Forced an install by hand (`run installer.js`): M **3.42 → 6.763** (20% → 40% of the
+  16.7 core target), tripwire → `ON TRACK`, and the next aug repriced to **$712.5m** — ~9 seconds
+  of gang income versus the 2.2-hour wait it had left. The geometric bite: at 1.9/level the 12th
+  aug alone costs ~90% of all eleven before it, so *every* extra queued aug makes waiting worse
+  and installing better. **Two separable gaps:** (a) `awaiting-money` compares nothing about
+  *why* the target is expensive — a rule like "escalation > Nx and `totalGain` clears the bar →
+  install rather than wait" would have fired here; (b) the ratchet's internal 48h stall threshold
+  and `CLAUDE.md`'s strategy tripwire (12h flat / 2 days no install) disagree by ~4×, so the
+  documented tripwire fires long before anything acts on it. **Next:** decide whether (a) is a new
+  arming reason or a change to `computeStallThreshold`; they may collapse into one fix. Not
+  patched in-flight — this is real design surface, logged per CLAUDE.md.
+
 - **The NFG tail is on track to shrink every cycle — nothing plans for it** — NFG's rep
   requirement escalates **×1.14/level** (measured install #9: 122,736 → 998,737 over 16 levels;
   the close-out previously recorded it as *not* climbing, which was wrong). Rep resets to zero
@@ -219,6 +238,43 @@ do, and what's broken?*
   `tools/save/savelib.mjs`, regenerate `saves/INDEX.md`. Parked; hand-maintaining ~8 rows is
   fine. **Revisit when** the save count grows enough that manual upkeep hurts.
 
+### Claude Code workflow (outside brainstorm, 2026-07-22)
+Not sourced from a repo session — came out of a conversation elsewhere comparing what's
+already built here (multi-model phase pipeline, `spec-reviewer` subagent, worktrees, the
+SessionStart autoheal hook) against Claude Code capabilities that aren't in use yet. Flagged
+for a future brainstorm pass, not scoped or spec'd.
+
+- **Scheduled/autonomous tripwire check-ins** — the BN2.1 goalpost table (`CLAUDE.md` "Current
+  goal") is an explicit multi-day unattended grind with named tripwires ("no install in 2 days,"
+  "pct flat >12h"), but catching them still depends on a session noticing. A scheduled cloud
+  agent (`/schedule`) that wakes periodically, reads the dashboard/logs, checks the milestone
+  table against the tripwire conditions, and only pings on deviation would automate the polling
+  half of work CLAUDE.md already does the reasoning for.
+- **Hooks beyond SessionStart** — only one hook exists (`dev-server-autoheal.sh`). Two documented
+  CLAUDE.md rules are currently enforced by attention, not tooling, and both are hook-shaped: (a)
+  "never `git checkout`/switch while the game is connected" (PreToolUse block while `npm run dev`
+  is confirmed running), (b) the RAM-analyzer identifier footgun (property/variable names that
+  shadow real `ns.*` methods — `share`, `ls`, `exec`, etc.) — a PreToolUse grep on an Edit's diff
+  could flag a risky name before it lands instead of after a surprising `ramcheck.js` reading.
+- **Package the brainstorm→spec→review→implement loop as a Skill, not CLAUDE.md prose** — the
+  three-stage workflow (`## Development workflow`) currently depends on Claude re-reading and
+  correctly applying a paragraph in a long file each time. A `.claude/skills/phase-workflow/`
+  skill makes it directly invocable and testable independent of whatever else is in context that
+  session.
+- **Workflow-tool fan-out before brainstorming, targeting the Phase 27 failure mode** — the "read
+  the whole interface before designing against it" CLAUDE.md section documents a real cost: a
+  brainstorm doc built on one partially-read API file, invalidated three times before anyone
+  re-read the source. A multi-agent parallel read (one agent per relevant `markdown/`/`docs/`
+  file, synthesized before the brainstorm starts) targets exactly that skim-and-assume failure
+  mode structurally, rather than relying on the "read it all first" rule being followed by
+  habit.
+- **Adversarial review for solo deliberation, not just spec review** — `spec-reviewer` already
+  does cold-context review before implementation; the same pattern (independent Claude instance,
+  no prior context, poking holes) isn't currently used *during* open-ended deliberation — e.g.
+  the four-day gang-decision circling that the "…and then converge" rules were added to fix
+  after the fact. A second perspective spun up mid-deliberation, not just pre-ship, is the
+  earlier-intervention version of the same fix.
+
 ### Repo & workflow hygiene
 - **Repo decluttering** — root is the low-risk win (viteburner only watches `src/**`, so ~25 loose
   root items move freely into `docs/`/`reference/`/`saves/`; Phase 21 already consolidated
@@ -233,7 +289,7 @@ do, and what's broken?*
 
 ## Reference (not backlog — mechanics captured for a future design pass)
 
-- **Stock market** (`ns.stock`) — full API/mechanics/gates reference + engine design considerations: [docs/stock-engine.md](docs/stock-engine.md) (consolidated 2026-07-22; old notes archived).
+- **Stock market** (`ns.stock`) — full API/mechanics/gates reference + engine design considerations: [docs/stock-engine.md](docs/stock-engine.md) (consolidated 2026-07-22; both remaining open questions resolved at an install boundary 2026-07-23 — access survives installs, **stock capital does not, by any route**).
 - **Darknet** (`ns.dnet`) — access chain, network volatility, three extraction paths: [docs/darknet.md](docs/darknet.md).
 
 ## Done
