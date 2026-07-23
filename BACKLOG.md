@@ -72,25 +72,6 @@ do, and what's broken?*
   bought up. In BN2 that's slow (8% max money). **Next:** decide whether the fresh-node companion
   set should be priority-ordered rather than launch-ordered.
 
-- **`awaiting-money` is escalation-blind, so the ratchet waits hours to buy augs at 1,000×+
-  markup** — caught live 2026-07-23 after **21.8h of flat M** (`goal-state.json` read
-  `tripwire: STALLED, flatHours: 12`; last install 2026-07-22 11:04). State at the time: 11 augs
-  queued, `totalGain` **2.118** (`gainArmed: true`), waiting on **FocusWire at $1.048t** — that's
-  ~$888m base × 1.9¹¹ (≈1,180×) escalation from the queue itself. Nothing armed because
-  `phase === "awaiting-money"` never sets `phaseArmed`, and Phase 31's `stallArmed` backstop uses
-  a **48h** threshold (`stall.ageMs` 78.4M vs `thresholdMs` 172.8M) — so the designed rescue was
-  ~26h away. Forced an install by hand (`run installer.js`): M **3.42 → 6.763** (20% → 40% of the
-  16.7 core target), tripwire → `ON TRACK`, and the next aug repriced to **$712.5m** — ~9 seconds
-  of gang income versus the 2.2-hour wait it had left. The geometric bite: at 1.9/level the 12th
-  aug alone costs ~90% of all eleven before it, so *every* extra queued aug makes waiting worse
-  and installing better. **Two separable gaps:** (a) `awaiting-money` compares nothing about
-  *why* the target is expensive — a rule like "escalation > Nx and `totalGain` clears the bar →
-  install rather than wait" would have fired here; (b) the ratchet's internal 48h stall threshold
-  and `CLAUDE.md`'s strategy tripwire (12h flat / 2 days no install) disagree by ~4×, so the
-  documented tripwire fires long before anything acts on it. **Next:** decide whether (a) is a new
-  arming reason or a change to `computeStallThreshold`; they may collapse into one fix. Not
-  patched in-flight — this is real design surface, logged per CLAUDE.md.
-
 - **The NFG tail is on track to shrink every cycle — nothing plans for it** — NFG's rep
   requirement escalates **×1.14/level** (measured install #9: 122,736 → 998,737 over 16 levels;
   the close-out previously recorded it as *not* climbing, which was wrong). Rep resets to zero
@@ -175,6 +156,12 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
+- **Phase 34's NFG revisit trigger (decision 4, parked)** — `decideInstall`'s escalation rule
+  deliberately excludes NFG targets (`!targetIsNFG`): its price ladder is 2.166 not 1.9, and its
+  tail is designed to run long, so arming on it would fight `spendDownPlan`'s ordering. **Wake
+  condition:** a cycle observed money-blocked on NFG longer than the stall threshold — that's the
+  signal the exclusion is costing real wait time and the rule needs an NFG-aware variant. Until
+  then, leave as-is. → `docs/phases/phase-34-install-timing.spec.md`.
 - **Gang-specific open items (gate read, NFG-vs-rep pacing, ascension cadence, territory,
   wantedPenalty/ascension-accounting mysteries) moved to
   [`docs/gang-engine.md`](docs/gang-engine.md) §6-7, 2026-07-22.** Check there, not here, for

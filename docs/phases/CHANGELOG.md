@@ -6,6 +6,26 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-23
+
+- **Phase 34 — escalation-aware install timing (`decideInstall` restructure).** Fixes the
+  `awaiting-money`-is-escalation-blind deadlock: a money-blocked cycle with a deep queue waited on
+  prices the queue's own escalation (`AUG_PRICE_LADDER` per queued buy) had inflated, and Phase 31's
+  `stallArmed` backstop had gone blind too (its 48h adaptive threshold got dragged to the ceiling by
+  the slow cycles the defect itself causes). Extracted `evalTrigger`'s inline five-way arming block
+  into a new pure `decideInstall(ctx)`, adding a fifth reason (`escalation`): armed when
+  `waitMs` (afford at the live, escalated price) strictly exceeds `INSTALL_OVERHEAD_MS + afterMs`
+  (afford at the recovered base price post-install, `basePrice = livePrice / AUG_PRICE_LADDER **
+  queuedCount`). Excludes NFG targets (different ladder, tail designed to run long) and carries no
+  `mustBuyHold` conjunct (same exemption `gateArmed` already gets). Every rule now reports its first
+  failing guard (`trigger.blockers`), so "why didn't it arm" is a one-line state-file read instead of
+  re-deriving the arithmetic by hand. Live-validated same day: restarted clean, RAM unchanged at
+  64.1 GB, and within the first heartbeat the escalation rule armed on a real `awaiting-money` cycle
+  (`reason: "escalation"`, `waitMs` ≈14.6min dominant over ≈10.5min overhead+afterMs) — L1/V1 both
+  confirmed live via CDP, opportunistic L2 evidence captured too. → `phase-34-install-timing.spec.md`.
+  V2 (median install interval + `stall.thresholdMs` recovering off the 48h ceiling) is a ~1-week soak,
+  not a merge blocker.
+
 ## 2026-07-22
 
 - **Stock docs consolidated into [`docs/stock-engine.md`](../stock-engine.md)** (research/prep, no
