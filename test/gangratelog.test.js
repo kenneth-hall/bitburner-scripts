@@ -2,7 +2,7 @@
 // (src/gangratelog.js). Both functions under test are ns-free by design --
 // main() is thin ns.read/ns.write plumbing around them.
 import { describe, it, expect } from 'vitest';
-import { summarizeSample, appendCapped, RING_CAP } from '../src/gangratelog.js';
+import { summarizeSample, appendCapped, RING_CAP, MAX_STATE_AGE_MS } from '../src/gangratelog.js';
 
 const stateFixture = (overrides = {}) => ({
   timestamp: 1000,
@@ -64,6 +64,37 @@ describe('summarizeSample', () => {
 
   it('reports null state age when timestamp is absent', () => {
     const s = summarizeSample(stateFixture({ timestamp: undefined }), 6000);
+    expect(s.stateAgeMs).toBeNull();
+  });
+
+  // Staleness cutoff (2026-07-23): entering a gang-less node left this resident
+  // replaying the previous node's frozen gang state into the 14-day series.
+  it('drops a sample staler than MAX_STATE_AGE_MS -- a dead node, not a stalled writer', () => {
+    const nowMs = 1000 + MAX_STATE_AGE_MS + 1; // timestamp(1000) + one ms past the cutoff
+    expect(summarizeSample(stateFixture(), nowMs)).toBeNull();
+  });
+
+  it('keeps a sample exactly AT the cutoff (strict >, so the boundary still records)', () => {
+    const nowMs = 1000 + MAX_STATE_AGE_MS;
+    const s = summarizeSample(stateFixture(), nowMs);
+    expect(s).not.toBeNull();
+    expect(s.stateAgeMs).toBe(MAX_STATE_AGE_MS);
+  });
+
+  it('still records a moderately stale writer -- a real stall stays visible as growing age', () => {
+    const s = summarizeSample(stateFixture(), 1000 + 10 * 60_000); // 10 min stale
+    expect(s).not.toBeNull();
+    expect(s.stateAgeMs).toBe(10 * 60_000);
+  });
+
+  it('honours an explicit maxStateAgeMs override', () => {
+    expect(summarizeSample(stateFixture(), 6000, 4000)).toBeNull(); // age 5000 > 4000
+    expect(summarizeSample(stateFixture(), 6000, 5000)).not.toBeNull(); // age 5000, not >
+  });
+
+  it('never drops on age alone when the timestamp is absent -- unknown age is not a dead gang', () => {
+    const s = summarizeSample(stateFixture({ timestamp: undefined }), 999_999_999, 1);
+    expect(s).not.toBeNull();
     expect(s.stateAgeMs).toBeNull();
   });
 });

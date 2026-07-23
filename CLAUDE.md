@@ -47,6 +47,27 @@ on request — hold to them even when the moment is uncomfortable.
       deleted. ⚠️ **Its underlying gap is unfixed** — the finance reserve never covers the NFG
       *spend-down batch*, so cloudmanager can starve a deep NFG tail. Re-check before BN5's endgame;
       see `docs/gang-engine.md`'s "cloudmanager has no aug reserve" open issue.
+  - **🎯 ARMED TRIPWIRE — batcher-primary, gang DEFERRED (decided 2026-07-23, ~75–80% confidence).**
+    Full analysis: [`docs/phases/bn5-playstyle-analysis.md`](docs/phases/bn5-playstyle-analysis.md).
+    - **Why deferred, not rejected:** gang permanence across installs is REAL (members/respect/
+      equipment/ascension mults survive; karma is a once-per-node cost) — but the payoff step is
+      dead here: the in-game gang doc says gangs outside BN2 *"will not be a way to destroy the
+      BitNode alone"*, so **there is no Red Pill from a BN5 gang** (that was BN2-specific). Red Pill
+      comes via the normal Daedalus donation runbook the ratchet already automates. The ordering
+      also fails: the gang's payoff window is the day-1–4 bootstrap trough, exactly when it *cannot
+      exist* (karma is slowest at stats 1, then it ramps from 3 members for 2–4 more days); by
+      maturity (~day 5–7) the batcher is 10–30× the gang.
+    - **CHECK AT: 2026-07-26 (+72h) or the end of the first install cycle, whichever comes first.**
+      **Build the gang if** sustained batcher income < **~$15M/s** while **≥$2t** still needs
+      spending, **or** the node forecast exceeds 3 weeks. Otherwise stay batcher-only and re-check
+      only if those conditions later become true.
+    - **Why deferring is free (the whole argument):** karma is grindable mid-node with **zero loss**,
+      so waiting costs nothing, while committing early costs 1–2 days of player-slot occupation at
+      the worst possible moment. **Default if this line is never revisited: stay batcher-only.**
+    - ⚠️ **Treat ~$15M/s as the thing to MEASURE, not a prediction** — fable's BN5 income figures are
+      order-of-magnitude scalings, which is exactly why this ships as a measured tripwire. Its other
+      unverified assumptions (fork crime constants, does karma survive an install here, which
+      factions allow `createGang` in BN5) are listed in the analysis doc.
   - **⚠️ Ordering lesson carried out of BN2 — don't repeat it.** The counter-map put BN2 before BN5
     because "the gang is a rep-tax killer." But in BN2 **rep saturated and was a non-issue**; the
     binding constraint was money→mult. Worse, BN2's gate is *mult*-gated while BN5's reward is **+8%
