@@ -24,3 +24,4 @@ saves/*.pretty.json
 # Session artifacts / local saves (Kenneth's, not source)
 bb-shot.png
 saves/
+src/ratchet-mode.txt
