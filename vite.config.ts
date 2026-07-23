@@ -91,6 +91,7 @@ export default defineConfig({
         if (/^stockprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/stockprobe.js -- stock access flags + StockMarketConstants, one file per run (stock-engine prep) // src/worldprobe.js -- w0r1d_d43m0n gate probe, one file per run; Phase 33's WD-gate checkpoint (was never wired in before -- see that script's header)
         if (/^stockrecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/stockrecon.js -- post-TIX read-only harvest (symbols, org/forecast/nextUpdate gates, per-symbol prices + round-trip friction), one file per run
         if (/^stockpostest-(buy|check)-\d+\.json$/.test(file)) return `logs/${file}`; // src/stockpostest.js -- OQ2 install-boundary experiment (position + money before/after an install), one file per run
+        if (/^worktypeprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/worktypeprobe.js -- which joined factions offer faction work, one file per run (root-caused augfarmer's NiteSec workForFaction throw: gang factions offer none)
         if (file === 'gang-state.json') return 'logs/gang-state.json'; // Phase 27 Tier 1 -- gangmanager.js overwrite-in-place snapshot + restart-persistence source
         if (file === 'gang-log.json') return 'logs/gang-log.json'; // Phase 27 Tier 1 -- gangmanager.js ring-capped event log (recruit/promote/demote/sink/startup/off-marker)
         if (file === 'gang-rate-log.json') return 'logs/gang-rate-log.json'; // Phase 30 survivor -- gangratelog.js durable respect-rate/ascension-mult series (ring-capped, 5min samples)
