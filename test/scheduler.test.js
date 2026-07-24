@@ -123,6 +123,43 @@ describe('diagnosePlacement', () => {
     expect(diagnosePlacement([], [{ hostname: 'a', freeRam: 10 }], ramCosts)).toBe(null);
     expect(diagnosePlacement(jobs, [], ramCosts).blockedBy).toBe('total-ram');
   });
+
+  it('catches sequential exhaustion: largest job fits the largest host, batch still fails', () => {
+    // The bug the first version had. Jobs 60/20/10 = 90 GB total against 100 GB
+    // free, and the 60 GB job fits the 60 GB host -- so a
+    // largest-job-vs-largest-host check says "fits". But job 1 CONSUMES that
+    // host, and the 20 GB job then has only 15+15+10 left: no single host
+    // holds it. assignBatchHosts returns null; the diagnosis must agree.
+    const ordered = [
+      { script: 'grow.js', threads: 60 },
+      { script: 'weaken.js', threads: 20 },
+      { script: 'hack.js', threads: 10 },
+    ];
+    const fleet = [
+      { hostname: 'big', freeRam: 60 },
+      { hostname: 'a', freeRam: 15 },
+      { hostname: 'b', freeRam: 15 },
+      { hostname: 'c', freeRam: 10 },
+    ];
+    expect(assignBatchHosts(ordered, fleet, ramCosts)).toBe(null); // ground truth
+    const d = diagnosePlacement(ordered, fleet, ramCosts);
+    expect(d).not.toBe(null);
+    expect(d.blockedBy).toBe('per-host');
+    expect(d.failedJobIndex).toBe(1); // the 20 GB weaken, not the 60 GB grow
+    expect(d.failedJobGb).toBe(20);
+    expect(d.largestHostFreeGb).toBe(15); // fleet AFTER the grow took 'big'
+    expect(d.shortfallGb).toBe(5);
+  });
+
+  it('agrees with assignBatchHosts on a batch that genuinely places', () => {
+    // 70 GB host absorbs the 10 GB hack AND the 60 GB grow; 'b' takes the
+    // weaken. (A 60 GB first host would NOT do -- the hack lands there first
+    // and leaves 50, starving the grow. That is the sequential effect this
+    // whole function exists to model.)
+    const fleet = [{ hostname: 'a', freeRam: 70 }, { hostname: 'b', freeRam: 40 }];
+    expect(assignBatchHosts(jobs, fleet, ramCosts)).not.toBe(null);
+    expect(diagnosePlacement(jobs, fleet, ramCosts)).toBe(null);
+  });
 });
 
 describe('memberReserveGb', () => {

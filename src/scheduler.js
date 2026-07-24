@@ -279,25 +279,52 @@ export function diagnosePlacement(jobs, hosts, ramCosts) {
   if (jobs.length === 0) return null;
   const jobCosts = jobs.map((job) => ramCosts[job.script] * job.threads);
   const batchCostGb = jobCosts.reduce((sum, c) => sum + c, 0);
-  const largestJobGb = Math.max(...jobCosts);
   const freeRams = hosts.map((h) => h.freeRam);
   const totalFreeGb = freeRams.reduce((sum, r) => sum + r, 0);
-  const largestHostFreeGb = freeRams.length > 0 ? Math.max(...freeRams) : 0;
+  const largestJobGb = Math.max(...jobCosts);
 
-  let blockedBy = null;
-  if (batchCostGb > totalFreeGb) blockedBy = "total-ram";
-  else if (largestJobGb > largestHostFreeGb) blockedBy = "per-host";
-  if (blockedBy === null) return null;
+  if (batchCostGb > totalFreeGb) {
+    return {
+      blockedBy: "total-ram",
+      batchCostGb,
+      largestJobGb,
+      largestHostFreeGb: freeRams.length > 0 ? Math.max(...freeRams) : 0,
+      totalFreeGb,
+      shortfallGb: batchCostGb - totalFreeGb,
+    };
+  }
 
-  return {
-    blockedBy,
-    batchCostGb,
-    largestJobGb,
-    largestHostFreeGb,
-    totalFreeGb,
-    // What the fleet is short by, in the units that matter for the named fix.
-    shortfallGb: blockedBy === "total-ram" ? batchCostGb - totalFreeGb : largestJobGb - largestHostFreeGb,
-  };
+  // Mirror assignBatchHosts' greedy sequential walk rather than comparing the
+  // single largest job to the single largest host. Those are NOT equivalent:
+  // job 1 can consume the only host big enough for job 2, so a batch whose
+  // largest job fits the largest host can still fail to place. Getting this
+  // wrong (first version, 2026-07-24) made diagnosePlacement return null --
+  // "it fits" -- on a batch that was demonstrably skipping every tick, which
+  // is worse than no diagnosis: it pointed away from the real cause.
+  const pool = hosts.map((h) => ({ freeRam: h.freeRam }));
+  for (let i = 0; i < jobCosts.length; i++) {
+    const needGb = jobCosts[i];
+    const host = pool.find((h) => h.freeRam >= needGb);
+    if (!host) {
+      const largestHostFreeGb = pool.length > 0 ? Math.max(...pool.map((h) => h.freeRam)) : 0;
+      return {
+        blockedBy: "per-host",
+        batchCostGb,
+        largestJobGb,
+        totalFreeGb,
+        // The job that actually failed, and the fleet as it looked at that
+        // point in the walk (earlier jobs already deducted) -- so shortfallGb
+        // is the real gap to close, not a gap against a pristine fleet.
+        failedJobIndex: i,
+        failedJobGb: needGb,
+        largestHostFreeGb,
+        shortfallGb: needGb - largestHostFreeGb,
+      };
+    }
+    host.freeRam -= needGb;
+  }
+
+  return null; // genuinely placeable -- nothing to diagnose
 }
 
 /**
