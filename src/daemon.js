@@ -121,7 +121,11 @@ export const RESIDENT_COMPANIONS = [
   "dashboard.js",
   "xpfarm.js",
   "ratchetlog.js",
-  "gangratelog.js", // Phase 30 survivor -- durable respect-rate/ascension-mult series sampler (thin gang-state.json consumer, ~0 gang-API RAM)
+  // gangratelog.js is deliberately NOT here: as of 2026-07-24 it self-exits at
+  // startup when gang-state.json is missing/stale (no gang), so supervising it
+  // would relaunch it on a 5-min loop forever. Absence is its success state --
+  // same reason procureprograms.js/backdoorwd.js are excluded. It is still
+  // launched at startup below.
   "goallog.js", // Phase 32 -- BN2.1 progress sampler (installed-M / smoothed income rate / next-aug timer), feeds dashboard.js's GOAL panel
 ];
 export const SUPERVISOR_CHECK_MS = 60_000; // time-gated inside the main loop, like the share-marker check

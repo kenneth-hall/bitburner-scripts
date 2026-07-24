@@ -100,6 +100,34 @@ export function appendCapped(series, sample, cap) {
 export async function main(ns) {
   ns.disableLog("ALL");
 
+  // Self-exit when there is demonstrably no gang to sample (BN5's case).
+  // Deliberately a FILE check, not ns.gang.inGang(): this script touches no
+  // gang API at all, and the RAM analyzer bills an imported module's entire ns
+  // surface, so reaching for the (nominally 0 GB) gang call risks importing
+  // cost into the one gang-adjacent script that currently has none. A missing
+  // or long-stale gang-state.json means gangmanager isn't writing, which is
+  // exactly the condition this sampler has nothing to do in.
+  //
+  // Exiting rather than idling is why this is NOT in RESIDENT_COMPANIONS: the
+  // supervisor would relaunch it on a 5-min loop forever. Absence is its
+  // success state, same convention as procureprograms.js. daemon.js still
+  // launches it at startup, so a node that HAS a gang starts it normally; a
+  // gang created mid-node needs a daemon restart to pick it up (acceptable --
+  // creating one is a deliberate, tripwired decision, not a background event).
+  const startupState = ns.read(STATE_FILE);
+  let startupAgeMs = Infinity;
+  if (startupState) {
+    try {
+      startupAgeMs = Date.now() - (JSON.parse(startupState).timestamp ?? 0);
+    } catch {
+      startupAgeMs = Infinity;
+    }
+  }
+  if (startupAgeMs > MAX_STATE_AGE_MS) {
+    ns.tprint(`gangratelog: no live gang (${STATE_FILE} missing or stale) -- exiting.`);
+    return;
+  }
+
   while (true) {
     let series = [];
     const rawLog = ns.read(RATE_LOG_FILE);
