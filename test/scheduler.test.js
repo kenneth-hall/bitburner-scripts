@@ -139,14 +139,26 @@ describe('memberReserveGb', () => {
     expect(memberReserveGb(300, 0, 300)).toBe(300);
   });
 
-  it('reserves nothing for a floor-seated member (cost over budget)', () => {
+  it('reserves ONE shrunk batch for a floor-seated member, not the full pipeline', () => {
     // The BN5 cold-start deadlock: a 1,684.9GB pipeline carved against a 297GB
-    // budget zeroed the waterfall, so no other target ever got prepped.
+    // budget zeroed the waterfall, so no other target ever got prepped. The
+    // reserve is the shrunk batch's real cost instead.
+    expect(memberReserveGb(1684.9, 0, 297, 99.75)).toBe(99.75);
+  });
+
+  it('reserves nothing extra once the floor member has its batch in flight', () => {
+    expect(memberReserveGb(1684.9, 99.75, 297, 99.75)).toBe(0);
+    expect(memberReserveGb(1684.9, 120, 297, 99.75)).toBe(0); // never negative
+  });
+
+  it('reserves nothing for a floor member with no known batch cost yet', () => {
+    // No diagnosis cached (first tick, or the sample came back null) -- better
+    // to let prep use the RAM than to fence off a number we do not have.
     expect(memberReserveGb(1684.9, 0, 297)).toBe(0);
   });
 
-  it('still reserves nothing for a floor-seated member that got a shrunk batch away', () => {
-    expect(memberReserveGb(1684.9, 40, 297)).toBe(0);
+  it('ignores floorBatchCostGb entirely for an affordable member', () => {
+    expect(memberReserveGb(300, 120, 1000, 99.75)).toBe(180);
   });
 });
 

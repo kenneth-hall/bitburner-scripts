@@ -601,6 +601,7 @@ export async function main(ns) {
   // --- Phase 7 multi-member state (replaces the old single incumbentServer) ---
   let memberServers = []; // last tick's active member server names, score order -- the pickBatchSet "incumbentServers" input
   let lastKnownPipelineCostGb = new Map(); // server -> cost, refreshed every tick a seat is held; read (never recomputed) at exit time
+  let lastKnownFloorBatchGb = new Map(); // server -> cheapest attempted batch cost, for the floor-seated reserve (see memberReserveGb)
   let openSkipRecords = new Map(); // server -> open skip-log record reference, for per-target coalescing (see recordSkipEvent/trimLog)
   let drainDeadlines = new Map(); // server -> estimated drain-complete epoch-ms, display-only
   let lastLaunchInfo = null; // single most-recent launch across all members, for the compact "last launch" display line
@@ -1143,14 +1144,28 @@ export async function main(ns) {
     // 3 -- share's post-top-up state is tracked arithmetically instead, so
     // this stays exactly two sweeps per tick, not three).
     const postLaunchInFlight = inFlightByTarget(ns, hosts, ramCosts);
+    // server -> the cost of the cheapest batch the shrink loop tried and failed
+    // to place this tick (diagnosePlacement's batchCostGb). Feeds the
+    // floor-seated reserve below.
+    const skipDiagnosisByServer = new Map(
+      memberResults.filter((mr) => mr.kind === "skipped" && mr.diagnosis).map((mr) => [mr.server, mr.diagnosis.batchCostGb])
+    );
     let totalReserveGb = 0;
     const memberReserve = new Map(); // server -> {reserveGb, inFlightRamGb, batchesInFlight}
     for (const member of result.members) {
       const info = postLaunchInFlight.byTarget[member.server] ?? { batches: 0, ramGb: 0 };
-      // Floor-seated members reserve nothing -- see memberReserveGb's comment
-      // for why an unaffordable pipeline's reserve is unspendable, and how
-      // carving it anyway deadlocks a cold-start fleet.
-      const reserveGb = memberReserveGb(member.pipelineCostGb, info.ramGb, batchBudgetGb);
+      // Floor-seated members reserve ONE shrunk batch's worth -- see
+      // memberReserveGb's comment for why both extremes (full pipeline, and
+      // nothing at all) deadlock a cold-start fleet in opposite directions.
+      //
+      // Cached across ticks: a tick that produced no diagnosis (member
+      // launched, or its sample came back null) must not drop the reserve to
+      // zero, or the waterfall grabs the RAM for a multi-minute prep job and
+      // the member is starved again until that job lands.
+      const freshBatchCostGb = skipDiagnosisByServer.get(member.server);
+      if (freshBatchCostGb !== undefined) lastKnownFloorBatchGb.set(member.server, freshBatchCostGb);
+      const floorBatchCostGb = lastKnownFloorBatchGb.get(member.server) ?? 0;
+      const reserveGb = memberReserveGb(member.pipelineCostGb, info.ramGb, batchBudgetGb, floorBatchCostGb);
       memberReserve.set(member.server, { reserveGb, inFlightRamGb: info.ramGb, batchesInFlight: info.batches });
       totalReserveGb += reserveGb;
     }

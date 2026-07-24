@@ -120,8 +120,26 @@ export function cappedPipelineDepth(weakenTimeMs, ramCostGb, budgetGb) {
  * @param {number} inFlightRamGb
  * @param {number} budgetGb the same batch budget pickBatchSet's floor rule compared against
  */
-export function memberReserveGb(pipelineCostGb, inFlightRamGb, budgetGb) {
-  if (pipelineCostGb > budgetGb) return 0; // floor-seated
+export function memberReserveGb(pipelineCostGb, inFlightRamGb, budgetGb, floorBatchCostGb = 0) {
+  if (pipelineCostGb > budgetGb) {
+    // Floor-seated: reserve what ONE shrunk batch actually costs, not the full
+    // nominal pipeline and not nothing. BOTH extremes deadlock, in opposite
+    // directions, and we hit each of them in turn on 2026-07-24:
+    //
+    //   full pipeline -> the carve exceeded the fleet (1,684.9GB vs 396GB),
+    //     zeroed the waterfall, and nothing ever got prepped. 11h at ~$0/s.
+    //   nothing -> the waterfall took the whole fleet for long-running prep
+    //     jobs, leaving 7.75GB free against a 99.75GB shrunk batch. The member
+    //     never launched. (My first fix. "Members launch before the waterfall
+    //     each tick" is NOT a defence: prep is grow/weaken, it holds RAM for
+    //     MINUTES across many ticks, so first refusal on an already-committed
+    //     fleet buys nothing.)
+    //
+    // floorBatchCostGb comes from the skip diagnosis -- the real cost of the
+    // batch the shrink loop last tried to place, so this reserves exactly what
+    // the member can demonstrably spend and leaves the rest to prep.
+    return Math.max(0, floorBatchCostGb - inFlightRamGb);
+  }
   return Math.max(0, pipelineCostGb - inFlightRamGb);
 }
 
