@@ -162,29 +162,44 @@ export function planBatch(target) {
   const referenceTime = Math.max(target.hackTime, target.growTime, target.weakenTime);
   const additionalMsecFor = (duration, landingOffset) => Math.round(referenceTime - duration + landingOffset);
 
+  // `action` and `durationMs` are carried on each job so consumers never have
+  // to identify a job by its POSITION in this array. assignBatchHosts may now
+  // split grow/weaken into several entries, so the returned assignment is no
+  // longer 1:1 with these four -- anything indexing assigned[i] against a
+  // fixed [hack, weaken1, grow, weaken2] table would read the wrong row (or
+  // undefined) the moment a split happens. weaken1/weaken2 are otherwise
+  // indistinguishable: same script, same duration, differing only by offset.
   return [
     {
       script: WORKER_SCRIPTS.hack,
+      action: "hack",
       target: target.server,
       threads: target.hackThreads,
+      durationMs: target.hackTime,
       additionalMsec: additionalMsecFor(target.hackTime, 0),
     },
     {
       script: WORKER_SCRIPTS.weaken,
+      action: "weaken1",
       target: target.server,
       threads: target.weaken1Threads,
+      durationMs: target.weakenTime,
       additionalMsec: additionalMsecFor(target.weakenTime, 1 * SPACING_MS),
     },
     {
       script: WORKER_SCRIPTS.grow,
+      action: "grow",
       target: target.server,
       threads: target.growThreads,
+      durationMs: target.growTime,
       additionalMsec: additionalMsecFor(target.growTime, 2 * SPACING_MS),
     },
     {
       script: WORKER_SCRIPTS.weaken,
+      action: "weaken2",
       target: target.server,
       threads: target.weaken2Threads,
+      durationMs: target.weakenTime,
       additionalMsec: additionalMsecFor(target.weakenTime, 3 * SPACING_MS),
     },
   ];
@@ -243,11 +258,41 @@ export function assignBatchHosts(jobs, hosts, ramCosts) {
   const assigned = [];
 
   for (const job of jobs) {
-    const ramNeeded = ramCosts[job.script] * job.threads;
-    const host = pool.find((h) => h.freeRam >= ramNeeded);
-    if (!host) return null;
-    host.freeRam -= ramNeeded;
-    assigned.push({ ...job, hostname: host.hostname });
+    const ramPerThread = ramCosts[job.script];
+    // hack.js is never split: inFlightByTarget counts batches by the proxy
+    // "each batch has exactly one hack.js process against its target"
+    // (sampling.js), so fragmenting hack would count one batch as several --
+    // corrupting batchesInFlight, which gates allowShrink and feeds the
+    // floor-seated reserve. grow/weaken carry no such invariant and are the
+    // big jobs anyway. A hack job that cannot be placed whole is a genuine
+    // total-RAM shortage, and diagnosePlacement reports it as one.
+    if (job.script === WORKER_SCRIPTS.hack) {
+      const ramNeeded = ramPerThread * job.threads;
+      const host = pool.find((h) => h.freeRam >= ramNeeded);
+      if (!host) return null;
+      host.freeRam -= ramNeeded;
+      assigned.push({ ...job, hostname: host.hostname });
+      continue;
+    }
+
+    // Split grow/weaken across hosts, exactly as planPrep already does. Safe
+    // because every fragment keeps the SAME additionalMsec, so all threads of
+    // a job still land together and batch ordering is preserved; thread
+    // effects are additive; and sampling.js sizes these assuming 1 core (a
+    // deliberate overshoot), so spreading onto 1-core hosts cannot
+    // under-deliver. Requiring one whole job on one host is what wedged BN5 at
+    // 6.5GB short of a 35GB grow while 105.75GB sat free fleet-wide.
+    let remaining = job.threads;
+    for (const host of pool) {
+      if (remaining <= 0) break;
+      const affordable = Math.floor(host.freeRam / ramPerThread);
+      if (affordable <= 0) continue;
+      const threads = Math.min(remaining, affordable);
+      host.freeRam -= threads * ramPerThread;
+      remaining -= threads;
+      assigned.push({ ...job, threads, hostname: host.hostname });
+    }
+    if (remaining > 0) return null; // the fleet genuinely lacks the RAM
   }
 
   return assigned;
@@ -304,6 +349,25 @@ export function diagnosePlacement(jobs, hosts, ramCosts) {
   const pool = hosts.map((h) => ({ freeRam: h.freeRam }));
   for (let i = 0; i < jobCosts.length; i++) {
     const needGb = jobCosts[i];
+    // Mirrors assignBatchHosts' split rule exactly: grow/weaken spread across
+    // hosts, hack must land whole (the batch-counting invariant). Diverging
+    // here would put the diagnosis back out of sync with reality, which is the
+    // failure this function already had once today.
+    if (jobs[i].script !== WORKER_SCRIPTS.hack) {
+      let remainingGb = needGb;
+      for (const host of pool) {
+        if (remainingGb <= 0) break;
+        const take = Math.min(remainingGb, host.freeRam);
+        if (take <= 0) continue;
+        host.freeRam -= take;
+        remainingGb -= take;
+      }
+      if (remainingGb > 0) {
+        return { blockedBy: "total-ram", batchCostGb, largestJobGb, totalFreeGb, failedJobIndex: i, failedJobGb: needGb, largestHostFreeGb: 0, shortfallGb: remainingGb };
+      }
+      continue;
+    }
+
     const host = pool.find((h) => h.freeRam >= needGb);
     if (!host) {
       const largestHostFreeGb = pool.length > 0 ? Math.max(...pool.map((h) => h.freeRam)) : 0;

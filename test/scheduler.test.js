@@ -105,13 +105,25 @@ describe('diagnosePlacement', () => {
     expect(d.shortfallGb).toBe(20);
   });
 
-  it('reports per-host when the fleet has the RAM but no single host does', () => {
-    // 150 GB free in aggregate, but the 60 GB grow job needs one 60 GB host.
-    const d = diagnosePlacement(jobs, [{ hostname: 'a', freeRam: 50 }, { hostname: 'b', freeRam: 50 }, { hostname: 'c', freeRam: 50 }], ramCosts);
+  it('per-host now applies only to hack -- grow/weaken split instead', () => {
+    // Same fleet, two readings. grow/weaken are splittable, so 150 GB free in
+    // aggregate is enough for them however it is distributed.
+    const fleet = [{ hostname: 'a', freeRam: 50 }, { hostname: 'b', freeRam: 50 }, { hostname: 'c', freeRam: 50 }];
+    expect(diagnosePlacement(jobs, fleet, ramCosts)).toBe(null);
+
+    // But hack must land whole, so a 60 GB hack against 50 GB hosts is
+    // per-host blocked even with 150 GB free.
+    const hackHeavy = [
+      { script: 'hack.js', threads: 60 },
+      { script: 'grow.js', threads: 20 },
+      { script: 'weaken.js', threads: 10 },
+    ];
+    expect(assignBatchHosts(hackHeavy, fleet, ramCosts)).toBe(null); // ground truth
+    const d = diagnosePlacement(hackHeavy, fleet, ramCosts);
     expect(d.blockedBy).toBe('per-host');
-    expect(d.largestJobGb).toBe(60);
+    expect(d.failedJobIndex).toBe(0);
     expect(d.largestHostFreeGb).toBe(50);
-    expect(d.shortfallGb).toBe(10); // splitting, or 10 GB more on one host
+    expect(d.shortfallGb).toBe(10);
   });
 
   it('prefers total-ram when both are true (fleet growth is the only fix)', () => {
@@ -124,30 +136,29 @@ describe('diagnosePlacement', () => {
     expect(diagnosePlacement(jobs, [], ramCosts).blockedBy).toBe('total-ram');
   });
 
-  it('catches sequential exhaustion: largest job fits the largest host, batch still fails', () => {
-    // The bug the first version had. Jobs 60/20/10 = 90 GB total against 100 GB
-    // free, and the 60 GB job fits the 60 GB host -- so a
-    // largest-job-vs-largest-host check says "fits". But job 1 CONSUMES that
-    // host, and the 20 GB job then has only 15+15+10 left: no single host
-    // holds it. assignBatchHosts returns null; the diagnosis must agree.
+  it('catches sequential exhaustion: earlier jobs eat the hosts hack needed', () => {
+    // grow/weaken split freely and consume the big hosts; the 30 GB hack then
+    // has 115 GB free fleet-wide but no single host holding 30. A
+    // largest-job-vs-largest-host check would say 'fits' (30 <= 60) -- the bug
+    // the first version of this function had.
     const ordered = [
       { script: 'grow.js', threads: 60 },
       { script: 'weaken.js', threads: 20 },
-      { script: 'hack.js', threads: 10 },
+      { script: 'hack.js', threads: 30 },
     ];
     const fleet = [
       { hostname: 'big', freeRam: 60 },
       { hostname: 'a', freeRam: 15 },
       { hostname: 'b', freeRam: 15 },
-      { hostname: 'c', freeRam: 10 },
+      { hostname: 'c', freeRam: 25 },
     ];
     expect(assignBatchHosts(ordered, fleet, ramCosts)).toBe(null); // ground truth
     const d = diagnosePlacement(ordered, fleet, ramCosts);
     expect(d).not.toBe(null);
     expect(d.blockedBy).toBe('per-host');
-    expect(d.failedJobIndex).toBe(1); // the 20 GB weaken, not the 60 GB grow
-    expect(d.failedJobGb).toBe(20);
-    expect(d.largestHostFreeGb).toBe(15); // fleet AFTER the grow took 'big'
+    expect(d.failedJobIndex).toBe(2); // the hack, after grow/weaken drained the fleet
+    expect(d.failedJobGb).toBe(30);
+    expect(d.largestHostFreeGb).toBe(25);
     expect(d.shortfallGb).toBe(5);
   });
 
@@ -293,7 +304,7 @@ describe('carveReservation', () => {
 describe('assignBatchHosts', () => {
   const ramCosts = { [WORKER_SCRIPTS.hack]: 2, [WORKER_SCRIPTS.grow]: 2, [WORKER_SCRIPTS.weaken]: 2 };
 
-  it('places each job whole on the first host that fits, depleting as it goes', () => {
+  it('fills hosts in order, depleting as it goes', () => {
     const jobs = [
       { script: WORKER_SCRIPTS.hack, target: 't', threads: 3, additionalMsec: 0 }, // 6 GB
       { script: WORKER_SCRIPTS.grow, target: 't', threads: 5, additionalMsec: 0 }, // 10 GB
@@ -303,16 +314,47 @@ describe('assignBatchHosts', () => {
       { hostname: 'big', freeRam: 12 },
     ];
     const assigned = assignBatchHosts(jobs, hosts, ramCosts);
-    expect(assigned.map((j) => j.hostname)).toEqual(['small', 'big']);
+    // hack lands whole on 'small' (6 of 8). grow then takes the 1 remaining
+    // thread of headroom on 'small' and the rest on 'big'.
+    expect(assigned.map((j) => [j.script, j.hostname, j.threads])).toEqual([
+      [WORKER_SCRIPTS.hack, 'small', 3],
+      [WORKER_SCRIPTS.grow, 'small', 1],
+      [WORKER_SCRIPTS.grow, 'big', 4],
+    ]);
     // Input pool untouched (works on a copy).
     expect(hosts[0].freeRam).toBe(8);
   });
 
-  it('returns null (never splits) when any single job fits nowhere', () => {
+  it('splits grow across hosts rather than failing (the BN5 unblock)', () => {
     const jobs = [{ script: WORKER_SCRIPTS.grow, target: 't', threads: 10, additionalMsec: 0 }]; // 20 GB
     const hosts = [
       { hostname: 'a', freeRam: 12 },
       { hostname: 'b', freeRam: 12 },
+    ];
+    const assigned = assignBatchHosts(jobs, hosts, ramCosts);
+    expect(assigned.map((j) => [j.hostname, j.threads])).toEqual([
+      ['a', 6],
+      ['b', 4],
+    ]);
+    // Every fragment keeps the SAME additionalMsec, so they still land together.
+    expect(assigned.every((j) => j.additionalMsec === 0)).toBe(true);
+  });
+
+  it('never splits hack -- the batch-counting invariant depends on one hack process per batch', () => {
+    const jobs = [{ script: WORKER_SCRIPTS.hack, target: 't', threads: 10, additionalMsec: 0 }]; // 20 GB
+    const hosts = [
+      { hostname: 'a', freeRam: 12 },
+      { hostname: 'b', freeRam: 12 },
+    ];
+    // 24 GB free in aggregate, but no single host holds the 20 GB hack.
+    expect(assignBatchHosts(jobs, hosts, ramCosts)).toBeNull();
+  });
+
+  it('still returns null when the fleet genuinely lacks the total RAM', () => {
+    const jobs = [{ script: WORKER_SCRIPTS.grow, target: 't', threads: 10, additionalMsec: 0 }]; // 20 GB
+    const hosts = [
+      { hostname: 'a', freeRam: 8 },
+      { hostname: 'b', freeRam: 8 },
     ];
     expect(assignBatchHosts(jobs, hosts, ramCosts)).toBeNull();
   });

@@ -1085,14 +1085,13 @@ export async function main(ns) {
           }
 
           const launchedAt = Date.now();
-          const actionDurations = [
-            ["hack", winningRates.hackTime],
-            ["weaken1", winningRates.weakenTime],
-            ["grow", winningRates.growTime],
-            ["weaken2", winningRates.weakenTime],
-          ];
+          // Read the action/duration OFF each job, never from its index:
+          // assignBatchHosts may split grow/weaken across hosts, so `assigned`
+          // is no longer 1:1 with planBatch's four jobs and a fixed positional
+          // table would read the wrong row -- or undefined, then throw -- the
+          // first time a split happened. planBatch tags both fields.
           batchSequence++;
-          const lastLandsAt = Math.max(...assigned.map((job, i) => launchedAt + job.additionalMsec + actionDurations[i][1]));
+          const lastLandsAt = Math.max(...assigned.map((job) => launchedAt + job.additionalMsec + job.durationMs));
           lastLaunchInfo = {
             id: batchSequence,
             server: member.server,
@@ -1109,7 +1108,7 @@ export async function main(ns) {
             fraction,
             hackChance: lastLaunchInfo.hackChance,
             expectedSteal: lastLaunchInfo.expectedSteal,
-            jobs: assigned.map((job, i) => ({ action: actionDurations[i][0], threads: job.threads, hostname: job.hostname })),
+            jobs: assigned.map((job) => ({ action: job.action, threads: job.threads, hostname: job.hostname })),
           });
         } else {
           totalBatchesSkipped++;
