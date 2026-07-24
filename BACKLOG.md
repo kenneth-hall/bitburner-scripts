@@ -272,12 +272,31 @@ already built here (multi-model phase pipeline, `spec-reviewer` subagent, worktr
 SessionStart autoheal hook) against Claude Code capabilities that aren't in use yet. Flagged
 for a future brainstorm pass, not scoped or spec'd.
 
-- **Scheduled/autonomous tripwire check-ins** — the BN2.1 goalpost table (`CLAUDE.md` "Current
-  goal") is an explicit multi-day unattended grind with named tripwires ("no install in 2 days,"
-  "pct flat >12h"), but catching them still depends on a session noticing. A scheduled cloud
-  agent (`/schedule`) that wakes periodically, reads the dashboard/logs, checks the milestone
-  table against the tripwire conditions, and only pings on deviation would automate the polling
-  half of work CLAUDE.md already does the reasoning for.
+- **Autonomous liveness watch — nothing reads the logs between sessions, and it has now cost two
+  node entries.** Rewritten 2026-07-24 after the second occurrence; the original framing (poll
+  `CLAUDE.md`'s goalpost table for strategy tripwires) was the *harder, less valuable* half.
+  **Measured cost: ~11h of a dead BN5 (2026-07-24, floor-reserve deadlock) and ~7h of a dead BN2
+  (2026-07-18, share carve)** — both times `daemon-status.json` carried an unambiguous signature the
+  whole time (`warns.skipServers` non-empty, `waterfall.availableGb: 0`, money flat) and simply had
+  no reader until a human opened a terminal.
+  - **Build the liveness half first** — it's smaller, node-agnostic, and needs no strategy context:
+    poll `daemon-status.json` + `finance-state.json`, alert **only** on deviation. Signatures worth
+    firing on: money delta ≈ 0 over the window; `utilizationPct` pinned at 0 or 100 with
+    `batchesInFlight: 0`; a `skip` run over N ticks; `companion-waiting-ram` for the same script for
+    N hours; `daemon-status.json` itself going stale (daemon dead *or* dev-server bridge down).
+    Alert must cover **failure** signatures, not just the recovery one — a watcher that only greps
+    for good news is silent through exactly the outage it exists to catch.
+  - **Then** the strategy half: date-stamped decisions in `CLAUDE.md`'s Current-goal block expire
+    silently today (live example: the gang tripwire's "CHECK AT: 2026-07-26 (+72h)", whose stated
+    default if never revisited is "stay batcher-only").
+  - **Mechanism matters and the original entry got it half-right.** In-session tooling (`/loop`,
+    `CronCreate`, `Monitor`) is **session-only and in-memory** — it dies when Claude exits, which is
+    precisely the overnight window that bit us both times. Only a `/schedule` cloud routine survives
+    it. Practical split: `Monitor` while a session is open (cheap, event-driven, no cron), a
+    `/schedule` routine for the unattended gap.
+  - **Next:** stand up the narrow liveness version, run it across one full prep→seat cycle to prove
+    it doesn't false-alarm during normal prep windows (long stretches of 100% utilization with $0
+    income are *expected* mid-prep), then add the date checks.
 - **Hooks beyond SessionStart** — only one hook exists (`dev-server-autoheal.sh`). Two documented
   CLAUDE.md rules are currently enforced by attention, not tooling, and both are hook-shaped: (a)
   "never `git checkout`/switch while the game is connected" (PreToolUse block while `npm run dev`
