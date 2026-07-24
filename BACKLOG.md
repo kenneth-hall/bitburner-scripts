@@ -83,13 +83,25 @@ do, and what's broken?*
   Cheap tell in the meantime: `ls -la logs/daemon-batch-log.json` — more than ~60 s stale means the
   bridge is dead and any "the log doesn't show it" conclusion is unsound.
 
-- **`daemon.js` floods the terminal with un-launchable companion retries** — 3 lines/minute,
-  forever: `skipped augfarmer.js -- needs 64.10GB but only 0.90GB free on home`, same for
-  `xpfarm.js` and `ratchetlog.js`. On a 32 GB home these can *never* fit, so the retry is pure
-  noise, and it makes `read-terminal` nearly unusable for reading any script's output. This is the
-  visible half of the "will never fit vs doesn't fit yet" supervisor bug below — that entry covers
-  the retry logic; this one covers the observability damage. **Next:** log a permanent-skip once,
-  then stay quiet.
+- **Cold-start hardening — the engine assumes a warm start, and a BitNode ENTRY is a cold one.**
+  Filed 2026-07-24 after three separate bugs turned out to share one root. An install preserves home
+  RAM and a mature fleet; a node entry gives you ~32 GB of home and 18 small rooted servers. Members:
+  (a) the floor-reserve carve deadlock (**fixed**, cost 11h at ~$0/s); (b) share's unconditional 25%
+  carve on a factionless node (**still unbuilt**, has now cost two consecutive node entries — see
+  `docs/batcher-engine.md` §4); (c) the floor reserve's empty cache on daemon restart (**open**,
+  self-corrects in minutes). **Trigger: the next BitNode entry** — that's when it pays, and doing it
+  right after an entry means designing against measurements rather than guesses. Deliberately NOT
+  urgent mid-node; the fixed member was the only fatal one.
+
+- **~~`daemon.js` floods the terminal with un-launchable companion retries~~ — FIXED 2026-07-24.**
+  `fitsOnHome` printed unconditionally, but the supervisor calls it as a pure PREDICATE every 60s for
+  every missing companion, so a RAM-starved home produced ~5 terminal lines a minute forever. It is
+  now silent unless the caller genuinely intended to launch (`launchDetached`/`runAndWait` pass
+  `announce`); the supervisor's own waiting-ram announcement was already correctly gated to once per
+  entry into the state. **Not cosmetic** — the flood buried the `Backdoor on 'CSEC' successful!`
+  confirmation the same day and cost a diagnostic detour to recover. **Still open:** the retry-logic
+  half below ("will never fit" vs "doesn't fit yet") is untouched — the supervisor still retries
+  forever rather than escalating.
 
 - **The aug-ratchet can deadlock on home RAM, and nothing automates the way out** — root-caused
   2026-07-20 (previously filed as "`augfarmer.js` needs 64.10 GB and can never start"). The

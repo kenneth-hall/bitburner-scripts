@@ -151,16 +151,23 @@ const TARGETS_RANKING_TOP_N = 5; // file carries a little more than the panel sh
 
 /**
  * Shared free-RAM-check preamble for launchDetached/runAndWait: true iff
- * script fits in home's current free RAM, printing the INFO skip itself when
- * it doesn't (call-site-neutral message -- no "at startup" claim, since
- * runAndWait's only customer runs mid-startup-sequence, not launchDetached's
- * companions).
+ * script fits in home's current free RAM.
+ *
+ * SILENT unless `announce` is set. It used to print unconditionally, but the
+ * supervisor calls it as a pure PREDICATE once a minute for every missing
+ * companion (the `unfitNames` set), so on a RAM-starved home that was ~5
+ * terminal lines a minute, forever -- the flood BACKLOG.md files, and it is
+ * not cosmetic: on 2026-07-24 it buried the "Backdoor on 'CSEC' successful!"
+ * confirmation and cost a diagnostic detour to recover. The supervisor already
+ * announces this state properly, exactly once per entry into it, via
+ * waitingRamAnnounced. Announce only where the caller genuinely intended to
+ * launch and couldn't.
  */
-function fitsOnHome(ns, script) {
+function fitsOnHome(ns, script, announce = false) {
   const scriptRam = ns.getScriptRam(script, "home");
   const freeRam = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
   if (scriptRam > freeRam) {
-    tprintTs(ns, `INFO: skipped ${script} -- needs ${ns.format.ram(scriptRam)} but only ${ns.format.ram(freeRam)} free on home`);
+    if (announce) tprintTs(ns, `INFO: skipped ${script} -- needs ${ns.format.ram(scriptRam)} but only ${ns.format.ram(freeRam)} free on home`);
     return false;
   }
   return true;
@@ -175,7 +182,7 @@ function fitsOnHome(ns, script) {
  * expected, non-fatal outcome, not a bug.
  */
 function launchDetached(ns, script, ...args) {
-  if (!fitsOnHome(ns, script)) return;
+  if (!fitsOnHome(ns, script, true)) return;
 
   const pid = ns.exec(script, "home", 1, ...args);
   if (pid === 0) tprintTs(ns, `ERROR: failed to start ${script}`);
@@ -234,7 +241,7 @@ export function planRelaunches(runningNames, residents, unfitNames, lastAttemptM
  * daemon must wait out before launching workers.
  */
 async function runAndWait(ns, script, ...args) {
-  if (!fitsOnHome(ns, script)) return;
+  if (!fitsOnHome(ns, script, true)) return;
 
   const pid = ns.exec(script, "home", 1, ...args);
   if (pid === 0) {

@@ -88,6 +88,13 @@ BitNode entry (hard reset) — pulled forward from the now-archived `bn1-install
   ([[reference_share_boost_needs_faction_work]]); on a factionless fresh node its 25% carve starved
   the batcher's own budget below what its top-scored target needed, causing **$0 income for ~7 hours**
   — not merely wasteful, but decisive. See §4 for the still-open fix.
+- **The engine assumes a WARM start, and a BitNode entry is a cold one.** Three separate bugs found
+  on 2026-07-24 share this single root: the floor-reserve carve deadlock, the unconditional 25%
+  share carve, and the floor reserve's own empty cache on restart. An install preserves home RAM
+  (524 GB free at the BN2 handoff) and leaves a mature purchased fleet; a **node entry** drops home
+  to ~32 GB with 18 small rooted servers and nothing bought. Every assumption that holds in the
+  first case fails in the second. **Before blaming a fresh node's symptoms on strategy, check
+  whether the engine has simply never met a fleet this small.**
 - **A floor-seated member used to reserve its whole unaffordable pipeline, deadlocking cold starts.**
   Fixed 2026-07-24 (`memberReserveGb`); kept here because the *shape* recurs. `pickBatchSet`'s floor
   rule seats the top-scored candidate even when nothing fits, and the aggregate carve then fenced off
@@ -159,14 +166,52 @@ check there for everything else.
     empty-`factions` check already specified above; the honest version also covers *joined but not
     working* (BN5's case — nine factions would be joined post-install yet nothing is grinding rep),
     which means gating on the ratchet's live work state, not membership alone.
-- **~~Floor-seated members reserve their whole unaffordable pipeline~~ — FIXED 2026-07-24.**
-  `memberReserveGb` (`scheduler.js`) returns 0 once `pipelineCostGb > budgetGb`, so the carve can no
-  longer exceed the fleet and starve the waterfall. Live: `reserveGb` 1,684.9 → 0,
-  `waterfallAvailableGb` 0 → 7.5, utilization 0% → 98.1% within one tick, with prep finally running
-  on the other 11 targets. See §2's landmine for the failure shape. **Still open (the other half of
-  the original item):** nothing *escalates* — a member sitting at `commitPct: 0` for N consecutive
-  ticks is still held forever rather than dropped for an affordable target. The fix above makes that
-  survivable (the waterfall now works around it) instead of fatal, so it's no longer urgent.
+- **~~Floor-seated members reserve their whole unaffordable pipeline~~ — FIXED 2026-07-24, in two
+  passes.** `memberReserveGb` (`scheduler.js`) reserves **one shrunk batch's worth**
+  (`floorBatchCostGb`, read from the skip diagnosis) once `pipelineCostGb > budgetGb`.
+  **Both extremes deadlock, and we shipped each in turn before landing on the middle:**
+  - *Full nominal pipeline* (original): the carve exceeded the fleet (1,684.9 GB vs 396 GB), zeroed
+    the waterfall, nothing ever got prepped. 11h at ~$0/s.
+  - *Nothing at all* (first fix): the waterfall then took the whole fleet for prep, leaving 7.75 GB
+    free against a 99.75 GB shrunk batch. The member still never launched. The reasoning in that
+    commit — "members launch before the waterfall each tick, so it keeps first refusal" — is
+    **wrong and worth remembering**: prep is grow/weaken, it holds RAM for *minutes* across many
+    ticks, so first refusal on an already-committed fleet buys nothing.
+  - *One shrunk batch* (current): reserves exactly what the member can demonstrably spend, minus
+    what's already in flight. Cached per server so a tick without a diagnosis doesn't drop the
+    reserve to zero and hand the RAM back to a multi-minute prep job.
+  **Still open (the other half of the original item):** nothing *escalates* — a member at
+  `commitPct: 0` for N consecutive ticks is held rather than dropped for an affordable target. Now
+  survivable rather than fatal, so it's no longer urgent.
+- **~~A batch job had to fit whole on ONE host~~ — FIXED 2026-07-24.** `assignBatchHosts` now splits
+  `grow`/`weaken` across hosts (as `planPrep` always has); `hack` is deliberately never split,
+  because `inFlightByTarget` counts batches by the proxy *"one `hack.js` process per target per
+  batch"* (`sampling.js:213`) and fragmenting it would corrupt `batchesInFlight` → `allowShrink` →
+  the reserve above. **This was the last thing holding BN5 at $0/s:** a 99.75 GB batch could not
+  place against 105.75 GB of free fleet because the 35 GB grow found no single host with more than
+  28.5 GB left after earlier jobs took theirs. **Short by 6.5 GB.** Splitting is safe — every
+  fragment keeps the same `additionalMsec`, so all threads of a job still land together; thread
+  effects are additive; and `sampling.js` sizes grow/weaken assuming 1 core (deliberate overshoot),
+  so spreading onto 1-core hosts can't under-deliver.
+- **Skip records now carry a placement diagnosis (`diagnosePlacement`, 2026-07-24) — use it before
+  theorising.** Every `skip` in `daemon-batch-log.json` reports `blockedBy` (`total-ram` |
+  `per-host`), `batchCostGb`, `totalFreeGb`, `failedJobIndex`/`failedJobGb`, `largestHostFreeGb` and
+  `shortfallGb`, refreshed each tick of a coalesced run. It exists because four confident hypotheses
+  were formed from indirect signals that day and **all four were wrong** (leftover workers squatting
+  RAM; seating the cheapest target would help; the fleet was 3× too small; a zero reserve was safe).
+  The daemon had computed the real answer every second and discarded it.
+  ⚠️ **It must MIRROR `assignBatchHosts`, not approximate it.** The first version compared the single
+  largest job to the single largest host and returned `null` — "it fits" — on a batch failing every
+  tick, which is worse than no diagnosis because it points away from the cause. It now walks jobs in
+  order against a deducted pool, with tests pinning it to `assignBatchHosts`' ground truth in both
+  directions. Any future change to placement must change both.
+- **Cold-start hole in the floor reserve — OPEN, low severity.** A freshly restarted daemon has an
+  empty `lastKnownFloorBatchGb`, so tick 1 reserves 0 and the waterfall claims the fleet for
+  multi-minute prep before the reserve establishes. Self-corrects in minutes, but it makes every
+  daemon restart on a busy fleet cost a prep cycle. Seeding the cache from the previous run's log,
+  or reserving a nominal amount on tick 1, would close it. **Third "warm start assumed" bug found on
+  2026-07-24**, alongside the carve deadlock and the share carve — see the cold-start hardening
+  entry in `BACKLOG.md`.
 - **Core-aware grow/weaken sizing — SHELVED, not a live bug.** `sampling.js` sizes grow/weaken at an
   implicit 1 core; this is a safe overshoot (grow's security bump is core-independent) and was only
   ~1% of fleet RAM at home's 2 cores when last checked. **Revisit when** home cores get upgraded
