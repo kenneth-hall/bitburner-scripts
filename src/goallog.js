@@ -37,24 +37,24 @@ export const RATE_WINDOW_MS = 600_000; // 10 min: flattens batch-landing noise, 
 export const TREND_UP_RATIO = 1.05;
 export const TREND_DOWN_RATIO = 0.95;
 
-// Core NiteSec catalog floor (~$149b, all-but-QLink). Switching to the
-// QLink-inclusive target (~29) is a visible two-constant edit + a Kenneth
-// conversation at that milestone (Phase 32 OQ1), never silent.
-export const M_TARGET = 16.7;
-export const M_TARGET_LABEL = "core";
-// Overshoot target. Raised 36 -> 45 on 2026-07-23, once the WD gate read live at
-// hacking level 15,000 and the BN2 skill curve was fit to four auginfo dumps
-// (<0.5% error):  level = floor(0.8 * M * (32*ln(exp + 534.6) - 200)).
-// The 0.8 is BN2's hacking-level multiplier -- the upstream formula overstates
-// level by 25% here, so anything derived from vanilla docs is wrong.
-// Inverted, exp needed for 15,000 collapses super-exponentially in M:
-//   M=30 -> 157B   M=36 -> 6.1B   M=40 -> 1.2B   M=45 -> 234M   M=48.5 -> 91M
-// i.e. every +3 on M divides the terminal XP grind by ~5, and M=36 is 26x
-// harder than M=45. NFG is money-gated (rep req is a trivial 1.6k; the wall is
-// the x1.14 * x1.9 = x2.166 per-purchase escalation an install resets), so the
-// extra ~9 M is a couple more install cycles against a multi-billion-exp grind.
-// Display-only context. Full derivation: docs/bitnodes.md.
-export const M_GATE_TARGET = 45;
+// BN5.1 target (retargeted 2026-07-24, entering BN5 off the BN2.1 clear). The
+// clear condition is the w0r1d_d43m0n hacking-level gate = 4,500 (Difficulty
+// 150% x 3,000 base). BN5's hacking-level multiplier is 100%, so -- unlike BN2 --
+// there is NO 0.8 haircut; the curve is the vanilla one:
+//     level = M * (32*ln(exp + 534.6) - 200)
+// Inverting for level 4,500, exp needed collapses super-exponentially in M:
+//   M=9.7 -> 1.0B   M=10.5 -> 340M   M=12 -> 64M   M=15 -> 6.1M
+// So M=9.7 is the *bare* gate (a corner that also demands ~1B hacking exp, real
+// under BN5's 50% exp nerf); a few more M make the exp side trivial. We hold a
+// single target at the bare gate for now -- a comfort-overshoot target (BN2's
+// "45" role) is a deferred decision (install-cycles vs exp-grind), see the
+// Current-goal block / bitnodes.md. When set, raise M_GATE_TARGET above
+// M_TARGET and the second panel line re-appears.
+export const M_TARGET = 9.7;
+export const M_TARGET_LABEL = "gate";
+// Overshoot/comfort target. Equal to M_TARGET while undecided, which suppresses
+// the dashboard's separate gate line (it only renders when gateTarget > target).
+export const M_GATE_TARGET = 9.7;
 
 // GP2 tripwire (BN2.1 goalposts): M only ever climbs (installs), so "M has not
 // increased across the last FLAT_WINDOW" == the ratchet is stuck (no install /

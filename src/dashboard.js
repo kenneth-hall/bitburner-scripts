@@ -551,7 +551,7 @@ export function augPanel(state, now) {
  * strings, not substring checks.
  */
 export function goalPanel(state, now) {
-  const title = "GOAL (BN2.1)";
+  const title = "GOAL (BN5.1)";
   if (state === null) return [`-- ${title} --`, "no data yet"];
   if (state === PARSE_FAILED) return [`-- ${title} --`, "unreadable"];
 
@@ -563,15 +563,16 @@ export function goalPanel(state, now) {
   const pctText = typeof m.pct === "number" ? m.pct : "?";
   lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%`);
 
-  // Installed M against the actual clear target (the w0r1d_d43m0n hacking-level
-  // gate), on its own line. Deliberately separate from the core-catalog % above:
-  // both that % and the +queued % below divide by M_TARGET (the near milestone,
-  // ~16.7), so without this line the panel reads far closer to the clear than it
-  // is -- e.g. "126% queued" is 126% of core but <50% of gate. The two %s are
-  // not comparable, so they get two lines, each naming its own denominator.
-  if (typeof m.value === "number" && m.gateTarget) {
+  // Installed M against a FARTHER overshoot target, on its own line, shown only
+  // when that target is genuinely beyond the primary one (gateTarget > target).
+  // In BN2 the primary line was a near catalog milestone (~16.7) and this was
+  // the real clear/overshoot (45), so the two %s divided by different
+  // denominators and were not comparable -- hence two lines. In BN5 the primary
+  // line IS the gate and no overshoot is set (gateTarget === target), so this
+  // line is suppressed rather than printing a redundant identical %.
+  if (typeof m.value === "number" && m.gateTarget && m.gateTarget > (m.target ?? 0)) {
     const gatePct = Math.round((m.value / m.gateTarget) * 100);
-    lines.push(`M ${mText}/${m.gateTarget} (gate) ~${gatePct}%`);
+    lines.push(`M ${mText}/${m.gateTarget} (overshoot) ~${gatePct}%`);
   }
 
   // Projected M if the augs already bought this cycle were installed now
@@ -582,10 +583,12 @@ export function goalPanel(state, now) {
   // quiet.
   if (typeof m.queuedValue === "number" && typeof m.queuedCount === "number" && m.queuedCount > 0) {
     const qPctText = typeof m.queuedPct === "number" ? m.queuedPct : "?";
-    // "of core" is load-bearing: queuedPct divides by M_TARGET, not the gate, so
-    // it can read >100% (queue overshoots the core catalog) while still being
-    // well under the gate. Naming the denominator stops that from misreading.
-    lines.push(`+queued: M ${m.queuedValue.toFixed(2)} ~${qPctText}% of core (${m.queuedCount} aug${m.queuedCount === 1 ? "" : "s"} pending install)`);
+    // Naming the denominator is load-bearing: queuedPct divides by M_TARGET (the
+    // primary line's target), which can differ from the overshoot line's, so it
+    // can read >100% while still under a farther target. Uses the live target
+    // label ("gate" in BN5, "core" in BN2) rather than hardcoding one.
+    const denom = m.targetLabel ?? "target";
+    lines.push(`+queued: M ${m.queuedValue.toFixed(2)} ~${qPctText}% of ${denom} (${m.queuedCount} aug${m.queuedCount === 1 ? "" : "s"} pending install)`);
   }
 
   // Goalpost tripwire (GP2): M only climbs, so a 12h-flat M means the ratchet

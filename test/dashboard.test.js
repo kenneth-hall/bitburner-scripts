@@ -573,13 +573,18 @@ describe('augPanel', () => {
 // --- goalPanel (Phase 32) -----------------------------------------------------
 
 describe('goalPanel', () => {
-  it('renders the M-progress line exactly (decision 11); a separate gate line appears only when gateTarget present', () => {
+  it('renders the M-progress line exactly (decision 11); the overshoot line appears only when gateTarget > target', () => {
     const lines = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9 } }, NOW);
     expect(lines).toContain('M 1.51/16.7 (core) ~9%');
-    expect(lines.some((l) => l.includes('(gate)'))).toBe(false); // no gate target -> no gate line
+    expect(lines.some((l) => l.includes('(overshoot)'))).toBe(false); // no gate target -> no overshoot line
     const withGate = goalPanel({ timestamp: NOW, mProgress: { value: 9.73, target: 16.7, targetLabel: 'core', pct: 58, gateTarget: 45 } }, NOW);
     expect(withGate).toContain('M 9.73/16.7 (core) ~58%'); // core % unchanged, no suffix
-    expect(withGate).toContain('M 9.73/45 (gate) ~22%'); // gate on its own line, divides by gateTarget
+    expect(withGate).toContain('M 9.73/45 (overshoot) ~22%'); // farther target on its own line, divides by gateTarget
+
+    // BN5 shape: primary line IS the gate, no overshoot set (gateTarget === target) -> single line.
+    const bn5 = goalPanel({ timestamp: NOW, mProgress: { value: 1.28, target: 9.7, targetLabel: 'gate', pct: 13, gateTarget: 9.7 } }, NOW);
+    expect(bn5).toContain('M 1.28/9.7 (gate) ~13%');
+    expect(bn5.some((l) => l.includes('(overshoot)'))).toBe(false); // gateTarget not beyond target -> suppressed
   });
 
   it('renders a +queued projection line when augs are pending install; omits it when none/zero', () => {
@@ -662,7 +667,7 @@ describe('renderAll', () => {
 
   it('GOAL renders as the first panel (lines[0] is the dashboard header)', () => {
     const lines = renderAll(allMissing, NOW);
-    expect(lines[1]).toContain('-- GOAL (BN2.1) --');
+    expect(lines[1]).toContain('-- GOAL (BN5.1) --');
   });
 
   it('every line is within COLUMN_BUDGET on an all-missing render', () => {
