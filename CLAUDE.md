@@ -26,7 +26,19 @@ on request — hold to them even when the moment is uncomfortable.
       2. **Permanent access to `Formulas.exe`** — no longer a $5b in-node purchase. Check what this
          means for `procureformulas.js` (is that companion now a no-op here?) and for the
          formulas-gated code paths that currently guard on ownership.
+         - **Two findings already confirmed live 2026-07-24, record them:** the daemon logged
+           `formulas: true` at startup with **$0 spent and no `procureformulas.js` run**; and because
+           `hasFormulas` is `ns.fileExists("Formulas.exe", "home")` (`src/resourcemanager.js:253`),
+           the **$5b `formulas` reservation can never fire in BN5** — in BN1/BN2 it fenced off $5b the
+           moment hacking crossed 400. That's $5b more `available`, and it matters because money is
+           this node's binding constraint.
       3. **BitNode multiplier information on the Stats page** — the in-UI surface.
+      4. **While in `docs/bitnodes.md`, two stale claims to fix** (surfaced by the playstyle
+         analysis): its lines ~8-10 still say `getBitNodeMultipliers` "requires BN5 or SF5 — we have
+         neither" (we are *in* BN5), and lines ~364-370 still call the WD-gate model "an INFERENCE…
+         neither the base constant (3000) nor linearity is stated" — BN2's live 15,000 read
+         (= 500% × 3,000) gave that model a measured point, so BN5's 4,500 earns the confidence
+         upgrade.
     Deliverable: durable doc updates (extend `docs/bitnodes.md`, or a new reference) **plus** any
     script/companion changes the three imply.
   - **BN5 operating facts** (from `docs/bitnodes.md` — read it before planning a BN5 clear).
@@ -35,20 +47,32 @@ on request — hold to them even when the moment is uncomfortable.
     so the ceiling is reachable.
     - **The primary earner is the hacking batcher (`daemon.js`)** — BN5 un-benches it, unlike BN2's
       8% money cap. **There is no gang crutch here.** SF2.1 makes gangs portable but they are
-      karma-gated at ≤ **−54,000**, and our pure-hacker build (Str 5 / Def 4 / Dex 7 / Agi 4) is
-      badly suited to grinding it. **Decided 2026-07-23: don't force a gang in BN5** — bank SF2 for
-      a later node where **SF10 Sleeves** makes karma cheap (the counter the docs name).
+      karma-gated at ≤ **−54,000**, and we enter with **all combat stats at 1** (a hard reset wipes
+      them — the Str 5 / Def 4 / Dex 7 / Agi 4 figure this line used to carry was end-of-BN2 state,
+      corrected 2026-07-24), which is the worst possible starting point for grinding it.
+      **Decided 2026-07-23: don't force a gang in BN5** — bank SF2 for a later node where
+      **SF10 Sleeves** makes karma cheap (the counter the docs name).
     - **Economy nerfs that throttle the mult lever:** Stolen Money From Hack **15%**, Server Starting
-      Money **50%**, Starting Security **200%**, Hacking Exp **50%**, Aug Money Cost **200%**.
-      Budget BN5 as a **2–3 install-cycle mult grind**, not a quick clear — money is the binding
-      constraint on NFG, exactly as in BN1.
+      Money **50%**, Starting Security **200%**, Hacking Exp **50%**, Aug Money Cost **200%**. Money
+      is the binding constraint on NFG, exactly as in BN1 — steal 15% × aug cost 200% ≈ **~13× worse
+      aug-buying power than BN1**.
+      - **Sizing (folded in from the playstyle analysis, 2026-07-24):** start at **M = 1.28**, need
+        **M ≈ 8.5–9.7** → roughly **×7**. Node budget ≈ **$2–4t total** (~$0.3–0.8t discrete augs +
+        NFG tail at 200% prices + **~$1.5–2t Daedalus donation** + fleet). Timeline **~1.5–3 weeks**.
+      - ⚠️ **"2–3 install-cycle" was a misreading and is retired.** Expect the ratchet's usual
+        **~8–12 installs**; `bitnodes.md`'s "2–3 install-cycle" budget means 2–3 *Daedalus-endgame*
+        cycles, not 2–3 installs. Plan cadence accordingly.
+      - ⚠️ **Post-install re-climbs cost 1–4h here, not BN1's ~2 min** (Hacking Exp 50% + Starting
+        Security 200%). Troughs are wide — any plan that assumes cheap installs is wrong in BN5.
     - **cloudmanager must be ON in BN5** (the opposite of BN2's endgame): fleet RAM feeds the
       batcher, now the only earner. The BN2-era pause marker `cloud-upgrade-off.txt` has been
       deleted. ⚠️ **Its underlying gap is unfixed** — the finance reserve never covers the NFG
       *spend-down batch*, so cloudmanager can starve a deep NFG tail. Re-check before BN5's endgame;
       see `docs/gang-engine.md`'s "cloudmanager has no aug reserve" open issue.
   - **🎯 ARMED TRIPWIRE — batcher-primary, gang DEFERRED (decided 2026-07-23, ~75–80% confidence).**
-    Full analysis: [`docs/phases/bn5-playstyle-analysis.md`](docs/phases/bn5-playstyle-analysis.md).
+    Load-bearing conclusions are folded into this block; the full workings (crime tables, income
+    comparison, per-install carry math, and the §7 list of unverified assumptions) are archived at
+    [`docs/archive/bn5-playstyle-analysis.md`](docs/archive/bn5-playstyle-analysis.md).
     - **Why deferred, not rejected:** gang permanence across installs is REAL (members/respect/
       equipment/ascension mults survive; karma is a once-per-node cost) — but the payoff step is
       dead here: the in-game gang doc says gangs outside BN2 *"will not be a way to destroy the
@@ -64,6 +88,13 @@ on request — hold to them even when the moment is uncomfortable.
     - **Why deferring is free (the whole argument):** karma is grindable mid-node with **zero loss**,
       so waiting costs nothing, while committing early costs 1–2 days of player-slot occupation at
       the worst possible moment. **Default if this line is never revisited: stay batcher-only.**
+    - **If the tripwire DOES fire, this is the bill:** ~**24–36h of continuous player-action-slot**
+      occupation (homicide from combat-stats 1, incl. ~2–6h of gym training first) **plus ~half a
+      day of new dev** — a crime-loop companion *and* a suppression flag in `augfarmer.js`, because
+      the karma grind seizes the single player action slot and would otherwise be cancelled by
+      `workForFaction` re-asserting every poll (`src/augfarmer.js:2653`). The slot is taken from the
+      early faction-rep path, which is **serial** (money is parallel, rep is not) — that, not the
+      wall-clock, is the real cost.
     - ⚠️ **Treat ~$15M/s as the thing to MEASURE, not a prediction** — fable's BN5 income figures are
       order-of-magnitude scalings, which is exactly why this ships as a measured tripwire. Its other
       unverified assumptions (fork crime constants, does karma survive an install here, which
