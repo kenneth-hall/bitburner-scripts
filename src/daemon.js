@@ -32,6 +32,7 @@ import {
   pickBatchSet,
   cappedPipelineDepth,
   memberReserveGb,
+  diagnosePlacement,
   batchRamCost,
   carveReservation,
   planShareTopUp,
@@ -459,6 +460,11 @@ function recordSkipEvent(entries, openSkipRecords, record) {
     open.batchesInFlight = record.batchesInFlight;
     open.pipeline = record.pipeline;
     open.utilizationPct = record.utilizationPct;
+    // Refreshed, not frozen at first-sighting: the diagnosis is the whole
+    // point of a long-running skip run (it tells you which way the fleet is
+    // short right now, and would silently go stale if only the count moved).
+    open.diagnosis = record.diagnosis;
+    open.fractionTried = record.fractionTried;
     return entries;
   }
 
@@ -473,6 +479,8 @@ function recordSkipEvent(entries, openSkipRecords, record) {
     batchesInFlight: record.batchesInFlight,
     pipeline: record.pipeline,
     utilizationPct: record.utilizationPct,
+    diagnosis: record.diagnosis,
+    fractionTried: record.fractionTried,
   };
   entries.push(fresh);
   entries = trimLog(entries, openSkipRecords);
@@ -1044,11 +1052,18 @@ export async function main(ns) {
         let fraction = HACK_FRACTION;
         let assigned = null;
         let winningRates = null;
+        // Diagnosis of the LAST (cheapest) attempt, kept for the skip record --
+        // see diagnosePlacement. Without it a skip says only "didn't fit",
+        // which cannot distinguish "grow the fleet" from "split the job".
+        let lastDiagnosis = null;
+        let lastFractionTried = fraction;
         while (fraction >= MIN_HACK_FRACTION) {
           const rates = fraction === HACK_FRACTION ? member.sample : sampleBatchFields(ns, target, fraction, useFormulas);
           if (rates === null) break; // unusable sample -- nothing sane to plan this tick
           const jobs = fraction === HACK_FRACTION ? member.jobs : planBatch(rates);
           assigned = assignBatchHosts(jobs, liveHosts, ramCosts);
+          lastFractionTried = fraction;
+          if (!assigned) lastDiagnosis = diagnosePlacement(jobs, liveHosts, ramCosts);
           if (assigned) {
             winningRates = rates;
             break;
@@ -1097,7 +1112,13 @@ export async function main(ns) {
           });
         } else {
           totalBatchesSkipped++;
-          memberResults.push({ server: member.server, kind: "skipped", saturated: !allowShrink });
+          memberResults.push({
+            server: member.server,
+            kind: "skipped",
+            saturated: !allowShrink,
+            diagnosis: lastDiagnosis,
+            fractionTried: lastFractionTried,
+          });
         }
       } else {
         // Drifted -- dispatch prep, same samplePrepFields/planPrep path as
@@ -1384,6 +1405,8 @@ export async function main(ns) {
           timestamp: Date.now(),
           batchTarget: mr.server,
           saturated: mr.saturated,
+          diagnosis: mr.diagnosis,
+          fractionTried: mr.fractionTried,
           batchesInFlight: info.batchesInFlight,
           pipeline: {
             depth: member.depth,

@@ -15,6 +15,7 @@ import {
   pipelineDepth,
   cappedPipelineDepth,
   memberReserveGb,
+  diagnosePlacement,
   planBatch,
   batchRamCost,
   carveReservation,
@@ -81,6 +82,46 @@ describe('cappedPipelineDepth (Phase 15)', () => {
     const weakenTimeMs = 5 * BATCH_INTERVAL_MS; // pipelineDepth = 5
     const ramCostGb = 20;
     expect(cappedPipelineDepth(weakenTimeMs, ramCostGb, 100)).toBe(5); // 100 / 20 = 5, exact
+  });
+});
+
+describe('diagnosePlacement', () => {
+  const ramCosts = { 'hack.js': 1, 'grow.js': 1, 'weaken.js': 1 };
+  const jobs = [
+    { script: 'hack.js', threads: 10 }, // 10 GB
+    { script: 'grow.js', threads: 60 }, // 60 GB -- the largest job
+    { script: 'weaken.js', threads: 20 }, // 20 GB
+  ]; // batch total 90 GB
+
+  it('returns null when the batch fits', () => {
+    expect(diagnosePlacement(jobs, [{ hostname: 'a', freeRam: 100 }], ramCosts)).toBe(null);
+  });
+
+  it('reports total-ram when the whole fleet is short', () => {
+    const d = diagnosePlacement(jobs, [{ hostname: 'a', freeRam: 40 }, { hostname: 'b', freeRam: 30 }], ramCosts);
+    expect(d.blockedBy).toBe('total-ram');
+    expect(d.batchCostGb).toBe(90);
+    expect(d.totalFreeGb).toBe(70);
+    expect(d.shortfallGb).toBe(20);
+  });
+
+  it('reports per-host when the fleet has the RAM but no single host does', () => {
+    // 150 GB free in aggregate, but the 60 GB grow job needs one 60 GB host.
+    const d = diagnosePlacement(jobs, [{ hostname: 'a', freeRam: 50 }, { hostname: 'b', freeRam: 50 }, { hostname: 'c', freeRam: 50 }], ramCosts);
+    expect(d.blockedBy).toBe('per-host');
+    expect(d.largestJobGb).toBe(60);
+    expect(d.largestHostFreeGb).toBe(50);
+    expect(d.shortfallGb).toBe(10); // splitting, or 10 GB more on one host
+  });
+
+  it('prefers total-ram when both are true (fleet growth is the only fix)', () => {
+    const d = diagnosePlacement(jobs, [{ hostname: 'a', freeRam: 5 }], ramCosts);
+    expect(d.blockedBy).toBe('total-ram');
+  });
+
+  it('handles an empty job list and an empty fleet without throwing', () => {
+    expect(diagnosePlacement([], [{ hostname: 'a', freeRam: 10 }], ramCosts)).toBe(null);
+    expect(diagnosePlacement(jobs, [], ramCosts).blockedBy).toBe('total-ram');
   });
 });
 

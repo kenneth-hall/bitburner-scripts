@@ -236,6 +236,53 @@ export function assignBatchHosts(jobs, hosts, ramCosts) {
 }
 
 /**
+ * Pure. Explains WHY a batch could not be placed, from the same inputs
+ * assignBatchHosts just rejected.
+ *
+ * assignBatchHosts requires each job whole on ONE host (unlike planPrep, which
+ * splits freely), so there are two distinct failure modes that look identical
+ * in a skip record and have completely different fixes:
+ *
+ *   "total-ram"  the batch costs more than the entire free fleet. Only fleet
+ *                growth helps. Splitting jobs would change nothing.
+ *   "per-host"   the fleet HAS the RAM in aggregate, but no single host can
+ *                hold the biggest job. Splitting that job across hosts would
+ *                place the batch immediately, at zero cost.
+ *
+ * Returns null when the batch actually fits (nothing to diagnose). Reported
+ * every skip so "the batcher is busy" and "the batcher is wedged" stop looking
+ * the same from the outside -- the daemon already computes all of this at the
+ * moment of failure and used to discard it.
+ * @param {{script: string, threads: number}[]} jobs
+ * @param {{hostname: string, freeRam: number}[]} hosts
+ * @param {Record<string, number>} ramCosts
+ */
+export function diagnosePlacement(jobs, hosts, ramCosts) {
+  if (jobs.length === 0) return null;
+  const jobCosts = jobs.map((job) => ramCosts[job.script] * job.threads);
+  const batchCostGb = jobCosts.reduce((sum, c) => sum + c, 0);
+  const largestJobGb = Math.max(...jobCosts);
+  const freeRams = hosts.map((h) => h.freeRam);
+  const totalFreeGb = freeRams.reduce((sum, r) => sum + r, 0);
+  const largestHostFreeGb = freeRams.length > 0 ? Math.max(...freeRams) : 0;
+
+  let blockedBy = null;
+  if (batchCostGb > totalFreeGb) blockedBy = "total-ram";
+  else if (largestJobGb > largestHostFreeGb) blockedBy = "per-host";
+  if (blockedBy === null) return null;
+
+  return {
+    blockedBy,
+    batchCostGb,
+    largestJobGb,
+    largestHostFreeGb,
+    totalFreeGb,
+    // What the fleet is short by, in the units that matter for the named fix.
+    shortfallGb: blockedBy === "total-ram" ? batchCostGb - totalFreeGb : largestJobGb - largestHostFreeGb,
+  };
+}
+
+/**
  * Builds and host-assigns the prep jobs (weaken toward min security, grow
  * toward max money, counter-weaken the grow's security) for a target that
  * isn't yet prepped. Unlike batch jobs, prep jobs may split across multiple
