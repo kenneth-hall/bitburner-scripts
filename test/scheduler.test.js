@@ -14,6 +14,7 @@ import {
   isPrepped,
   pipelineDepth,
   cappedPipelineDepth,
+  memberReserveGb,
   planBatch,
   batchRamCost,
   carveReservation,
@@ -80,6 +81,31 @@ describe('cappedPipelineDepth (Phase 15)', () => {
     const weakenTimeMs = 5 * BATCH_INTERVAL_MS; // pipelineDepth = 5
     const ramCostGb = 20;
     expect(cappedPipelineDepth(weakenTimeMs, ramCostGb, 100)).toBe(5); // 100 / 20 = 5, exact
+  });
+});
+
+describe('memberReserveGb', () => {
+  it('reserves the unfilled remainder of an affordable pipeline', () => {
+    expect(memberReserveGb(300, 120, 1000)).toBe(180);
+  });
+
+  it('reserves nothing once an affordable pipeline is fully in flight', () => {
+    expect(memberReserveGb(300, 300, 1000)).toBe(0);
+    expect(memberReserveGb(300, 340, 1000)).toBe(0); // over-committed, never negative
+  });
+
+  it('exact-fit boundary: cost === budget is affordable, so it still reserves', () => {
+    expect(memberReserveGb(300, 0, 300)).toBe(300);
+  });
+
+  it('reserves nothing for a floor-seated member (cost over budget)', () => {
+    // The BN5 cold-start deadlock: a 1,684.9GB pipeline carved against a 297GB
+    // budget zeroed the waterfall, so no other target ever got prepped.
+    expect(memberReserveGb(1684.9, 0, 297)).toBe(0);
+  });
+
+  it('still reserves nothing for a floor-seated member that got a shrunk batch away', () => {
+    expect(memberReserveGb(1684.9, 40, 297)).toBe(0);
   });
 });
 

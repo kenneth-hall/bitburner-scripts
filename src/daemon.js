@@ -31,6 +31,7 @@ import {
   planPrep,
   pickBatchSet,
   cappedPipelineDepth,
+  memberReserveGb,
   batchRamCost,
   carveReservation,
   planShareTopUp,
@@ -1121,7 +1122,10 @@ export async function main(ns) {
     const memberReserve = new Map(); // server -> {reserveGb, inFlightRamGb, batchesInFlight}
     for (const member of result.members) {
       const info = postLaunchInFlight.byTarget[member.server] ?? { batches: 0, ramGb: 0 };
-      const reserveGb = Math.max(0, member.pipelineCostGb - info.ramGb);
+      // Floor-seated members reserve nothing -- see memberReserveGb's comment
+      // for why an unaffordable pipeline's reserve is unspendable, and how
+      // carving it anyway deadlocks a cold-start fleet.
+      const reserveGb = memberReserveGb(member.pipelineCostGb, info.ramGb, batchBudgetGb);
       memberReserve.set(member.server, { reserveGb, inFlightRamGb: info.ramGb, batchesInFlight: info.batches });
       totalReserveGb += reserveGb;
     }

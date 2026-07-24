@@ -6,6 +6,27 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-24
+
+- **Cold-start deadlock fixed — a floor-seated member reserved a pipeline it could never buy, and
+  starved every other target's prep.** Found live 11 hours into BN5 with the node earning
+  **~$0.77/sec** and **zero batches launched since entry**: `pickBatchSet`'s floor rule seated
+  phantasy (top-scored, pipeline **1,684.9 GB**) against a 297 GB budget, the daemon's shrink loop
+  couldn't place even `MIN_HACK_FRACTION` (`assignBatchHosts` needs each job whole on one host, and
+  the cold fleet was 18 small servers), and the aggregate carve then fenced off the full 1,684.9 GB
+  against a **396 GB fleet** — zeroing `waterfallAvailableGb`, so none of the 11 cheaper targets ever
+  got prepped, so no affordable candidate ever appeared for passes 1–2 to seat. Self-sustaining: no
+  income → cloudmanager stuck at $0 available → fleet never grows → repeat. Fix: new pure
+  `memberReserveGb(pipelineCostGb, inFlightRamGb, budgetGb)` in `scheduler.js` returns **0** for a
+  floor-seated member (cost > budget), since that remainder is unspendable by construction; safe
+  because member launches (step 5) precede the carve and the waterfall (step 7), so the floor member
+  keeps first refusal on the whole fleet each tick. Live-validated on restart: `reserveGb` 1,684.9 →
+  **0**, `waterfallAvailableGb` 0 → 7.5, utilization **0% → 98.1%** in one tick with prep finally
+  running. 908 tests pass (5 new). **Exposed by a BitNode *entry*, not an install** — an install
+  preserves home RAM (524 GB free at the BN2 handoff), an entry drops it to ~32 GB with no purchased
+  fleet, so the engine had never met a genuinely tiny fleet. Both halves of this were already logged
+  as open items on 2026-07-18 (`batcher-engine.md` §4) and left unbuilt.
+
 ## 2026-07-23
 
 - **`endgameHold` freeze fixed — a BN1 constant that deadlocked the BN2 ratchet at hacking 2500.**

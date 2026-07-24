@@ -88,6 +88,16 @@ BitNode entry (hard reset) — pulled forward from the now-archived `bn1-install
   ([[reference_share_boost_needs_faction_work]]); on a factionless fresh node its 25% carve starved
   the batcher's own budget below what its top-scored target needed, causing **$0 income for ~7 hours**
   — not merely wasteful, but decisive. See §4 for the still-open fix.
+- **A floor-seated member used to reserve its whole unaffordable pipeline, deadlocking cold starts.**
+  Fixed 2026-07-24 (`memberReserveGb`); kept here because the *shape* recurs. `pickBatchSet`'s floor
+  rule seats the top-scored candidate even when nothing fits, and the aggregate carve then fenced off
+  its full nominal pipeline — on a small fleet that carve exceeded the fleet, zeroing the waterfall so
+  **no other target ever got prepped**, so no affordable candidate ever appeared to replace it. Live
+  cost: **11 hours at ~$0.77/sec entering BN5.** Tell-tale in `daemon-status.json` — a member with
+  `floor: true` + `commitPct: 0` while `waterfall.availableGb` is `0` and `skipServers` names that
+  same member. **A new-BitNode entry, not a post-install reset, is what exposes this**: an install
+  preserves home RAM (524 GB free at the BN2 handoff), a BitNode entry drops it to ~32 GB with no
+  purchased fleet, so the engine had never actually met a genuinely tiny fleet before.
 
 ---
 
@@ -135,9 +145,28 @@ check there for everything else.
   45s. **The fix that would have prevented it outright:** suppress `share.js` automatically
   whenever `ns.getPlayer().factions` is empty — stronger and simpler than any fleet-size-floor
   heuristic, no design work needed. Still manual as of 2026-07-22 (`share-off.txt` toggled by
-  hand). **Related, also open:** the daemon reserved RAM for a target reporting `floor: true` /
-  `commitPct: 0` every tick without ever escalating — a member at 0% commitment for N consecutive
-  ticks should be dropped for an affordable one instead of reserved for silently, forever.
+  hand).
+  - **⚠️ It bit a second time entering BN5, 2026-07-24 — this is now a repeat, not an anecdote.**
+    96 GB of a 396 GB cold-start fleet went to share while zero faction work was running (the
+    ratchet couldn't even launch). **Correction to the BN2 reading, though: share was NOT decisive
+    here.** Dropping `share-off.txt` by hand returned all 96 GB and the daemon still launched
+    nothing — utilization went 24.2% → **0%**. The deadlock was the floor-reserve carve below; share
+    was pure waste layered on top. So "share starved the batcher" generalises less than 2026-07-18
+    concluded: treat it as *wasted RAM that is always worth reclaiming*, and don't reach for it as
+    the explanation when a fleet is idle.
+  - **Escalation, not just a re-log:** the auto-suppress was called "no design work needed" on
+    2026-07-18 and has now cost two of the last two node entries. The cheap 90% version is the
+    empty-`factions` check already specified above; the honest version also covers *joined but not
+    working* (BN5's case — nine factions would be joined post-install yet nothing is grinding rep),
+    which means gating on the ratchet's live work state, not membership alone.
+- **~~Floor-seated members reserve their whole unaffordable pipeline~~ — FIXED 2026-07-24.**
+  `memberReserveGb` (`scheduler.js`) returns 0 once `pipelineCostGb > budgetGb`, so the carve can no
+  longer exceed the fleet and starve the waterfall. Live: `reserveGb` 1,684.9 → 0,
+  `waterfallAvailableGb` 0 → 7.5, utilization 0% → 98.1% within one tick, with prep finally running
+  on the other 11 targets. See §2's landmine for the failure shape. **Still open (the other half of
+  the original item):** nothing *escalates* — a member sitting at `commitPct: 0` for N consecutive
+  ticks is still held forever rather than dropped for an affordable target. The fix above makes that
+  survivable (the waterfall now works around it) instead of fatal, so it's no longer urgent.
 - **Core-aware grow/weaken sizing — SHELVED, not a live bug.** `sampling.js` sizes grow/weaken at an
   implicit 1 core; this is a safe overshoot (grow's security bump is core-independent) and was only
   ~1% of fleet RAM at home's 2 cores when last checked. **Revisit when** home cores get upgraded

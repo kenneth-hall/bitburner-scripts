@@ -92,6 +92,40 @@ export function cappedPipelineDepth(weakenTimeMs, ramCostGb, budgetGb) {
 }
 
 /**
+ * How much RAM daemon.js's aggregate carve should fence off for one batch
+ * member: normally the unfilled remainder of its pipeline (cost minus what's
+ * already in flight), so the waterfall can't spend RAM the member is about to
+ * need to reach depth.
+ *
+ * A FLOOR-SEATED member is the exception and reserves nothing beyond what it
+ * already holds. pickBatchSet's floor rule seats it precisely BECAUSE its cost
+ * exceeds the whole budget, so the remainder is unspendable by construction --
+ * no quantity of held RAM lets it reach a depth the budget can't buy. On a
+ * small fleet the carve then exceeds the fleet itself, zeroing the waterfall's
+ * available RAM and starving prep of every OTHER target -- which is a
+ * self-sustaining deadlock, not a slow tick: with no cheap target ever
+ * prepped, no affordable candidate ever appears for passes 1-2 to seat, so the
+ * floor member keeps its seat forever and the fleet earns nothing.
+ *
+ * Observed live 2026-07-24, 11h into a BN5 cold start on a 396GB fleet:
+ * phantasy floor-seated at 1,684.9GB pipeline vs a 297GB budget, 12,750
+ * consecutive skips, waterfallAvailableGb 0, income ~$0.77/sec.
+ *
+ * Dropping the reserve doesn't cost the floor member its shot: daemon.js
+ * launches members (step 5) BEFORE this carve and before the waterfall (step
+ * 7), so it still gets first refusal on the whole fleet every tick. In-flight
+ * RAM is already deducted from the host pool, which is the only protection an
+ * unaffordable pipeline can actually use.
+ * @param {number} pipelineCostGb
+ * @param {number} inFlightRamGb
+ * @param {number} budgetGb the same batch budget pickBatchSet's floor rule compared against
+ */
+export function memberReserveGb(pipelineCostGb, inFlightRamGb, budgetGb) {
+  if (pipelineCostGb > budgetGb) return 0; // floor-seated
+  return Math.max(0, pipelineCostGb - inFlightRamGb);
+}
+
+/**
  * Builds the four one-shot jobs for one batch: hack +0, weaken1 +1*SPACING_MS,
  * grow +2*SPACING_MS, weaken2 +3*SPACING_MS, each timed via additionalMsec so
  * all four land that many milliseconds apart despite launching together.
