@@ -1302,6 +1302,7 @@ export async function main(ns) {
     // is already score-ordered by getTargets, and liveStates was populated for
     // every target earlier this tick -- before the sample===null continue, so
     // even targets excluded from candidates still carry a live entry here.
+    const candidateCostGb = new Map(candidates.map((c) => [c.server, c.pipelineCostGb]));
     ns.write(
       TARGETS_RANKING_FILE,
       JSON.stringify(
@@ -1320,6 +1321,16 @@ export async function main(ns) {
               money: live.currentMoney,
               maxMoney: t.maxMoney,
               score: t.score,
+              // Why a target is or isn't seatable, exported so it can be read
+              // without a live probe. pickBatchSet seats a candidate only when
+              // pipelineCostGb <= the batch budget; when NO candidate fits, the
+              // floor rule seats the highest-SCORED one, which is not
+              // necessarily the cheapest. Without this field there is no way to
+              // tell "the fleet is one tier short" from "every target is
+              // wildly out of reach" -- exactly the question left open by the
+              // 2026-07-24 cold-start deadlock. null = excluded from candidates
+              // this tick (unhackable sample).
+              pipelineCostGb: candidateCostGb.get(t.server) ?? null,
             };
           }),
           targets.length,
