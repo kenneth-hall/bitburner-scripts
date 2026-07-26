@@ -439,7 +439,19 @@ positive) — heat is not creeping.
 ## 5. Architecture — `gangmanager.js` and companions
 
 **`gangmanager.js`** (headless daemon companion, `RESIDENT_COMPANIONS` priority slot) — recruits
-greedily, assigns tasks via the ladder, buys equipment, ascends members. `gang-off.txt` on home
+greedily, assigns tasks via the ladder, buys equipment, ascends members.
+
+> **Gang-gated since 2026-07-26 — this script is inert, and now silent, in a gangless node.** It
+> still exits immediately when `ns.gang.inGang()` is false (`gangmanager.js:458`), but `daemon.js`
+> no longer launches or supervises it in that state: `supervisedResidents()` filters
+> `GANG_GATED_COMPANIONS` out of the supervisor diff and the startup block skips both it and
+> `gangratelog.js`, printing one INFO line instead. The gate is re-read every supervisor check
+> (`inGang()` is 0 GB), so **nothing here needs re-enabling by hand** — a future `createGang()`
+> brings both back within 60s, in this node or any later one. Reason it was added: BN5 has no gang,
+> so the supervisor was relaunching an ERROR-and-exit script every 5 minutes indefinitely (110
+> attempts / 9.1h observed).
+
+`gang-off.txt` on home
 suppresses all actions while it keeps observing/logging. **To create it:** this build's terminal
 has no `write` command — drop the file under `src/gang-off.txt` and let viteburner sync it to
 `@home:/gang-off.txt` (same mechanism `share-off.txt`/`xp-off.txt` use), or `nano <file>` + Save

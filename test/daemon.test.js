@@ -4,7 +4,7 @@
 // dashboard.js status-snapshot builder). trimLog/DAEMON_LOG_MAX_ENTRIES are
 // exported for this test only -- no other behavior change.
 import { describe, it, expect } from 'vitest';
-import { trimLog, DAEMON_LOG_MAX_ENTRIES, buildDaemonStatus, planRelaunches, RESIDENT_COMPANIONS, SUPERVISOR_RETRY_MS } from '../src/daemon.js';
+import { trimLog, DAEMON_LOG_MAX_ENTRIES, buildDaemonStatus, planRelaunches, RESIDENT_COMPANIONS, SUPERVISOR_RETRY_MS, supervisedResidents, GANG_GATED_COMPANIONS } from '../src/daemon.js';
 
 /** Builds MAX + extra plain entries, no `mode` event -- non-pinned case. */
 function buildPlainEntries(count) {
@@ -164,5 +164,31 @@ describe('planRelaunches — Phase 26 B1 (S5/S10)', () => {
   it('multiple missing residents are all handled in one pass', () => {
     const r = planRelaunches(new Set(), residents, new Set(), {}, 1000);
     expect(r.launch.sort()).toEqual(['a.js', 'b.js', 'c.js']);
+  });
+
+  describe('supervisedResidents -- gang gate', () => {
+    it('with a gang, the set is the full resident list unchanged', () => {
+      expect(supervisedResidents(RESIDENT_COMPANIONS, true)).toEqual(RESIDENT_COMPANIONS);
+    });
+
+    it('without a gang, gangmanager.js is dropped and nothing else is', () => {
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, false);
+      expect(gated).not.toContain('gangmanager.js');
+      expect(gated).toEqual(RESIDENT_COMPANIONS.filter((s) => s !== 'gangmanager.js'));
+    });
+
+    it('every gang-gated name is actually a resident -- a typo would silently gate nothing', () => {
+      for (const script of GANG_GATED_COMPANIONS) expect(RESIDENT_COMPANIONS).toContain(script);
+    });
+
+    it('a gangless gate means no relaunch is ever planned for gangmanager.js', () => {
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, false);
+      const r = planRelaunches(new Set(), gated, new Set(), {}, 1000);
+      expect(r.launch).not.toContain('gangmanager.js');
+      expect(r.lastAttemptMs['gangmanager.js']).toBeUndefined();
+      // ...and the gate is the only thing suppressing it: with a gang it plans.
+      const withGang = planRelaunches(new Set(), supervisedResidents(RESIDENT_COMPANIONS, true), new Set(), {}, 1000);
+      expect(withGang.launch).toContain('gangmanager.js');
+    });
   });
 });

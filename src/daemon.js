@@ -132,6 +132,31 @@ export const RESIDENT_COMPANIONS = [
 export const SUPERVISOR_CHECK_MS = 60_000; // time-gated inside the main loop, like the share-marker check
 export const SUPERVISOR_RETRY_MS = 5 * 60_000; // per-script backoff so an instantly-re-crashing script doesn't relaunch-storm
 
+// Residents that are only meaningful with a gang. gangmanager.js exits
+// immediately when ns.gang.inGang() is false (gangmanager.js:458), so in a
+// gangless node the supervisor sees it missing forever and relaunches it every
+// SUPERVISOR_RETRY_MS -- two terminal lines per 5 min, indefinitely (110
+// attempts / 9.1h observed in BN5 on 2026-07-26). "Missing" is its correct
+// state without a gang, exactly like gangratelog.js's exclusion above, so it's
+// filtered out of the supervised set rather than being relaunched into the same
+// exit. Kept in RESIDENT_COMPANIONS (not deleted) because the gate is dynamic:
+// createGang() mid-session restores supervision at the next check, no daemon
+// restart needed.
+export const GANG_GATED_COMPANIONS = ["gangmanager.js"];
+
+/**
+ * Pure. The supervised resident set for the current gang state: the full list
+ * when a gang exists, minus GANG_GATED_COMPANIONS when it doesn't. Order
+ * preserved.
+ * @param {string[]} residents
+ * @param {boolean} hasGang
+ * @returns {string[]}
+ */
+export function supervisedResidents(residents, hasGang) {
+  if (hasGang) return residents;
+  return residents.filter((s) => !GANG_GATED_COMPANIONS.includes(s));
+}
+
 // Phase 24 (S2): a purpose-built status snapshot for dashboard.js -- distinct
 // from DAEMON_LOG_FILE's event ring buffer, which only carries this info
 // once per CYCLE_MS via `snapshot` events and lacks several tail-only fields
@@ -528,11 +553,22 @@ export async function main(ns) {
   // in the priority slot the RAM census assigned it (the phase's primary
   // gate can't be the script that loses the startup RAM race). Recruit +
   // task-assign only (Tier 1); Tier 2-4 are future phases.
-  launchDetached(ns, "gangmanager.js");
-  // Phase 30 survivor: durable respect-rate / ascension-mult series sampler.
-  // Thin consumer of gang-state.json (no gang API) -- persists the downsampled
-  // series gangmanager's overwrite-in-place snapshot can't keep.
-  launchDetached(ns, "gangratelog.js");
+  //
+  // Gated on ns.gang.inGang() (0 GB, the one gang call that works pre-gang):
+  // launching it gangless just burns its ERROR-and-exit path, and the
+  // supervisor would then re-launch it forever. See GANG_GATED_COMPANIONS.
+  const hasGangAtStartup = ns.gang.inGang();
+  if (hasGangAtStartup) {
+    launchDetached(ns, "gangmanager.js");
+    // Phase 30 survivor: durable respect-rate / ascension-mult series sampler.
+    // Thin consumer of gang-state.json (no gang API) -- persists the downsampled
+    // series gangmanager's overwrite-in-place snapshot can't keep. Same gate:
+    // it self-exits on a missing/stale gang-state.json anyway, so launching it
+    // gangless only spends an exec.
+    launchDetached(ns, "gangratelog.js");
+  } else {
+    tprintTs(ns, "INFO: no gang -- gangmanager.js/gangratelog.js not launched, gangmanager.js supervision suspended");
+  }
   // Phase 32: BN2.1 progress sampler -- installed hacking mult `M` toward the
   // w0r1d_d43m0n gate, a smoothed gang+hacking income $/sec + trend, and the
   // $-to-next-aug/awaiting-money timer. ~3.1 GB (getMoneySources+getPlayer).
@@ -807,8 +843,23 @@ export async function main(ns) {
     if (supervisorNowMs - lastSupervisorCheck >= SUPERVISOR_CHECK_MS) {
       lastSupervisorCheck = supervisorNowMs;
       const runningNames = new Set(ns.ps("home").map((p) => p.filename));
+      // Re-read the gang gate every check rather than reusing the startup
+      // value (ns.gang.inGang() is 0 GB): a gang created mid-session by
+      // gangcreate.js starts being supervised within one check, and no
+      // gangless node pays for a companion that can only exit.
+      const supervised = supervisedResidents(RESIDENT_COMPANIONS, ns.gang.inGang());
+      // Drop bookkeeping for anything the gate just removed, so a later
+      // createGang() starts from a clean slate instead of inheriting a
+      // multi-hour missing-since and a mid-backoff attempt clock.
+      for (const script of GANG_GATED_COMPANIONS) {
+        if (supervised.includes(script)) continue;
+        delete companionMissingSince[script];
+        delete companionAttemptCount[script];
+        delete supervisorAttempts[script];
+        waitingRamAnnounced.delete(script);
+      }
 
-      for (const script of RESIDENT_COMPANIONS) {
+      for (const script of supervised) {
         if (runningNames.has(script)) {
           delete companionMissingSince[script];
           delete companionAttemptCount[script];
@@ -817,8 +868,8 @@ export async function main(ns) {
         }
       }
 
-      const unfitNames = new Set(RESIDENT_COMPANIONS.filter((s) => !runningNames.has(s) && !fitsOnHome(ns, s)));
-      const supervisorPlan = planRelaunches(runningNames, RESIDENT_COMPANIONS, unfitNames, supervisorAttempts, supervisorNowMs);
+      const unfitNames = new Set(supervised.filter((s) => !runningNames.has(s) && !fitsOnHome(ns, s)));
+      const supervisorPlan = planRelaunches(runningNames, supervised, unfitNames, supervisorAttempts, supervisorNowMs);
       supervisorAttempts = supervisorPlan.lastAttemptMs;
 
       for (const script of supervisorPlan.launch) {

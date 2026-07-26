@@ -53,7 +53,7 @@ Home-only by construction: every companion is `ns.exec(script, "home", 1, …)`
 | 1 | transactionsmonitor.js | 2.60 | ✓ | ✓ | ✓ |
 | 2 | resourcemanager.js | 3.35 | ✓ | ✓ | ✓ |
 | 3 | cloudmanager.js | 6.25 | ✓ | ✓ | ✓ |
-| 4 | gangmanager.js | 24.80 | ✗ | (transient) | (transient) |
+| 4 | ~~gangmanager.js~~ | 24.80 | n/a | n/a | n/a |
 | 5 | **augfarmer.js** | **64.10** | ✗ | **✗** | **✓** |
 | 6 | dashboard.js | 2.60 | ✓ | ✓ | ✓ |
 | 7 | xpfarm.js | 5.85 | ✗ | ✓ | ✓ |
@@ -76,6 +76,15 @@ Home-only by construction: every companion is `ns.exec(script, "home", 1, …)`
 BN5. Its slot ahead of augfarmer costs a transient 24.8 GB at launch/retry moments only;
 after the census fills 128 GB, supervisor retries of it fail `fitsOnHome` and go to
 `waitingRam` (an INFO line, no crash). No change to the answer above.
+
+**Superseded 2026-07-26 — it isn't even transient now.** `daemon.js` gang-gates both the startup
+launch and the supervisor diff on `ns.gang.inGang()` (`supervisedResidents()` /
+`GANG_GATED_COMPANIONS`), so in gangless BN5 `gangmanager.js` is never `exec`'d at all: no 24.8 GB
+transient, no launch-order race against `augfarmer.js`, and the "ratchetlog may wait one 60s
+supervisor cycle for gangmanager's transient to release" caveat above no longer applies. The gate is
+re-read each check, so a mid-node `createGang()` restores the old behavior (and this table's
+reasoning) within 60s. The fix was for terminal noise — two lines per 5 min forever — but it also
+removes the only transient in the census.
 
 ## The circularity this $42M breaks
 

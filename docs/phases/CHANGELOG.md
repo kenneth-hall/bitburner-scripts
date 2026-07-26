@@ -6,6 +6,26 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-26
+
+- **Gang companions are gang-gated — the supervisor no longer relaunches an ERROR-and-exit script
+  forever in a gangless node.** BN5 has no gang, so `gangmanager.js` hit its
+  `if (!ns.gang.inGang())` guard (`gangmanager.js:458`) and exited at once, the supervisor saw it
+  missing, and the pair repeated every `SUPERVISOR_RETRY_MS` — **110 attempts over 9.1h** of two
+  terminal lines per 5 min, the same terminal-flood class as the `fitsOnHome` spam fixed 2026-07-24
+  (which had buried a backdoor confirmation). Fix in `daemon.js`: new pure
+  `supervisedResidents(residents, hasGang)` filters `GANG_GATED_COMPANIONS` (`gangmanager.js`) out
+  of the supervisor diff, and the startup block skips launching `gangmanager.js`/`gangratelog.js`,
+  printing one INFO line instead. `RESIDENT_COMPANIONS` is unchanged — the gate is **dynamic**, and
+  `ns.gang.inGang()` (0 GB, the only gang call that works pre-gang) is re-read every check, so a
+  mid-node `createGang()` restores supervision within 60s with no daemon restart; the gated names'
+  `missingSince`/attempt/backoff state is cleared while suspended so the eventual relaunch doesn't
+  inherit a multi-hour missing-since. Side benefit: `gangmanager.js`'s transient 24.8 GB is gone
+  from the home-RAM census, removing its launch-order race with `augfarmer.js`
+  (`docs/phases/bn5-purchase-plan.md` updated). 924 tests pass; `daemon.js` RAM re-measured at
+  **16.3 GB** — unchanged, no analyzer surprise. Live-confirmed on restart: the INFO line printed,
+  no gang lines across the following supervisor cycles.
+
 ## 2026-07-25
 
 - **Ratchet deadlock fixed — a `fundBlocked` head reserved 100% of the balance behind an

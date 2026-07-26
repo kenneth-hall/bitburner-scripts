@@ -33,6 +33,15 @@ any missing one (backoff-bounded; a missing-but-doesn't-fit-yet companion waits 
 relaunch-storming) — this supervisor role covers every daemon-launched companion, not just batcher
 workers (e.g. `gangmanager.js` sits in the priority slot right after `cloudmanager.js`, the RAM
 census's designated winner, since Phase 27). Restart via `tools/bb/cli.mjs restart daemon.js`.
+- **The supervised set is gang-gated (2026-07-26).** `supervisedResidents()` drops
+  `GANG_GATED_COMPANIONS` (`gangmanager.js`) from the diff whenever `ns.gang.inGang()` is false, and
+  the startup block skips launching `gangmanager.js`/`gangratelog.js` in the same case (one INFO
+  line instead). Without this, a gangless node relaunched a script whose only behavior is
+  ERROR-and-exit every `SUPERVISOR_RETRY_MS` forever — 2 terminal lines / 5 min, 110 attempts over
+  9.1h in BN5 before it was gated. The gate is **re-read every check**, not cached from startup
+  (`inGang()` is 0 GB), so a mid-session `gangcreate.js` restores supervision within 60s with no
+  daemon restart; the gated names' `missingSince`/attempt/backoff bookkeeping is cleared while
+  suspended so that relaunch starts from a clean slate.
 
 **Imported (pure logic, no standalone RAM footprint of their own beyond what they cost `daemon.js`):**
 - **`scheduler.js`** — batch math: threads, `additionalMsec` timing, RAM bin-packing. No `ns`.
