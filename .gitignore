@@ -22,6 +22,7 @@ saves/*.json
 saves/*.pretty.json
 
 # Session artifacts / local saves (Kenneth's, not source)
-bb-shot.png
+# bb-*.png are CDP screenshots taken during a session (bb-shot/bb-fac/bb-work/...)
+bb-*.png
 saves/
 src/ratchet-mode.txt

@@ -33,12 +33,16 @@ on request — hold to them even when the moment is uncomfortable.
            moment hacking crossed 400. That's $5b more `available`, and it matters because money is
            this node's binding constraint.
       3. **BitNode multiplier information on the Stats page** — the in-UI surface.
-      4. **While in `docs/bitnodes.md`, two stale claims to fix** (surfaced by the playstyle
-         analysis): its lines ~8-10 still say `getBitNodeMultipliers` "requires BN5 or SF5 — we have
-         neither" (we are *in* BN5), and lines ~364-370 still call the WD-gate model "an INFERENCE…
-         neither the base constant (3000) nor linearity is stated" — BN2's live 15,000 read
-         (= 500% × 3,000) gave that model a measured point, so BN5's 4,500 earns the confidence
-         upgrade.
+      4. **~~Stale claims in `docs/bitnodes.md`~~ — DONE 2026-07-26** (five, not the two originally
+         listed): the `getBitNodeMultipliers` "we have neither" note; the WD-gate "INFERENCE" block
+         (discharged with `logs/gatewatch-result.json`'s live `gateRequirement: 15000`, confirming
+         both the 3,000 base and linearity, which promotes BN5's 4,500 to derived-from-measured);
+         plus three more found in the same pass — the `ns.singularity.*` "not scriptable for us"
+         note (obsolete since Phase 21's SF4.3 grant, 2026-07-12), `SF1 level 1/3` (it is **3/3**;
+         a `augCount: 0` dump reads every mult at exactly **1.28**), and `SF2 level 0/3 (not
+         cleared)`. **Also corrected an overclaim nobody had flagged:** "BN5's requirement is
+         already MET… cleared territory" — M does not cross a node boundary, so the real ask is
+         ×7.6 from the 1.28 floor at ~13× worse aug-buying power.
     Deliverable: durable doc updates (extend `docs/bitnodes.md`, or a new reference) **plus** any
     script/companion changes the three imply.
   - **BN5 operating facts** (from `docs/bitnodes.md` — read it before planning a BN5 clear).
@@ -81,10 +85,27 @@ on request — hold to them even when the moment is uncomfortable.
       also fails: the gang's payoff window is the day-1–4 bootstrap trough, exactly when it *cannot
       exist* (karma is slowest at stats 1, then it ramps from 3 members for 2–4 more days); by
       maturity (~day 5–7) the batcher is 10–30× the gang.
-    - **CHECK AT: 2026-07-26 (+72h) or the end of the first install cycle, whichever comes first.**
-      **Build the gang if** sustained batcher income < **~$15M/s** while **≥$2t** still needs
-      spending, **or** the node forecast exceeds 3 weeks. Otherwise stay batcher-only and re-check
-      only if those conditions later become true.
+    - **~~CHECK AT: 2026-07-26 (+72h)~~ — CHECKED 2026-07-26. Verdict: DO NOT build the gang.
+      Re-armed below.** Both firing clauses had triggered (the date, and `lastAugReset` put the
+      first install ~10h earlier), and on the stated numbers it fires overwhelmingly: measured
+      income was **$0.77/s → $5.4k/s → $0/s**, versus a $15M/s threshold, with **$333** banked
+      against a $2–4t node budget.
+      **It fires on a bug, not on BN5's economy, so firing it would be wrong.** Of the first ~72h
+      in-node, ~64h were spent inside engine deadlocks (11h floor-reserve, 53h `fundBlocked`, plus
+      the single-host placement bug that was *"the last thing holding BN5 at $0/s"* — all in
+      `docs/phases/CHANGELOG.md` 07-24/25). **We still have zero valid measurement of what this
+      node's batcher actually earns.**
+      **Lesson to keep: a tripwire needs a validity precondition, not just a date.** A threshold on
+      a measured quantity silently assumes the instrument works; this one had no clause requiring
+      the engine to be alive, so a bug and a strategic verdict were indistinguishable to it.
+    - **🎯 RE-ARMED — CHECK AT: 2026-08-02, and NOT before 24h of continuous batch placement.**
+      **Precondition (new, load-bearing):** the verdict is only valid on a window where
+      `daemon-status.json` shows batches actually launching — `warns.skipServers` empty and
+      `utilizationPct` moving. If that window hasn't happened yet, the answer is *"no valid
+      measurement,"* not *"income is low."*
+      **Then build the gang if** sustained batcher income < **~$15M/s** while **≥$2t** still needs
+      spending, **or** the node forecast exceeds 3 weeks. Otherwise stay batcher-only.
+      **Default if this line is never revisited: stay batcher-only** (unchanged).
     - **Why deferring is free (the whole argument):** karma is grindable mid-node with **zero loss**,
       so waiting costs nothing, while committing early costs 1–2 days of player-slot occupation at
       the worst possible moment. **Default if this line is never revisited: stay batcher-only.**

@@ -8,6 +8,36 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-26
 
+- **Outside-observer review: five stale claims discharged in `docs/bitnodes.md`, one overclaim
+  corrected, and the gang tripwire actually evaluated on its due date.** All resolved with
+  measurements already sitting in `logs/`, unread. (a) The `getBitNodeMultipliers` "we have
+  neither" note — we have been *in* BN5 since 07-23, and the API doc's precondition is
+  *"requires you to be in BitNode 5 or have Source-File 5"* (4 GB); the per-node tables are still
+  hand-read and now say so. (b) The WD-gate "**INFERENCE**, ~85% confidence" block — discharged by
+  `logs/gatewatch-result.json`, which captured `gateRequirement: **15000**` live on 07-23 with
+  `redPill: true`; 500% × 3,000 = 15,000 confirms **both** the 3,000 base constant and linearity,
+  promoting BN5's 4,500 from assumption to derived-from-measured. Same capture also answers a
+  standing open question: `repSurvivesInstall` = **21,506,614 → 0**, rep does not survive. (c) The
+  `ns.singularity.*` "not scriptable for us" note, obsolete since Phase 21's SF4.3 grant
+  (2026-07-12). (d) `SF1 level 1 / 3` → **3 / 3**, proven by an `augCount: 0` dump reading every
+  multiplier at exactly **1.28**. (e) `SF2 level 0 / 3 (not cleared)` → **1 / 3**, cleared 07-23.
+  **Plus an overclaim nobody had flagged:** "BN5's requirement is already MET… BN5 is cleared
+  territory" — M does not cross a node boundary (only Source-Files, home scripts and Intelligence
+  do), so the real ask is **×7.6 from the 1.28 floor** under `AugmentationMoneyCost` 200% +
+  `ScriptHackMoney` 15% ≈ **13× worse aug-buying power** than the BN1 run that produced 10.077.
+  Live check folded in: M **1.4126** at ~72h, which is **1.6%** of the earned distance, not the
+  15% a raw `M/target` ratio reports.
+  **Gang tripwire (`CLAUDE.md`), due today: CHECKED → do not build the gang.** Both firing clauses
+  had triggered and the stated threshold fires overwhelmingly ($0.77/s → $5.4k/s → $0/s vs
+  $15M/s; $333 banked vs a $2–4t budget) — but ~64 of the first ~72h in-node were spent inside
+  engine deadlocks, so **it fires on a bug, not on BN5's economy**, and there is still no valid
+  measurement of what this node's batcher earns. Re-armed for **2026-08-02 with a validity
+  precondition** (≥24h of actual batch placement) — the durable lesson being that a threshold on a
+  measured quantity silently assumes the instrument works. `BACKLOG.md`'s cold-start-hardening
+  trigger corrected from "the next BitNode entry" to **now** for the same reason: the class was
+  correctly root-caused on 07-24 and then rediscovered one member at a time (53h + 9.1h) instead of
+  swept. Docs + `.gitignore` only (`bb-shot.png` → `bb-*.png`); no code touched.
+
 - **Gang companions are gang-gated — the supervisor no longer relaunches an ERROR-and-exit script
   forever in a gangless node.** BN5 has no gang, so `gangmanager.js` hit its
   `if (!ns.gang.inGang())` guard (`gangmanager.js:458`) and exited at once, the supervisor saw it

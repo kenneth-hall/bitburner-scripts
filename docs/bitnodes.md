@@ -5,14 +5,21 @@ General BitNode info for this build. Sources: the in-game **Documentation → Bi
 screen** for BN4's detailed multiplier table. This build has **15 BitNodes** (vanilla stops at
 14; **BN15 is custom to this build**).
 
-**API note:** `ns.getBitNodeMultipliers(n?, lvl?)` can return any node's multipliers
-programmatically, but it **requires being in BitNode 5 or holding SF5** — we have neither, so
-per-node multiplier tables must be hand-read off the BitNode selection screen until SF5.
+**API note — UNBLOCKED 2026-07-23, we are inside BN5.** `ns.getBitNodeMultipliers(n?, lvl?)`
+returns any node's multipliers programmatically. The API doc states the precondition exactly:
+*"This function requires you to be in BitNode 5 or have Source-File 5 in order to run"*, RAM cost
+**4 GB**, values returned in **decimal** (`1.5`, not `150%`) —
+`markdown/bitburner.ns.getbitnodemultipliers.md`. We entered BN5.1 on 2026-07-23, so the
+precondition is met *now*, without SF5.
+⚠️ **Every per-node table below is still hand-read off the BitVerse selection panel by eye, and
+this build is a fork.** Until a live sweep re-verifies them against the call, treat them as
+transcriptions, not authority. That sweep is the open SF5 task in `CLAUDE.md`.
 
-**Singularity note:** `ns.singularity.*` is likewise **not scriptable for us right now** — it's
-available only *in-node in BN4* (before SF4, at 16× RAM) or *anywhere with SF4*. We have neither
-(we exited BN4 without clearing it), so all faction/company work, aug buy/install, program
-creation, and backdoors remain **manual-UI / CDP-driven** until we clear BN4.
+**Singularity note — OBSOLETE since 2026-07-12, kept only so the old claim isn't re-derived.**
+`ns.singularity.*` is fully scriptable. Phase 21 granted **SF4 level 3** by deliberate save edit
+(`docs/phases/phase-21-sf4-grant.spec.md`) — a permanent grant on this save that survives installs
+*and* node changes, with the 1× RAM discount confirmed live. The old "manual-UI / CDP-driven until
+we clear BN4" constraint no longer binds anything.
 
 ## How BitNodes work (from the doc page)
 - Destroying a BitNode resets most progress but grants a persistent **Source-File** (different
@@ -272,12 +279,17 @@ Captured from the in-game BitVerse node-selection panels — including the per-n
 tables `getBitNodeMultipliers()` can't reach without SF5. Grows as nodes are inspected. Also
 records our **owned Source-File level** shown on each panel.
 
-### BN1: Source Genesis — owned **SF1 level 1 / 3**
+### BN1: Source Genesis — owned **SF1 level 3 / 3** (MAXED)
 "The original BitNode." No modifiers — baseline, all multipliers 100% (no table shown). SF1:
 start 32GB home RAM, +all mults L1 16% / L2 24% / L3 28%. Panel offers *Advanced options* and
-*Enter BN1.2* (repeat for SF1.2). Current holding: **SF1.1** (BN1 cleared once).
+*Enter BN1.2* (repeat for SF1.2).
+**Current holding: SF1 level 3 — maxed, nothing further to gain here.** Confirmed by measurement,
+not by memory: `logs/auginfo-1784645817472.json` (2026-07-21, taken at `augCount: 0` immediately
+after an install) reads **every** multiplier at exactly **1.28** — the L3 +28% with no aug
+contribution. That 1.28 is the floor every subsequent node starts from, and it is the denominator
+any "M progress" readout should be measured against.
 
-### BN2: Rise of the Underworld — owned **SF2 level 0 / 3** (not cleared)
+### BN2: Rise of the Underworld — owned **SF2 level 1 / 3** (BN2.1 CLEARED 2026-07-23)
 SF2: form gangs in other nodes (karma-gated) + crime success/money/charisma L1 24 / L2 36 / L3 42%.
 Only listed multipliers differ from BN1 (100%); the rest are baseline. Multiplier table:
 - **General** — `w0r1d_d43m0n` Difficulty: **500%** (backdoor-hack gate ≈ hacking 15000 — but BN2's gang offers The Red Pill, the intended path)
@@ -323,8 +335,20 @@ about **3× short**, and still ~2× BN4's ask. Grinding genuinely cannot substit
 logarithmic in exp: a 10,000× XP increase buys only −39% on the required multiplier). Dropping
 our BN1.3 stack straight into BN2 reaches level ~3,400 against a 15,000 gate.
 
-**BN5's requirement is already MET, not merely approached: it needs M ≈ 9.73 at base exp and we
-demonstrated 10.077.** BN5 is cleared territory for the existing toolchain.
+**BN5 needs M ≈ 9.73 at base exp, and the toolchain has demonstrated 10.077 — but read that as a
+capability claim, not a readiness one.**
+
+⚠️ **CORRECTED 2026-07-26. This paragraph used to read "BN5's requirement is already MET… BN5 is
+cleared territory," and that framing is wrong in the way that matters.** M does **not** carry
+across a node boundary. Per the BitNodes doc quoted at the top of this file, only *Source-Files,
+scripts on home, and Intelligence* persist — so the 10.077 stack was deleted on entry and BN5.1
+started at the **SF1.3 floor of 1.28** (measured, see the BN1 entry above). The real ask is
+therefore **×7.6 from 1.28**, rebuilt from scratch, under `AugmentationMoneyCost` **200%** and
+`ScriptHackMoney` **15%** — roughly **13× worse aug-buying power than the BN1 run that produced
+10.077** (0.15 steal ÷ 2.0 cost). "We can build M ≈ 10" is true and was proven; "BN5 is cleared
+territory" is not, and reading it that way under-budgets the node.
+**Live check, 2026-07-26 (~72h in):** M = **1.4126**, 4 augs installed, NFG 1 — i.e. **1.6% of the
+earned distance** (1.4126−1.28)/(9.7−1.28), not the 15% a raw `M/target` ratio reports.
 
 **The one genuine unknown — and it is genuinely open, not rhetorically open — is BN2's gang aug
 catalog.** Decomposing our 10.077: NeuroFlux 67 = ×1.948, SF1.3 = ×1.28, leaving **×3.67 from
@@ -361,13 +385,24 @@ augs." That is evidence the gang catalog is meant to bridge this.
 alt-destroy (SF6/7) are both unowned, so hacking WD is the only destroy route here. But see the
 point above: BN2's intended counter is in-node, not carried in.
 
-**⚠️ The 15,000 figure is an INFERENCE, not a reading.** `WorldDaemonDifficulty` is confirmed by
-`markdown/bitburner.bitnodemultipliers.worlddaemondifficulty.md` to influence the required
-backdoor level, but neither the base constant (3000) nor linearity is stated in any doc, and
-`src/backdoorwd.js` shows `getServer("w0r1d_d43m0n")` throws until The Red Pill is installed — so
-it cannot be read in-game yet. Call it ~85% confidence. **Required checkpoint: read
-`getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill installs, before sizing any
-NFG grind against 15,000.**
+**✅ MEASURED 2026-07-23 — the 15,000 figure is no longer an inference.** It was carried at ~85%
+confidence ("neither the base constant (3000) nor linearity is stated in any doc") with a required
+checkpoint to read `getServerRequiredHackingLevel("w0r1d_d43m0n")` the moment Red Pill installed.
+**`gatewatch.js` fired that checkpoint and captured `gateRequirement: 15000`**
+(`logs/gatewatch-result.json`, 2026-07-23 2:22:10 PM, `redPill: true`). BN2's panel reads
+`WorldDaemonDifficulty` **500%**, and 500% × 3,000 = 15,000 exactly — so **both** the 3,000 base
+constant and the linear scaling are now confirmed by a live reading, on top of the doc's own
+statement that the field *"Influences the hacking skill required to backdoor the world daemon"*
+(`markdown/bitburner.bitnodemultipliers.worlddaemondifficulty.md`).
+
+**Consequence — this promotes every other node's gate in this file from guess to derived.** In
+particular **BN5's gate of 4,500** (150% × 3,000) now rests on a measured model rather than an
+assumption, which is what the current node is sized against. `gatewatch.js` is still running in
+BN5.1 and will capture that gate the moment Red Pill installs; treat 4,500 as high-confidence
+until it does.
+**Bonus reading from the same capture:** `repSurvivesInstall` recorded **21,506,614 rep → 0**
+across the install — faction rep does **not** survive, answering that open question with a
+measurement.
 
 ### BN3: Corporatocracy — owned **SF3 level 0 / 3** (not cleared)
 SF3: create corporations in other nodes (some disable it), **L3 unlocks full Corp API** + charisma/company-salary L1 8 / L2 12 / L3 14%. Multiplier table (rest baseline):

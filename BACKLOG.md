@@ -114,9 +114,21 @@ do, and what's broken?*
   (a) the floor-reserve carve deadlock (**fixed**, cost 11h at ~$0/s); (b) share's unconditional 25%
   carve on a factionless node (**still unbuilt**, has now cost two consecutive node entries — see
   `docs/batcher-engine.md` §4); (c) the floor reserve's empty cache on daemon restart (**open**,
-  self-corrects in minutes). **Trigger: the next BitNode entry** — that's when it pays, and doing it
-  right after an entry means designing against measurements rather than guesses. Deliberately NOT
-  urgent mid-node; the fixed member was the only fatal one.
+  self-corrects in minutes).
+  - **⚠️ TRIGGER CORRECTED 2026-07-26 — it was set one node too late, and that cost ~62h.** The
+    entry originally read *"Trigger: the next BitNode entry… Deliberately NOT urgent mid-node; the
+    fixed member was the only fatal one."* Both halves were wrong at the time of writing: we were
+    **already inside** the node entry it was meant to protect, and two further bugs of this exact
+    class shipped *after* the root cause was correctly diagnosed — the `fundBlocked` reserve (**53h**
+    dead, fixed 07-25) and the gangmanager relaunch loop (**9.1h** of terminal flood, fixed 07-26).
+    The diagnosis was right and was not converted into a sweep; the members were then rediscovered
+    one at a time, live, at roughly a day each.
+  - **Trigger is NOW, and the cheap member first:** `share.js`'s factionless carve is a
+    one-condition guard that has cost **two consecutive node entries** and was called "no design
+    work needed" on 2026-07-18. Ship that before anything larger.
+  - **Standing lesson for this file:** when several bugs are found to share one root, the root gets
+    a sweep with a *present-tense* trigger — filing the class with a future trigger converts a
+    solved diagnosis back into an unsolved one.
 
 - **~~`daemon.js` floods the terminal with un-launchable companion retries~~ — FIXED 2026-07-24.**
   `fitsOnHome` printed unconditionally, but the supervisor calls it as a pure PREDICATE every 60s for
