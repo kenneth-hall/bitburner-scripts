@@ -244,7 +244,97 @@ systematically biased toward installing too often. **Check before adding anythin
 
 ---
 
-## 7. Next stage
+## 7. Kenneth's calls, 2026-07-26 — with the analysis each triggered
+
+### D9 — Fleet: buy small and wide before upgrading. **ACCEPTED, with a sizing precondition.**
+
+Kenneth: *"can we do a calculation on batch size required vs buy big/buy small… if we can fit a
+batch into a small server i dont really see a downside."*
+
+**The empirical answer is yes, and it is not close.** Across **207 skip diagnoses** in
+`daemon-batch-log.json`, the blocker is `total-ram` **207 times and `per-host` zero times.** Since
+the 2026-07-24 split fix, host fragmentation has *never once* been the binding constraint —
+it is always raw total fleet GB. Two live examples:
+
+```
+harakiri-sushi  f=0.25  cost=1083.15GB  largestJob=657.9GB (61%)  hostFree=16GB  total-ram
+n00dles         f=0.25  cost= 544.95GB  largestJob=511.7GB (94%)  hostFree=32GB  total-ram
+```
+
+Note the largest job is **61–94% of the whole batch** and is `grow` — which *splits*. The
+concern I raised as Q4 (wide-and-shallow fleets failing to place batches) is not supported by a
+single observation.
+
+**Economics, from the live 07-25 data point in `BACKLOG.md:48`:** upgrade = $68.1M for +512 GB =
+**$133k/GB**; growth buy = $14.2M for 256 GB = **$55.5k/GB**. That is **2.4× cheaper per GB**, and
+BN5's `CloudServerSoftcapCost: 1.200` penalises large servers further. With **24 of 25 slots free**,
+256 GB buys reach **6.1 TB** against today's 524 GB — roughly **12× the fleet at 2.4× better
+price**, before a single upgrade is needed.
+
+⚠️ **THE TRAP — this change backfires if shipped alone.** `GROWTH_RAM = 16` and
+`BOOTSTRAP_RAM = 2` (`cloudmanager.js:33-34`). Unblocking growth buys as currently coded buys
+**16 GB servers**. The `hack` job is the one job that **cannot** split
+(`docs/batcher-engine.md:196`), and it has already been observed at **25 threads ≈ 42.5 GB** on
+*shrunk n00dles* batches — the smallest real case there is. Sixteen-GB servers would flip the
+blocker from `total-ram` to `per-host` and manufacture the exact fragmentation problem that
+currently does not exist.
+
+**Therefore D9 is: growth-buy first, but size the buy from the hack job, not from a constant.**
+`targets-ranking.json` already publishes `pipelineCostGb`; publishing `hackJobGb` beside it makes
+the buy size data-driven. Policy is two-phase and the order matters — **fill slots at hack-fit
+size, then upgrade uniformly** — because the 25-slot cap makes upgrades eventually mandatory. This
+is a sequencing decision, not either/or.
+
+### D10 — Home RAM floor of 128 GB. **ACCEPTED, but it is very likely already satisfied — verify before building.**
+
+Kenneth: *"make ram priority up to 128gb? home ram is mainly for running our scripts/controlling
+everything and we need to hit a base line to keep operational."*
+
+The reasoning is right and matches `daemon.js:193`'s `fitsOnHome` census. **But home already looks
+to be ~256 GB** — `logs/bootstrap-log.json` recorded `homeFreeRam: 249.8` at this cycle's handoff,
+double the proposed floor. `installer.js:67` already walks `upgradeHomeRam()` tiers automatically.
+**So as stated this is probably a no-op, and should be confirmed with a one-line read of
+`ns.getServerMaxRam("home")` before any work is done.**
+
+**The version worth building is D4's, at a different moment.** A node *entry* drops home to 32 GB
+(`docs/reset-protocol.md:185`); an *install* preserves it. So the floor matters at node entry — and
+we are past that — while the recurring, unexploited lever is the **pre-install sweep**: money is
+wiped by an install and home RAM is not, so residual cash at install time is currently just burned.
+Kenneth's instinct is correct and aimed one event too late.
+
+### D11 — Cap port openers at <8h of grinding cash. **ACCEPTED in principle. Well calibrated. One serious flaw.**
+
+Calibration is genuinely good. SQLInject is $250M: at the healthy **$412k/s** it is **10 minutes**
+of income (buy instantly); at the current post-install **$7.8k/s** it is **8.9 hours** (just
+blocked). The rule buys when rich and defers when poor, which is exactly the intent.
+
+⚠️ **The flaw is a deadlock of the same class we spent this week removing.** Income is **$0 for ~9h
+after every install**, and 8h × $0/s = $0 — so *every* port opener is blocked during precisely the
+window that needs them. That window is not optional: port openers and TOR **do not survive an
+install** and are re-bought every cycle
+([[reference_install_resets_programs_tor]]), and openers gate rooting *and* faction-server
+backdoors. Blocked openers → fewer rooted hosts → smaller fleet → lower income → still blocked.
+Self-reinforcing, and it fires 8–12 times this node.
+
+**Resolution needed before the spec:** measure against a **trailing window that spans the dead
+period** (24h, not instantaneous) and/or an absolute floor that always permits the first opener.
+The threshold is right; the *estimator* is what needs care.
+
+### D12 — Alert log now, delivery later. **ACCEPTED — correct sequencing.**
+
+Kenneth: *"lets get an alert log now and we can dig into the noisy automation after."*
+
+Right order: the signatures have to be defined and observed before anything can sensibly deliver
+them, and a plain append-only log makes false-positive tuning cheap.
+
+⚠️ **Named so it does not get lost: a log file alone is the failure this phase exists to fix.**
+GP2 wrote `STALLED` once a minute for 21.7 hours into `goal-state.json` and nothing read it (§1b).
+Adding a second unread file does not change that. The log is a **prerequisite** for delivery, not a
+substitute — D5's `/schedule` routine remains in scope and must not quietly drop off.
+
+---
+
+## 8. Next stage
 
 Stage 2 is the spec (`phase-35-install-boundary.spec.md`) plus a cold-context `spec-reviewer` pass.
 **Q1 blocks it** — the phase's headline number is wrong by 36× in one direction or the other until
