@@ -2,10 +2,22 @@
 // cloudupgrader.js in Phase 11): planNextUpgrade, shouldBuyGrowthServer,
 // nextCloudName, and buildCloudState (Phase 24, S4 -- the dashboard.js cloud
 // panel source). isStateStale moved to src/financestate.js (Phase 16, F4) --
-// see test/financestate.test.js. The affordability checks themselves stay in
-// the ns glue (live comparisons) -- not tested here.
+// see test/financestate.test.js. Phase 35 WI2 (D3/D9, the growth-buy
+// inversion) added pickGrowthRam and growthPossible. The raw affordability
+// comparisons against live money stay in the ns glue -- not tested here.
 import { describe, it, expect } from 'vitest';
-import { planNextUpgrade, shouldBuyGrowthServer, nextCloudName, buildCloudState } from '../src/cloudmanager.js';
+import {
+  planNextUpgrade,
+  shouldBuyGrowthServer,
+  growthPossible,
+  pickGrowthRam,
+  nextCloudName,
+  buildCloudState,
+  GROWTH_RAM_MIN,
+  GROWTH_RAM_MAX,
+  GROWTH_RAM_FALLBACK,
+  GROWTH_RAM_STALE_MS,
+} from '../src/cloudmanager.js';
 
 describe('planNextUpgrade', () => {
   it('picks the lowest-RAM server', () => {
@@ -51,38 +63,130 @@ describe('planNextUpgrade', () => {
   });
 });
 
-describe('shouldBuyGrowthServer', () => {
+describe('shouldBuyGrowthServer (Phase 35 WI2/D3-D9 -- the "every server maxed" gate is RETIRED, rewritten per spec)', () => {
   const RAM_LIMIT = 1_048_576;
   const SERVER_LIMIT = 25;
 
-  it('is true when every server is at the RAM limit and a slot is free', () => {
+  it('is true whenever a slot is free, regardless of whether existing servers are maxed (the inversion)', () => {
+    const fleet = [
+      { hostname: 'cloud-0', ram: 16 }, // nowhere near maxed
+      { hostname: 'cloud-1', ram: 16 },
+    ];
+    expect(shouldBuyGrowthServer(fleet, SERVER_LIMIT)).toBe(true);
+  });
+
+  it('is true when every server is at the RAM limit and a slot is free (still true, just no longer the only case)', () => {
     const fleet = [
       { hostname: 'cloud-0', ram: RAM_LIMIT },
       { hostname: 'cloud-1', ram: RAM_LIMIT },
     ];
-    expect(shouldBuyGrowthServer(fleet, RAM_LIMIT, SERVER_LIMIT)).toBe(true);
+    expect(shouldBuyGrowthServer(fleet, SERVER_LIMIT)).toBe(true);
   });
 
-  it('is false when one server is below the limit', () => {
-    const fleet = [
-      { hostname: 'cloud-0', ram: RAM_LIMIT },
-      { hostname: 'cloud-1', ram: 16 },
-    ];
-    expect(shouldBuyGrowthServer(fleet, RAM_LIMIT, SERVER_LIMIT)).toBe(false);
-  });
-
-  it('is false at the server limit even if every server is maxed', () => {
-    const fleet = Array.from({ length: SERVER_LIMIT }, (_, i) => ({ hostname: `cloud-${i}`, ram: RAM_LIMIT }));
-    expect(shouldBuyGrowthServer(fleet, RAM_LIMIT, SERVER_LIMIT)).toBe(false);
+  it('is false at the server limit', () => {
+    const fleet = Array.from({ length: SERVER_LIMIT }, (_, i) => ({ hostname: `cloud-${i}`, ram: 16 }));
+    expect(shouldBuyGrowthServer(fleet, SERVER_LIMIT)).toBe(false);
   });
 
   it('is false for an empty fleet (bootstrap step handles that case)', () => {
-    expect(shouldBuyGrowthServer([], RAM_LIMIT, SERVER_LIMIT)).toBe(false);
+    expect(shouldBuyGrowthServer([], SERVER_LIMIT)).toBe(false);
   });
 
   it('is true at the boundary: fleet.length === serverLimit - 1', () => {
-    const fleet = Array.from({ length: SERVER_LIMIT - 1 }, (_, i) => ({ hostname: `cloud-${i}`, ram: RAM_LIMIT }));
-    expect(shouldBuyGrowthServer(fleet, RAM_LIMIT, SERVER_LIMIT)).toBe(true);
+    const fleet = Array.from({ length: SERVER_LIMIT - 1 }, (_, i) => ({ hostname: `cloud-${i}`, ram: 16 }));
+    expect(shouldBuyGrowthServer(fleet, SERVER_LIMIT)).toBe(true);
+  });
+});
+
+describe('growthPossible (Phase 35 WI2 -- the upgrade loop\'s cold-start-fallback gate)', () => {
+  const SERVER_LIMIT = 25;
+
+  it('the cold-start fixture: 2GB fleet, $110k cash, $3.5M+ derived cost -> not possible (upgrade path taken)', () => {
+    const fleet = [{ hostname: 'cloud-0', ram: 2 }];
+    expect(growthPossible(fleet, SERVER_LIMIT, 3_500_000, 110_000, 110_000)).toBe(false);
+  });
+
+  it('growth buy wins when affordable', () => {
+    const fleet = [{ hostname: 'cloud-0', ram: 2 }];
+    expect(growthPossible(fleet, SERVER_LIMIT, 3_500_000, 4_000_000, 4_000_000)).toBe(true);
+  });
+
+  it('false when no slot is free even if affordable (upgrades-only when slots full)', () => {
+    const fleet = Array.from({ length: SERVER_LIMIT }, (_, i) => ({ hostname: `cloud-${i}`, ram: 1024 }));
+    expect(growthPossible(fleet, SERVER_LIMIT, 100, 1_000_000, 1_000_000)).toBe(false);
+  });
+
+  it('false for an empty fleet even if affordable -- empty fleet never growth-buys', () => {
+    expect(growthPossible([], SERVER_LIMIT, 100, 1_000_000, 1_000_000)).toBe(false);
+  });
+
+  it('gates on the tighter of availableCash and liveMoney', () => {
+    const fleet = [{ hostname: 'cloud-0', ram: 2 }];
+    expect(growthPossible(fleet, SERVER_LIMIT, 1000, 999, 5000)).toBe(false); // availableCash short
+    expect(growthPossible(fleet, SERVER_LIMIT, 1000, 5000, 999)).toBe(false); // liveMoney short
+    expect(growthPossible(fleet, SERVER_LIMIT, 1000, 1000, 1000)).toBe(true); // exact boundary, both sufficient
+  });
+});
+
+describe('pickGrowthRam (Phase 35 WI2/D4 -- F4\'s trap closed)', () => {
+  const RAM_LIMIT = 1_048_576;
+  const NOW = 1_000_000;
+
+  function ranking(targets, timestamp = NOW) {
+    return { timestamp, targets };
+  }
+
+  it('picks the smallest power of two >= the max hackJobGb across the top 3', () => {
+    const r = ranking([{ hackJobGb: 100 }, { hackJobGb: 300 }, { hackJobGb: 50 }]);
+    expect(pickGrowthRam(r, NOW, RAM_LIMIT)).toEqual({ ramGb: 512, source: 'ranking' });
+  });
+
+  it('uses the MAX across top-3, not just the head entry -- a second member\'s larger job is not orphaned', () => {
+    const r = ranking([{ hackJobGb: 10 }, { hackJobGb: 900 }, { hackJobGb: 20 }]);
+    expect(pickGrowthRam(r, NOW, RAM_LIMIT).ramGb).toBe(1024);
+  });
+
+  it('ignores entries beyond the top 3', () => {
+    const r = ranking([{ hackJobGb: 10 }, { hackJobGb: 10 }, { hackJobGb: 10 }, { hackJobGb: 99999 }]);
+    expect(pickGrowthRam(r, NOW, RAM_LIMIT).ramGb).toBe(GROWTH_RAM_MIN);
+  });
+
+  it('clamps the low end at GROWTH_RAM_MIN', () => {
+    const r = ranking([{ hackJobGb: 1 }]);
+    expect(pickGrowthRam(r, NOW, RAM_LIMIT).ramGb).toBe(GROWTH_RAM_MIN);
+  });
+
+  it('clamps the high end at GROWTH_RAM_MAX', () => {
+    const r = ranking([{ hackJobGb: 5000 }]);
+    expect(pickGrowthRam(r, NOW, RAM_LIMIT).ramGb).toBe(GROWTH_RAM_MAX);
+  });
+
+  it('clamps the high end at ramLimit when ramLimit is below GROWTH_RAM_MAX (cold-review major 10)', () => {
+    const r = ranking([{ hackJobGb: 5000 }]);
+    expect(pickGrowthRam(r, NOW, 256).ramGb).toBe(256);
+  });
+
+  it('falls back to GROWTH_RAM_FALLBACK when the ranking is missing', () => {
+    expect(pickGrowthRam(null, NOW, RAM_LIMIT)).toEqual({ ramGb: GROWTH_RAM_FALLBACK, source: 'fallback' });
+  });
+
+  it('falls back when the ranking is stale by its own timestamp', () => {
+    const r = ranking([{ hackJobGb: 100 }], NOW - GROWTH_RAM_STALE_MS - 1);
+    expect(pickGrowthRam(r, NOW, RAM_LIMIT).source).toBe('fallback');
+  });
+
+  it('is fresh exactly at the staleness boundary', () => {
+    const r = ranking([{ hackJobGb: 100 }], NOW - GROWTH_RAM_STALE_MS);
+    expect(pickGrowthRam(r, NOW, RAM_LIMIT).source).toBe('ranking');
+  });
+
+  it('falls back when no top-3 entry carries a hackJobGb field', () => {
+    const r = ranking([{ hackJobGb: null }, {}, { hackJobGb: undefined }]);
+    expect(pickGrowthRam(r, NOW, RAM_LIMIT)).toEqual({ ramGb: GROWTH_RAM_FALLBACK, source: 'fallback' });
+  });
+
+  it('the fallback size itself respects the ramLimit clamp', () => {
+    expect(pickGrowthRam(null, NOW, 128).ramGb).toBe(128);
   });
 });
 

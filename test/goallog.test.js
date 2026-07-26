@@ -7,11 +7,17 @@ import {
   computeTrend,
   buildSnapshot,
   evalTripwire,
+  evalStuck,
   M_TARGET,
   M_TARGET_LABEL,
   M_GATE_TARGET,
   RATE_WINDOW_MS,
   FLAT_WINDOW_MS,
+  INCOME_WINDOW_24H_MS,
+  STUCK_WINDOW_MS,
+  STUCK_INCOME_FLOOR,
+  BOUNDARY_GRACE_MS,
+  DAEMON_STATUS_STALE_MS,
 } from '../src/goallog.js';
 
 const T = 1_000_000_000;
@@ -193,6 +199,203 @@ describe('buildSnapshot', () => {
     const s = [{ t: T, gangCum: 100, hackingCum: 50, mHacking: 1 }];
     const snap = buildSnapshot(s, null, T);
     expect(snap.income.trend).toBeNull();
+  });
+
+  // Phase 35 WI3 (D6): the trailing-24h income signal resourcemanager.js's
+  // opener rule reads.
+  it('income.perSec24h: computed over the full 24h window, not RATE_WINDOW_MS', () => {
+    const s = [
+      { t: T, gangCum: 0, hackingCum: 0, mHacking: 1 },
+      { t: T + INCOME_WINDOW_24H_MS, gangCum: 864_000, hackingCum: 0, mHacking: 1 }, // 10/s over 24h
+    ];
+    const snap = buildSnapshot(s, null, T + INCOME_WINDOW_24H_MS);
+    expect(snap.income.perSec24h).toBeCloseTo(10, 6);
+  });
+
+  it('income.perSec24h is null on sub-2-sample or node-reset-cleared history, same convention as perSec', () => {
+    const s = [{ t: T, gangCum: 100, hackingCum: 50, mHacking: 1 }];
+    expect(buildSnapshot(s, null, T).income.perSec24h).toBeNull();
+  });
+});
+
+describe('evalStuck (Phase 35 WI6/D6/D12)', () => {
+  const NOW = 2_000_000_000;
+  const H = 3_600_000;
+  const BOUNDARY_WINDOW_MS = 16 * H; // mirrors goallog.js's own (unexported) constant
+
+  function healthySeries(nowMs, spanMs = 3 * H) {
+    // gangCum grows steadily -> a real, healthy $/sec across the recent window.
+    return [
+      { t: nowMs - spanMs, gangCum: 0, hackingCum: 0, mHacking: 1 },
+      { t: nowMs, gangCum: spanMs / 1000, hackingCum: 0, mHacking: 1 }, // 1 $/s average
+    ];
+  }
+
+  function deadSeries(nowMs, totalSpanMs = 3 * H) {
+    // Flat totals ACROSS THE RECENT STUCK_WINDOW_MS window -> $0/s (well
+    // under STUCK_INCOME_FLOOR) -- two points bracket that window so
+    // computeRateRange has >=2 in-range samples, plus an older point purely
+    // to establish the overall series span for rule 1.
+    return [
+      { t: nowMs - totalSpanMs, gangCum: 0, hackingCum: 0, mHacking: 1 },
+      { t: nowMs - STUCK_WINDOW_MS, gangCum: 0, hackingCum: 0, mHacking: 1 },
+      { t: nowMs, gangCum: 0, hackingCum: 0, mHacking: 1 },
+    ];
+  }
+
+  function shortSeries(nowMs, spanMs) {
+    return [
+      { t: nowMs - spanMs, gangCum: 0, hackingCum: 0, mHacking: 1 },
+      { t: nowMs, gangCum: 0, hackingCum: 0, mHacking: 1 },
+    ];
+  }
+
+  const freshDaemonStatus = (over = {}) => ({
+    timestamp: NOW,
+    fleet: { utilizationPct: 0 },
+    warns: { skipServers: [] },
+    members: [],
+    ...over,
+  });
+
+  it('WARMING: empty series', () => {
+    expect(evalStuck({ series: [], daemonStatus: freshDaemonStatus(), financeState: null, boundaryStartMs: null, nowMs: NOW })).toEqual({
+      status: 'WARMING',
+      reason: null,
+    });
+  });
+
+  it('WARMING: series span < STUCK_WINDOW_MS', () => {
+    const series = shortSeries(NOW, STUCK_WINDOW_MS - 1000);
+    expect(evalStuck({ series, daemonStatus: freshDaemonStatus(), financeState: null, boundaryStartMs: null, nowMs: NOW }).status).toBe('WARMING');
+  });
+
+  it('BOUNDARY: boundaryStartMs within BOUNDARY_GRACE_MS -- alerting inside the window is noise', () => {
+    const series = deadSeries(NOW);
+    const result = evalStuck({ series, daemonStatus: freshDaemonStatus(), financeState: null, boundaryStartMs: NOW - H, nowMs: NOW });
+    expect(result).toEqual({ status: 'BOUNDARY', reason: null });
+  });
+
+  it('daemon-dead: daemonStatus is null', () => {
+    const series = healthySeries(NOW);
+    const result = evalStuck({ series, daemonStatus: null, financeState: null, boundaryStartMs: null, nowMs: NOW });
+    expect(result).toEqual({ status: 'STUCK', reason: 'daemon-dead' });
+  });
+
+  it('daemon-dead: daemonStatus.timestamp older than DAEMON_STATUS_STALE_MS', () => {
+    const series = healthySeries(NOW);
+    const stale = freshDaemonStatus({ timestamp: NOW - DAEMON_STATUS_STALE_MS - 1 });
+    const result = evalStuck({ series, daemonStatus: stale, financeState: null, boundaryStartMs: null, nowMs: NOW });
+    expect(result).toEqual({ status: 'STUCK', reason: 'daemon-dead' });
+  });
+
+  it('starved: skipServers non-empty + low utilization', () => {
+    const series = deadSeries(NOW);
+    const daemonStatus = freshDaemonStatus({ warns: { skipServers: ['n00dles'] }, fleet: { utilizationPct: 2 } });
+    const result = evalStuck({ series, daemonStatus, financeState: null, boundaryStartMs: null, nowMs: NOW });
+    expect(result).toEqual({ status: 'STUCK', reason: 'starved' });
+  });
+
+  it('reservation-pin: available === 0 + an aged (> STUCK_WINDOW_MS) reservation -- fires regardless of utilization', () => {
+    const series = deadSeries(NOW);
+    const daemonStatus = freshDaemonStatus({ fleet: { utilizationPct: 80 } }); // high utilization -- would suppress starved/idle
+    const financeState = { available: 0, reservations: [{ key: 'next-port-opener', since: NOW - STUCK_WINDOW_MS - 1000 }] };
+    const result = evalStuck({ series, daemonStatus, financeState, boundaryStartMs: null, nowMs: NOW });
+    expect(result).toEqual({ status: 'STUCK', reason: 'reservation-pin' });
+  });
+
+  it('reservation-pin does NOT fire when the reservation is younger than STUCK_WINDOW_MS', () => {
+    const series = deadSeries(NOW);
+    const daemonStatus = freshDaemonStatus({ fleet: { utilizationPct: 80 } });
+    const financeState = { available: 0, reservations: [{ key: 'next-port-opener', since: NOW - 1000 }] };
+    const result = evalStuck({ series, daemonStatus, financeState, boundaryStartMs: null, nowMs: NOW });
+    expect(result.status).toBe('OK');
+  });
+
+  it('idle: zero batches in flight + low utilization (catch-all dead)', () => {
+    const series = deadSeries(NOW);
+    const daemonStatus = freshDaemonStatus({ members: [{ server: 'a', batchesInFlight: 0 }], fleet: { utilizationPct: 1 } });
+    const result = evalStuck({ series, daemonStatus, financeState: null, boundaryStartMs: null, nowMs: NOW });
+    expect(result).toEqual({ status: 'STUCK', reason: 'idle' });
+  });
+
+  it('boundary-overrun: a dead signature past grace but still within BOUNDARY_WINDOW_MS renames the reason', () => {
+    const series = deadSeries(NOW);
+    const daemonStatus = freshDaemonStatus({ members: [{ server: 'a', batchesInFlight: 0 }], fleet: { utilizationPct: 1 } });
+    const boundaryStartMs = NOW - (BOUNDARY_GRACE_MS + H); // past grace, well within the 16h window
+    const result = evalStuck({ series, daemonStatus, financeState: null, boundaryStartMs, nowMs: NOW });
+    expect(result).toEqual({ status: 'STUCK', reason: 'boundary-overrun' });
+  });
+
+  it('past BOUNDARY_WINDOW_MS entirely, a dead signature reports its real name, not boundary-overrun', () => {
+    const series = deadSeries(NOW);
+    const daemonStatus = freshDaemonStatus({ members: [{ server: 'a', batchesInFlight: 0 }], fleet: { utilizationPct: 1 } });
+    const boundaryStartMs = NOW - (BOUNDARY_WINDOW_MS + H);
+    const result = evalStuck({ series, daemonStatus, financeState: null, boundaryStartMs, nowMs: NOW });
+    expect(result).toEqual({ status: 'STUCK', reason: 'idle' });
+  });
+
+  it('OK: healthy income, whatever the fleet state', () => {
+    const series = healthySeries(NOW);
+    const result = evalStuck({ series, daemonStatus: freshDaemonStatus(), financeState: null, boundaryStartMs: null, nowMs: NOW });
+    expect(result).toEqual({ status: 'OK', reason: null });
+  });
+
+  describe('must-not-fire fixtures', () => {
+    it('a synthetic prep window (high utilization, ~$0 income) reads OK, not STUCK', () => {
+      const series = deadSeries(NOW);
+      const daemonStatus = freshDaemonStatus({ members: [{ server: 'a', batchesInFlight: 3 }], fleet: { utilizationPct: 95 } });
+      const result = evalStuck({ series, daemonStatus, financeState: { available: 5000, reservations: [] }, boundaryStartMs: null, nowMs: NOW });
+      expect(result).toEqual({ status: 'OK', reason: null });
+    });
+
+    it('the boundary window inside grace reads BOUNDARY even with $0 income, never STUCK', () => {
+      const series = deadSeries(NOW);
+      const daemonStatus = freshDaemonStatus({ members: [{ server: 'a', batchesInFlight: 0 }], fleet: { utilizationPct: 0 } });
+      const result = evalStuck({ series, daemonStatus, financeState: null, boundaryStartMs: NOW - H, nowMs: NOW });
+      expect(result.status).toBe('BOUNDARY');
+    });
+
+    // major-2 pin: a series GAP inside the recent window makes computeRateRange
+    // return null -- `null < STUCK_INCOME_FLOOR` coerces true in JS, which
+    // would misread a gap as a below-floor income without this guard.
+    it('null-income-from-a-series-gap reads OK, never STUCK', () => {
+      const series = [
+        { t: NOW - 3 * H, gangCum: 0, hackingCum: 0, mHacking: 1 }, // outside the recent STUCK_WINDOW_MS window
+        { t: NOW, gangCum: 0, hackingCum: 0, mHacking: 1 }, // the only point inside it -> computeRateRange returns null
+      ];
+      const daemonStatus = freshDaemonStatus({ members: [{ server: 'a', batchesInFlight: 0 }], fleet: { utilizationPct: 0 } });
+      const result = evalStuck({ series, daemonStatus, financeState: null, boundaryStartMs: null, nowMs: NOW });
+      expect(result).toEqual({ status: 'OK', reason: null });
+    });
+
+    // major-1 pin: null boundaryStartMs skips BOTH the grace rule and the
+    // boundary-overrun relabeling -- a dead signature reports its real name.
+    it('null boundaryStartMs skips the boundary rules entirely', () => {
+      const series = deadSeries(NOW);
+      const daemonStatus = freshDaemonStatus({ members: [{ server: 'a', batchesInFlight: 0 }], fleet: { utilizationPct: 0 } });
+      const result = evalStuck({ series, daemonStatus, financeState: null, boundaryStartMs: null, nowMs: NOW });
+      expect(result).toEqual({ status: 'STUCK', reason: 'idle' });
+      expect(evalStuck({ series, daemonStatus, financeState: null, boundaryStartMs: undefined, nowMs: NOW })).toEqual({
+        status: 'STUCK',
+        reason: 'idle',
+      });
+    });
+  });
+});
+
+describe('buildSnapshot liveness passthrough (Phase 35 WI6)', () => {
+  const T2 = 3_000_000_000;
+
+  it('four-arg call carries the liveness block through verbatim', () => {
+    const liveness = { status: 'STUCK', reason: 'idle', sinceMs: T2 - 1000, boundaryStartMs: null };
+    const snap = buildSnapshot([{ t: T2, gangCum: 0, hackingCum: 0, mHacking: 1 }], null, T2, liveness);
+    expect(snap.liveness).toBe(liveness);
+  });
+
+  it('three-arg back-compat: liveness defaults to null', () => {
+    const snap = buildSnapshot([{ t: T2, gangCum: 0, hackingCum: 0, mHacking: 1 }], null, T2);
+    expect(snap.liveness).toBeNull();
   });
 });
 

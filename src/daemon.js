@@ -78,6 +78,19 @@ const DAEMON_LOG_FILE = "daemon-batch-log.json";
 export const DAEMON_LOG_MAX_ENTRIES = 2000; // raised from 1000 (Phase 7): N members means N x the batch/skip events per tick; exported for trimLog's unit test
 const LOG_FLUSH_INTERVAL_MS = 10000; // lazy-flush cadence for batch/skip/snapshot events; mode/enter/exit flush immediately
 
+// Phase 35 WI1: a non-evicting per-boundary telemetry slice, distinct from
+// DAEMON_LOG_FILE's ring buffer (which FIFO-evicts and truncates across a
+// daemon restart -- exactly the ~9-10h post-install window F2 found we retain
+// no data for). bootstrap.js stamps BOUNDARY_START_FILE unconditionally at
+// every boundary (installAugmentations' cbScript + manual node entry);
+// daemon.js mirrors every appendLogEvent/recordSkipEvent record into
+// BOUNDARY_LOG_FILE by reference while the window is open. See
+// loadBoundaryLog/mirrorBoundaryRecord below.
+const BOUNDARY_START_FILE = "boundary-start.json";
+const BOUNDARY_LOG_FILE = "boundary-log.json";
+export const BOUNDARY_WINDOW_MS = 16 * 60 * 60 * 1000; // 16h -- comfortably past the observed ~10h dead window
+export const BOUNDARY_LOG_MAX = 5000; // cap: append one boundary-cap record, then stop mirroring (explicit truncation, not silent)
+
 // Sparse hacking-level/XP time series, separate from the batch ring buffer above.
 // Purpose: a long-horizon ETA to the Daedalus hacking gate (2500) -- the batch log
 // carries hackingLevel per tick but ages out in ~an hour at fleet size, far too short
@@ -366,6 +379,68 @@ function readHackProgress(ns) {
   }
 }
 
+/** Phase 35 WI5: reads the PREVIOUS session's persisted DAEMON_LOG_FILE --
+ * distinct from `logEntries`, which always starts fresh at daemon startup
+ * (the batch log is otherwise fully truncated across a restart). Feeds
+ * seedFloorReserve. Tolerates missing/malformed content by returning []. */
+function readDaemonLog(ns) {
+  try {
+    const raw = ns.read(DAEMON_LOG_FILE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Phase 35 WI1: reads BOUNDARY_START_FILE (written unconditionally by
+ * bootstrap.js at every boundary). Returns the marker's timestamp, or null
+ * if missing/malformed/pre-Phase-35 (no marker written yet). */
+function readBoundaryMarker(ns) {
+  try {
+    const raw = ns.read(BOUNDARY_START_FILE);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return typeof parsed?.timestamp === "number" ? parsed.timestamp : null;
+  } catch {
+    return null;
+  }
+}
+
+export const FLOOR_SEED_MAX_AGE_MS = 30 * 60 * 1000; // 30 min
+
+/**
+ * Pure (Phase 35 WI5). Seeds lastKnownFloorBatchGb from the PREVIOUS
+ * session's persisted batch log's newest skip record per server (its
+ * `diagnosis.batchCostGb`) -- closes docs/batcher-engine.md:217's open item:
+ * tick 1 of a restart no longer reserves 0 and hands the fleet to a
+ * multi-minute prep.
+ *
+ * Freshness-guarded: only records whose timestamp is within `maxAgeMs` of
+ * `nowMs` (daemon start) are eligible. The batch log SURVIVES an install
+ * while the fleet does not -- an unguarded seed would carry a pre-install
+ * 545-1083 GB figure into a 2 GB post-install fleet, and memberReserveGb's
+ * uncapped max(0, floor - inFlight) would zero the waterfall on tick 1 (the
+ * exact 11h deadlock batcher-engine.md:129 cites). The window covers the
+ * case the seed exists for (a daemon RESTART on a live fleet, where records
+ * are seconds old) and excludes boundary-crossing records by construction
+ * (post-install, the log's newest entries predate the install by hours).
+ */
+export function seedFloorReserve(entries, nowMs, maxAgeMs = FLOOR_SEED_MAX_AGE_MS) {
+  const newestByServer = new Map(); // server -> {ts, batchCostGb}
+  for (const e of Array.isArray(entries) ? entries : []) {
+    if (!e || e.event !== "skip" || !e.diagnosis || typeof e.diagnosis.batchCostGb !== "number") continue;
+    const ts = e.lastTimestamp ?? e.firstTimestamp;
+    if (typeof ts !== "number" || nowMs - ts > maxAgeMs) continue;
+    const existing = newestByServer.get(e.batchTarget);
+    if (!existing || ts > existing.ts) newestByServer.set(e.batchTarget, { ts, batchCostGb: e.diagnosis.batchCostGb });
+  }
+  const seed = new Map();
+  for (const [server, v] of newestByServer) seed.set(server, v.batchCostGb);
+  return seed;
+}
+
 /**
  * Trims the ring buffer to exactly DAEMON_LOG_MAX_ENTRIES, pinning the most
  * recent `mode` event at the head instead of letting ordinary FIFO trimming
@@ -408,6 +483,40 @@ export function trimLog(entries, openSkipRecords) {
 
   const kept = entries.slice(dropCount);
   return pinned ? [entries[latestModeIndex], ...kept] : kept;
+}
+
+/**
+ * Pure (Phase 35 WI2). One targets-ranking.json entry: seatability facts plus
+ * `hackJobGb` -- cloudmanager's growth-buy sizing input (pickGrowthRam),
+ * nominal full-HACK_FRACTION hack job cost. `t.hackThreads` comes from the
+ * CYCLE_MS-refreshed target plan, so this is refresh-cadence stale by up to
+ * one cycle (acceptable for sizing a purchase, not for live math) -- null
+ * when hackThreads isn't a number (excluded-from-candidates tick).
+ * @param {{server: string, minSecurityLevel: number, maxMoney: number, score: number, hackThreads: number}} t
+ * @param {{currentSecurity: number, currentMoney: number}} live
+ * @param {number|null} pipelineCostGb
+ * @param {number} hackRamCost per-thread GB cost of the hack worker script
+ */
+export function buildRankingEntry(t, live, pipelineCostGb, hackRamCost) {
+  return {
+    server: t.server,
+    prepped: isPrepped(live),
+    sec: live.currentSecurity,
+    minSec: t.minSecurityLevel,
+    money: live.currentMoney,
+    maxMoney: t.maxMoney,
+    score: t.score,
+    // Why a target is or isn't seatable, exported so it can be read without a
+    // live probe. pickBatchSet seats a candidate only when pipelineCostGb <=
+    // the batch budget; when NO candidate fits, the floor rule seats the
+    // highest-SCORED one, which is not necessarily the cheapest. Without this
+    // field there is no way to tell "the fleet is one tier short" from
+    // "every target is wildly out of reach" -- exactly the question left
+    // open by the 2026-07-24 cold-start deadlock. null = excluded from
+    // candidates this tick (unhackable sample).
+    pipelineCostGb,
+    hackJobGb: typeof t.hackThreads === "number" ? t.hackThreads * hackRamCost : null,
+  };
 }
 
 /**
@@ -466,9 +575,70 @@ export function buildDaemonStatus({
   };
 }
 
-/** Pure push+trim, no flush -- flush timing is decided once at end-of-tick. */
-function appendLogEvent(entries, openSkipRecords, record) {
+/**
+ * Pure (Phase 35 WI1). Loads (or restarts) the boundary telemetry state.
+ * `boundaryStartMs` null/absent (marker file missing, e.g. a pre-Phase-35
+ * deploy or a node that hasn't crossed a boundary yet) returns an inert,
+ * permanently-inactive state -- mirrorBoundaryRecord no-ops against it.
+ * Otherwise: continues the persisted array iff its `boundary-begin` record's
+ * boundaryStartMs matches the CURRENT marker (same boundary, daemon merely
+ * restarted inside the window -- restarts no longer truncate the record);
+ * any mismatch (new boundary, corrupt/missing file) starts a fresh array
+ * stamped with a fresh boundary-begin record.
+ */
+export function loadBoundaryLog(raw, boundaryStartMs, daemonStartMs) {
+  if (typeof boundaryStartMs !== "number") return { entries: [], active: false, capped: false, dirty: false };
+
+  let parsed = null;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
+  }
+  const begin = Array.isArray(parsed) && parsed.length > 0 && parsed[0].event === "boundary-begin" ? parsed[0] : null;
+  if (begin && begin.boundaryStartMs === boundaryStartMs) {
+    const capped = parsed.some((e) => e.event === "boundary-cap");
+    return { entries: parsed, active: true, capped, dirty: false };
+  }
+
+  return {
+    entries: [{ event: "boundary-begin", boundaryStartMs, daemonStartMs }],
+    active: true,
+    capped: false,
+    dirty: true, // the fresh boundary-begin record itself wants an immediate first write
+  };
+}
+
+/**
+ * Mirrors `record` BY REFERENCE onto `state.entries` (Phase 35 WI1) -- a
+ * shared reference means skip coalescing's later in-place mutations of the
+ * same object are already reflected at flush time, with no re-mirror call
+ * needed. No-ops (returns false) when the boundary is inactive, already
+ * capped, or the window (BOUNDARY_WINDOW_MS from boundaryStartMs) has
+ * elapsed. Mutates `state` in place (push + dirty flag; capped flip on
+ * crossing maxEntries) and returns whether it mirrored.
+ */
+export function mirrorBoundaryRecord(state, record, nowMs, boundaryStartMs, windowMs = BOUNDARY_WINDOW_MS, maxEntries = BOUNDARY_LOG_MAX) {
+  if (!state || !state.active || state.capped) return false;
+  if (typeof boundaryStartMs !== "number" || nowMs - boundaryStartMs >= windowMs) return false;
+
+  state.entries.push(record);
+  state.dirty = true;
+  if (state.entries.length >= maxEntries) {
+    state.entries.push({ event: "boundary-cap", timestamp: nowMs, time: new Date(nowMs).toLocaleTimeString() });
+    state.capped = true;
+  }
+  return true;
+}
+
+/** Pure push+trim, no flush -- flush timing is decided once at end-of-tick.
+ * Also mirrors `record` by reference into `boundaryLog` (Phase 35 WI1) via
+ * mirrorBoundaryRecord -- a no-op when `boundaryLog` is inactive/absent. */
+function appendLogEvent(entries, openSkipRecords, record, boundaryLog, nowMs, boundaryStartMs) {
   entries.push(record);
+  mirrorBoundaryRecord(boundaryLog, record, nowMs, boundaryStartMs);
   return trimLog(entries, openSkipRecords);
 }
 
@@ -482,8 +652,15 @@ function appendLogEvent(entries, openSkipRecords, record) {
  * event for that server closes the open record (deletes the map entry), as
  * does ring-buffer eviction (see trimLog). Never flushes itself -- returns
  * the (possibly trimmed) entries array; the caller decides flush timing.
+ *
+ * Phase 35 WI1: mirrors into `boundaryLog` too -- the SKIP diagnosis is the
+ * primary evidence F2/Q3 need, so this is the second (non-appendLogEvent)
+ * mirror choke point. A coalesce-mutate has nothing new to push (the open
+ * record is already in the boundary array by reference from its first
+ * mirror), so it just marks the boundary dirty for the next flush; a fresh
+ * skip record mirrors itself exactly like an appendLogEvent record.
  */
-function recordSkipEvent(entries, openSkipRecords, record) {
+function recordSkipEvent(entries, openSkipRecords, record, boundaryLog, nowMs, boundaryStartMs) {
   const open = openSkipRecords.get(record.batchTarget);
   if (open && open.saturated === record.saturated) {
     open.count += 1;
@@ -497,6 +674,7 @@ function recordSkipEvent(entries, openSkipRecords, record) {
     // short right now, and would silently go stale if only the count moved).
     open.diagnosis = record.diagnosis;
     open.fractionTried = record.fractionTried;
+    if (boundaryLog && boundaryLog.active && !boundaryLog.capped) boundaryLog.dirty = true;
     return entries;
   }
 
@@ -517,6 +695,7 @@ function recordSkipEvent(entries, openSkipRecords, record) {
   entries.push(fresh);
   entries = trimLog(entries, openSkipRecords);
   openSkipRecords.set(record.batchTarget, fresh);
+  mirrorBoundaryRecord(boundaryLog, fresh, nowMs, boundaryStartMs);
   return entries;
 }
 
@@ -635,8 +814,15 @@ export async function main(ns) {
   let forcedLegacy = false;
   let previousMathMode = null; // null until the first refreshCycle; startup records its mode to the log but no longer prints it (only real transitions do)
 
+  // --- Phase 35 WI1: boundary telemetry ---
+  const daemonStartMs = Date.now();
+  const boundaryStartMs = readBoundaryMarker(ns);
+  const boundaryLog = loadBoundaryLog(ns.read(BOUNDARY_LOG_FILE), boundaryStartMs, daemonStartMs);
+  let lastBoundaryFlush = Date.now();
+
   // --- Phase 8 share-allocation state ---
   let shareOff = ns.fileExists(SHARE_OFF_MARKER, "home");
+  let factionless = false; // Phase 35 WI4: recomputed every tick below; seeded false so a genuinely factionless start self-corrects on tick 1 (see the per-tick block)
   let effectiveShareFraction = shareOff ? 0 : SHARE_FRACTION;
   let previousShareFraction = effectiveShareFraction; // seeded (not null): the startup mode event below already carries this value, so no separate toggle-triggered event fires for it
   let shareLaunchCounter = 0; // monotonically increasing, ignored exec arg -- see share.js/launchShareJobs
@@ -644,7 +830,11 @@ export async function main(ns) {
   // --- Phase 7 multi-member state (replaces the old single incumbentServer) ---
   let memberServers = []; // last tick's active member server names, score order -- the pickBatchSet "incumbentServers" input
   let lastKnownPipelineCostGb = new Map(); // server -> cost, refreshed every tick a seat is held; read (never recomputed) at exit time
-  let lastKnownFloorBatchGb = new Map(); // server -> cheapest attempted batch cost, for the floor-seated reserve (see memberReserveGb)
+  // Phase 35 WI5: seeded from the PREVIOUS session's persisted batch log
+  // (freshness-guarded -- see seedFloorReserve) rather than starting empty,
+  // so a daemon restart on a live fleet doesn't zero the floor-seated
+  // reserve on tick 1 and hand the fleet to a multi-minute prep.
+  let lastKnownFloorBatchGb = seedFloorReserve(readDaemonLog(ns), daemonStartMs);
   let openSkipRecords = new Map(); // server -> open skip-log record reference, for per-target coalescing (see recordSkipEvent/trimLog)
   let drainDeadlines = new Map(); // server -> estimated drain-complete epoch-ms, display-only
   let lastLaunchInfo = null; // single most-recent launch across all members, for the compact "last launch" display line
@@ -670,6 +860,7 @@ export async function main(ns) {
       forcedLegacy,
       shareFraction: effectiveShareFraction,
       shareOff,
+      factionless, // Phase 35 WI4: distinguishes the two suppression causes in the log
       config: {
         HACK_FRACTION,
         GROW_BUFFER,
@@ -680,7 +871,7 @@ export async function main(ns) {
         BATCH_INTERVAL_MS,
         SHARE_FRACTION,
       },
-    });
+    }, boundaryLog, Date.now(), boundaryStartMs);
     pendingImmediateFlush = true;
   }
 
@@ -695,7 +886,7 @@ export async function main(ns) {
         time: new Date().toLocaleTimeString(),
         timestamp: Date.now(),
         servers: newlyRooted,
-      });
+      }, boundaryLog, Date.now(), boundaryStartMs);
       pendingImmediateFlush = true;
     }
     targets = getTargets(ns);
@@ -773,7 +964,7 @@ export async function main(ns) {
             legacy: mismatch.legacy,
             formulas: mismatch.formulas,
             soft: mismatch.soft,
-          });
+          }, boundaryLog, Date.now(), boundaryStartMs);
         }
       }
     }
@@ -796,9 +987,16 @@ export async function main(ns) {
     // Computed BEFORE refreshCycle() might run below, so its own mode event
     // (on a math-mode change) always carries this tick's current share state.
     shareOff = ns.fileExists(SHARE_OFF_MARKER, "home");
-    const nextShareFraction = shareOff ? 0 : SHARE_FRACTION;
+    // Phase 35 WI4 (D8a, the cheap-90% version): factionless -> share fraction
+    // 0. ns.getPlayer() is already referenced elsewhere in this script (the
+    // hacking-progress sample below), so this read costs no additional RAM.
+    // The "honest" version (joined-but-not-working -- needs the ratchet's live
+    // work state) stays unbuilt; see docs/batcher-engine.md Sec4's residual.
+    factionless = ns.getPlayer().factions.length === 0;
+    const nextShareFraction = shareOff || factionless ? 0 : SHARE_FRACTION;
     if (nextShareFraction !== previousShareFraction) {
-      tprintTs(ns, nextShareFraction === 0 ? `INFO: share OFF (${SHARE_OFF_MARKER})` : `INFO: share ON (${(nextShareFraction * 100).toFixed(0)}%)`);
+      const reason = shareOff ? `(${SHARE_OFF_MARKER})` : factionless ? "(factionless)" : "";
+      tprintTs(ns, nextShareFraction === 0 ? `INFO: share OFF ${reason}` : `INFO: share ON (${(nextShareFraction * 100).toFixed(0)}%)`);
       effectiveShareFraction = nextShareFraction;
       previousShareFraction = nextShareFraction;
       recordModeEvent();
@@ -883,7 +1081,7 @@ export async function main(ns) {
           script,
           attempt: companionAttemptCount[script],
           sinceMs,
-        });
+        }, boundaryLog, supervisorNowMs, boundaryStartMs);
         pendingImmediateFlush = true;
         launchDetached(ns, script);
         waitingRamAnnounced.delete(script); // a fresh launch attempt supersedes any prior waiting-ram announcement
@@ -904,7 +1102,7 @@ export async function main(ns) {
             time: new Date().toLocaleTimeString(),
             timestamp: supervisorNowMs,
             script,
-          });
+          }, boundaryLog, supervisorNowMs, boundaryStartMs);
         }
       }
       for (const script of [...waitingRamAnnounced]) {
@@ -1047,7 +1245,7 @@ export async function main(ns) {
         batchesInFlight: inFlightInfo.batches,
         inFlightRamGb: inFlightInfo.ramGb,
         commitmentPct,
-      });
+      }, boundaryLog, Date.now(), boundaryStartMs);
       pendingImmediateFlush = true;
       openSkipRecords.delete(exit.server);
       if (inFlightInfo.batches > 0) {
@@ -1069,7 +1267,7 @@ export async function main(ns) {
         score: member.score,
         displaced,
         prepped: member.realPrepped,
-      });
+      }, boundaryLog, Date.now(), boundaryStartMs);
       pendingImmediateFlush = true;
       openSkipRecords.delete(member.server);
       drainDeadlines.delete(member.server);
@@ -1408,28 +1606,9 @@ export async function main(ns) {
           // RAM analyzer charges its 0.20 GB on the name alone, never mind that
           // the receiver is a Map entry. Measured: 16.50 GB with `ls`, 16.30 GB
           // with `live`. Same class as CLAUDE.md's `state.share` phantom.
-          targets.slice(0, TARGETS_RANKING_TOP_N).map((t) => {
-            const live = liveStates.get(t.server);
-            return {
-              server: t.server,
-              prepped: isPrepped(live),
-              sec: live.currentSecurity,
-              minSec: t.minSecurityLevel,
-              money: live.currentMoney,
-              maxMoney: t.maxMoney,
-              score: t.score,
-              // Why a target is or isn't seatable, exported so it can be read
-              // without a live probe. pickBatchSet seats a candidate only when
-              // pipelineCostGb <= the batch budget; when NO candidate fits, the
-              // floor rule seats the highest-SCORED one, which is not
-              // necessarily the cheapest. Without this field there is no way to
-              // tell "the fleet is one tier short" from "every target is
-              // wildly out of reach" -- exactly the question left open by the
-              // 2026-07-24 cold-start deadlock. null = excluded from candidates
-              // this tick (unhackable sample).
-              pipelineCostGb: candidateCostGb.get(t.server) ?? null,
-            };
-          }),
+          targets
+            .slice(0, TARGETS_RANKING_TOP_N)
+            .map((t) => buildRankingEntry(t, liveStates.get(t.server), candidateCostGb.get(t.server) ?? null, ramCosts[WORKER_SCRIPTS.hack])),
           targets.length,
           Date.now()
         )
@@ -1467,7 +1646,7 @@ export async function main(ns) {
           utilizationPct: utilization,
           memberCount: result.members.length,
           batch: { id: mr.id, hackFraction: mr.fraction, hackChance: mr.hackChance, expectedSteal: mr.expectedSteal, jobs: mr.jobs },
-        });
+        }, boundaryLog, Date.now(), boundaryStartMs);
         openSkipRecords.delete(mr.server);
       } else if (mr.kind === "skipped") {
         const info = memberReserve.get(mr.server);
@@ -1487,7 +1666,7 @@ export async function main(ns) {
             waterfallAvailableGb,
           },
           utilizationPct: utilization,
-        });
+        }, boundaryLog, Date.now(), boundaryStartMs);
       }
     }
 
@@ -1540,12 +1719,23 @@ export async function main(ns) {
         xpPool: postLaunchInFlight.xpPool,
       };
       if (draining.length > 0) snapshotRecord.draining = draining;
-      logEntries = appendLogEvent(logEntries, openSkipRecords, snapshotRecord);
+      logEntries = appendLogEvent(logEntries, openSkipRecords, snapshotRecord, boundaryLog, Date.now(), boundaryStartMs);
     }
 
     if (pendingImmediateFlush || Date.now() - lastLazyFlush >= LOG_FLUSH_INTERVAL_MS) {
       flushDaemonLog(ns, logEntries);
       lastLazyFlush = Date.now();
+    }
+
+    // Phase 35 WI1: boundary slice joins ONLY the lazy cadence (never the
+    // immediate mode/enter/exit flushes above) and only writes when
+    // something was mirrored/mutated since the last write -- bounds the
+    // added in-game write + export-bridge cost. Compact (no pretty-print),
+    // unlike the main log.
+    if (boundaryLog.dirty && Date.now() - lastBoundaryFlush >= LOG_FLUSH_INTERVAL_MS) {
+      ns.write(BOUNDARY_LOG_FILE, JSON.stringify(boundaryLog.entries), "w");
+      boundaryLog.dirty = false;
+      lastBoundaryFlush = Date.now();
     }
 
     // Sparse hacking-level/XP sample for the Daedalus-2500 ETA series. Time-gated

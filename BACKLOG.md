@@ -57,6 +57,16 @@ do, and what's broken?*
     drive-by. **Next:** size it inside Phase 35 alongside the boundary telemetry (F2), which is
     where the recovery number will actually be measured. Context:
     `phase-35-install-boundary.features.md` §9 F3.
+  - **Measurement plan (Phase 35 decision 11, 2026-07-26):** the fix itself is deliberately NOT
+    built this phase — `decideInstall` stays untouched because its designed fix has an unmeasured
+    input, and changing it pre-measurement is the exact antipattern the reverted constant bump
+    already demonstrated above. What Phase 35 ships instead is the instrument: the boundary
+    telemetry slice (work item 1) + `goal-log.json` + the daily transactions log are exactly the
+    inputs the recovery-cost term needs. **After the first fully-instrumented install boundary**
+    (Phase 35's L3 live step), the close-out computes the measured recovery cost and this entry
+    gets updated with the number and the recommended term shape. Accepted cost in the meantime: the
+    install trigger stays optimistic for 1-2 more cycles (bounded, ~10h per extra install) — smaller
+    than shipping a second wrong fix.
 
 - **`cloudmanager.js` can starve the NFG spend-down — the finance reserve never covers the
   *batch*.** Found live 2026-07-23 (BN2 endgame): cloudmanager spent **$5.08t in ~2.5 min** walking
@@ -72,6 +82,9 @@ do, and what's broken?*
   reserve the *projected spend-down total*, not the next single aug; consider a fleet-growth ceiling
   so cloud can't outbid the mult lever. **Revisit before BN5's endgame NFG tail** (money is BN5's
   binding constraint too). Context: `docs/gang-engine.md` "cloudmanager has no aug reserve".
+  Also named in Phase 35's decision-12 interlock audit (`phase-35-install-boundary.closeout.md`) as
+  the one un-fixed row on that table — money spent buying fleet RAM in the hours before an install
+  gets wiped by that install, and nothing plans for it. Not fixed this phase either.
   - **Related, 2026-07-25 — the opposite failure fired first, and the fix moves this dial.** The
     `fundBlocked` branch used to reserve the *whole* balance and deadlocked BN5.1 for 53h; it now
     reserves 0 (see CHANGELOG 2026-07-25). That is under-protective in exactly the direction this
@@ -80,23 +93,6 @@ do, and what's broken?*
     NFG heads are never marked `fundBlocked` (`augfarmer.js:818` excludes `isNFG`), so the endgame
     NFG tail — the case that actually burned $5.08t — is untouched. Flagging the interaction so it
     isn't rediscovered.
-
-- **`cloudmanager.js` never buys a second server until the first hits 1 PB — 24 idle slots at 2.4×
-  the price per GB.** `shouldBuyGrowthServer` (`cloudmanager.js:89`) requires
-  `fleet.every(s => s.ram >= ramLimit)` with `ramLimit` = 1,048,576 GB, so growth buys are
-  unreachable in practice and all cash goes into doubling one host. The arithmetic is unfavourable
-  by construction: doubling a server of size R costs `2R × $/GB` for a gain of R (**2× $/GB**),
-  while a growth buy costs `G × $/GB` for a gain of G (**1× $/GB**). Live in BN5.1 on 2026-07-25
-  with 1/25 slots used: the next upgrade is **$68.1M for +512 GB ($133k/GB)**, unaffordable for
-  ~3.5h at current income, while a **$14.2M** 256 GB growth buy was affordable *immediately* and
-  would have crossed harakiri-sushi's 1,112 GB pipeline (**$100M** max money vs n00dles' $1.75M).
-  **Not a deadlock** — it resolves itself by saving up, just slowly and at 2.4× the cost.
-  **Counter-argument to weigh before changing it:** the current policy is deliberate
-  (`planNextUpgrade`'s header) — uniform, larger hosts suit the batcher's job-per-single-host
-  assignment. That matters less than it did, since grow/weaken now split across hosts (commit
-  `61eff55`) and only `hack` must fit whole, and `hack` is the cheapest job per thread. **Next:**
-  decide whether to growth-buy while slots are free and upgrade only once the fleet is full —
-  it inverts a documented design rationale, so it wants a decision, not a drive-by patch.
 
 - **Aug scoring ranks by raw mult, not mult-per-dollar — QLink is blocked by name, not by logic.**
   `scoreAug` (`src/augfarmer.js`) scores on multipliers alone, and Phase 33's escalation-optimal sort
@@ -148,9 +144,13 @@ do, and what's broken?*
   Filed 2026-07-24 after three separate bugs turned out to share one root. An install preserves home
   RAM and a mature fleet; a node entry gives you ~32 GB of home and 18 small rooted servers. Members:
   (a) the floor-reserve carve deadlock (**fixed**, cost 11h at ~$0/s); (b) share's unconditional 25%
-  carve on a factionless node (**still unbuilt**, has now cost two consecutive node entries — see
-  `docs/batcher-engine.md` §4); (c) the floor reserve's empty cache on daemon restart (**open**,
-  self-corrects in minutes).
+  carve on a factionless node (**cheap version fixed 2026-07-26, Phase 35 WI4** — the honest
+  joined-but-idle version is still unbuilt, see `docs/batcher-engine.md` §4); (c) the floor
+  reserve's empty cache on daemon restart (**fixed 2026-07-26, Phase 35 WI5** — seeded from the
+  previous session's persisted batch log, freshness-guarded).
+  **All three members of this class are now closed or reduced to their honest residual** — the
+  cheap share fix and the restart-seed fix both shipped in the same phase that built the
+  telemetry to measure what they save.
   - **⚠️ TRIGGER CORRECTED 2026-07-26 — it was set one node too late, and that cost ~62h.** The
     entry originally read *"Trigger: the next BitNode entry… Deliberately NOT urgent mid-node; the
     fixed member was the only fatal one."* Both halves were wrong at the time of writing: we were
@@ -273,12 +273,6 @@ do, and what's broken?*
   after the state-write block (or capture `plan.phase !== previousPhase` into a local before the
   reassignment). Not fixed here — logged per CLAUDE.md's "dropped objections get logged" rule.
 
-- **`npm run verify:log`'s finance checker has its own reservation-key whitelist gap** — found while
-  running the Phase 32 ship gate: `test/verify-finance.test.js`'s `KNOWN_RESERVATION_KEYS` doesn't
-  include `next-aug`, which a real exported `finance-log.json` entry already carries. Unrelated to
-  Phase 32 (no `resourcemanager.js`/`financestate.js` file was touched this phase) — flagged here
-  rather than silently loosening that checker outside this phase's scope.
-
 ## Ideas
 
 ### Game / progression
@@ -357,31 +351,29 @@ already built here (multi-model phase pipeline, `spec-reviewer` subagent, worktr
 SessionStart autoheal hook) against Claude Code capabilities that aren't in use yet. Flagged
 for a future brainstorm pass, not scoped or spec'd.
 
-- **Autonomous liveness watch — nothing reads the logs between sessions, and it has now cost two
-  node entries.** Rewritten 2026-07-24 after the second occurrence; the original framing (poll
-  `CLAUDE.md`'s goalpost table for strategy tripwires) was the *harder, less valuable* half.
-  **Measured cost: ~11h of a dead BN5 (2026-07-24, floor-reserve deadlock) and ~7h of a dead BN2
-  (2026-07-18, share carve)** — both times `daemon-status.json` carried an unambiguous signature the
-  whole time (`warns.skipServers` non-empty, `waterfall.availableGb: 0`, money flat) and simply had
-  no reader until a human opened a terminal.
-  - **Build the liveness half first** — it's smaller, node-agnostic, and needs no strategy context:
-    poll `daemon-status.json` + `finance-state.json`, alert **only** on deviation. Signatures worth
-    firing on: money delta ≈ 0 over the window; `utilizationPct` pinned at 0 or 100 with
-    `batchesInFlight: 0`; a `skip` run over N ticks; `companion-waiting-ram` for the same script for
-    N hours; `daemon-status.json` itself going stale (daemon dead *or* dev-server bridge down).
-    Alert must cover **failure** signatures, not just the recovery one — a watcher that only greps
-    for good news is silent through exactly the outage it exists to catch.
-  - **Then** the strategy half: date-stamped decisions in `CLAUDE.md`'s Current-goal block expire
-    silently today (live example: the gang tripwire's "CHECK AT: 2026-07-26 (+72h)", whose stated
-    default if never revisited is "stay batcher-only").
-  - **Mechanism matters and the original entry got it half-right.** In-session tooling (`/loop`,
-    `CronCreate`, `Monitor`) is **session-only and in-memory** — it dies when Claude exits, which is
-    precisely the overnight window that bit us both times. Only a `/schedule` cloud routine survives
-    it. Practical split: `Monitor` while a session is open (cheap, event-driven, no cron), a
-    `/schedule` routine for the unattended gap.
-  - **Next:** stand up the narrow liveness version, run it across one full prep→seat cycle to prove
-    it doesn't false-alarm during normal prep windows (long stretches of 100% utilization with $0
-    income are *expected* mid-prep), then add the date checks.
+- **Autonomous liveness watch — detection/logging half SHIPPED (Phase 35 WI6, 2026-07-26);
+  delivery half still open.** Rewritten again per Phase 35 spec decision 10. `goallog.js`'s
+  `evalStuck` now computes the verdict every poll (`daemon-dead`/`starved`/`reservation-pin`/
+  `idle`/`boundary-overrun` signatures) and `goal-state.json` + the GOAL panel's one liveness line
+  make it a one-glance read **in-session** — the 21.7h-of-unread-`STALLED` failure this entry
+  describes becomes a one-line read instead of a multi-file log dig. **What's still missing:
+  nothing PUSHES the verdict, and nothing reads it while no session is open** — an overnight STUCK
+  is still only *seen* at the next session open. Kenneth explicitly held off building that at spec
+  review 2026-07-26 ("no noisy alerting, no external automation this phase — logging the
+  discrepancy is fine").
+  - **Mechanism correction (supersedes the original "only a `/schedule` routine survives it"
+    claim):** a `/schedule` cloud routine survives session death, but it runs in a **cloud clone of
+    the GitHub repo** — it cannot read the live `logs/` directory on Kenneth's machine, where every
+    signal this needs lands (none of `logs/` is pushed continuously). The mechanism that both
+    survives sessions *and* sees the data is an **OS scheduler job on the always-on machine**
+    (sleep is disabled — see the sleep-not-grind reference). The claim was half-right: in-session
+    tooling does die overnight, but the proposed replacement couldn't have worked either.
+  - **Wake conditions (unchanged bar):** another stall that sits unread across a no-session gap
+    (the predicted failure recurring — both prior incidents, 11h and 53h, were exactly this shape),
+    or Kenneth opting in.
+  - **When this reopens:** build an OS-scheduler job that reads `goal-state.json`'s `liveness`
+    block and pushes on `STUCK`/`boundary-overrun` (not `BOUNDARY`, which is expected). The
+    detection logic already exists — this is a delivery mechanism only, not new analysis.
 - **Hooks beyond SessionStart** — only one hook exists (`dev-server-autoheal.sh`). Two documented
   CLAUDE.md rules are currently enforced by attention, not tooling, and both are hook-shaped: (a)
   "never `git checkout`/switch while the game is connected" (PreToolUse block while `npm run dev`

@@ -18,7 +18,10 @@ const LOG_PATH = process.env.FINANCE_LOG_PATH ?? path.join(process.cwd(), 'logs'
 const TRANSACTIONS_LOG_DIR = process.env.TRANSACTIONS_LOG_DIR ?? path.join(process.cwd(), 'logs');
 const TRANSACTIONS_FILENAME_PATTERN = /^transactions-\d{4}-\d{2}-\d{2}\.json$/;
 
-const KNOWN_RESERVATION_KEYS = new Set(['bootstrap-server', 'tor-router', 'next-port-opener', 'formulas', 'manual-extra']);
+// 'next-aug' added Phase 35 WI3 (cold-review major 9) -- the BACKLOG entry's
+// stated reason for deferring it ("no resourcemanager.js file was touched
+// this phase") no longer applies once this phase touches that file.
+const KNOWN_RESERVATION_KEYS = new Set(['bootstrap-server', 'tor-router', 'next-port-opener', 'formulas', 'manual-extra', 'next-aug']);
 
 let entries; // finance-log.json entries, or null if the file doesn't exist yet
 let logExists = true;

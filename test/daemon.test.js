@@ -4,7 +4,23 @@
 // dashboard.js status-snapshot builder). trimLog/DAEMON_LOG_MAX_ENTRIES are
 // exported for this test only -- no other behavior change.
 import { describe, it, expect } from 'vitest';
-import { trimLog, DAEMON_LOG_MAX_ENTRIES, buildDaemonStatus, planRelaunches, RESIDENT_COMPANIONS, SUPERVISOR_RETRY_MS, supervisedResidents, GANG_GATED_COMPANIONS } from '../src/daemon.js';
+import {
+  trimLog,
+  DAEMON_LOG_MAX_ENTRIES,
+  buildDaemonStatus,
+  planRelaunches,
+  RESIDENT_COMPANIONS,
+  SUPERVISOR_RETRY_MS,
+  supervisedResidents,
+  GANG_GATED_COMPANIONS,
+  loadBoundaryLog,
+  mirrorBoundaryRecord,
+  seedFloorReserve,
+  buildRankingEntry,
+  BOUNDARY_WINDOW_MS,
+  BOUNDARY_LOG_MAX,
+  FLOOR_SEED_MAX_AGE_MS,
+} from '../src/daemon.js';
 
 /** Builds MAX + extra plain entries, no `mode` event -- non-pinned case. */
 function buildPlainEntries(count) {
@@ -190,5 +206,195 @@ describe('planRelaunches — Phase 26 B1 (S5/S10)', () => {
       const withGang = planRelaunches(new Set(), supervisedResidents(RESIDENT_COMPANIONS, true), new Set(), {}, 1000);
       expect(withGang.launch).toContain('gangmanager.js');
     });
+  });
+});
+
+describe('loadBoundaryLog (Phase 35 WI1)', () => {
+  it('inactive when boundaryStartMs is null/absent -- no marker written yet', () => {
+    expect(loadBoundaryLog(null, null, 1000)).toEqual({ entries: [], active: false, capped: false, dirty: false });
+    expect(loadBoundaryLog('[]', undefined, 1000)).toEqual({ entries: [], active: false, capped: false, dirty: false });
+  });
+
+  it('starts fresh, stamped with a boundary-begin record, when no persisted file exists', () => {
+    const state = loadBoundaryLog(null, 5000, 5001);
+    expect(state.active).toBe(true);
+    expect(state.capped).toBe(false);
+    expect(state.dirty).toBe(true);
+    expect(state.entries).toEqual([{ event: 'boundary-begin', boundaryStartMs: 5000, daemonStartMs: 5001 }]);
+  });
+
+  it('starts fresh on a NEW boundary even if a persisted file exists (stale marker mismatch)', () => {
+    const persisted = JSON.stringify([
+      { event: 'boundary-begin', boundaryStartMs: 1000, daemonStartMs: 1000 },
+      { event: 'batch', batchTarget: 'n00dles' },
+    ]);
+    const state = loadBoundaryLog(persisted, 9999, 9999);
+    expect(state.entries).toEqual([{ event: 'boundary-begin', boundaryStartMs: 9999, daemonStartMs: 9999 }]);
+    expect(state.dirty).toBe(true);
+  });
+
+  it('continues the persisted array when the boundary-begin stamp matches -- a same-boundary daemon restart', () => {
+    const persisted = JSON.stringify([
+      { event: 'boundary-begin', boundaryStartMs: 5000, daemonStartMs: 5001 },
+      { event: 'batch', batchTarget: 'n00dles' },
+    ]);
+    const state = loadBoundaryLog(persisted, 5000, 6000);
+    expect(state.entries).toHaveLength(2);
+    expect(state.entries[1]).toEqual({ event: 'batch', batchTarget: 'n00dles' });
+    expect(state.dirty).toBe(false); // continuing, not freshly stamped -- nothing new to flush yet
+  });
+
+  it('detects an already-capped persisted slice', () => {
+    const persisted = JSON.stringify([
+      { event: 'boundary-begin', boundaryStartMs: 5000, daemonStartMs: 5001 },
+      { event: 'boundary-cap', timestamp: 5555 },
+    ]);
+    const state = loadBoundaryLog(persisted, 5000, 6000);
+    expect(state.capped).toBe(true);
+  });
+
+  it('malformed persisted JSON is treated as absent -- starts fresh, does not throw', () => {
+    const state = loadBoundaryLog('{not json', 5000, 6000);
+    expect(state.active).toBe(true);
+    expect(state.entries[0].event).toBe('boundary-begin');
+  });
+});
+
+describe('mirrorBoundaryRecord (Phase 35 WI1)', () => {
+  function activeState() {
+    return { entries: [{ event: 'boundary-begin', boundaryStartMs: 0 }], active: true, capped: false, dirty: false };
+  }
+
+  it('no-ops when the state is inactive', () => {
+    const state = { entries: [], active: false, capped: false, dirty: false };
+    expect(mirrorBoundaryRecord(state, { event: 'batch' }, 1000, 0)).toBe(false);
+    expect(state.entries).toEqual([]);
+  });
+
+  it('no-ops when already capped', () => {
+    const state = { entries: [], active: true, capped: true, dirty: false };
+    expect(mirrorBoundaryRecord(state, { event: 'batch' }, 1000, 0)).toBe(false);
+  });
+
+  it('no-ops once BOUNDARY_WINDOW_MS has elapsed since boundaryStartMs', () => {
+    const state = activeState();
+    expect(mirrorBoundaryRecord(state, { event: 'batch' }, BOUNDARY_WINDOW_MS, 0)).toBe(false);
+    expect(mirrorBoundaryRecord(state, { event: 'batch' }, BOUNDARY_WINDOW_MS - 1, 0)).toBe(true);
+  });
+
+  it('mirrors an appendLogEvent-shaped record by reference -- mutating it later shows in the mirrored copy', () => {
+    const state = activeState();
+    const record = { event: 'mode', shareFraction: 0.5 };
+    mirrorBoundaryRecord(state, record, 1000, 0);
+    expect(state.entries[1]).toBe(record); // same reference, not a copy
+    record.shareFraction = 0.9;
+    expect(state.entries[1].shareFraction).toBe(0.9);
+    expect(state.dirty).toBe(true);
+  });
+
+  it('mirrors a recordSkipEvent-shaped (skip) record the same way', () => {
+    const state = activeState();
+    const skip = { event: 'skip', batchTarget: 'n00dles', count: 1 };
+    mirrorBoundaryRecord(state, skip, 1000, 0);
+    expect(state.entries[1]).toBe(skip);
+    skip.count = 2; // simulates coalescing mutating it in place
+    expect(state.entries[1].count).toBe(2);
+  });
+
+  it('appends exactly one boundary-cap record on crossing maxEntries, then mirrors nothing further', () => {
+    const state = activeState();
+    for (let i = 0; i < 5; i++) mirrorBoundaryRecord(state, { event: 'batch', i }, 1000, 0, BOUNDARY_WINDOW_MS, 5);
+    // begin + 5 records reaches maxEntries=5 on the 5th push -> cap appended.
+    expect(state.capped).toBe(true);
+    const capRecords = state.entries.filter((e) => e.event === 'boundary-cap');
+    expect(capRecords).toHaveLength(1);
+    const lengthAtCap = state.entries.length;
+    expect(mirrorBoundaryRecord(state, { event: 'batch', i: 99 }, 1000, 0, BOUNDARY_WINDOW_MS, 5)).toBe(false);
+    expect(state.entries).toHaveLength(lengthAtCap);
+  });
+
+  it('BOUNDARY_LOG_MAX default is 5000', () => {
+    expect(BOUNDARY_LOG_MAX).toBe(5000);
+  });
+});
+
+describe('buildRankingEntry (Phase 35 WI2 -- hackJobGb publish)', () => {
+  const t = { server: 'n00dles', minSecurityLevel: 1, maxMoney: 1000, score: 5, hackThreads: 10 };
+  const live = { currentSecurity: 1, currentMoney: 500, minSecurityLevel: 1, maxMoney: 1000 };
+
+  it('carries hackJobGb as hackThreads * hackRamCost', () => {
+    const entry = buildRankingEntry(t, live, 700, 1.75);
+    expect(entry.hackJobGb).toBe(17.5);
+  });
+
+  it('hackJobGb is null when hackThreads is not a number (excluded-from-candidates tick)', () => {
+    const entry = buildRankingEntry({ ...t, hackThreads: undefined }, live, null, 1.75);
+    expect(entry.hackJobGb).toBeNull();
+  });
+
+  it('carries every other seatability field unchanged', () => {
+    const entry = buildRankingEntry(t, live, 700, 1.75);
+    expect(entry).toMatchObject({
+      server: 'n00dles',
+      sec: 1,
+      minSec: 1,
+      money: 500,
+      maxMoney: 1000,
+      score: 5,
+      pipelineCostGb: 700,
+    });
+  });
+
+  it('pipelineCostGb passes through null unchanged', () => {
+    expect(buildRankingEntry(t, live, null, 1.75).pipelineCostGb).toBeNull();
+  });
+});
+
+describe('seedFloorReserve (Phase 35 WI5)', () => {
+  it('seeds from the newest fresh skip record per server', () => {
+    const entries = [
+      { event: 'skip', batchTarget: 'a', lastTimestamp: 900, diagnosis: { batchCostGb: 10 } },
+      { event: 'skip', batchTarget: 'a', lastTimestamp: 950, diagnosis: { batchCostGb: 20 } }, // newer -> wins
+      { event: 'skip', batchTarget: 'b', lastTimestamp: 800, diagnosis: { batchCostGb: 5 } },
+    ];
+    const seed = seedFloorReserve(entries, 1000);
+    expect(seed.get('a')).toBe(20);
+    expect(seed.get('b')).toBe(5);
+  });
+
+  it('excludes records older than maxAgeMs -- the pre-install-aged guard (blocker-5 pin)', () => {
+    const nowMs = 10_000_000;
+    const entries = [
+      { event: 'skip', batchTarget: 'phantasy', lastTimestamp: nowMs - FLOOR_SEED_MAX_AGE_MS - 1, diagnosis: { batchCostGb: 1684.9 } },
+    ];
+    const seed = seedFloorReserve(entries, nowMs);
+    expect(seed.has('phantasy')).toBe(false);
+  });
+
+  it('includes a record exactly at the age boundary', () => {
+    const nowMs = 10_000_000;
+    const entries = [
+      { event: 'skip', batchTarget: 's', lastTimestamp: nowMs - FLOOR_SEED_MAX_AGE_MS, diagnosis: { batchCostGb: 7 } },
+    ];
+    expect(seedFloorReserve(entries, nowMs).get('s')).toBe(7);
+  });
+
+  it('ignores non-skip events and skip events without a diagnosis', () => {
+    const entries = [
+      { event: 'batch', batchTarget: 'a', timestamp: 999 },
+      { event: 'skip', batchTarget: 'b', lastTimestamp: 999 }, // no diagnosis
+    ];
+    expect(seedFloorReserve(entries, 1000).size).toBe(0);
+  });
+
+  it('falls back to firstTimestamp when lastTimestamp is absent', () => {
+    const entries = [{ event: 'skip', batchTarget: 'a', firstTimestamp: 950, diagnosis: { batchCostGb: 3 } }];
+    expect(seedFloorReserve(entries, 1000).get('a')).toBe(3);
+  });
+
+  it('empty/malformed input returns an empty Map, does not throw', () => {
+    expect(seedFloorReserve([], 1000).size).toBe(0);
+    expect(seedFloorReserve(null, 1000).size).toBe(0);
+    expect(seedFloorReserve(undefined, 1000).size).toBe(0);
   });
 });

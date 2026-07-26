@@ -114,6 +114,34 @@ BitNode entry (hard reset) — pulled forward from the now-archived `bn1-install
   same member. **A new-BitNode entry, not a post-install reset, is what exposes this**: an install
   preserves home RAM (524 GB free at the BN2 handoff), a BitNode entry drops it to ~32 GB with no
   purchased fleet, so the engine had never actually met a genuinely tiny fleet before.
+  **CLOSED across a daemon *restart* too, 2026-07-26 (Phase 35 WI5):** the fix above only protected
+  a cold *node entry* (a fresh `lastKnownFloorBatchGb` Map starts empty and repopulates within a few
+  ticks). A `daemon.js` **restart** on an already-running node hit the same empty-cache gap for real
+  — tick 1 after a restart reserved 0 for every floor-seated member regardless of how expensive its
+  batch actually was, handing the fleet to a multi-minute prep exactly like the original deadlock's
+  shape. `seedFloorReserve` now reads the PREVIOUS session's persisted `daemon-batch-log.json` at
+  startup and seeds the reserve from each server's newest skip diagnosis, freshness-guarded to
+  `FLOOR_SEED_MAX_AGE_MS` (30 min) so a post-install restart doesn't carry a stale pre-install-scale
+  figure into a 2 GB fleet.
+- **Post-install boundary telemetry now exists — the previously-lost ~9-10h dead window is
+  retained, not just the batcher's ordinary ring log.** Phase 35 WI1 (2026-07-26): `bootstrap.js`
+  stamps `boundary-start.json` unconditionally at every boundary (install callback + manual node
+  entry); `daemon.js` mirrors every batch/skip/mode/enter/exit/snapshot event by reference into
+  `boundary-log.json` for 16h past the marker (5000-entry cap, explicit `boundary-cap` record on
+  truncation) — a **non-evicting** slice, unlike `daemon-batch-log.json`'s 2000-entry FIFO ring
+  which a restart truncates entirely. Read this file, not the ring log, when analyzing an install
+  boundary; it survives daemon restarts inside the window (matched by the marker's own timestamp).
+  One retained slice at a time — a second boundary before the first is read loses the older one
+  (accepted for v1, near-daily session cadence makes it unlikely).
+- **Factionless share suppress shipped (Phase 35 WI4/D8a, 2026-07-26) — the CHEAP version only.**
+  `daemon.js`'s per-tick share fraction now folds in `ns.getPlayer().factions.length === 0`, so a
+  fresh node with no faction membership carves 0% for share instead of the full `SHARE_FRACTION`
+  (fixes the specific pathology recorded above: 25% starving the batcher's own budget for ~7h with
+  no faction to even benefit). **The "honest" version stays unbuilt** — a player who has JOINED a
+  faction but isn't actively grinding faction work also gets zero rep benefit from share
+  (`[[reference_share_boost_needs_faction_work]]`), and that gap needs the aug-ratchet's live
+  work-state to detect, which doesn't exist yet. **Wake condition:** a node entry where the cheap
+  fix's gap actually shows (joined-but-idle stretch with share still allocating).
 
 ---
 
@@ -152,7 +180,8 @@ Batcher-specific open items now live here (moved from `BACKLOG.md` 2026-07-22, s
 the architecture/history they depend on). `BACKLOG.md` keeps only non-batcher-specific bugs/ideas —
 check there for everything else.
 
-- **Auto-suppress `share.js` on small/factionless fleets — still unbuilt.** Measured 2026-07-18 in
+- **~~Auto-suppress `share.js` on small/factionless fleets~~ — the CHEAP (90%) version SHIPPED
+  2026-07-26 (Phase 35 WI4/D8a); the honest version below is still unbuilt.** Measured 2026-07-18 in
   BN2: with zero joined factions, `ns.share()`'s rep multiplier is *provably* worthless
   ([[reference_share_boost_needs_faction_work]]), yet its 25% `SHARE_FRACTION` carve (24 GB of a
   100 GB fleet) still starved the batcher's own budget below what its top-scored target needed
@@ -160,8 +189,9 @@ check there for everything else.
   hours**. Dropping `share-off.txt` raised the budget to 100 GB and money went $5,695 → $14,565 in
   45s. **The fix that would have prevented it outright:** suppress `share.js` automatically
   whenever `ns.getPlayer().factions` is empty — stronger and simpler than any fleet-size-floor
-  heuristic, no design work needed. Still manual as of 2026-07-22 (`share-off.txt` toggled by
-  hand).
+  heuristic, no design work needed. Was manual as of 2026-07-22 (`share-off.txt` toggled by hand);
+  `daemon.js`'s per-tick share fraction now folds this check in directly, transition logged via the
+  existing mode-event seam (`factionless` field joined to `shareOff`).
   - **⚠️ It bit a second time entering BN5, 2026-07-24 — this is now a repeat, not an anecdote.**
     96 GB of a 396 GB cold-start fleet went to share while zero faction work was running (the
     ratchet couldn't even launch). **Correction to the BN2 reading, though: share was NOT decisive
@@ -214,11 +244,14 @@ check there for everything else.
   tick, which is worse than no diagnosis because it points away from the cause. It now walks jobs in
   order against a deducted pool, with tests pinning it to `assignBatchHosts`' ground truth in both
   directions. Any future change to placement must change both.
-- **Cold-start hole in the floor reserve — OPEN, low severity.** A freshly restarted daemon has an
-  empty `lastKnownFloorBatchGb`, so tick 1 reserves 0 and the waterfall claims the fleet for
-  multi-minute prep before the reserve establishes. Self-corrects in minutes, but it makes every
-  daemon restart on a busy fleet cost a prep cycle. Seeding the cache from the previous run's log,
-  or reserving a nominal amount on tick 1, would close it. **Third "warm start assumed" bug found on
+- **~~Cold-start hole in the floor reserve~~ — CLOSED 2026-07-26 (Phase 35 WI5).** A freshly
+  restarted daemon used to have an empty `lastKnownFloorBatchGb`, so tick 1 reserved 0 and the
+  waterfall claimed the fleet for multi-minute prep before the reserve re-established. `daemon.js`
+  now reads the PREVIOUS session's persisted `daemon-batch-log.json` at startup and seeds the
+  reserve from each server's newest skip diagnosis (`seedFloorReserve`) — guarded to
+  `FLOOR_SEED_MAX_AGE_MS` (30 min) so an install-crossing restart doesn't carry a stale
+  pre-install-scale figure (545-1083 GB) into a 2 GB post-install fleet and zero the waterfall the
+  same way the original 2026-07-24 deadlock did. Was the **third "warm start assumed" bug found on
   2026-07-24**, alongside the carve deadlock and the share carve — see the cold-start hardening
   entry in `BACKLOG.md`.
 - **Core-aware grow/weaken sizing — SHELVED, not a live bug.** `sampling.js` sizes grow/weaken at an

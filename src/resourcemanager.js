@@ -69,6 +69,68 @@ export const PORT_OPENER_COSTS = [
   { file: "SQLInject.exe", label: "SQLInject.exe", cost: 250_000_000 },
 ];
 
+// Phase 35 WI3 (D11/D5/§3/Q7): the opener-reservation rule that replaces
+// "reserve the cheapest unowned opener, full stop" -- cheap openers (the
+// ladder's first rungs, which F1 showed END the post-install $0 window) are
+// always reserved in full; expensive ones (HTTPWorm/SQLInject) are gated on
+// eligibility (can trailing income plausibly fund this within
+// OPENER_INCOME_HORIZON_MS?) and activation (either enough cash banked
+// already, or income can fund it within OPENER_FAST_FUND_MS). See
+// computeOpenerActivation.
+export const CHEAP_OPENER_FLOOR = 5_000_000;
+export const OPENER_INCOME_HORIZON_MS = 8 * 60 * 60 * 1000; // 8h
+export const OPENER_ACTIVATION_FRACTION = 0.5; // arm: money >= this * cost
+export const OPENER_ACTIVATION_RELEASE_FRACTION = 0.35; // hysteresis: release only below this * cost (cold-review M3)
+export const OPENER_ELIGIBILITY_RELEASE_MULT = 1.25; // hysteresis: eligible stays eligible until cost > horizon * income * this
+export const OPENER_FAST_FUND_MS = 30 * 60 * 1000; // 30 min -- the second activation clause (cold-review blocker 6)
+
+// Phase 35 WI3 (D6): goallog.js's snapshot -- the trailing-24h income signal
+// the opener rule reads. Duplicated filename constant, not imported (same
+// Singularity-free-script precedent as PORT_OPENER_COSTS above).
+const GOAL_STATE_FILE = "goal-state.json";
+const GOAL_STATE_STALE_MS = 5 * 60 * 1000;
+
+/**
+ * Pure (Phase 35 WI3/D5). Whether the expensive-opener reservation should be
+ * active RIGHT NOW, given `prevActive` (whether THIS SAME target was active
+ * last poll -- the caller resets this to false when the ladder's cheapest-
+ * unowned target changes, so hysteresis never bleeds across different
+ * openers). `trailingIncomePerSec` non-numeric (missing/stale signal, or a
+ * fresh node's cleared series) always returns false -- floor-only mode,
+ * hysteresis doesn't apply to a lost signal.
+ *
+ * Not-previously-active (arm thresholds): eligible when cost <=
+ * horizon*income; activated when money >= ACTIVATION_FRACTION*cost OR
+ * cost <= income*FAST_FUND_MS (the second clause is what makes the pin
+ * bound real -- without it, other spenders can hold cash below half-price
+ * indefinitely and the opener never funds).
+ *
+ * Previously active (release thresholds, cold-review M3): stays eligible
+ * until cost > horizon*income*ELIGIBILITY_RELEASE_MULT; stays activated
+ * until money < ACTIVATION_RELEASE_FRACTION*cost (augfarmer buys can
+ * legitimately drop cash after activation without releasing the
+ * reservation on every 2s poll).
+ */
+export function computeOpenerActivation({ cost, money, trailingIncomePerSec, prevActive }) {
+  if (typeof trailingIncomePerSec !== "number" || !Number.isFinite(trailingIncomePerSec)) return false;
+
+  // trailingIncomePerSec is $/SECOND; the *_MS constants are milliseconds --
+  // convert to seconds before multiplying, or eligibility/fast-fund read
+  // 1000x too generous.
+  const horizonSec = OPENER_INCOME_HORIZON_MS / 1000;
+  const fastFundSec = OPENER_FAST_FUND_MS / 1000;
+
+  if (prevActive) {
+    const stillEligible = cost <= horizonSec * trailingIncomePerSec * OPENER_ELIGIBILITY_RELEASE_MULT;
+    const stillFunded = money >= OPENER_ACTIVATION_RELEASE_FRACTION * cost;
+    return stillEligible && stillFunded;
+  }
+
+  const eligible = cost <= horizonSec * trailingIncomePerSec;
+  const funded = money >= OPENER_ACTIVATION_FRACTION * cost || cost <= trailingIncomePerSec * fastFundSec;
+  return eligible && funded;
+}
+
 /**
  * Pure. Parses finance-reserve-extra.txt's raw content: a missing/empty file
  * is a quiet "nothing to reserve" (not bad content -- there's no file to be
@@ -119,8 +181,29 @@ export function parseAugReserve(raw, now, staleMs) {
  * the reservation would otherwise apply, which is reported back as
  * formulasSuppressed so the caller can distinguish "disabled and would have
  * fired" from "disabled but moot" (already owned / level too low).
+ *
+ * Phase 35 WI3 (D5): the next-port-opener rule is now a three-branch policy
+ * (see computeOpenerActivation) -- `money`/`trailingIncomePerSec` are new
+ * required inputs, and `prevOpenerActive`/`prevOpenerTarget` thread the
+ * hysteresis state forward (the caller persists `openerActive`/
+ * `openerTarget` from this call's return into next poll's args). Cheap
+ * openers (<= CHEAP_OPENER_FLOOR) skip all of this -- always reserved in
+ * full, exactly as before.
  */
-export function computeReservations({ serverCount, hasTor, ownedPrograms, hackingLevel, hasFormulas, manualExtraAmount, formulasDisabled, augReserve }) {
+export function computeReservations({
+  serverCount,
+  hasTor,
+  ownedPrograms,
+  hackingLevel,
+  hasFormulas,
+  manualExtraAmount,
+  formulasDisabled,
+  augReserve,
+  money,
+  trailingIncomePerSec = null,
+  prevOpenerActive = false,
+  prevOpenerTarget = null,
+}) {
   const reservations = [];
 
   if (serverCount === 0) {
@@ -131,10 +214,32 @@ export function computeReservations({ serverCount, hasTor, ownedPrograms, hackin
     reservations.push({ key: "tor-router", label: "TOR router", amount: TOR_ROUTER_COST });
   }
 
+  let openerActive = false;
+  let openerTarget = null;
   const unowned = PORT_OPENER_COSTS.filter((p) => !ownedPrograms.has(p.file));
   if (unowned.length > 0) {
     const cheapest = unowned.reduce((min, p) => (p.cost < min.cost ? p : min));
-    reservations.push({ key: "next-port-opener", label: cheapest.label, amount: cheapest.cost });
+    openerTarget = cheapest.file;
+    if (cheapest.cost <= CHEAP_OPENER_FLOOR) {
+      reservations.push({ key: "next-port-opener", label: cheapest.label, amount: cheapest.cost });
+      openerActive = true;
+    } else {
+      // Hysteresis only carries forward when the ladder's cheapest-unowned
+      // target is the SAME opener as last poll -- a ladder advance (the
+      // cheap rungs finish buying, cheapest-unowned jumps to an expensive
+      // one) must start that opener from the arm thresholds, never inherit
+      // a prior opener's release-banded leniency.
+      const samePrevTarget = prevOpenerTarget === cheapest.file;
+      openerActive = computeOpenerActivation({
+        cost: cheapest.cost,
+        money,
+        trailingIncomePerSec,
+        prevActive: samePrevTarget && !!prevOpenerActive,
+      });
+      if (openerActive) {
+        reservations.push({ key: "next-port-opener", label: cheapest.label, amount: cheapest.cost });
+      }
+    }
   }
 
   const formulasWouldApply = hackingLevel > FORMULAS_HACKING_LEVEL_THRESHOLD && !hasFormulas;
@@ -156,12 +261,53 @@ export function computeReservations({ serverCount, hasTor, ownedPrograms, hackin
   }
 
   const totalReserved = reservations.reduce((sum, r) => sum + r.amount, 0);
-  return { reservations, totalReserved, formulasSuppressed };
+  return { reservations, totalReserved, formulasSuppressed, openerActive, openerTarget };
 }
 
 /** Pure. Reservations may legitimately exceed money (e.g. formulas at $5b) -- that's the design working, not an error state. */
 export function computeAvailable(money, totalReserved) {
   return Math.max(0, money - totalReserved);
+}
+
+/**
+ * Pure (Phase 35 WI3/D7). Stamps each reservation with `since` (first-seen
+ * epoch-ms, read from `firstSeenMs`), adding any newly-appeared key and
+ * dropping any key no longer present -- so `since` resets when a key
+ * disappears and later returns, rather than reporting a stale first-seen
+ * time from a long-gone reservation. Returns a NEW firstSeenMs object (does
+ * not mutate the input) alongside the stamped reservation list -- this is
+ * what makes "reservation held while available is $0 for N hours" a
+ * detectable state (goallog.js's evalStuck `reservation-pin` branch) instead
+ * of a silent one.
+ */
+export function stampReservationAges(reservations, firstSeenMs, nowMs) {
+  const nextFirstSeenMs = {};
+  const stamped = reservations.map((r) => {
+    const since = firstSeenMs[r.key] ?? nowMs;
+    nextFirstSeenMs[r.key] = since;
+    return { ...r, since };
+  });
+  return { reservations: stamped, firstSeenMs: nextFirstSeenMs };
+}
+
+/**
+ * Reads goallog.js's trailing-24h income signal (Phase 35 WI3/D6) --
+ * missing/unparseable/stale (> GOAL_STATE_STALE_MS by its own `timestamp`)
+ * or a non-numeric `income.perSec24h` all collapse to null (the opener
+ * rule's floor-only mode).
+ */
+function readTrailingIncome(ns, nowMs) {
+  const raw = ns.read(GOAL_STATE_FILE);
+  if (!raw) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed.timestamp !== "number" || nowMs - parsed.timestamp > GOAL_STATE_STALE_MS) return null;
+  const v = parsed?.income?.perSec24h;
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
 /**
@@ -240,6 +386,11 @@ export async function main(ns) {
   let wasAugReserveStale = false; // tracks the stale->fresh transition so the WARN fires once, not every poll
   let lastChangeTime = null;
 
+  // --- Phase 35 WI3 (D5/D7): opener hysteresis + per-reservation ages ---
+  let prevOpenerActive = false;
+  let prevOpenerTarget = null;
+  let reservationFirstSeenMs = {}; // key -> firstSeenMs; in-memory, resets on restart (fine -- re-seeds within one poll)
+
   while (true) {
     const money = ns.getPlayer().money;
     const serverCount = ns.cloud.getServerNames().length;
@@ -279,7 +430,16 @@ export async function main(ns) {
     }
     wasAugReserveStale = parsedAugReserve.stale;
 
-    const { reservations, totalReserved, formulasSuppressed } = computeReservations({
+    const now = Date.now();
+    const trailingIncomePerSec = readTrailingIncome(ns, now);
+
+    const {
+      reservations: rawReservations,
+      totalReserved,
+      formulasSuppressed,
+      openerActive,
+      openerTarget,
+    } = computeReservations({
       serverCount,
       hasTor,
       ownedPrograms,
@@ -288,10 +448,19 @@ export async function main(ns) {
       manualExtraAmount: parsedManualExtra.amount,
       formulasDisabled,
       augReserve: parsedAugReserve,
+      money,
+      trailingIncomePerSec,
+      prevOpenerActive,
+      prevOpenerTarget,
     });
+    prevOpenerActive = openerActive;
+    prevOpenerTarget = openerTarget;
+
+    const { reservations, firstSeenMs } = stampReservationAges(rawReservations, reservationFirstSeenMs, now);
+    reservationFirstSeenMs = firstSeenMs;
+
     const available = computeAvailable(money, totalReserved);
 
-    const now = Date.now();
     const timeLabel = new Date(now).toLocaleTimeString();
     const stateRecord = { timestamp: now, time: timeLabel, money, totalReserved, available, reservations, formulasSuppressed };
     ns.write(FINANCE_STATE_FILE, JSON.stringify(stateRecord), "w");

@@ -7,16 +7,23 @@
 // it chronic -- upgradecloudserver.js/fleetupgrade.js/renamecloudservers.js
 // remain the manual rename paths).
 //
-// Per poll, in order: (1) bootstrap buy -- the first cloud server, if the
-// fleet is empty, funded from live money (this is the fulfiller of
-// resourcemanager.js's own bootstrap-server reservation, so it deliberately
-// ignores that reservation rather than gating on it -- see the phase 11
-// spec's Reservation model); (2) upgrade -- Phase 10 behavior verbatim,
-// lowest-RAM-first, spending only available cash; (3) growth buy -- a new
-// 16GB server, once every owned server is maxed and a purchase slot is free,
-// also spending only available cash. Auto-bought servers are named
-// cloud-<n> (nextCloudName, mirrors renamecloudservers.js's idempotent
-// scheme) so they never need the manual rename utility.
+// Per poll, in order (Phase 35 D3/D9 -- REORDERED, growth now leads): (1)
+// bootstrap buy -- the first cloud server, if the fleet is empty, funded
+// from live money (this is the fulfiller of resourcemanager.js's own
+// bootstrap-server reservation, so it deliberately ignores that reservation
+// rather than gating on it -- see the phase 11 spec's Reservation model);
+// (2) growth buy loop -- a NEW ranking-derived-size server (pickGrowthRam)
+// whenever a purchase slot is free and one is affordable, MULTIPLE per poll,
+// spending only available cash -- this now wins over upgrading even when
+// existing servers aren't maxed (1x vs 2x $/GB, measured 2.4x live; BN5's
+// CloudServerSoftcapCost penalizes big single hosts); (3) upgrade loop --
+// Phase 10 behavior verbatim, lowest-RAM-first, runs ONLY when this poll
+// placed no growth buy and none is affordable -- the cold-start fallback
+// (post-install: 2GB fleet, ~$110k cash, growth costs $3.5M+ -- without this
+// fallback the only affordable recovery rungs, the $110k/$220k/$440k upgrade
+// tiers, would never fire). Auto-bought servers are named cloud-<n>
+// (nextCloudName, mirrors renamecloudservers.js's idempotent scheme) so they
+// never need the manual rename utility.
 //
 // Fail-safe: no finance state (missing, unparseable, or stale) means spend
 // nothing at all (bootstrap included) -- this script never guesses at
@@ -31,8 +38,16 @@ const POLL_MS = 10_000;
 const STALE_MS = 15_000; // >7 resource-manager polls (POLL_MS=2000 there)
 const OFF_MARKER = "cloud-upgrade-off.txt";
 const BOOTSTRAP_RAM = 2;
-const GROWTH_RAM = 16;
 const CLOUD_NAME_PATTERN = /^cloud-(\d+)$/;
+
+// Phase 35 WI2: daemon.js's live target ranking (0 GB ns.read; not imported
+// -- see resourcemanager.js's own precedent for duplicating small filename
+// constants rather than pulling in a heavy module for one string).
+const TARGETS_RANKING_FILE = "targets-ranking.json";
+export const GROWTH_RAM_MIN = 64; // floors out fresh-node n00dles-class jobs without the 16GB fragmentation trap (F4)
+export const GROWTH_RAM_MAX = 1024; // caps a single buy so one whale target can't convert the whole bankroll into one host
+export const GROWTH_RAM_FALLBACK = 512; // sized to F4's measured ~350-380GB harakiri-class hack job, the worst real case observed
+export const GROWTH_RAM_STALE_MS = 5 * 60 * 1000; // 5 min, judged from the ranking file's own timestamp
 
 // Phase 24 (S4): dashboard.js's cloud panel source, written every poll
 // (including the paused/finance-stale early branches, each with its own flag
@@ -81,15 +96,65 @@ export function planNextUpgrade(fleet, ramLimit) {
 }
 
 /**
- * Pure. True only when every owned server is maxed out AND a purchase slot
- * is free -- an empty fleet never triggers a growth buy (that's the
- * bootstrap step's job). Mirrors renamecloudservers.js's philosophy of never
- * acting on an empty/undersized signal by accident.
+ * Pure (Phase 35 WI2/D3-D9: the "every server maxed" gate is RETIRED --
+ * growth now wins over upgrading whenever a slot is free, not just once the
+ * fleet is fully maxed). True whenever a purchase slot is free -- an empty
+ * fleet never triggers a growth buy (that's the bootstrap step's job).
+ * Mirrors renamecloudservers.js's philosophy of never acting on an
+ * empty/undersized signal by accident.
  */
-export function shouldBuyGrowthServer(fleet, ramLimit, serverLimit) {
+export function shouldBuyGrowthServer(fleet, serverLimit) {
   if (fleet.length === 0) return false;
-  if (fleet.length >= serverLimit) return false;
-  return fleet.every((s) => s.ram >= ramLimit);
+  return fleet.length < serverLimit;
+}
+
+/**
+ * Pure (Phase 35 WI2). Whether a growth buy is possible RIGHT NOW, given the
+ * already-priced cost for pickGrowthRam's derived size (pricing itself isn't
+ * pure -- ns.cloud.getServerCost -- so the caller computes it and passes it
+ * in). This is the upgrade loop's cold-start-fallback gate: it runs only
+ * when this is false AND no growth buy happened yet this poll. The
+ * cold-start case this exists to protect: a 2 GB bootstrap fleet with ~$110k
+ * cash and a $3.5M+ derived growth cost returns false here, so the
+ * $110k/$220k/$440k upgrade tiers stay reachable.
+ */
+export function growthPossible(fleet, serverLimit, cost, availableCash, liveMoney) {
+  if (!shouldBuyGrowthServer(fleet, serverLimit)) return false;
+  return cost <= availableCash && cost <= liveMoney;
+}
+
+function nextPow2(n) {
+  let p = 1;
+  while (p < n) p *= 2;
+  return p;
+}
+
+function clamp(n, min, max) {
+  return Math.min(max, Math.max(min, n));
+}
+
+/**
+ * Pure (Phase 35 WI2/D4, F4's trap closed). Growth-buy size: the smallest
+ * power of two >= the max `hackJobGb` across the top-3 ranked targets (not
+ * head-only, so a second fleet member's larger hack job can't be orphaned),
+ * clamped to [GROWTH_RAM_MIN, min(GROWTH_RAM_MAX, ramLimit)] -- never above
+ * the node's cloud RAM limit (cold-review major 10). Falls back to
+ * {ramGb: GROWTH_RAM_FALLBACK, source: "fallback"} when the ranking is
+ * missing/stale (> GROWTH_RAM_STALE_MS by its own `timestamp` field) or no
+ * top-3 entry carries a `hackJobGb`.
+ * @param {{timestamp: number, targets: {hackJobGb: number|null}[]}|null} ranking
+ */
+export function pickGrowthRam(ranking, nowMs, ramLimit) {
+  const ceiling = Math.min(GROWTH_RAM_MAX, ramLimit);
+  const stale = !ranking || typeof ranking.timestamp !== "number" || nowMs - ranking.timestamp > GROWTH_RAM_STALE_MS;
+  const sizes = !stale && Array.isArray(ranking.targets)
+    ? ranking.targets.slice(0, 3).map((t) => t?.hackJobGb).filter((v) => typeof v === "number" && v > 0)
+    : [];
+
+  if (sizes.length === 0) {
+    return { ramGb: clamp(GROWTH_RAM_FALLBACK, GROWTH_RAM_MIN, ceiling), source: "fallback" };
+  }
+  return { ramGb: clamp(nextPow2(Math.max(...sizes)), GROWTH_RAM_MIN, ceiling), source: "ranking" };
 }
 
 /**
@@ -191,89 +256,125 @@ export async function main(ns) {
       }
     }
 
-    // Step 2: upgrade loop -- Phase 10 behavior verbatim.
+    // Step 2 (Phase 35 D3/D9 -- MOVED ahead of upgrading): growth buy loop.
+    // Multiple buys per poll while a slot is free AND the ranking-derived
+    // size is affordable -- this now wins over upgrading existing servers
+    // even when they aren't maxed.
+    let rankingForGrowth = null;
+    {
+      const rankingRaw = ns.read(TARGETS_RANKING_FILE);
+      if (rankingRaw) {
+        try {
+          rankingForGrowth = JSON.parse(rankingRaw);
+        } catch {
+          rankingForGrowth = null;
+        }
+      }
+    }
+    let growthStatus = null;
+    let growthBoughtCount = 0;
     while (true) {
       const owned = ns.cloud.getServerNames();
-      if (owned.length === 0) break;
-
       const fleet = owned.map((hostname) => ({ hostname, ram: ns.getServerMaxRam(hostname) }));
-      const plan = planNextUpgrade(fleet, ramLimit);
-      if (plan === null) break;
+      if (!shouldBuyGrowthServer(fleet, serverLimit)) break;
 
-      const cost = ns.cloud.getServerUpgradeCost(plan.hostname, plan.nextTier);
-      if (cost < 0) {
-        tprintTs(ns, `WARN: getServerUpgradeCost(${plan.hostname}, ${plan.nextTier}) returned negative -- skipping this poll`);
+      const { ramGb, source } = pickGrowthRam(rankingForGrowth, Date.now(), ramLimit);
+      const cost = ns.cloud.getServerCost(ramGb);
+      const liveMoney = ns.getPlayer().money;
+      if (!growthPossible(fleet, serverLimit, cost, availableCash, liveMoney)) {
+        growthStatus = { waiting: true, failing: false, cost, ramGb, source };
         break;
       }
 
-      const liveMoney = ns.getPlayer().money; // fresh read -- money may have moved since the top of this poll
-      if (cost > availableCash || cost > liveMoney) break;
-
-      const fromRam = ns.getServerMaxRam(plan.hostname);
-      const ok = ns.cloud.upgradeServer(plan.hostname, plan.nextTier);
-      if (!ok) {
-        // The world disagrees with our inputs (cost moved, server state
-        // changed) -- retrying the same pick synchronously here would be an
-        // unbounded loop in a no-await section, i.e. a game-freezing hang.
-        // Break and let the next poll re-derive everything fresh.
-        tprintTs(ns, `WARN: upgradeServer(${plan.hostname}, ${plan.nextTier}) returned false -- stopping this poll's upgrade loop`);
+      const name = nextCloudName(owned);
+      const hostname = ns.cloud.purchaseServer(name, ramGb);
+      if (hostname === "") {
+        if (!growthFailing) tprintTs(ns, `WARN: purchaseServer(${name}, ${ramGb}) returned empty string -- retrying next poll`);
+        growthFailing = true;
+        growthStatus = { waiting: false, failing: true, cost, ramGb, source };
+        // A persistent failure retrying synchronously here would be an
+        // unbounded loop in a no-await section -- break and let the next
+        // poll re-derive everything fresh (same caution as the upgrade loop
+        // below).
         break;
       }
 
+      growthFailing = false;
       const nowMs = Date.now();
       recordTransaction(ns, {
         type: "expense",
-        source: "auto-cloud-upgrade",
-        hostname: plan.hostname,
-        detail: `${fromRam}GB -> ${plan.nextTier}GB`,
+        source: "auto-cloud-purchase",
+        hostname,
+        ram: ramGb,
         amount: cost,
         timestamp: nowMs,
         time: new Date(nowMs).toLocaleTimeString(),
       });
-      ns.print(`CLOUDUPGRADE: ${plan.hostname} ${ns.format.ram(fromRam)} -> ${ns.format.ram(plan.nextTier)} for $${ns.format.number(cost)}`);
-
+      ns.print(`CLOUDBUY: ${hostname} (${ns.format.ram(ramGb)}) for $${ns.format.number(cost)} -- growth buy (${source}), slot ${owned.length + 1}/${serverLimit}`);
+      lastGrowthBuy = { hostname, cost, time: new Date(nowMs).toLocaleTimeString() };
       availableCash -= cost;
-      lastUpgrade = { hostname: plan.hostname, fromRam, toRam: plan.nextTier, cost, time: new Date(nowMs).toLocaleTimeString() };
+      growthBoughtCount++;
+      growthStatus = { waiting: false, failing: false, cost, ramGb, source };
     }
 
-    // Step 3: growth buy -- once every owned server is maxed and a purchase
-    // slot is free. Discretionary (gated on availableCash, not a
-    // reservation); at most one per poll -- the new server starts below
-    // ramLimit, so the trigger goes false on its own next evaluation.
-    let growthStatus = null;
-    {
+    // Step 3: upgrade loop -- Phase 10 behavior verbatim, but now the
+    // cold-start fallback: runs ONLY when this poll placed no growth buy and
+    // none is currently affordable (no free slot, no known size, or the
+    // derived size is unaffordable) -- otherwise the only affordable
+    // post-install recovery rungs (the $110k/$220k/$440k upgrade tiers)
+    // would never fire while growth is unaffordable, and growth spend would
+    // starve upgrades entirely once it IS affordable (intentional -- growth
+    // wins per D9).
+    const growthStillPossible = (() => {
       const owned = ns.cloud.getServerNames();
       const fleet = owned.map((hostname) => ({ hostname, ram: ns.getServerMaxRam(hostname) }));
-      if (shouldBuyGrowthServer(fleet, ramLimit, serverLimit)) {
-        const cost = ns.cloud.getServerCost(GROWTH_RAM);
-        const liveMoney = ns.getPlayer().money;
-        if (cost <= availableCash && cost <= liveMoney) {
-          const name = nextCloudName(owned);
-          const hostname = ns.cloud.purchaseServer(name, GROWTH_RAM);
-          if (hostname === "") {
-            if (!growthFailing) tprintTs(ns, `WARN: purchaseServer(${name}, ${GROWTH_RAM}) returned empty string -- retrying next poll`);
-            growthFailing = true;
-            growthStatus = { waiting: false, failing: true, cost };
-          } else {
-            growthFailing = false;
-            const nowMs = Date.now();
-            recordTransaction(ns, {
-              type: "expense",
-              source: "auto-cloud-purchase",
-              hostname,
-              ram: GROWTH_RAM,
-              amount: cost,
-              timestamp: nowMs,
-              time: new Date(nowMs).toLocaleTimeString(),
-            });
-            ns.print(`CLOUDBUY: ${hostname} (${ns.format.ram(GROWTH_RAM)}) for $${ns.format.number(cost)} -- growth buy, slot ${owned.length + 1}/${serverLimit}`);
-            lastGrowthBuy = { hostname, cost, time: new Date(nowMs).toLocaleTimeString() };
-            availableCash -= cost;
-            growthStatus = { waiting: false, failing: false, cost };
-          }
-        } else {
-          growthStatus = { waiting: true, failing: false, cost };
+      const { ramGb } = pickGrowthRam(rankingForGrowth, Date.now(), ramLimit);
+      const cost = ns.cloud.getServerCost(ramGb);
+      return growthPossible(fleet, serverLimit, cost, availableCash, ns.getPlayer().money);
+    })();
+    if (growthBoughtCount === 0 && !growthStillPossible) {
+      while (true) {
+        const owned = ns.cloud.getServerNames();
+        if (owned.length === 0) break;
+
+        const fleet = owned.map((hostname) => ({ hostname, ram: ns.getServerMaxRam(hostname) }));
+        const plan = planNextUpgrade(fleet, ramLimit);
+        if (plan === null) break;
+
+        const cost = ns.cloud.getServerUpgradeCost(plan.hostname, plan.nextTier);
+        if (cost < 0) {
+          tprintTs(ns, `WARN: getServerUpgradeCost(${plan.hostname}, ${plan.nextTier}) returned negative -- skipping this poll`);
+          break;
         }
+
+        const liveMoney = ns.getPlayer().money; // fresh read -- money may have moved since the top of this poll
+        if (cost > availableCash || cost > liveMoney) break;
+
+        const fromRam = ns.getServerMaxRam(plan.hostname);
+        const ok = ns.cloud.upgradeServer(plan.hostname, plan.nextTier);
+        if (!ok) {
+          // The world disagrees with our inputs (cost moved, server state
+          // changed) -- retrying the same pick synchronously here would be an
+          // unbounded loop in a no-await section, i.e. a game-freezing hang.
+          // Break and let the next poll re-derive everything fresh.
+          tprintTs(ns, `WARN: upgradeServer(${plan.hostname}, ${plan.nextTier}) returned false -- stopping this poll's upgrade loop`);
+          break;
+        }
+
+        const nowMs = Date.now();
+        recordTransaction(ns, {
+          type: "expense",
+          source: "auto-cloud-upgrade",
+          hostname: plan.hostname,
+          detail: `${fromRam}GB -> ${plan.nextTier}GB`,
+          amount: cost,
+          timestamp: nowMs,
+          time: new Date(nowMs).toLocaleTimeString(),
+        });
+        ns.print(`CLOUDUPGRADE: ${plan.hostname} ${ns.format.ram(fromRam)} -> ${ns.format.ram(plan.nextTier)} for $${ns.format.number(cost)}`);
+
+        availableCash -= cost;
+        lastUpgrade = { hostname: plan.hostname, fromRam, toRam: plan.nextTier, cost, time: new Date(nowMs).toLocaleTimeString() };
       }
     }
 
@@ -281,6 +382,7 @@ export async function main(ns) {
     const fleet = owned.map((hostname) => ({ hostname, ram: ns.getServerMaxRam(hostname) }));
     const nextPlan = planNextUpgrade(fleet, ramLimit);
     const nextCost = nextPlan ? ns.cloud.getServerUpgradeCost(nextPlan.hostname, nextPlan.nextTier) : null;
+    const slotFree = shouldBuyGrowthServer(fleet, serverLimit);
 
     ns.clearLog();
     ns.print(`===== cloud manager @ ${timeLabel} =====`);
@@ -301,27 +403,27 @@ export async function main(ns) {
       const maxRam = Math.max(...fleet.map((f) => f.ram));
       ns.print(`fleet: ${fleet.length} server(s), ${ns.format.ram(minRam)} - ${ns.format.ram(maxRam)}`);
     }
-    if (nextPlan) {
+    // Growth renders in PREFERENCE to the next-upgrade line while a slot is
+    // free (Phase 35 D3/D9 -- they were mutually exclusive under the old
+    // policy; kept that way here so this tail's line count doesn't change).
+    if (slotFree) {
+      if (growthStatus?.failing) {
+        ns.print(`growth buy: purchaseServer failing (cost $${ns.format.number(growthStatus.cost)}, ${ns.format.ram(growthStatus.ramGb)}) -- retrying`);
+      } else if (growthStatus?.waiting) {
+        ns.print(`growth buy: waiting for cash (need $${ns.format.number(growthStatus.cost)}, ${ns.format.ram(growthStatus.ramGb)}, ${growthStatus.source})`);
+      } else if (growthBoughtCount > 0) {
+        ns.print(`growth buy: bought ${growthBoughtCount} this poll for $${ns.format.number(growthStatus.cost)} (${ns.format.ram(growthStatus.ramGb)} last)`);
+      } else {
+        ns.print(`growth buy: slot available (${fleet.length}/${serverLimit})`);
+      }
+    } else if (nextPlan) {
       const affordable = nextCost !== null && nextCost <= availableCash;
       ns.print(
         `next: ${nextPlan.hostname} -> ${ns.format.ram(nextPlan.nextTier)}, $${ns.format.number(nextCost)}` +
           (affordable ? "" : " (can't afford)")
       );
     } else if (fleet.length > 0) {
-      ns.print("fleet maxed -- all servers at the RAM limit");
-      if (fleet.length < serverLimit) {
-        if (growthStatus?.failing) {
-          ns.print(`growth buy: purchaseServer failing (cost $${ns.format.number(growthStatus.cost)}) -- retrying`);
-        } else if (growthStatus?.waiting) {
-          ns.print(`growth buy: waiting for cash (need $${ns.format.number(growthStatus.cost)})`);
-        } else if (growthStatus) {
-          ns.print(`growth buy: bought this poll for $${ns.format.number(growthStatus.cost)}`);
-        } else {
-          ns.print(`growth buy: slot available (${fleet.length}/${serverLimit})`);
-        }
-      } else {
-        ns.print(`fleet at server limit (${serverLimit})`);
-      }
+      ns.print(`fleet at server limit (${serverLimit})`);
     }
     if (lastUpgrade) {
       ns.print(
@@ -336,6 +438,21 @@ export async function main(ns) {
       ns.print(`last growth buy: ${lastGrowthBuy.hostname}, $${ns.format.number(lastGrowthBuy.cost)} @ ${lastGrowthBuy.time}`);
     }
 
+    // Phase 35 WI2 (cold-review blocker 3): the `growth` block is now
+    // UNCONDITIONAL whenever a slot is free -- the old `!nextPlan` gate is
+    // permanently false under the new policy (growth wins even when
+    // existing servers aren't maxed).
+    let growthBlock = null;
+    if (fleet.length > 0) {
+      growthBlock = slotFree
+        ? {
+            status: growthStatus?.failing ? "failing" : growthStatus?.waiting ? "waiting" : growthBoughtCount > 0 ? "bought" : "available",
+            ramGb: growthStatus?.ramGb ?? null,
+            source: growthStatus?.source ?? null,
+          }
+        : { status: "at-limit" };
+    }
+
     ns.write(
       CLOUD_STATE_FILE,
       JSON.stringify(
@@ -345,21 +462,7 @@ export async function main(ns) {
           reserved: state.totalReserved,
           fleet: fleet.length > 0 ? { count: fleet.length, minRam: Math.min(...fleet.map((f) => f.ram)), maxRam: Math.max(...fleet.map((f) => f.ram)), serverLimit, ramLimit } : null,
           next: nextPlan ? { hostname: nextPlan.hostname, tier: nextPlan.nextTier, cost: nextCost, affordable: nextCost !== null && nextCost <= availableCash } : null,
-          growth:
-            !nextPlan && fleet.length > 0
-              ? {
-                  status:
-                    fleet.length >= serverLimit
-                      ? "at-limit"
-                      : growthStatus?.failing
-                        ? "failing"
-                        : growthStatus?.waiting
-                          ? "waiting"
-                          : growthStatus
-                            ? "bought"
-                            : "available",
-                }
-              : null,
+          growth: growthBlock,
           lastUpgrade,
           lastBootstrapBuy,
           lastGrowthBuy,

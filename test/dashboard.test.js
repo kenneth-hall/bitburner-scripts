@@ -459,6 +459,34 @@ describe('cloudPanel', () => {
     expect(lines.some((l) => l.includes('fleet maxed -- growth: at-limit'))).toBe(true);
   });
 
+  // Phase 35 WI2 (D3/D9): growth renders in PREFERENCE to next-upgrade while
+  // a slot is free -- even when `next` is also present and unaffordable, the
+  // growth line wins (they were mutually exclusive under the old policy;
+  // this is the new case that policy inversion introduces).
+  it('growth-line precedence: renders growth, not the unaffordable next-upgrade line, while a slot is free', () => {
+    const lines = cloudPanel(
+      {
+        timestamp: NOW,
+        available: 100,
+        reserved: 0,
+        fleet: cloudFleet,
+        next: { hostname: 'cloud-0', tier: 64, cost: 1000, affordable: false },
+        growth: { status: 'waiting', ramGb: 512, source: 'ranking' },
+      },
+      NOW
+    );
+    expect(lines.some((l) => l.includes('growth: waiting'))).toBe(true);
+    expect(lines.some((l) => l.includes("can't afford"))).toBe(false);
+  });
+
+  it('growth-line "bought"/"available" statuses render with size and source', () => {
+    const bought = cloudPanel({ timestamp: NOW, fleet: cloudFleet, growth: { status: 'bought', ramGb: 256, source: 'fallback' } }, NOW);
+    expect(bought.some((l) => l.includes('growth: bought 256.0GB (fallback)'))).toBe(true);
+
+    const available = cloudPanel({ timestamp: NOW, fleet: cloudFleet, growth: { status: 'available', ramGb: null, source: null } }, NOW);
+    expect(available.some((l) => l.includes('growth: available'))).toBe(true);
+  });
+
   it('folds fleet shape and spend headroom into one line', () => {
     const lines = cloudPanel({ timestamp: NOW, available: 1e9, reserved: 0, fleet: cloudFleet }, NOW);
     expect(lines[1]).toContain('fleet 2/25');
@@ -658,6 +686,40 @@ describe('goalPanel', () => {
     const over = goalPanel({ timestamp: NOW, mProgress: {}, income: {}, nextAug: { aug: 'x', price: 1, phase: 'awaiting-money', waitingMs: 135 * 60_000 } }, NOW);
     expect(over.some((l) => l.endsWith('waiting 2h 15m'))).toBe(true);
   });
+
+  // Phase 35 WI6 (D6/D12): the four liveness display forms, pinned exactly.
+  describe('liveness line', () => {
+    it('OK', () => {
+      const lines = goalPanel({ timestamp: NOW, mProgress: {}, liveness: { status: 'OK', reason: null, sinceMs: NOW, boundaryStartMs: null } }, NOW);
+      expect(lines).toContain('liveness: OK');
+    });
+
+    it('WARMING', () => {
+      const lines = goalPanel({ timestamp: NOW, mProgress: {}, liveness: { status: 'WARMING', reason: null, sinceMs: NOW, boundaryStartMs: null } }, NOW);
+      expect(lines).toContain('liveness: warming up');
+    });
+
+    it('BOUNDARY: elapsed hours derived from boundaryStartMs, 1 decimal', () => {
+      const lines = goalPanel(
+        { timestamp: NOW, mProgress: {}, liveness: { status: 'BOUNDARY', reason: null, sinceMs: NOW, boundaryStartMs: NOW - 2.1 * 3_600_000 } },
+        NOW
+      );
+      expect(lines).toContain('liveness: boundary window (2.1h)');
+    });
+
+    it('STUCK: WARN line, elapsed hours derived from sinceMs, reason appended', () => {
+      const lines = goalPanel(
+        { timestamp: NOW, mProgress: {}, liveness: { status: 'STUCK', reason: 'reservation-pin', sinceMs: NOW - 3.2 * 3_600_000, boundaryStartMs: null } },
+        NOW
+      );
+      expect(lines).toContain('WARN: liveness STUCK 3.2h -- reservation-pin');
+    });
+
+    it('omitted entirely when liveness is absent (pre-Phase-35 export)', () => {
+      const lines = goalPanel({ timestamp: NOW, mProgress: {} }, NOW);
+      expect(lines.some((l) => l.includes('liveness'))).toBe(false);
+    });
+  });
 });
 
 // --- renderAll ---------------------------------------------------------------
@@ -748,6 +810,8 @@ describe('renderAll', () => {
       mProgress: { value: 16.699, target: 16.7, targetLabel: 'core', pct: 99, gateTarget: 45, queuedValue: 31.728, queuedPct: 190, queuedCount: 15 },
       income: { perSec: 9.99e12, trend: 'DOWN', windowMs: 600_000 },
       tripwire: { status: 'STALLED', flatHours: 47.9 },
+      // Phase 35 WI6: the STUCK form is the widest liveness line.
+      liveness: { status: 'STUCK', reason: 'reservation-pin', sinceMs: NOW - 3.2 * 3_600_000, boundaryStartMs: null },
       nextAug: { aug: 'Cranial Signal Processors V', price: 9.99e12, phase: 'awaiting-money', awaitingSince: NOW - 599 * 60_000, waitingMs: 599 * 60_000 },
     };
 

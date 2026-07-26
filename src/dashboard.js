@@ -42,13 +42,15 @@ import { transactionsFileName } from "./translog.js";
 
 export const DASHBOARD_W = 891;
 // Raised 1262 -> 1306 (+44px ~= 2 rows at 21.8px/row) 2026-07-23, in lockstep
-// with ROW_BUDGET 58 -> 60, when the GOAL panel gained a separate gate line. The
-// window is sized to exactly hold ROW_BUDGET no-wrap rows, so the budget and the
-// height must move together or the no-scroll guarantee breaks. Fits: screen usable
-// height is 1392px (CDP, 2026-07-23) and the panel top is Y=21, so the new bottom
-// at 1327 clears it by 65px. (The pre-existing 58 was already marginal -- the real
-// worst case with a +queued line present was 59; this fixes that latent gap too.)
-export const DASHBOARD_H = 1306;
+// with ROW_BUDGET 58 -> 60, when the GOAL panel gained a separate gate line.
+// Raised again 1306 -> 1328 (+22px = 1 row, the per-row step this precedent
+// established) 2026-07-26 (Phase 35 WI6), in lockstep with ROW_BUDGET 60 ->
+// 61, when the GOAL panel gained the liveness line. The window is sized to
+// exactly hold ROW_BUDGET no-wrap rows, so the budget and the height must
+// move together or the no-scroll guarantee breaks. Fits: screen usable
+// height is 1392px (CDP, 2026-07-23) and the panel top is Y=21, so the new
+// bottom at 1349 clears it by 43px.
+export const DASHBOARD_H = 1328;
 export const DASHBOARD_FONT = 16;
 export const DASHBOARD_X = 1653; // live daemon-tail anchor, confirmed via CDP 2026-07-14
 export const DASHBOARD_Y = 21;
@@ -58,7 +60,7 @@ export const DASHBOARD_Y = 21;
 // (92*9.6001=883.2px) while the 96-char ruler line rendered clipped to the
 // same width as the 92-char one, proving 93-96 get cut off, not wrapped.
 export const COLUMN_BUDGET = 92;
-export const ROW_BUDGET = 60; // paired with DASHBOARD_H -- see its comment above
+export const ROW_BUDGET = 61; // paired with DASHBOARD_H -- see its comment above
 export const POLL_MS = 1000;
 export const RULER_FLAG = "dashboard-ruler.txt";
 export const PANEL_ENTRY_CAP = 3;
@@ -186,6 +188,12 @@ function fmtElapsed(ms) {
   const totalMin = Math.floor(ms / 60_000);
   if (totalMin < 60) return `${totalMin}m`;
   return `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`;
+}
+
+/** Phase 35 WI6 -- 1-decimal-hour display for the liveness line's elapsed figures. */
+function fmtHours1(ms) {
+  if (ms === undefined || ms === null || !Number.isFinite(ms) || ms < 0) return "?";
+  return (ms / 3_600_000).toFixed(1);
 }
 
 /** Title-line STALE marker (S7), or "" when fresh/unknown. */
@@ -454,11 +462,23 @@ export function cloudPanel(state, now) {
     : "no cloud servers owned";
   lines.push(`${fleetPart} | avail $${fmtNum(state.available)}`);
 
+  // Phase 35 WI2 (D3/D9): growth renders in PREFERENCE to the next-upgrade
+  // line while a slot is free -- the `growth` block is unconditional now
+  // (cloudmanager.js's cold-review blocker 3), so this panel checks its
+  // status directly rather than inferring "maxed" from `!next`. `at-limit`
+  // is the one case unaffected by the inversion -- unchanged string, still
+  // pinned by an existing test.
   const next = state.next;
-  if (next && !next.affordable) {
+  const growth = state.growth;
+  const slotFree = growth && growth.status !== "at-limit";
+  if (slotFree) {
+    const sizeLabel = growth.ramGb ? ` ${fmtRam(growth.ramGb)}` : "";
+    const sourceLabel = growth.source ? ` (${growth.source})` : "";
+    lines.push(`growth: ${growth.status ?? "?"}${sizeLabel}${sourceLabel}`);
+  } else if (next && !next.affordable) {
     lines.push(`next: ${next.hostname ?? "?"} -> ${fmtRam(next.tier)}, $${fmtNum(next.cost)} (can't afford)`);
-  } else if (!next && state.growth) {
-    lines.push(`fleet maxed -- growth: ${state.growth.status ?? "?"}`);
+  } else if (growth && growth.status === "at-limit") {
+    lines.push(`fleet maxed -- growth: ${growth.status}`);
   }
   return lines;
 }
@@ -612,6 +632,22 @@ export function goalPanel(state, now) {
   } else {
     const mins = Math.round((income.windowMs ?? DEFAULT_GOAL_WINDOW_MS) / 60_000);
     lines.push(`income $${fmtNum(perSec)}/s ${trend} (${mins}m)`);
+  }
+
+  // Phase 35 WI6 (D6/D12): the liveness verdict, one line, display forms
+  // pinned exactly (decision 6's four forms). Omitted entirely when absent
+  // (pre-Phase-35 export, or goallog.js not yet through its first poll).
+  const liveness = state.liveness;
+  if (liveness) {
+    if (liveness.status === "STUCK") {
+      lines.push(`WARN: liveness STUCK ${fmtHours1(liveness.sinceMs !== undefined && liveness.sinceMs !== null ? now - liveness.sinceMs : null)}h -- ${liveness.reason ?? "?"}`);
+    } else if (liveness.status === "BOUNDARY") {
+      lines.push(`liveness: boundary window (${fmtHours1(liveness.boundaryStartMs !== undefined && liveness.boundaryStartMs !== null ? now - liveness.boundaryStartMs : null)}h)`);
+    } else if (liveness.status === "WARMING") {
+      lines.push("liveness: warming up");
+    } else {
+      lines.push("liveness: OK");
+    }
   }
 
   const next = state.nextAug;

@@ -30,12 +30,34 @@ import { appendCapped } from "./gangratelog.js";
 export const SERIES_FILE = "goal-log.json";
 export const SNAPSHOT_FILE = "goal-state.json";
 export const AUGFARMER_STATE_FILE = "augfarmer-state.json"; // hardcoded, not imported -- see dashboard.js's own precedent for why a reader shouldn't import a heavy companion module for a filename string
+// Phase 35 WI6: same hardcoded-filename precedent -- daemon.js/resourcemanager.js's
+// own state files, read tolerantly, no import (keeps this script's ns surface
+// exactly what it was: getMoneySources + getPlayer + ns.read/ns.write).
+export const DAEMON_STATUS_FILE = "daemon-status.json";
+export const FINANCE_STATE_FILE = "finance-state.json";
+export const BOUNDARY_START_FILE = "boundary-start.json"; // bootstrap.js's per-boundary marker (Phase 35 WI1)
 
 export const SAMPLE_INTERVAL_MS = 60_000; // 1 min -> RING_CAP below is 48h of history
 export const RING_CAP = 2880; // 2880 * 1min = 48h; oldest samples drop off the front
 export const RATE_WINDOW_MS = 600_000; // 10 min: flattens batch-landing noise, short enough to read as "now"
 export const TREND_UP_RATIO = 1.05;
 export const TREND_DOWN_RATIO = 0.95;
+
+// Phase 35 WI3 (D5/D6): 24h trailing income window -- resourcemanager.js's
+// opener-eligibility signal (D11's rule is measured against this, not
+// RATE_WINDOW_MS's 10 min, so the post-install $0 stretch can't zero the
+// estimator -- F1's flaw fix). The ring holds 48h, ample for a 24h window.
+export const INCOME_WINDOW_24H_MS = 24 * 60 * 60 * 1000;
+
+// Phase 35 WI6 (D6/D12): the liveness verdict's own constants.
+export const STUCK_WINDOW_MS = 2 * 60 * 60 * 1000; // 2h -- also WARMING's minimum series span
+export const STUCK_INCOME_FLOOR = 1; // $1/s
+export const BOUNDARY_GRACE_MS = 4 * 60 * 60 * 1000; // 4h -- a boundary window is EXPECTED to look dead
+export const DAEMON_STATUS_STALE_MS = 10 * 60 * 1000; // 10 min -- past this, daemon-status.json itself is the dead signal (genuine daemon death, not the export bridge -- goallog runs in-game reading in-game files)
+// Mirrors daemon.js's own BOUNDARY_WINDOW_MS -- duplicated, not imported
+// (daemon.js's ns surface is far too heavy for this Singularity-free
+// resident to pull in for one constant).
+const BOUNDARY_WINDOW_MS = 16 * 60 * 60 * 1000;
 
 // BN5.1 target (retargeted 2026-07-24, entering BN5 off the BN2.1 clear). The
 // clear condition is the w0r1d_d43m0n hacking-level gate = 4,500 (Difficulty
@@ -111,6 +133,90 @@ export function computeRateRange(series, fromMs, toMs, field) {
 }
 
 /**
+ * Pure (Phase 35 WI6/D6/D12). Liveness verdict beside GP2's tripwire --
+ * GP2 answers "is M progressing over 12h"; this answers "is the engine
+ * ALIVE right now" (a stall a session might not read for hours -- the
+ * 21.7h-unread-STALLED incident this exists to shrink time-to-diagnosis
+ * for). Rules, in order, FIRST MATCH WINS:
+ *
+ *  1. series span < STUCK_WINDOW_MS -> WARMING (mirrors GP2's warming
+ *     stance -- a fresh node isn't judged).
+ *  2. boundaryStartMs present (null/absent skips this rule entirely -- the
+ *     marker doesn't exist until the first post-deploy boundary) and
+ *     nowMs - boundaryStartMs < BOUNDARY_GRACE_MS -> BOUNDARY (a boundary
+ *     window is EXPECTED to look dead; alerting inside it is noise).
+ *  3. daemonStatus null or its timestamp > DAEMON_STATUS_STALE_MS old ->
+ *     STUCK / "daemon-dead" (goallog runs in-game reading in-game files,
+ *     so staleness here is genuine daemon death, not the export bridge).
+ *  4. trailing-STUCK_WINDOW_MS income: a NULL return (sparse series, gap,
+ *     reset) is "no measurement", never "below floor" -- `null < floor`
+ *     coerces true in JS and would turn every series gap into a false
+ *     alarm. A real number < STUCK_INCOME_FLOOR AND one of, checked in
+ *     order: skipServers non-empty + low utilization -> "starved";
+ *     available === 0 + an aged (> STUCK_WINDOW_MS) reservation ->
+ *     "reservation-pin"; zero batches in flight + low utilization ->
+ *     "idle" (catch-all dead). If boundaryStartMs is within
+ *     BOUNDARY_WINDOW_MS but past grace, the reason is reported as
+ *     "boundary-overrun" instead of the signature name -- a dead engine
+ *     deep into a boundary is a TRUE alarm by this phase's own thesis, and
+ *     naming it distinctly is what lets a soak review score verdicts
+ *     (boundary-overrun during a boundary is expected/true; a
+ *     signature-named STUCK outside one is either real or a tuning bug).
+ *     Otherwise -> OK.
+ *
+ * Legit multi-hour prep windows don't fire: prep is grow/weaken holding
+ * RAM, so utilizationPct is high and neither "starved" nor "idle" matches.
+ *
+ * @param {{series: object[], daemonStatus: object|null, financeState: object|null, boundaryStartMs: number|null, nowMs: number}} params
+ */
+export function evalStuck({ series, daemonStatus, financeState, boundaryStartMs, nowMs }) {
+  const list = (Array.isArray(series) ? series : []).filter((s) => s && typeof s.t === "number");
+
+  if (list.length === 0) return { status: "WARMING", reason: null };
+  const span = list[list.length - 1].t - list[0].t;
+  if (span < STUCK_WINDOW_MS) return { status: "WARMING", reason: null };
+
+  const hasBoundary = typeof boundaryStartMs === "number";
+  const boundaryElapsedMs = hasBoundary ? nowMs - boundaryStartMs : null;
+  if (hasBoundary && boundaryElapsedMs >= 0 && boundaryElapsedMs < BOUNDARY_GRACE_MS) {
+    return { status: "BOUNDARY", reason: null };
+  }
+
+  if (!daemonStatus || typeof daemonStatus.timestamp !== "number" || nowMs - daemonStatus.timestamp > DAEMON_STATUS_STALE_MS) {
+    return { status: "STUCK", reason: "daemon-dead" };
+  }
+
+  const perSecRecent = computeRateRange(list, nowMs - STUCK_WINDOW_MS, nowMs, "total");
+  if (perSecRecent === null) return { status: "OK", reason: null };
+
+  if (perSecRecent < STUCK_INCOME_FLOOR) {
+    const utilizationPct = daemonStatus.fleet?.utilizationPct ?? 0;
+    const skipServers = Array.isArray(daemonStatus.warns?.skipServers) ? daemonStatus.warns.skipServers : [];
+    const available = financeState?.available;
+    const reservations = Array.isArray(financeState?.reservations) ? financeState.reservations : [];
+    const batchesInFlight = Array.isArray(daemonStatus.members)
+      ? daemonStatus.members.reduce((sum, m) => sum + (m?.batchesInFlight ?? 0), 0)
+      : 0;
+
+    let signature = null;
+    if (skipServers.length > 0 && utilizationPct < 5) {
+      signature = "starved";
+    } else if (available === 0 && reservations.some((r) => typeof r.since === "number" && nowMs - r.since > STUCK_WINDOW_MS)) {
+      signature = "reservation-pin";
+    } else if (batchesInFlight === 0 && utilizationPct < 5) {
+      signature = "idle";
+    }
+
+    if (signature) {
+      const boundaryOverrun = hasBoundary && boundaryElapsedMs < BOUNDARY_WINDOW_MS; // past grace is already guaranteed here
+      return { status: "STUCK", reason: boundaryOverrun ? "boundary-overrun" : signature };
+    }
+  }
+
+  return { status: "OK", reason: null };
+}
+
+/**
  * Pure. Compares the latest `windowMs` window's total $/sec against the
  * PREVIOUS `windowMs` window's, relative (x1.05 up / x0.95 down) rather than
  * absolute so the thresholds don't need retuning as income scales over the
@@ -130,9 +236,12 @@ export function computeTrend(series, nowMs, windowMs) {
  * Pure. Builds the snapshot dashboard.js's GOAL panel reads. `augState` is
  * augfarmer-state.json's parsed contents (or null/undefined when
  * missing/unreadable) -- nextAug is null in that case, or when the state
- * has no target (plateau).
+ * has no target (plateau). `liveness` (Phase 35 WI6, additive/optional --
+ * existing three-arg callers/tests are untouched) is the assembled
+ * {status, reason, sinceMs, boundaryStartMs} block main() builds from
+ * evalStuck's verdict.
  */
-export function buildSnapshot(series, augState, nowMs) {
+export function buildSnapshot(series, augState, nowMs, liveness = null) {
   const list = Array.isArray(series) ? series : [];
   const latest = list.length > 0 ? list[list.length - 1] : null;
 
@@ -154,6 +263,10 @@ export function buildSnapshot(series, augState, nowMs) {
   const gangPerSec = computeRateRange(list, nowMs - RATE_WINDOW_MS, nowMs, "gangCum");
   const hackingPerSec = computeRateRange(list, nowMs - RATE_WINDOW_MS, nowMs, "hackingCum");
   const trend = computeTrend(list, nowMs, RATE_WINDOW_MS);
+  // Phase 35 WI3: trailing-24h $/sec -- resourcemanager.js's opener
+  // eligibility signal. Null (sparse series, node reset) means "no
+  // measurement", same convention as `perSec`.
+  const perSec24h = computeRateRange(list, nowMs - INCOME_WINDOW_24H_MS, nowMs, "total");
 
   let nextAug = null;
   if (augState && augState.target) {
@@ -175,8 +288,9 @@ export function buildSnapshot(series, augState, nowMs) {
     timestamp: nowMs,
     time: new Date(nowMs).toLocaleString(),
     mProgress: { value: mValue, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct, gateTarget: M_GATE_TARGET, queuedValue, queuedPct, queuedCount },
-    income: { perSec, trend, windowMs: RATE_WINDOW_MS, gangPerSec, hackingPerSec },
+    income: { perSec, trend, windowMs: RATE_WINDOW_MS, gangPerSec, hackingPerSec, perSec24h },
     tripwire: evalTripwire(list, nowMs),
+    liveness,
     nextAug,
   };
 }
@@ -191,9 +305,23 @@ function readJsonTolerant(ns, file) {
   }
 }
 
+/** Phase 35 WI6: reads BOUNDARY_START_FILE's timestamp, or null if
+ * missing/malformed/pre-Phase-35 (mirrors daemon.js's own reader). */
+function readBoundaryMarker(ns) {
+  const parsed = readJsonTolerant(ns, BOUNDARY_START_FILE);
+  return typeof parsed?.timestamp === "number" ? parsed.timestamp : null;
+}
+
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
+
+  // Phase 35 WI6: tracks the current liveness status's start time --
+  // resets whenever evalStuck's verdict changes, so the GOAL panel's
+  // elapsed figure ("STUCK 3.2h") measures time in THIS status, not time
+  // since the resident booted.
+  let stuckSince = null;
+  let lastLivenessStatus = null;
 
   while (true) {
     let series = [];
@@ -230,8 +358,20 @@ export async function main(ns) {
     series = appendCapped(series, { t: nowMs, gangCum, hackingCum, mHacking: player.mults.hacking }, RING_CAP);
     ns.write(SERIES_FILE, JSON.stringify(series), "w");
 
+    // Phase 35 WI6: two extra file reads (ns.read, 0 GB) plus the boundary
+    // marker -- the liveness verdict's inputs.
+    const daemonStatus = readJsonTolerant(ns, DAEMON_STATUS_FILE);
+    const financeState = readJsonTolerant(ns, FINANCE_STATE_FILE);
+    const boundaryStartMs = readBoundaryMarker(ns);
+    const verdict = evalStuck({ series, daemonStatus, financeState, boundaryStartMs, nowMs });
+    if (verdict.status !== lastLivenessStatus) {
+      stuckSince = nowMs;
+      lastLivenessStatus = verdict.status;
+    }
+    const liveness = { status: verdict.status, reason: verdict.reason, sinceMs: stuckSince, boundaryStartMs };
+
     const augState = readJsonTolerant(ns, AUGFARMER_STATE_FILE);
-    const snapshot = buildSnapshot(series, augState, nowMs);
+    const snapshot = buildSnapshot(series, augState, nowMs, liveness);
     ns.write(SNAPSHOT_FILE, JSON.stringify(snapshot, null, 2), "w");
 
     await ns.sleep(SAMPLE_INTERVAL_MS);

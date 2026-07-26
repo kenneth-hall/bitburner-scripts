@@ -21,6 +21,12 @@ const LOG_MAX_ENTRIES = 500;
 const BOOTLOOP_SCRIPT = "bootloop.js";
 const DAEMON_SCRIPT = "daemon.js";
 const KILLSCRIPTS_SCRIPT = "killscripts.js";
+// Phase 35 WI1: bootstrap.js is the one script that runs at EVERY boundary
+// (installAugmentations' cbScript, and the manual entry point at node
+// entry), so it's the natural place to stamp the install-boundary marker
+// daemon.js reads at startup to retain a non-evicting telemetry slice across
+// the post-install dead window. See daemon.js's own header for the reader.
+const BOUNDARY_START_FILE = "boundary-start.json";
 
 /**
  * Pure. Ranks bootstrap targets the same way targets.js's isEligibleTarget
@@ -134,6 +140,12 @@ function countRunningBootloopThreads(ns, hosts) {
 export async function main(ns) {
   ns.disableLog("ALL");
   ns.ui.openTail();
+
+  // Phase 35 WI1: unconditional boundary stamp -- overwrites the previous
+  // boundary's marker. Written before anything else so it lands even if this
+  // run later finds no eligible targets.
+  const boundaryNowMs = Date.now();
+  ns.write(BOUNDARY_START_FILE, JSON.stringify({ timestamp: boundaryNowMs, time: new Date(boundaryNowMs).toLocaleTimeString() }), "w");
 
   const bootloopRam = ns.getScriptRam(BOOTLOOP_SCRIPT, "home");
 

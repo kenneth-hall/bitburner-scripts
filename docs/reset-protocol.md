@@ -87,6 +87,15 @@ ever touching `installAugmentations`. `augfarmer.js`'s own spend-down phase (run
 handing off to `installer.js`) finishes the queued aug buy-list first, including lifting the
 one-NFG-per-cycle cap so the money-capped NFG tail described below gets bought out. Manual runs still
 follow the checklist below by hand.
+
+*Verified 2026-07-26 (Phase 35 WI8, closing D4/D10 as already-implemented):* `installer.js:63-99`
+walks `upgradeHomeRam()` then `upgradeHomeCores()` in a `while (money >= cost)` loop, logging each
+tier via `recordTransaction` (`source: "home-ram-upgrade"` / `"home-cores-upgrade"`) — confirmed by
+source read and a live home-RAM probe (256 GB, well past the 128 GB floor a since-superseded design
+proposed). Residual cash at install time is already converted to permanent upgrades by this sweep;
+what's left over is sub-tier remainder no design can capture (tiers are discrete). No new code
+needed — Phase 35's install-boundary telemetry (`docs/batcher-engine.md`) measures what happens
+*after* this sweep runs, not this sweep itself.
 1. **Max out home RAM and cores you can afford.** They carry through the install; your money won't.
    (Home RAM has only a handful of tiers, so this is quick and may already be near-capped.)
 2. **Buy every augmentation you intend to take this cycle first** — the price of each queued aug rises

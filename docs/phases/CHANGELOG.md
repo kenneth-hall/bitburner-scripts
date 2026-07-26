@@ -8,6 +8,37 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-26
 
+- **Phase 35 — the install boundary: telemetry + five recovery-lever fixes.** Six work items
+  across `bootstrap.js`/`daemon.js`/`cloudmanager.js`/`resourcemanager.js`/`goallog.js`/
+  `dashboard.js`, closing three previously-open bugs and shipping the instrument for a fourth.
+  **(1) Boundary telemetry:** `bootstrap.js` stamps a marker at every boundary; `daemon.js` mirrors
+  every log event into a non-evicting `boundary-log.json` slice (16h window, 5000-entry cap) —
+  retains exactly the data the ~9-10h post-install dead window's F2 finding said was being lost to
+  ring-buffer eviction and restart truncation. **(2) Growth-buy inversion (fixes the "never buys a
+  second server until 1 PB" bug):** `cloudmanager.js` now buys ranking-derived-size growth servers
+  (`pickGrowthRam`, `hackJobGb` published by `daemon.js`) whenever a slot is free, 1× $/GB vs the
+  old 2× doubling-ladder default; the ladder survives as the cold-start fallback. **(3) Opener
+  reservation fix (fixes the "$250M reserved against $5.3M cash" pathology):** `resourcemanager.js`
+  gates expensive openers (HTTPWorm/SQLInject) on eligibility + activation against a new
+  trailing-24h income signal (`goallog.js`), with hysteresis so it can't flap at the 2s poll; cheap
+  openers still always reserve in full. **(4) Factionless share suppress (cheap version):**
+  `daemon.js` zeroes the share carve when no faction is joined. **(5) Floor-reserve restart seed:**
+  `daemon.js` seeds the floor-seated reserve from the previous session's persisted batch log at
+  startup, freshness-guarded, closing the last member of the 2026-07-24 cold-start-hardening class.
+  **(6) Liveness verdict:** `goallog.js`'s `evalStuck` (8 branches: warming/boundary/daemon-dead/
+  starved/reservation-pin/idle/boundary-overrun/OK) plus one GOAL-panel line — the 21.7h-unread-
+  STALLED failure becomes a one-glance read; delivery (pushing an alert) stays deliberately
+  unbuilt per Kenneth's call at spec review. A genuine 1000x units bug in the opener-eligibility
+  formula (multiplying a millisecond constant directly against a $/second rate) was caught by the
+  test suite before it shipped. 1013 tests pass; RAM gate closed with **zero delta on all six
+  touched scripts** (each measured exactly at its documented baseline); live-verified via CDP
+  (no RUNTIME ERROR, the SQLInject-over-reservation pathology confirmed gone, `liveness: OK`
+  rendering on the live tail) — a stale dev-server connection was also found and fixed as part of
+  that verification. → [`phase-35-install-boundary.spec.md`](phase-35-install-boundary.spec.md),
+  [`phase-35-install-boundary.closeout.md`](phase-35-install-boundary.closeout.md). The
+  interlock audit (D7) and F3's measurement plan (Phase 34's install-bias bug) are recorded in the
+  close-out and `BACKLOG.md` respectively, not repeated here.
+
 - **Outside-observer review: five stale claims discharged in `docs/bitnodes.md`, one overclaim
   corrected, and the gang tripwire actually evaluated on its due date.** All resolved with
   measurements already sitting in `logs/`, unread. (a) The `getBitNodeMultipliers` "we have

@@ -99,11 +99,14 @@ export default defineConfig({
         if (file === 'goal-log.json') return 'logs/goal-log.json'; // Phase 32 -- goallog.js ring-capped cumulative series (gangCum/hackingCum/mHacking, 60s samples)
         if (file === 'gatewatch-log.json') return 'logs/gatewatch-log.json'; // GP1 watcher (gatewatch.js) -- ring-capped rep/M/gate series across the Red-Pill install boundary
         if (file === 'gatewatch-result.json') return 'logs/gatewatch-result.json'; // GP1 watcher -- the durable one-shot capture (true WD gate + rep-survives verdict) written when Red Pill installs
+        if (file === 'boundary-start.json') return 'logs/boundary-start.json'; // Phase 35 WI1 -- bootstrap.js's per-boundary marker (overwritten every boundary)
+        if (file === 'boundary-log.json') return 'logs/boundary-log.json'; // Phase 35 WI1 -- daemon.js's non-evicting per-boundary telemetry slice (mirrors the batch log across the post-install dead window)
 
         if (file === 'backdoor-status.json') return 'logs/backdoor-status.json'; // Phase 22 -- faction-backdoor status snapshot, overwritten in place, written on classification change only
         if (file === 'augfarmer-state.json') return 'logs/augfarmer-state.json'; // Phase 23 -- overwrite-in-place, written on change + a low-frequency heartbeat
         if (file === 'augfarmer-catalog.json') return 'logs/augfarmer-catalog.json'; // Phase 23 -- static per-node catalog, rewritten on rebuild (startup + faction-membership change)
         if (file === 'ramcheck-result.json') return 'logs/ramcheck-result.json';
+        if (/^homeramprobe-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 35 WI8 -- one-off D4/D10 verification probe, one file per run
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';

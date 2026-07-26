@@ -46,6 +46,14 @@ describe('goal-state.json (Phase 32)', () => {
       expect(typeof data.nextAug.phase).toBe('string');
       if (data.nextAug.waitingMs !== null) expect(data.nextAug.waitingMs).toBeGreaterThanOrEqual(0);
     }
+
+    // Phase 35 WI6: liveness is additive -- present on any post-deploy export.
+    if (data.liveness !== null && data.liveness !== undefined) {
+      expect(['OK', 'STUCK', 'WARMING', 'BOUNDARY']).toContain(data.liveness.status);
+      if (data.liveness.status === 'STUCK') {
+        expect(['daemon-dead', 'starved', 'reservation-pin', 'idle', 'boundary-overrun']).toContain(data.liveness.reason);
+      }
+    }
   });
 });
 
