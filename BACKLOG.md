@@ -38,8 +38,25 @@ do, and what's broken?*
     donation access — CyberSec favor **99.76**, NiteSec **4.33**, against the 150 needed
     (`logs/augfarmer-state.json`). **The spec's own stated unsafe condition is met, and the rule
     has been running here since node entry.**
-  - **Next:** add a recovery term to `afterMs`, or gate the escalation trigger on donation access.
-    Context: `phase-35-install-boundary.features.md` §9 F3.
+  - **⚠️ NOT a constant bump — attempted 2026-07-26 and reverted.** The obvious fix is
+    `INSTALL_OVERHEAD_MS` 600_000 → 36_000_000 (`augfarmer.js:204`). It is one constant feeding one
+    comparison (`:1127`), tests reference it symbolically, and it looked mechanical. **It broke 4
+    tests, and the tests were right.**
+  - **What the failure revealed: the overhead is node-dependent, not universal.** The live BN2
+    fixture is `waitMs` ≈ **2.19h** against overhead + `afterMs` ≈ 10.6s. At a 10h overhead,
+    waiting always beats installing, so the escalation trigger would **never fire again** — a
+    behaviour deletion wearing a recalibration's clothes. And the old 80.3s figure was *correct for
+    BN2*: **a gang keeps earning through an install** because its income does not depend on the
+    purchased fleet, so BN2's true recovery cost really was near zero. BN5 has no non-fleet income,
+    so the same event costs ~10h. Rewriting those 4 tests to match a BN5 number would have deleted
+    the recorded BN2 evidence — the make-the-test-agree-with-the-code antipattern.
+  - **So the real shape is:** the term should model **income lost during recovery**, which turns on
+    a structural question (*does this node have an income source that survives a fleet wipe?*), not
+    on a tuned scalar. That is a signature/design change — `decideInstall(ctx)` reads the module
+    constant directly rather than taking it from `ctx`, so even making it injectable is not a
+    drive-by. **Next:** size it inside Phase 35 alongside the boundary telemetry (F2), which is
+    where the recovery number will actually be measured. Context:
+    `phase-35-install-boundary.features.md` §9 F3.
 
 - **`cloudmanager.js` can starve the NFG spend-down — the finance reserve never covers the
   *batch*.** Found live 2026-07-23 (BN2 endgame): cloudmanager spent **$5.08t in ~2.5 min** walking
