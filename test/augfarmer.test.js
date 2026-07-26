@@ -2375,17 +2375,29 @@ describe('planPass', () => {
     describe('Phase 33 decision 4 -- fundBlocked head', () => {
       const fundBlockedTarget = { ...metTarget, fundBlocked: true, workTypes: ['hacking'] };
 
-      it('no buy/donate; reserves the WHOLE balance (not livePrice); phase is "grinding"; work still fires', () => {
+      // 2026-07-25: this branch used to reserve the WHOLE balance. Live BN5.1
+      // showed that hold is permanent, not pre-install (no trigger could fire),
+      // and it starved cloudmanager to $0 for 53h. An unbuyable head reserves
+      // nothing; the spend-down branch is the real pre-install hold.
+      it('no buy/donate; reserves NOTHING (head is unbuyable); phase is "grinding"; work still fires', () => {
         const plan = planPass({
           target: fundBlockedTarget, workTarget: fundBlockedTarget, currentWork: null,
           factionScope: scope, money: 12_000_000_000, livePrice: 500, paused: false,
         });
         expect(plan.actions.some((a) => a.type === 'buy')).toBe(false);
         expect(plan.actions.some((a) => a.type === 'donate')).toBe(false);
-        expect(plan.reserve).toBe(12_000_000_000);
+        expect(plan.reserve).toBe(0);
         expect(plan.phase).toBe('grinding');
-        expect(plan.actions).toContainEqual({ type: 'reserve', amount: 12_000_000_000, aug: 'X', faction: 'F1' });
+        expect(plan.actions.some((a) => a.type === 'reserve')).toBe(false);
         expect(plan.actions).toContainEqual({ type: 'work', faction: 'F1', workType: 'hacking' });
+      });
+
+      it('releases the balance to the fleet: a fundBlocked head leaves finance fully available', () => {
+        const plan = planPass({
+          target: fundBlockedTarget, workTarget: fundBlockedTarget, currentWork: null,
+          factionScope: scope, money: 41_000_000, livePrice: 78_200_000_000, paused: false,
+        });
+        expect(plan.reserve).toBe(0);
       });
 
       it('yields the slot exactly like any other target when currentWork is out-of-scope, but phase stays "grinding" (not "yielded")', () => {

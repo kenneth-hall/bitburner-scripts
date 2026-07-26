@@ -36,6 +36,31 @@ do, and what's broken?*
   reserve the *projected spend-down total*, not the next single aug; consider a fleet-growth ceiling
   so cloud can't outbid the mult lever. **Revisit before BN5's endgame NFG tail** (money is BN5's
   binding constraint too). Context: `docs/gang-engine.md` "cloudmanager has no aug reserve".
+  - **Related, 2026-07-25 — the opposite failure fired first, and the fix moves this dial.** The
+    `fundBlocked` branch used to reserve the *whole* balance and deadlocked BN5.1 for 53h; it now
+    reserves 0 (see CHANGELOG 2026-07-25). That is under-protective in exactly the direction this
+    bug describes, so the durable "reserve the projected spend-down total" fix is now the *only*
+    thing standing between cloudmanager and the pile in a `fundBlocked` state. **Low risk today:**
+    NFG heads are never marked `fundBlocked` (`augfarmer.js:818` excludes `isNFG`), so the endgame
+    NFG tail — the case that actually burned $5.08t — is untouched. Flagging the interaction so it
+    isn't rediscovered.
+
+- **`cloudmanager.js` never buys a second server until the first hits 1 PB — 24 idle slots at 2.4×
+  the price per GB.** `shouldBuyGrowthServer` (`cloudmanager.js:89`) requires
+  `fleet.every(s => s.ram >= ramLimit)` with `ramLimit` = 1,048,576 GB, so growth buys are
+  unreachable in practice and all cash goes into doubling one host. The arithmetic is unfavourable
+  by construction: doubling a server of size R costs `2R × $/GB` for a gain of R (**2× $/GB**),
+  while a growth buy costs `G × $/GB` for a gain of G (**1× $/GB**). Live in BN5.1 on 2026-07-25
+  with 1/25 slots used: the next upgrade is **$68.1M for +512 GB ($133k/GB)**, unaffordable for
+  ~3.5h at current income, while a **$14.2M** 256 GB growth buy was affordable *immediately* and
+  would have crossed harakiri-sushi's 1,112 GB pipeline (**$100M** max money vs n00dles' $1.75M).
+  **Not a deadlock** — it resolves itself by saving up, just slowly and at 2.4× the cost.
+  **Counter-argument to weigh before changing it:** the current policy is deliberate
+  (`planNextUpgrade`'s header) — uniform, larger hosts suit the batcher's job-per-single-host
+  assignment. That matters less than it did, since grow/weaken now split across hosts (commit
+  `61eff55`) and only `hack` must fit whole, and `hack` is the cheapest job per thread. **Next:**
+  decide whether to growth-buy while slots are free and upgrade only once the fleet is full —
+  it inverts a documented design rationale, so it wants a decision, not a drive-by patch.
 
 - **Aug scoring ranks by raw mult, not mult-per-dollar — QLink is blocked by name, not by logic.**
   `scoreAug` (`src/augfarmer.js`) scores on multipliers alone, and Phase 33's escalation-optimal sort

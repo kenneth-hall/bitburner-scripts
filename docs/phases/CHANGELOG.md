@@ -6,6 +6,31 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-25
+
+- **Ratchet deadlock fixed — a `fundBlocked` head reserved 100% of the balance behind an
+  unreachable aug and starved the fleet for 53 hours.** Found live in BN5.1 at **$5.4k/s** with
+  **zero progress since the 2026-07-23 entry**: the aug ladder (4 queued → **13.03×**) put
+  Neuralstimulator at **$78.2b** against a $119M fund cap, and Phase 33 decision 4's `fundBlocked`
+  branch (`augfarmer.js:1741`) reserved the WHOLE $41M balance on the premise that it belonged to an
+  *imminent* spend-down. No install was imminent, or possible — **all four triggers were blocked at
+  once**: gain 1.0711 < `MIN_TOTAL_GAIN` 1.1, queue 4 < `STALL_QUEUE_FLOOR` 5, gate 4/30, and both
+  `escalation` and `stall` disqualified by the phase `"grinding"` *that same branch forces*
+  (`:1115`, `:1101`). So the hold was permanent, not pre-install: `available` sat at **$0**,
+  cloudmanager never bought, the fleet froze at **780 GB**, the batcher fell back to **n00dles
+  ($1.75M max money)** because the cheapest real pipeline (phantasy, 1,516 GB) didn't fit, and the
+  low income kept every aug unaffordable. Fix: the `fundBlocked` branch reserves **0** — the head is
+  unbuyable by definition, so the reserve protects no reachable purchase, and the genuine
+  pre-install hold is the `spend-down` branch, which already reserves `money` and only runs when a
+  sequence really is active. Self-correcting by construction: released cash buys fleet → fleet
+  raises income → income raises `fundCap` → the head stops being `fundBlocked` → the normal
+  `repMet` branch resumes reserving `livePrice`. Live-validated on restart: `FINANCE: released
+  next-aug`, cloudmanager bought the 512 GB tier **4 seconds later** ($28.4M), fleet 780 → **1,036
+  GB**. 920 tests pass. Notably the escalation trigger had *already computed the right answer* —
+  wait 165 days vs install-and-rebuy 12.7 days — and was fenced out by the phase interlock.
+  **Ordering note:** fleet before install was the deliberate call — an install wipes money *and*
+  purchased servers, so installing first would have burned the $41M and restarted from hacking 1.
+
 ## 2026-07-24
 
 - **Cold-start deadlock fixed — a floor-seated member reserved a pipeline it could never buy, and

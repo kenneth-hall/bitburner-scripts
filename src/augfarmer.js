@@ -1731,15 +1731,33 @@ export function planPass({
 
   // Phase 33 decision 4. The head is rep-met but its live price exceeds
   // fundCap -- no buy, no reserve-for-target, no donation (donating rep
-  // toward an unfundable aug is dead spend). Reserve the WHOLE balance
-  // (money belongs to the imminent spend-down's must-buys/NFG tail, not a
-  // fleet purchase the next install wipes anyway) and fall through to the
-  // normal work-slot logic, but always report phase "grinding" -- not
-  // whatever the slot outcome would otherwise imply -- so evalTrigger's
-  // existing gap-7 path (grinding + no rep-owed faction -> phaseArmed) can
-  // still let gain-arming end the cycle without new trigger plumbing.
+  // toward an unfundable aug is dead spend). Fall through to the normal
+  // work-slot logic, but always report phase "grinding" -- not whatever the
+  // slot outcome would otherwise imply -- so evalTrigger's existing gap-7
+  // path (grinding + no rep-owed faction -> phaseArmed) can still let
+  // gain-arming end the cycle without new trigger plumbing.
+  //
+  // Reserve NOTHING (2026-07-25). Decision 4 originally reserved the WHOLE
+  // balance, on the premise that the money belonged to an imminent
+  // spend-down's must-buys/NFG tail rather than "a fleet purchase the next
+  // install wipes anyway". Live BN5.1 falsified the premise: no install was
+  // imminent, or possible. All four install triggers were blocked at once
+  // (gain 1.0711 < MIN_TOTAL_GAIN; queue 4 < STALL_QUEUE_FLOOR; gate 4/30;
+  // and escalation + stall both disqualified by the phase "grinding" this
+  // very branch forces), so the hold was permanent, not pre-install -- it
+  // pinned 100% of a $41M balance behind a $78.2b head while starving
+  // cloudmanager to $0 available. Fleet froze at 780 GB, the batcher fell
+  // back to n00dles, income sat at $5.4k/s, and nothing could ever become
+  // affordable. 53 hours, zero progress.
+  //
+  // A fundBlocked head is BY DEFINITION unbuyable, so the reserve protects
+  // no reachable purchase. The genuine pre-install hold is the `spend-down`
+  // branch above, which already reserves `money` once a sequence is really
+  // running -- this branch only ever fires when one is NOT. Reserving 0 is
+  // also self-correcting: released cash buys fleet, fleet raises income,
+  // income raises fundCap, the head stops being fundBlocked, and the normal
+  // repMet branch resumes reserving livePrice.
   if (target.fundBlocked) {
-    actions.push({ type: "reserve", amount: money, aug: target.aug, faction: target.faction });
     const slot = slotAvailable(currentWork, factionScope);
     if (!slot.available) {
       actions.push({ type: "yield" });
@@ -1749,7 +1767,7 @@ export function planPass({
         currentWork?.type === "FACTION" && currentWork.factionName === workTarget.faction && currentWork.factionWorkType === workType;
       if (!alreadyWorking) actions.push({ type: "work", faction: workTarget.faction, workType });
     }
-    return { actions, reserve: money, phase: "grinding" };
+    return { actions, reserve: 0, phase: "grinding" };
   }
 
   // status === "joined". buyBlocked (NFG's D3 cap) forces the grind branch
