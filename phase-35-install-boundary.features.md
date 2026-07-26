@@ -320,17 +320,36 @@ Self-reinforcing, and it fires 8–12 times this node.
 period** (24h, not instantaneous) and/or an absolute floor that always permits the first opener.
 The threshold is right; the *estimator* is what needs care.
 
-### D12 — Alert log now, delivery later. **ACCEPTED — correct sequencing.**
+### D12 — ~~Alert log now, delivery later~~ → **NO NEW LOG FILE. Add a field, not a file.** (revised same session)
 
-Kenneth: *"lets get an alert log now and we can dig into the noisy automation after."*
+Kenneth first said *"lets get an alert log now"*, then on reading the caveat: *"i dont see a point
+in a 2nd log file."* **He is right and the revision is his.**
 
-Right order: the signatures have to be defined and observed before anything can sensibly deliver
-them, and a plain append-only log makes false-positive tuning cheap.
+The signals for every failure this phase describes **already exist, in five files that are already
+written every 60s**: `goal-state.json` (GP2 status, income rate), `daemon-status.json`
+(`warns.skipServers`, `utilizationPct`, `waterfall.availableGb`), `finance-state.json`
+(`available`, `reservations`), `daemon-batch-log.json` (skip diagnoses with `blockedBy`), and
+`goal-log.json` (the M + income series). **Nothing is unobserved.** A sixth file would add a
+pre-digested copy of data we already have and re-create the exact problem — one more artifact
+nobody opens.
 
-⚠️ **Named so it does not get lost: a log file alone is the failure this phase exists to fix.**
-GP2 wrote `STALLED` once a minute for 21.7 hours into `goal-state.json` and nothing read it (§1b).
-Adding a second unread file does not change that. The log is a **prerequisite** for delivery, not a
-substitute — D5's `/schedule` routine remains in scope and must not quietly drop off.
+**What is actually missing decomposes into two things, and neither is a log:**
+1. **A predicate.** A pure function over the existing files returning *"stuck / not stuck, and
+   why."* This is the only genuinely new logic in the workstream: small, pure, unit-testable, no
+   `ns` cost. The hard part is not plumbing, it is defining "stuck" so that legitimate multi-hour
+   $0 prep windows do not fire it.
+2. **A reader that runs when no session is open.** Per `BACKLOG.md:312`, `/loop`, `Monitor` and
+   `CronCreate` are session-scoped and die in exactly the overnight window that caused both
+   incidents; only a `/schedule` routine survives it. **This, not the storage, was always the gap.**
+
+**Where the verdict goes: into `goal-state.json`, beside the existing `tripwire` block.** That file
+is already written every minute and already read by the dashboard, so the verdict costs zero new
+files and inherits an existing surface. This also satisfies **D6** (income liveness beside GP2)
+without a second mechanism.
+
+**Dashboard note:** surfacing it as one line on the existing GOAL panel is a deliberate decision
+taken *here*, which is what `CLAUDE.md`'s dashboard gate requires — one line added to a panel that
+already exists, no new panel, no new popup.
 
 ---
 
