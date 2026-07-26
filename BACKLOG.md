@@ -22,6 +22,25 @@ do, and what's broken?*
 
 ## Bugs
 
+- **Phase 34's install trigger is optimistic on two axes, and BN5 voids the justification for one
+  of them.** Found 2026-07-26 during the Phase 35 brainstorm; this is live shipped code, not a
+  future build item.
+  - **(a) It never charges the post-install income recovery.** Measured in BN5.1: the first
+    purchase of *any* kind after an install landed **exactly 10 hours later**
+    (`logs/transactions-2026-07-26.json`), with $0 income throughout. `afterMs` charges only the
+    aug's reset money price.
+  - **(b) Its own spec already flags the second omission and names the condition that makes it
+    unsafe** (`docs/phases/phase-34-install-timing.spec.md:128-140`): the post-install rep re-earn
+    is omitted, *"so the rule carries a known optimistic bias toward installing,"* accepted only
+    because *"NiteSec rep re-accrues from gang respect without player work"* and explicitly unsafe
+    *"in a node without donation access."*
+  - **Both escape hatches are absent in BN5.** No gang (tripwire deferred to 2026-08-02), and no
+    donation access — CyberSec favor **99.76**, NiteSec **4.33**, against the 150 needed
+    (`logs/augfarmer-state.json`). **The spec's own stated unsafe condition is met, and the rule
+    has been running here since node entry.**
+  - **Next:** add a recovery term to `afterMs`, or gate the escalation trigger on donation access.
+    Context: `phase-35-install-boundary.features.md` §9 F3.
+
 - **`cloudmanager.js` can starve the NFG spend-down — the finance reserve never covers the
   *batch*.** Found live 2026-07-23 (BN2 endgame): cloudmanager spent **$5.08t in ~2.5 min** walking
   fleet servers toward 1 PB while `finance-state.json` read `totalReserved: $0` and

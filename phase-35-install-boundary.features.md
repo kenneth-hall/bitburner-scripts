@@ -353,7 +353,111 @@ already exists, no new panel, no new popup.
 
 ---
 
-## 8. Next stage
+## 9. Investigation results, 2026-07-26 (items 1–5)
+
+### F1 — The 9 hours are **not** prep. They are money starvation. **Q2 answered.**
+
+`logs/transactions-2026-07-26.json` records the **first purchase of any kind after the install at
+15:17:13 UTC — exactly 10 hours after the 05:17:00 install.** Not a cheap one skipped for being
+unaffordable: *nothing at all* was bought, for ten hours. Income over the same span was flat $0
+(§1). The node was not prepping; **it had no money.**
+
+Then, once income started, everything happened at once:
+
+```
+15:17:13  $110,000      15:20:43  $110,000 / $220,000 / $440,000   (cloud tiers)
+15:17:22  $200,000      15:20:52  $5,000,000
+                        15:22:53  $2,888,121.87  (NeuroFlux Governor)
+                        15:43:52  $30,000,000    (HTTPWorm.exe)
+```
+
+**The shape is a serial ladder, not a parallel ramp:** money → port opener → root more servers →
+more fleet → more money → next opener. `daemon-batch-log.json` shows rooting arriving in exactly
+that staged pattern (`iron-gym, zer0, CSEC, max-hardware, neo-net` at 14:52, then `omega-net,
+silver-helix, phantasy, avmnite-02h` at 15:13). Port openers and TOR **do not survive an install**
+([[reference_install_resets_programs_tor]]), so this ladder is re-climbed from the bottom **8–12
+more times this node**.
+
+**This raises D11 from "one flaw to fix" to "the mechanism that governs the whole window."** An
+8h-of-income cap evaluated during a $0 window would block the first rung of the ladder that ends
+the $0 window.
+
+### F2 — The window has **no retained telemetry**, and that blocks Q3. **This is the finding that should be acted on first.**
+
+`daemon-batch-log.json` begins at **09:34:52 local — 9.30 hours *after* the install**, at a `mode`
+event (a daemon restart). Everything before it is gone: FIFO-evicted, and cut again by the restart.
+
+> **The single most expensive window in the node — the one that recurs 8–12 times and costs
+> 20–30% of the wall clock — is the exact window we retain no data for.**
+
+So **Q3 (is the 9h compressible, and by how much?) cannot be answered from existing logs.** Any
+number I gave would be the "four confident hypotheses from indirect signals" failure that
+`docs/batcher-engine.md:205` exists to prevent — F1's money-starvation reading is solid because it
+rests on the transaction log, but the *breakdown within* those 10 hours is not reconstructable.
+
+**Consequently the phase's first action inverts:** make the window observable (retain the
+install-boundary slice instead of letting the ring evict it), then measure one real boundary, then
+optimise. There are 8–12 more chances to catch it and the change is small — a non-evicting
+install-boundary slice, not a general log-retention project. Related: `BACKLOG.md:175` already
+records `companion-relaunch` events being FIFO-evicted from the same file.
+
+### F3 — Phase 34's install-timing rule is biased toward installing, on a justification that BN5 voids. **Q8 answered — and it is worse than "does it account for the 9h?"**
+
+It does not account for it. But the spec also documents a *second* omission and, in its own words
+(`phase-34-install-timing.spec.md:128-140`), names precisely the condition under which that
+omission stops being safe:
+
+> "**The dominance formula omits that cost entirely (cold-review major 1, accepted explicitly):**
+> `afterMs` charges only the aug's reset money price — the post-install rep-re-earn (or its S6
+> donation buyout) is *not* folded in, **so the rule carries a known optimistic bias toward
+> installing.** Accepted for v1 because in this save the bias is near-zero in practice: **NiteSec
+> rep re-accrues from gang respect without player work** […] **In a node without donation access
+> the omission becomes unsafe** —"
+
+**Both escape hatches are absent in BN5.** There is no gang (tripwire deferred, `CLAUDE.md`), so
+rep does not re-accrue from respect; and donation access is not yet open — `logs/augfarmer-state.json`
+reads CyberSec favor **99.76** and NiteSec **4.33** against the 150 needed. **The node has met the
+spec's own stated unsafe condition**, and the rule has been running here since node entry.
+
+Combined with the ~10h income cost it never counted, the install trigger is optimistic on two
+independent axes at once. **This is not a Phase 35 build item — it is a live correctness issue in
+shipped code**, and it should be logged as a bug regardless of what this phase ships.
+
+### F4 — Hack-job sizing: 256 GB servers are **too small** for a real target at the configured fraction. **D9 refined; my earlier endorsement was too clean.**
+
+Worker RAM confirmed empirically at **~1.70 GB/thread** (a launched n00dles batch: 23 threads,
+`inFlightRamGb: 39.3` → 1.709). Decomposing the harakiri-sushi skip at the configured
+`HACK_FRACTION = 0.25` (`scheduler.js:8`) — batch 1083.15 GB, largest job 657.9 GB (grow), and
+HWGW's fixed weaken ratios (0.002/thread hack, 0.004/thread grow, 0.05 removed/thread) — puts the
+**unsplittable hack job at ≈350–380 GB.**
+
+**A 256 GB growth server does not fit it.** So "buy small, no downside" is not quite right: below
+~384 GB the batcher is forced to shrink the hack fraction.
+
+⚠️ **But this does not simply reverse D9, and I am not going to pretend it resolves cleanly.**
+Lower hack fractions are generally *more* RAM-efficient per dollar stolen (grow threads scale worse
+than linearly with the fraction taken), so "many small servers running a lower fraction" may be
+better, not worse — bounded below by `MIN_HACK_FRACTION = 0.01` and by per-batch weaken overhead.
+**This is a measurement, not a model**, and the spec should settle it by trying one tier rather than
+deriving it. What is certain: the buy size must be a *decision* tied to the hack job, and
+`GROWTH_RAM = 16` is wrong under every reading.
+
+**Also note the empirical caveat on §7/D9's headline:** 207/207 `total-ram` blockers proves
+fragmentation does not bind *at today's 524 GB fleet* — because total RAM binds first. It does not
+prove fragmentation stays harmless once total RAM is plentiful. My §7 wording was stronger than the
+evidence supports.
+
+### F5 — Home RAM is very likely already 256 GB. **D10 is probably a no-op.**
+
+Not directly logged anywhere, so not conclusive — but `logs/bootstrap-log.json` recorded
+`homeFreeRam: 249.8` at handoff with only the 2.2 GB bootloop running, which puts home at **≥256
+GB**, double D10's floor. Consistent with 17 hosts totalling 524 GB. **Still wants a one-line
+`ns.getServerMaxRam("home")` read before anyone builds to it** — cheap, and it decides whether D10
+is work or a checkbox.
+
+---
+
+## 10. Next stage
 
 Stage 2 is the spec (`phase-35-install-boundary.spec.md`) plus a cold-context `spec-reviewer` pass.
 **Q1 blocks it** — the phase's headline number is wrong by 36× in one direction or the other until
