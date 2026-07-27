@@ -18,6 +18,8 @@ import {
   STUCK_INCOME_FLOOR,
   BOUNDARY_GRACE_MS,
   DAEMON_STATUS_STALE_MS,
+  computeForecast,
+  FORECAST_MIN_SPAN_MS,
 } from '../src/goallog.js';
 
 const T = 1_000_000_000;
@@ -434,5 +436,90 @@ describe('evalTripwire (GP2)', () => {
       { t: start + 24 * H, mHacking: 5.0 }, // flat since
     ];
     expect(evalTripwire(s, start + 24 * H).status).toBe('STALLED');
+  });
+});
+
+describe('computeForecast', () => {
+  const HOUR = 3_600_000;
+  const DAY = 86_400_000;
+
+  const pt = (t, mHacking, hackingCum = 0) => ({ t, mHacking, gangCum: 0, hackingCum });
+
+  it('WARMING below FORECAST_MIN_SPAN_MS -- a fresh series is not judged', () => {
+    const s = [pt(T, 1.28), pt(T + FORECAST_MIN_SPAN_MS - 1, 1.5)];
+    const r = computeForecast(s, T + FORECAST_MIN_SPAN_MS - 1);
+    expect(r.status).toBe('WARMING');
+    expect(r.daysToGate).toBeNull();
+  });
+
+  it('WARMING on an empty or single-sample series', () => {
+    expect(computeForecast([], T).status).toBe('WARMING');
+    expect(computeForecast([pt(T, 1.28)], T).status).toBe('WARMING');
+    expect(computeForecast(null, T).status).toBe('WARMING');
+  });
+
+  it('projects days-to-gate from the observed dM/dt', () => {
+    // M climbs 1.0 point across exactly 1 day -> 1.0 M/day.
+    const s = [pt(T, 2.0), pt(T + DAY, 3.0)];
+    const r = computeForecast(s, T + DAY);
+    expect(r.status).toBe('OK');
+    expect(r.mPerDay).toBeCloseTo(1.0, 6);
+    expect(r.mRemaining).toBeCloseTo(M_TARGET - 3.0, 6);
+    expect(r.daysToGate).toBeCloseTo(M_TARGET - 3.0, 6);
+    expect(r.etaMs).toBeCloseTo((M_TARGET - 3.0) * DAY, 0);
+    expect(r.basisHours).toBe(24);
+  });
+
+  it('STALLED (not Infinity) when the span is long enough but M never moved', () => {
+    const s = [pt(T, 1.41), pt(T + 48 * HOUR, 1.41)];
+    const r = computeForecast(s, T + 48 * HOUR);
+    expect(r.status).toBe('STALLED');
+    // "no measurement" is not "infinitely far" -- the distinction the
+    // primary number exists to preserve.
+    expect(r.daysToGate).toBeNull();
+    expect(r.etaMs).toBeNull();
+    expect(r.mRemaining).toBeCloseTo(M_TARGET - 1.41, 6);
+  });
+
+  it('REACHED at or past the target', () => {
+    const s = [pt(T, M_TARGET), pt(T + 48 * HOUR, M_TARGET + 0.5)];
+    const r = computeForecast(s, T + 48 * HOUR);
+    expect(r.status).toBe('REACHED');
+    expect(r.daysToGate).toBe(0);
+    expect(r.mRemaining).toBe(0);
+  });
+
+  it('derives $-per-M-point and money-remaining from the same span', () => {
+    // $2b earned across a 1.0-point M gain -> $2b per M point.
+    const s = [pt(T, 2.0, 0), pt(T + DAY, 3.0, 2e9)];
+    const r = computeForecast(s, T + DAY);
+    expect(r.dollarsPerMPoint).toBeCloseTo(2e9, 0);
+    expect(r.moneyRemaining).toBeCloseTo(2e9 * (M_TARGET - 3.0), 0);
+  });
+
+  it('leaves the money cross-check null when cumulative money did not advance', () => {
+    const s = [pt(T, 2.0, 5e9), pt(T + DAY, 3.0, 5e9)];
+    const r = computeForecast(s, T + DAY);
+    expect(r.status).toBe('OK');
+    expect(r.daysToGate).not.toBeNull(); // primary still works -- it is model-free
+    expect(r.dollarsPerMPoint).toBeNull();
+    expect(r.moneyRemaining).toBeNull();
+  });
+
+  it('reproduces the live BN5 reading that motivated the field', () => {
+    // Measured 2026-07-26: M 1.28 -> 1.4126 across 54h of node time.
+    const s = [pt(T, 1.28, 81e6), pt(T + 54 * HOUR, 1.4126, 1.835e9)];
+    const r = computeForecast(s, T + 54 * HOUR);
+    expect(r.status).toBe('OK');
+    // The headline: months, not the plan's 1.5-3 weeks.
+    expect(r.daysToGate).toBeGreaterThan(100);
+    expect(r.daysToGate).toBeLessThan(200);
+  });
+
+  it('is surfaced on the snapshot', () => {
+    const s = [pt(T, 2.0, 0), pt(T + DAY, 3.0, 2e9)];
+    const snap = buildSnapshot(s, null, T + DAY);
+    expect(snap.forecast.status).toBe('OK');
+    expect(snap.forecast.daysToGate).toBeCloseTo(M_TARGET - 3.0, 6);
   });
 });

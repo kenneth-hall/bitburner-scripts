@@ -105,6 +105,27 @@ do, and what's broken?*
   hits the same trap. **Next:** cost-aware scoring (mult per dollar, or a value floor gating the
   price-DESC sort). Its own phase, not a patch. **Revisit when** entering a node whose catalog we
   haven't hand-checked for trap augs.
+  - **🔴 THE TRIGGER FIRED AT BN5 ENTRY AND WENT UNNOTICED — measured live 2026-07-26, and it is
+    worse than the QLink shape the blocklist guards.** Head target was **CashRoot Starter Kit,
+    $475M, `hackingMult: 1.0`** — *zero* gate contribution. It won because `augfarmer.js:842` sorts
+    rep-met candidates **price-DESC before score**, so score is only a tiebreak on equal price and
+    in practice **never consulted**. CashRoot is also allow-listed, so `scoreAug` returns a flat
+    `ALLOWLIST_SCORE` (0.25) regardless of its all-1.0 stats — the blocklist cannot catch this
+    variant, because the aug isn't overpriced-high-mult, it's **no-mult**.
+  - **What it displaced, both verified unowned live** (`logs/auginfo-1785116881062.json`: BN5 owns
+    only BitWire, NFG×5, Neurotrainer I, Synaptic Enhancement Implant) **and both rep-met** at
+    CyberSec (rep 19,142): **Cranial Signal Processors Gen I — $270M, ×1.05**, and **Gen II —
+    $470M, ×1.07**. The engine chose $475M for **+0%** over $270M for **+5%**, on a $5M price gap.
+  - **It is not just a lost aug — it is the head of the chain that has BN5 flat at ~$5k/s.** The
+    $475M reservation zeroes `finance-state.available` → cloudmanager can't buy its $68.1M/1024GB
+    server (`affordable: false`) → the fleet keeps **one** 512GB purchased host → the batcher's
+    *unsplittable* hack job at fraction 0.25 needs **844.9GB** against `largestHostFreeGb: 223.25`
+    → **1,576 skips vs 12 batches placed**, every batch shrunk to fraction 0.0625. That is a 4×
+    haircut on every batch, on 1 of 13 eligible targets, at depth 1 of 3.
+  - **The escalation rationale only justifies price-DESC for *ordering augs already committed to*,
+    not for *choosing which aug to buy*.** Expensive-first saves ~0.3% on the ×1.9 ladder when you
+    buy both; it costs 100% of the M gain when you can afford one. **Next:** rank the target by
+    score (or score/price), keep price-DESC strictly as the intra-cycle purchase order.
 
 - **`augfarmer.js` throws every poll trying to do faction work for NiteSec — our gang faction
   offers none.** Found 2026-07-23: `WARN: action work threw (TYPE ERROR ... singularity.workForFaction:

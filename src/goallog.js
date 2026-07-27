@@ -216,6 +216,98 @@ export function evalStuck({ series, daemonStatus, financeState, boundaryStartMs,
   return { status: "OK", reason: null };
 }
 
+// Forecast: don't project off a sliver of history. M is a STEP function
+// (it only moves at an install), so a short window straddling no install
+// reads 0 and a short window straddling one reads absurdly high. 6h is the
+// floor for the span to be worth extrapolating at all; the ring holds 48h,
+// which is the practical basis.
+export const FORECAST_MIN_SPAN_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Pure. The forecast the GOAL panel's `pct` could never give: at the rate M
+ * has ACTUALLY moved across the retained series, how long until it reaches
+ * M_TARGET?
+ *
+ * `pct` (mValue / M_TARGET) is arithmetically true and strategically
+ * misleading -- it reads 15% while the money side is nowhere near 15% done,
+ * because aug prices escalate. This answers the question the node is
+ * actually asking, and it's deliberately MODEL-FREE on the primary number:
+ * no aug-cost curve, no budget constant to rot. It measures dM/dt directly
+ * and divides the remainder by it. Whatever the cost curve turns out to be,
+ * it is already priced into the observed dM/dt.
+ *
+ * Statuses: WARMING (span < FORECAST_MIN_SPAN_MS -- a fresh series isn't
+ * judged, mirroring evalTripwire/evalStuck's stance), REACHED (already at or
+ * past target), STALLED (span is long enough and M did not move -- there is
+ * no rate to extrapolate, so daysToGate is null, NOT Infinity: "no
+ * measurement" and "infinitely far" are different claims and only the former
+ * is true), OK.
+ *
+ * `dollarsPerMPoint` / `moneyRemaining` are a SECONDARY cross-check, and
+ * they are a lower bound, not an estimate: they extrapolate the node's
+ * observed $-per-M linearly, and the real curve escalates. Reported because
+ * it's the number that connects the forecast to income -- but read it as
+ * "at least this much", never "this much".
+ *
+ * @param {{t:number, mHacking:number, gangCum:number, hackingCum:number}[]} series
+ */
+export function computeForecast(series, nowMs) {
+  const list = (Array.isArray(series) ? series : []).filter(
+    (s) => s && typeof s.t === "number" && typeof s.mHacking === "number"
+  );
+  const empty = {
+    status: "WARMING",
+    basisHours: null,
+    mPerDay: null,
+    mRemaining: null,
+    daysToGate: null,
+    etaMs: null,
+    dollarsPerMPoint: null,
+    moneyRemaining: null,
+  };
+  if (list.length < 2) return empty;
+
+  const first = list[0];
+  const last = list[list.length - 1];
+  const spanMs = last.t - first.t;
+  if (!(spanMs > 0)) return empty;
+
+  const basisHours = Math.round((spanMs / 3_600_000) * 10) / 10;
+  const mRemaining = Math.max(0, M_TARGET - last.mHacking);
+
+  if (spanMs < FORECAST_MIN_SPAN_MS) return { ...empty, basisHours, mRemaining };
+  if (mRemaining === 0) {
+    return { ...empty, status: "REACHED", basisHours, mRemaining: 0, daysToGate: 0, etaMs: 0 };
+  }
+
+  const dM = last.mHacking - first.mHacking;
+  if (!(dM > 0)) {
+    return { ...empty, status: "STALLED", basisHours, mRemaining };
+  }
+
+  const mPerDay = dM / (spanMs / 86_400_000);
+  const daysToGate = mRemaining / mPerDay;
+
+  // Secondary: observed $ spent per M-point over the same span. Uses the
+  // same cumulative fields computeRateRange reads, so a corrupt/reset series
+  // that decreased yields null rather than a negative cost.
+  const totalOf = (s) => (s.gangCum ?? 0) + (s.hackingCum ?? 0);
+  const dMoney = totalOf(last) - totalOf(first);
+  const dollarsPerMPoint = dMoney > 0 ? dMoney / dM : null;
+  const moneyRemaining = dollarsPerMPoint !== null ? dollarsPerMPoint * mRemaining : null;
+
+  return {
+    status: "OK",
+    basisHours,
+    mPerDay,
+    mRemaining,
+    daysToGate,
+    etaMs: daysToGate * 86_400_000,
+    dollarsPerMPoint,
+    moneyRemaining,
+  };
+}
+
 /**
  * Pure. Compares the latest `windowMs` window's total $/sec against the
  * PREVIOUS `windowMs` window's, relative (x1.05 up / x0.95 down) rather than
@@ -289,6 +381,7 @@ export function buildSnapshot(series, augState, nowMs, liveness = null) {
     time: new Date(nowMs).toLocaleString(),
     mProgress: { value: mValue, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct, gateTarget: M_GATE_TARGET, queuedValue, queuedPct, queuedCount },
     income: { perSec, trend, windowMs: RATE_WINDOW_MS, gangPerSec, hackingPerSec, perSec24h },
+    forecast: computeForecast(list, nowMs),
     tripwire: evalTripwire(list, nowMs),
     liveness,
     nextAug,
