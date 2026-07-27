@@ -8,6 +8,19 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-07-26
 
+- **Fleet-RAM fix — `tryRoot` no longer refuses to root above-level servers (`src/hosts.js`).**
+  The guard `reqLevel > myHackLevel` conflated "can I hack this" with "can I root this"; per
+  `markdown/bitburner.ns.nuke.md`, required hacking level is **not** a nuke requirement — only ports
+  are. Rooting an unhackable server is pure upside (it becomes a worker host; `targets.js`'s
+  `isEligibleTarget` independently and more strictly gates what gets *attacked*). Live in BN5 at
+  hacking 309: fleet **1,068 GB / 21 hosts → 4,780 GB / 71 hosts (4.5×)**, and the batcher promoted
+  from the 3rd-ranked target (harakiri-sushi, $100M — the only pipeline it could afford) to the
+  top-ranked **phantasy** ($600M). Critically, it also rescued the **$250M SQLInject.exe** purchase
+  made minutes earlier: all 29 servers it unlocks require hacking 819+, so the old guard would have
+  refused every one and voided the entire spend silently. `serverlist.js` gained a RAM column plus
+  an unrooted-RAM-by-port-requirement summary (the diagnostic that found it); 1013/1013 tests pass,
+  with the old test rewritten as the regression guard. Detail + generalised lesson in
+  [`docs/batcher-engine.md`](../batcher-engine.md) §4.
 - **Phase 35 — the install boundary: telemetry + five recovery-lever fixes.** Six work items
   across `bootstrap.js`/`daemon.js`/`cloudmanager.js`/`resourcemanager.js`/`goallog.js`/
   `dashboard.js`, closing three previously-open bugs and shipping the instrument for a fourth.

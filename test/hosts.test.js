@@ -67,13 +67,21 @@ describe('tryRoot', () => {
     expect(ns.calls.tprint).toHaveLength(0);
   });
 
-  it('returns false without nuking when required level exceeds hacking level', () => {
+  // Regression guard (2026-07-26): tryRoot used to bail on
+  // `reqLevel > myHackLevel`, conflating "can I hack this" with "can I root
+  // this". Per bitburner.ns.nuke.md, required hacking level is NOT a nuke
+  // requirement -- only ports are. The old guard silently withheld 864 GB of
+  // already-openable fleet RAM from a 1068 GB fleet in BN5. Rooting an
+  // unhackable server is pure upside: it becomes a WORKER host, while
+  // targets.js's isEligibleTarget independently (and more strictly) decides
+  // what actually gets attacked.
+  it('roots a server far above the hacking level when ports suffice', () => {
     const ns = makeHostsNs({
       hackLevel: 5,
       servers: { 'the-hub': { reqLevel: 500, reqPorts: 1 } },
     });
-    expect(tryRoot(ns, 'the-hub')).toBe(false);
-    expect(ns.calls.nuke).toEqual([]);
+    expect(tryRoot(ns, 'the-hub')).toBe(true);
+    expect(ns.calls.nuke).toEqual(['the-hub']);
   });
 
   it('returns false without nuking when required ports exceed owned openers', () => {

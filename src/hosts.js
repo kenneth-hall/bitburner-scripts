@@ -91,10 +91,18 @@ export function tryRoot(ns, server) {
   if (ns.hasRootAccess(server)) return true;
 
   const owned = PORT_OPENERS.filter((file) => ns.fileExists(file, "home"));
-  const reqLevel = ns.getServerRequiredHackingLevel(server);
   const reqPorts = ns.getServerNumPortsRequired(server);
-  const myHackLevel = ns.getHackingLevel();
-  if (reqLevel > myHackLevel || reqPorts > owned.length) return false;
+  // Ports are the ONLY nuke requirement -- bitburner.ns.nuke.md: "the server's
+  // required hacking level is not a requirement of nuking. You can nuke a
+  // server as long as you open enough ports, regardless of your hacking
+  // level." The old `reqLevel > myHackLevel` guard here conflated "can I hack
+  // this" with "can I root this" and silently cost us the RAM of every
+  // above-level server: measured 2026-07-26 at 864 GB already-openable (288 GB
+  // across 8 three-port + 576 GB across 13 four-port servers) against a
+  // 1068 GB fleet. Rooting an unhackable server is pure upside -- it joins the
+  // fleet as a WORKER host; whether it's ever ATTACKED is targets.js's own,
+  // stricter, independent predicate (isEligibleTarget: reqLevel < level/2).
+  if (reqPorts > owned.length) return false;
 
   for (const file of owned) openPort(ns, file, server);
   ns.nuke(server);

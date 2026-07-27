@@ -21,12 +21,20 @@ export async function main(ns) {
         bd: s.backdoorInstalled,
         ports: s.numOpenPortsRequired,
         money: s.moneyMax,
+        ram: s.maxRam,
       };
     })
     .sort((a, b) => a.req - b.req);
 
+  // Fleet-RAM view: rooting a server adds its RAM to the batcher even when its
+  // required level puts its MONEY out of reach -- so "what does the next port
+  // opener buy us right now" is a RAM question, not a maxMoney question.
+  const unrooted = rows.filter((r) => !r.root);
+  const ramByPorts = new Map();
+  for (const r of unrooted) ramByPorts.set(r.ports, (ramByPorts.get(r.ports) ?? 0) + r.ram);
+
   ns.tprint(`\n===== SERVERS BY REQUIRED HACK LEVEL (${rows.length}) -- your level: ${lvl} =====`);
-  ns.tprint(`  req  root bd ports  host                     maxMoney       status`);
+  ns.tprint(`  req  root bd ports  host                     maxMoney       ram        status`);
   for (const r of rows) {
     let status;
     if (r.bd) status = "backdoored";
@@ -36,7 +44,13 @@ export async function main(ns) {
     const money = r.money === 0 ? "$0" : "$" + ns.format.number(r.money);
     ns.tprint(
       `${String(r.req).padStart(5)}  ${r.root ? "Y" : "n"}    ${r.bd ? "Y" : "n"}  ${String(r.ports).padStart(2)}    ` +
-        `${r.host.padEnd(24)} ${money.padEnd(13)}  ${status}`,
+        `${r.host.padEnd(24)} ${money.padEnd(13)}  ${ns.format.ram(r.ram).padEnd(9)}  ${status}`,
     );
+  }
+
+  ns.tprint(`\n===== UNROOTED FLEET RAM BY PORT REQUIREMENT =====`);
+  for (const ports of [...ramByPorts.keys()].sort((a, b) => a - b)) {
+    const count = unrooted.filter((r) => r.ports === ports).length;
+    ns.tprint(`  ${ports} ports: ${ns.format.ram(ramByPorts.get(ports))} across ${count} server(s)`);
   }
 }

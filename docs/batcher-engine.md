@@ -180,6 +180,31 @@ Batcher-specific open items now live here (moved from `BACKLOG.md` 2026-07-22, s
 the architecture/history they depend on). `BACKLOG.md` keeps only non-batcher-specific bugs/ideas —
 check there for everything else.
 
+- **~~`tryRoot` withheld the fleet's above-level RAM~~ — FIXED 2026-07-26 (`src/hosts.js`).** Kept
+  here as a landmine warning, because the failure mode was *silent* and the class of it recurs.
+  `tryRoot` bailed on `reqLevel > myHackLevel`, conflating **"can I hack this"** with **"can I root
+  this"**. They are not the same question: `markdown/bitburner.ns.nuke.md` states outright that
+  *"the server's required hacking level is not a requirement of nuking — you can nuke a server as
+  long as you open enough ports, regardless of your hacking level."* Rooting an unhackable server is
+  pure upside: it joins the fleet as a **worker host**, and whether it is ever *attacked* was already
+  decided independently — and far more strictly — by `targets.js`'s `isEligibleTarget`
+  (`reqLevel < level/2`). The guard therefore protected nothing and only suppressed RAM.
+  - **Measured impact, BN5, 2026-07-26.** At hacking 309 the fleet read **1,068 GB / 21 hosts**, and
+    the batcher could only afford the pipeline of the *3rd*-ranked target (harakiri-sushi, $100M max
+    money, 1,068 GB) — the top two (phantasy $600M / 1,530 GB, max-hardware $250M / 1,360 GB) cost
+    more than the entire fleet. Removing the one condition took the fleet to **4,780 GB / 71 hosts
+    (4.5×)** and the batcher immediately promoted itself to **phantasy**, the top-ranked target.
+  - **The expensive part: it would have silently voided a $250M purchase.** Every 5-port server in
+    this node requires hacking **819+**. `procureprograms.js` bought **SQLInject.exe for $250M** at
+    8:06 PM — the last rung of the opener ladder, saved for over hours by the Phase 35 opener
+    reservation — and the old guard would have refused to root **all 29** of the servers it unlocked
+    (2.85 TB), returning `false` on every one. The reservation system worked perfectly and the
+    rooting bug would have thrown away 100% of what it bought, with no error and no log line.
+  - **Generalised lesson worth carrying:** a precondition copied from a *related* API is still an
+    unverified assumption. The fork's own docs contradicted this one in a single explicit sentence —
+    the same "read the whole interface" failure as Phase 27, at one-line scale. When a guard blocks
+    a resource, check that the guard is the API's requirement and not a plausible-sounding neighbour.
+
 - **~~Auto-suppress `share.js` on small/factionless fleets~~ — the CHEAP (90%) version SHIPPED
   2026-07-26 (Phase 35 WI4/D8a); the honest version below is still unbuilt.** Measured 2026-07-18 in
   BN2: with zero joined factions, `ns.share()`'s rep multiplier is *provably* worthless
