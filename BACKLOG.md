@@ -22,6 +22,27 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🔴 The D3 one-NFG-per-cycle cap deadlocks the install trigger when discrete mult augs run out —
+  live in BN5 since 2026-07-27 ~03:20 (M stalled 12h+).** `pickTarget`'s `nfgCapped`
+  (`augfarmer.js:758`) allows one NeuroFlux per cycle in normal phases, justified by *"money is
+  almost always NFG's real ceiling (~17-18 levels/install)"*. **That assumption is false in BN5
+  right now** — $53B banked against $26M/level, income $275M/s and doubling hourly.
+  - **The deadlock.** Every CyberSec aug with `hackingMult > 1` is now owned (BitWire, Cranial Gen
+    I/II). Every remaining mult aug sits at BitRunners / NiteSec / The Black Hand, whose rep is
+    **1,207 / 3,249 / 1,692**. So per-cycle gain is capped at the single NFG's **×1.01**, and
+    `trigger.totalGain` sits at **1.0829 against the 1.1 minimum** — *the engine cannot reach its own
+    install threshold with the augs it can buy.* M cannot move until something breaks the cycle.
+  - **What the cycle actually bought: $83.62B for +1.0% M.** Five augs queued — NFG ($3M, ×1.01) and
+    four with `hackingMult: 1`, including **Neuralstimulator at $78.19B**. The whole gain came from
+    the $3M one. (This is the price-DESC-before-score bug below, at full scale: it reliably selects
+    the most expensive reachable aug, and expensive does not correlate with mult.)
+  - **Cheapest exit:** lift the cap when money is demonstrably not the ceiling — ~10 affordable NFG
+    levels is ×1.105, which clears 1.1 outright. The S10 spend-down path already lifts it; the
+    question is what should arm that outside spend-down. **Do NOT hand-patch the constant** — see the
+    `INSTALL_OVERHEAD_MS` entry below for why a one-constant change here broke 4 tests that were
+    right. Its own phase.
+  - **Then rep becomes binding**, not money: the ×1.30/×1.15/×1.12 augs are all BitRunners.
+
 - **Phase 34's install trigger is optimistic on two axes, and BN5 voids the justification for one
   of them.** Found 2026-07-26 during the Phase 35 brainstorm; this is live shipped code, not a
   future build item.
