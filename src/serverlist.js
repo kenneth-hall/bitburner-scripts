@@ -48,6 +48,33 @@ export async function main(ns) {
     );
   }
 
+  // What the isEligibleTarget `reqLevel < level/2` gate is actually rejecting.
+  // The gate is a PROXY for hack success chance; targets.js's score already
+  // multiplies by the EXACT chance (sampling.js's formulas.hacking.hackChance
+  // at the prepped state). So print the exact number for every rooted, money-
+  // bearing server we could hack at all -- that is the number the gate is
+  // standing in for, and the only way to know what it costs us.
+  if (ns.fileExists("Formulas.exe", "home")) {
+    const player = ns.getPlayer();
+    const rows2 = rows
+      .filter((r) => r.root && r.money > 0 && r.req <= lvl)
+      .map((r) => {
+        const prepped = { ...ns.getServer(r.host), hackDifficulty: ns.getServerMinSecurityLevel(r.host), moneyAvailable: r.money };
+        return { ...r, chance: ns.formulas.hacking.hackChance(prepped, player), wt: ns.formulas.hacking.weakenTime(prepped, player) };
+      })
+      // Rank by the score's own money*chance/time shape (ramCost omitted --
+      // it needs the full thread plan; this is the relative-value view).
+      .sort((a, b) => (b.money * b.chance) / b.wt - (a.money * a.chance) / a.wt);
+    ns.tprint(`\n===== EXACT hackChance AT PREPPED STATE (rooted, hackable) -- gate admits req < ${Math.floor(lvl / 2)} =====`);
+    ns.tprint(`  host                     req   maxMoney       chance   admitted?`);
+    for (const r of rows2) {
+      ns.tprint(
+        `  ${r.host.padEnd(24)} ${String(r.req).padStart(4)}  ${("$" + ns.format.number(r.money)).padEnd(13)}  ` +
+          `${(r.chance * 100).toFixed(1).padStart(5)}%   ${r.req < lvl / 2 ? "yes" : "NO -- gated out"}`,
+      );
+    }
+  }
+
   ns.tprint(`\n===== UNROOTED FLEET RAM BY PORT REQUIREMENT =====`);
   for (const ports of [...ramByPorts.keys()].sort((a, b) => a - b)) {
     const count = unrooted.filter((r) => r.ports === ports).length;
