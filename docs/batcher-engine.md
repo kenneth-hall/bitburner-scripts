@@ -180,6 +180,34 @@ Batcher-specific open items now live here (moved from `BACKLOG.md` 2026-07-22, s
 the architecture/history they depend on). `BACKLOG.md` keeps only non-batcher-specific bugs/ideas —
 check there for everything else.
 
+- **🔴 The batcher's hack fraction is capped by the LARGEST SINGLE HOST, not by fleet RAM — and
+  nothing in the engine says so.** Measured live in BN5, 2026-07-26. This is the non-obvious
+  consequence of `scheduler.js`'s **never split hack** rule (commit `61eff55`): grow/weaken spread
+  across hosts freely, so total fleet RAM sizes them, but the hack job must land on **one** host.
+  - **The live numbers.** Fleet **4,780 GB / 71 hosts**, plenty in aggregate. But the largest host
+    is the single 512 GB purchased server, and at fraction 0.25 the hack job is **844.9 GB** against
+    `largestHostFreeGb: 223.25` (`daemon-batch-log.json`, `blockedBy: "per-host"`,
+    `shortfallGb: 588.9`). It can never fit. The daemon retries it **~143 times per 2.4-minute
+    window**, then shrinks: **1,576 skips against 12 batches placed**, every one landing at fraction
+    **0.0625** — a **4× haircut on every batch, permanently**.
+  - **Why this is easy to misdiagnose.** Every aggregate reads healthy: `utilizationPct` ~65%,
+    `warns.skipServers` empty, `failedLaunches: 0`, `noTargets: false`, batches genuinely placing.
+    The liveness verdict says `OK`. Nothing surfaces "we are running at a quarter fraction because
+    one job doesn't fit anywhere" — the shrink is treated as a success path, and `totalBatchesShrunk`
+    is the only tell.
+  - **The consequence for fleet buying:** many small hosts are NOT interchangeable with a few large
+    ones for this engine. `cloudmanager.js` ranking by GB-per-dollar is the wrong objective while the
+    per-host ceiling binds — **one 1024 GB host is worth more than 4×256 GB**, and no aggregate
+    metric expresses that.
+  - **It compounds with member admission.** `pickBatchSet` seats a member only if its **full**
+    `pipelineCostGb` fits the remaining budget (`scheduler.js:513`). phantasy reserves **4,052 GB of
+    the 4,780 budget** while holding 356, so the 371 GB remainder seats nobody: **1 member against 13
+    eligible candidates**, at depth 1 of 3.
+  - **Next:** either make the hack job splittable (it changes timing//detection assumptions — that is
+    the reason for the rule, so read `61eff55` before touching it), or teach the shrink loop to
+    compute the max affordable fraction from `largestHostFreeGb` **once** instead of rediscovering it
+    ~143 times a window, and teach `cloudmanager.js` to value the per-host ceiling. Its own phase.
+
 - **~~`tryRoot` withheld the fleet's above-level RAM~~ — FIXED 2026-07-26 (`src/hosts.js`).** Kept
   here as a landmine warning, because the failure mode was *silent* and the class of it recurs.
   `tryRoot` bailed on `reqLevel > myHackLevel`, conflating **"can I hack this"** with **"can I root
