@@ -22,26 +22,29 @@ do, and what's broken?*
 
 ## Bugs
 
-- **🔴 The D3 one-NFG-per-cycle cap deadlocks the install trigger when discrete mult augs run out —
-  live in BN5 since 2026-07-27 ~03:20 (M stalled 12h+).** `pickTarget`'s `nfgCapped`
-  (`augfarmer.js:758`) allows one NeuroFlux per cycle in normal phases, justified by *"money is
-  almost always NFG's real ceiling (~17-18 levels/install)"*. **That assumption is false in BN5
-  right now** — $53B banked against $26M/level, income $275M/s and doubling hourly.
-  - **The deadlock.** Every CyberSec aug with `hackingMult > 1` is now owned (BitWire, Cranial Gen
-    I/II). Every remaining mult aug sits at BitRunners / NiteSec / The Black Hand, whose rep is
-    **1,207 / 3,249 / 1,692**. So per-cycle gain is capped at the single NFG's **×1.01**, and
-    `trigger.totalGain` sits at **1.0829 against the 1.1 minimum** — *the engine cannot reach its own
-    install threshold with the augs it can buy.* M cannot move until something breaks the cycle.
-  - **What the cycle actually bought: $83.62B for +1.0% M.** Five augs queued — NFG ($3M, ×1.01) and
-    four with `hackingMult: 1`, including **Neuralstimulator at $78.19B**. The whole gain came from
-    the $3M one. (This is the price-DESC-before-score bug below, at full scale: it reliably selects
-    the most expensive reachable aug, and expensive does not correlate with mult.)
-  - **Cheapest exit:** lift the cap when money is demonstrably not the ceiling — ~10 affordable NFG
-    levels is ×1.105, which clears 1.1 outright. The S10 spend-down path already lifts it; the
-    question is what should arm that outside spend-down. **Do NOT hand-patch the constant** — see the
-    `INSTALL_OVERHEAD_MS` entry below for why a one-constant change here broke 4 tests that were
-    right. Its own phase.
-  - **Then rep becomes binding**, not money: the ×1.30/×1.15/×1.12 augs are all BitRunners.
+- **🔴 cloudmanager and the aug ratchet race for one wallet, and the ratchet always loses — M stalled
+  12h+ in BN5 since 2026-07-27 ~03:20. → `phase-36-money-arbitration.features.md`.** Measured over
+  11.5h: `auto-cloud-upgrade` took **$3,391.0b across 210 txns ($82.0M/s sustained,** individual
+  upgrades $74.99b, one at $179.97b**)** against **$110.9b to augs — a 30.6:1 ratio.** Cash went
+  **$53.25b → $5.95b in ~40 min.**
+  - **The mechanism is a race, not a deadlock.** `totalGain` is dominated by `projectedNfgFactor`,
+    and `nfgBoundBy` reads `"money"` — so it tracks cash on hand at sample time. Observed drifting
+    **1.0829 → 1.1046 (over the 1.1 bar) → 1.0510** in ~50 minutes with no code change, because
+    cloudmanager spends the balance between samples. `TRIGGER_SUSTAIN_MS` then demands **10
+    continuous minutes** armed while cloudmanager fires every ~1–3 min, so the trigger can never
+    sustain.
+  - **This is `CLAUDE.md`'s own predicted failure, arrived:** *"the finance reserve never covers the
+    NFG spend-down batch, so cloudmanager can starve a deep NFG tail."* Worse than predicted — it
+    isn't starving the tail, it's **blocking installs outright**.
+  - **It is also buying RAM nobody uses:** batcher utilization was **14.0% of 4.59 PB** before
+    `ns.share()` was enabled. ⚠️ Share now soaks idle RAM, so `utilizationPct` reads 72.8% and is a
+    **broken signal** for this — any demand gate needs batcher-only demand.
+  - **⚠️ CORRECTS AN EARLIER ENTRY IN THIS FILE (commit `f26cf15`, same day).** That entry blamed
+    the **D3 one-NFG-per-cycle cap**. It was wrong: `spendDownPlan` (`augfarmer.js:1503`) runs after
+    the trigger fires and buys an NFG **ladder**, with the cap explicitly lifted for spend-down — the
+    trigger already projects 4–9 levels. The error was reading `nfg.cappedThisCycle: true` and
+    stopping there instead of following `nfgLevelsProjected`/`nfgBoundBy` to source. **Lesson worth
+    keeping: one poll of an oscillating quantity is indistinguishable from a deadlock.**
 
 - **Phase 34's install trigger is optimistic on two axes, and BN5 voids the justification for one
   of them.** Found 2026-07-26 during the Phase 35 brainstorm; this is live shipped code, not a
