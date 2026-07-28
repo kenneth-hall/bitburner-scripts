@@ -162,10 +162,48 @@ immediately after this phase ships.**
    Needs a measurement pass against live logs, not a guess.
 3. **Should the reserve be bounded, and by what?** An unbounded ladder reserve at a deep NFG level
    could exceed any plausible balance and freeze cloudmanager permanently.
-4. **Is the fleet already RAM-saturated for the batcher?** If 643 TB serves 17 members at full
-   fraction, further growth may have near-zero value regardless of arbitration — which would make
-   D2's threshold the dominant fix and D1 merely a safety net. Worth measuring before assuming both
-   are needed.
+4. **~~Is the fleet already RAM-saturated for the batcher?~~ — MEASURED 2026-07-27, and the answer
+   is neither hypothesis.** The fleet is **not** saturated: members want **3.798 PB** of pipeline and
+   hold **1.141 PB**. But buying more RAM **cannot help**, for a reason that has nothing to do with
+   totals. Exact accounting of the 7.081 PB fleet:
+
+   | Slice | PB | % |
+   |---|---|---|
+   | share pool | 1.770 | 25.0% |
+   | xpfarm in-flight (long-running jobs; xpfarm itself is self-suppressed, `usableGb: 0`) | 1.469 | 20.8% |
+   | batcher **held** | 1.141 | 16.1% |
+   | batcher **reserved** — fenced for batches that cannot launch | **2.657** | **37.5%** |
+   | **prep waterfall free** — every prep job must fit here | **0.044** | **0.62%** |
+
+   **13 of 17 members are unprepped, and 10 of those are already at >95% money — they need WEAKEN,
+   not grow.** The only prepped members are the small targets; every large one
+   (the-hub $4.80b, crush-fitness $1.26b, omega-net $1.68b, iron-gym $0.50b) sits at 100% money with
+   security **2–4× minimum** and **zero batches in flight**, holding ~0.2% of its own pipeline.
+
+   **This is a reserve/prep deadlock:** members reserve RAM for batches that cannot launch (target
+   unprepped) → the reserve zeroes the waterfall → prep cannot run → targets stay unprepped. It is a
+   recurrence of the failure `scheduler.js`'s `memberReserveGb` comment documents from
+   2026-07-24 (11h at $0 on a 396 GB fleet), now at ~10,000× the scale. That fix only drops the
+   reserve for **floor-seated** members (`pipelineCostGb > budgetGb`); here *no* member is
+   floor-seated — each pipeline individually fits — so all 17 reserve in full and collectively
+   starve prep.
+
+   **Consequences for this phase:**
+   - **D2's cloud gate is now strongly justified** — marginal RAM has ~zero value, and worse,
+     *growth makes it worse*: a bigger fleet seats more members, each adding a full pipeline
+     reserve, so the waterfall stays starved at any fleet size.
+   - **D1 (the reserve) is still needed** — it addresses the money race, which is a separate defect.
+   - **A new, probably larger item falls out of this:** the reserve rule itself. Logged as Q6 rather
+     than absorbed here — see scope note below.
+
+6. **NEW — should the member-reserve rule be part of this phase or its own?** Fixing it is what
+   unblocks *income*; this phase's D1/D2 unblock *M*. Leaning to its own phase (different file,
+   different failure, and this one is already touching the money path on a live node), but the two
+   interact through D2 and the sequencing needs a call. **Not yet established:** *why* security sits
+   2–4× minimum on those targets — candidates are BN5's 200% starting-security nerf on newly-eligible
+   targets, historical xpfarm hack passes (its earlier target list did include the-hub /
+   crush-fitness / omega-net), or batcher hack outpacing its own weaken. Worth pinning down before
+   designing a fix, per the read-the-interface rule.
 5. **Does `MIN_TOTAL_GAIN` = 1.1 still hold in BN5?** Not being changed here (D4), but it was tuned
    in a node with ~2-minute re-climbs. BN5's are 9–10h. Flagged, not opened.
 
