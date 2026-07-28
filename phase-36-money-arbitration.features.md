@@ -34,7 +34,7 @@ utilization was **14.0% of 4.59 PB** — the batcher draws ~643 TB and cloudmana
 it. (Utilization now reads 72.8%, but that is share filling idle RAM, not batcher demand. See D2 —
 this makes raw utilization a *broken* signal going forward.)
 
-### 2. The mechanism — a race, not a deadlock
+## 2. The mechanism — a race, not a deadlock
 
 The aug ratchet's install trigger requires `totalGain >= MIN_TOTAL_GAIN` (1.1). `totalGain` is
 dominated by `projectedNfgFactor` — how many NeuroFlux levels the spend-down could buy — and
@@ -63,7 +63,7 @@ never covers the NFG spend-down batch, so cloudmanager can starve a deep NFG tai
 BN5's endgame."* It is worse than predicted — it is not starving the tail, it is **preventing
 installs outright**.
 
-### 2b. ⚠️ Correction — recorded so it is not inherited
+## 2b. ⚠️ Correction — recorded so it is not inherited
 
 Earlier today I committed a `BACKLOG.md` entry (`f26cf15`) claiming the blocker was **the D3
 one-NFG-per-cycle cap** deadlocking the trigger. **That is wrong and the entry must be fixed.**
@@ -76,6 +76,45 @@ The error came from reading `nfg.cappedThisCycle: true` and stopping there inste
 money arbitration is.** Two conclusions worth keeping: a state flag named `capped` invited the
 assumption that something was capped, and one poll of an oscillating quantity looks exactly like a
 deadlock.
+
+## 2c. Measured — where the RAM actually goes (a second, separate defect)
+
+Run to answer open question 4 ("is the fleet already saturated?"). **It is not — and buying more
+RAM cannot help anyway.** Members want **3.798 PB** of pipeline and hold **1.141 PB**. Exact
+accounting of the 7.081 PB fleet (reproduce with `R3` in §7):
+
+| Slice | PB | % |
+|---|---|---|
+| share pool | 1.770 | 25.0% |
+| xpfarm in-flight (long-running jobs; xpfarm itself self-suppressed, `usableGb: 0`) | 1.469 | 20.8% |
+| batcher **held** | 1.141 | 16.1% |
+| batcher **reserved** — fenced for batches that cannot launch | **2.657** | **37.5%** |
+| **prep waterfall free** — every prep job must fit here | **0.044** | **0.62%** |
+
+**13 of 17 members are unprepped, and 10 of those are already at >95% money — they need WEAKEN, not
+grow.** The only prepped members are the small targets; every large one (the-hub $4.80b,
+crush-fitness $1.26b, omega-net $1.68b, iron-gym $0.50b) sits at 100% money, security **2–4×
+minimum**, **zero batches in flight**, holding ~0.2% of its own pipeline.
+
+**The deadlock:** members reserve RAM for batches that cannot launch (target unprepped) → the
+reserve zeroes the waterfall → prep cannot run → targets stay unprepped. This is a recurrence of the
+failure `scheduler.js`'s `memberReserveGb` comment documents from 2026-07-24 (11h at $0 on a 396 GB
+fleet), now at ~10,000× the scale. **The gap:** that fix only drops the reserve for **floor-seated**
+members (`pipelineCostGb > budgetGb`). Here *no* member is floor-seated — each pipeline individually
+fits the budget — so all 17 reserve in full and collectively starve prep.
+
+**Consequences for this phase:**
+- **D2's cloud gate is now strongly justified** — marginal RAM has ~zero value, and *growth actively
+  worsens it*: a bigger fleet seats more members, each adding a full pipeline reserve, so the
+  waterfall stays starved at any fleet size.
+- **D1 is still needed** — the money race is a separate defect and the reserve addresses that one.
+- **This is probably a bigger prize than the phase it was found in.** Sequencing is open question 4.
+
+⚠️ **Deliberately NOT concluded: why security sits 2–4× minimum.** Three candidates, none tested —
+BN5's 200% starting-security nerf hitting newly-eligible targets; historical xpfarm hack passes (its
+earlier target list *did* include the-hub / crush-fitness / omega-net); or batcher hack outpacing its
+own weaken. There is evidence for the **state** but not the **cause**, and designing against a
+guessed cause is the documented `read-the-whole-interface` failure. Pin this down first.
 
 ---
 
@@ -162,48 +201,11 @@ immediately after this phase ships.**
    Needs a measurement pass against live logs, not a guess.
 3. **Should the reserve be bounded, and by what?** An unbounded ladder reserve at a deep NFG level
    could exceed any plausible balance and freeze cloudmanager permanently.
-4. **~~Is the fleet already RAM-saturated for the batcher?~~ — MEASURED 2026-07-27, and the answer
-   is neither hypothesis.** The fleet is **not** saturated: members want **3.798 PB** of pipeline and
-   hold **1.141 PB**. But buying more RAM **cannot help**, for a reason that has nothing to do with
-   totals. Exact accounting of the 7.081 PB fleet:
-
-   | Slice | PB | % |
-   |---|---|---|
-   | share pool | 1.770 | 25.0% |
-   | xpfarm in-flight (long-running jobs; xpfarm itself is self-suppressed, `usableGb: 0`) | 1.469 | 20.8% |
-   | batcher **held** | 1.141 | 16.1% |
-   | batcher **reserved** — fenced for batches that cannot launch | **2.657** | **37.5%** |
-   | **prep waterfall free** — every prep job must fit here | **0.044** | **0.62%** |
-
-   **13 of 17 members are unprepped, and 10 of those are already at >95% money — they need WEAKEN,
-   not grow.** The only prepped members are the small targets; every large one
-   (the-hub $4.80b, crush-fitness $1.26b, omega-net $1.68b, iron-gym $0.50b) sits at 100% money with
-   security **2–4× minimum** and **zero batches in flight**, holding ~0.2% of its own pipeline.
-
-   **This is a reserve/prep deadlock:** members reserve RAM for batches that cannot launch (target
-   unprepped) → the reserve zeroes the waterfall → prep cannot run → targets stay unprepped. It is a
-   recurrence of the failure `scheduler.js`'s `memberReserveGb` comment documents from
-   2026-07-24 (11h at $0 on a 396 GB fleet), now at ~10,000× the scale. That fix only drops the
-   reserve for **floor-seated** members (`pipelineCostGb > budgetGb`); here *no* member is
-   floor-seated — each pipeline individually fits — so all 17 reserve in full and collectively
-   starve prep.
-
-   **Consequences for this phase:**
-   - **D2's cloud gate is now strongly justified** — marginal RAM has ~zero value, and worse,
-     *growth makes it worse*: a bigger fleet seats more members, each adding a full pipeline
-     reserve, so the waterfall stays starved at any fleet size.
-   - **D1 (the reserve) is still needed** — it addresses the money race, which is a separate defect.
-   - **A new, probably larger item falls out of this:** the reserve rule itself. Logged as Q6 rather
-     than absorbed here — see scope note below.
-
-6. **NEW — should the member-reserve rule be part of this phase or its own?** Fixing it is what
-   unblocks *income*; this phase's D1/D2 unblock *M*. Leaning to its own phase (different file,
-   different failure, and this one is already touching the money path on a live node), but the two
-   interact through D2 and the sequencing needs a call. **Not yet established:** *why* security sits
-   2–4× minimum on those targets — candidates are BN5's 200% starting-security nerf on newly-eligible
-   targets, historical xpfarm hack passes (its earlier target list did include the-hub /
-   crush-fitness / omega-net), or batcher hack outpacing its own weaken. Worth pinning down before
-   designing a fix, per the read-the-interface rule.
+4. **Should the member-reserve rule (§2c) be part of this phase or its own?** Fixing it unblocks
+   *income*; this phase's D1/D2 unblock *M*. Leaning to its own phase — different file, different
+   failure, and this one already touches the money path on a live node — but the two interact
+   through D2, so the sequencing needs a call. **Blocked on:** *why* security sits 2–4× minimum
+   (§2c's unresolved half).
 5. **Does `MIN_TOTAL_GAIN` = 1.1 still hold in BN5?** Not being changed here (D4), but it was tuned
    in a node with ~2-minute re-climbs. BN5's are 9–10h. Flagged, not opened.
 
@@ -217,6 +219,92 @@ existing reservation path, plus a batcher-demand gate on cloud upgrades.
 **Out:** aug selection order (D3) · favor/donation routing (D5) · `MIN_TOTAL_GAIN` retuning (D4) ·
 the D3 one-NFG-per-cycle cap (§2b — not the blocker) · anything batcher-internal.
 
-**Success condition:** the install trigger can hold `totalGain >= MIN_TOTAL_GAIN` for a full
-`TRIGGER_SUSTAIN_MS` without cloudmanager draining the balance underneath it — and M resumes
-climbing. Measurable directly from `goal-state.json`'s `forecast` / `tripwire` fields.
+**Success condition:** the install trigger holds `totalGain >= MIN_TOTAL_GAIN` for a full
+`TRIGGER_SUSTAIN_MS` (600s) without cloudmanager draining the balance underneath it, an install
+fires, and `goal-state.json`'s `tripwire.status` leaves `STALLED` — i.e. **M rises at least once
+within 12h of the change landing.** Read from `goal-state.json` (`mProgress.value`, `tripwire`,
+`forecast.daysToGate`); no new instrumentation needed.
+
+---
+
+## 7. Cold-session pickup
+
+*Everything below exists so a session with no memory of this one can verify the doc still describes
+reality before acting on it. **Do R1–R4 first** — every number above is a snapshot from 2026-07-27
+and this node moves fast.*
+
+### 7a. Live state when this doc was written (drift check)
+
+| Field | Value | Source |
+|---|---|---|
+| M / target | 1.6029 / 9.7 | `goal-state.json` `mProgress` |
+| Income | $664M/s (24h: $37.9M/s) | `goal-state.json` `income` |
+| `tripwire.status` | `STALLED`, 12h+ | `goal-state.json` |
+| `forecast.daysToGate` | 50.1 | `goal-state.json` |
+| Fleet | 7.081 PB, 25/25 servers (at limit) | `daemon-status.json`, `cloud-state.json` |
+| Members | 17 of 18 candidates, 13 unprepped | `daemon-status.json` |
+| Hacking level | 728 | `daemon-status.json` |
+| Augs | 7 installed, 5 queued, NFG 6 | `auginfo-1785196491912.json` |
+
+**If M has moved since 2026-07-27, the race in §2 may have resolved itself by luck — re-run R2
+before assuming the phase is still needed.**
+
+### 7b. Reproducing every number (R1–R4)
+
+Dated log files roll; these commands find the current one. Run from the repo root.
+
+- **R1 — spend by sink (§1's 30.6:1).** Latest `logs/transactions-*.json`; group by `type/source`,
+  sum `amount`, divide by the record-span in seconds.
+  ```
+  node -e "const fs=require('fs'),cp=require('child_process');const f=cp.execSync('ls -t logs/transactions-*.json').toString().trim().split('\n')[0];const t=JSON.parse(fs.readFileSync(f,'utf8'));let a=(Array.isArray(t)?t:Object.values(t).find(Array.isArray)).filter(r=>r.timestamp>0).sort((x,y)=>x.timestamp-y.timestamp);const s=(a[a.length-1].timestamp-a[0].timestamp)/1000,by={};for(const r of a){const k=r.type+'/'+r.source;by[k]=by[k]||{n:0,v:0};by[k].n++;by[k].v+=r.amount||0}console.log(f,(s/3600).toFixed(1)+'h');for(const[k,v]of Object.entries(by).sort((x,y)=>y[1].v-x[1].v))console.log(String(v.n).padStart(4),'\$'+(v.v/1e9).toFixed(1)+'b',(v.v/s/1e6).toFixed(1)+'M/s',k)"
+  ```
+- **R2 — the race (§2).** Poll these three together several times over ~30 min; the finding is that
+  they move *without any code change*: `augfarmer-state.json` → `trigger.totalGain`,
+  `trigger.nfgLevelsProjected`, `trigger.nfgBoundBy`; `finance-state.json` → `money`.
+  Race confirmed if `totalGain` crosses 1.1 and falls back while `nfgBoundBy === "money"`.
+- **R3 — RAM accounting (§2c).** Newest `event === "snapshot"` in `logs/daemon-batch-log.json`:
+  `budgetGb`, `waterfallFreeGb`, `sharePool.inFlightRamGb`, `xpPool.inFlightRamGb`, and per-member
+  `pipelineCostGb` / `inFlightRamGb` / `reserveGb`. The five slices must sum to `budgetGb`.
+  ⚠️ **That log is a ring buffer dominated by `batch` events — it held only ~8 minutes of history
+  when this was written.** It cannot give a trend; for history use `logs/goal-log.json` (48h ring).
+- **R4 — prep state (§2c).** `daemon-status.json` `members[]`: `prepped`, `batchesInFlight`, `sec`
+  vs `minSec`, `money` vs `maxMoney`. The signature is *money ≈ 100%, security 2–4× min, 0 batches*.
+
+### 7c. Code inventory (verified 2026-07-27)
+
+| What | Where |
+|---|---|
+| Install-trigger gain bar `MIN_TOTAL_GAIN = 1.1` | `augfarmer.js:119` |
+| `TRIGGER_SUSTAIN_MS = 600_000` | `augfarmer.js:121` |
+| NFG ladder buyer (runs *after* trigger; cap lifted) | `augfarmer.js:1503` `spendDownPlan` |
+| One-NFG-per-cycle cap (**not** the blocker — see §2b) | `augfarmer.js:758` `nfgCapped` |
+| augfarmer emits its reserve as `{reserve: N}` on the plan | `augfarmer.js:1673–1715` |
+| Reservation list assembled / summed | `resourcemanager.js:207`, `:263` |
+| **cloudmanager's gate — where D1 takes effect** | `cloudmanager.js:220` `availableCash = money − state.totalReserved` |
+| Cloud growth affordability | `cloudmanager.js:121` `growthPossible` |
+| Member reserve rule (**§2c's defect**) | `scheduler.js:123` `memberReserveGb` |
+| Member admission needs *full* pipeline to fit | `scheduler.js:513` |
+| `SHARE_FRACTION = 0.25` | `scheduler.js:38` |
+| Share marker re-read every tick; batch budget | `daemon.js:989`, `:1168` |
+| Aug sort — price-DESC before score (D3, out of scope) | `augfarmer.js:842` |
+| Donation gate (reactive only, D5) | `augfarmer.js:1791` |
+
+**Not yet traced — do this in the spec:** the exact path from augfarmer's `{reserve: N}` to
+`finance-state.json`'s `reservations[]` entry. D1 assumes a new keyed reservation can be added
+alongside `next-aug`; that assumption is unverified.
+
+### 7d. ⚠️ Live-game changes made this session that are NOT in git
+
+- **`share-off.txt` was deleted from `home` (in-game) on 2026-07-27.** It is untracked and not in
+  `src/`, so it exists only in the running game — **nothing in the repo records or restores it.**
+  Effect: `ns.share()` went from off to on, taking **25% of fleet RAM** (`SHARE_FRACTION`) and
+  raising `sharePower` 1.00 → ~1.52. **This is what makes `fleet.utilizationPct` a broken signal
+  for D2** (14.0% → 72.8% with no change in batcher demand). To revert: recreate an empty
+  `share-off.txt` on `home`. To confirm current state: `daemon-status.json` → `share.off`.
+
+### 7e. Next step
+
+Stage 2 — write `phase-36-money-arbitration.spec.md`, then a cold-context review by the
+`spec-reviewer` subagent, blockers addressed, disagreements logged as open questions. **Blocked on
+open questions 1 and 4** (reserve circularity; whether §2c's reserve/prep defect is pulled into this
+phase or split out). Neither should be decided inside the spec — they change what the spec *is*.
