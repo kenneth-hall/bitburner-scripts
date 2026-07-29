@@ -22,9 +22,19 @@ do, and what's broken?*
 
 ## Bugs
 
-- **🔴 cloudmanager and the aug ratchet race for one wallet, and the ratchet always loses — M stalled
-  12h+ in BN5 since 2026-07-27 ~03:20. → `phase-36-money-arbitration.features.md`.** Measured over
-  11.5h: `auto-cloud-upgrade` took **$3,391.0b across 210 txns ($82.0M/s sustained,** individual
+- **🟡 [SUPERSEDED 2026-07-28 — the race is over, the stall was not caused by it] cloudmanager and
+  the aug ratchet race for one wallet. → now `phase-36-install-cadence.features.md`.**
+  **What changed:** cloudmanager hit BN5's hard fleet ceiling (25/25 servers, all at `ramLimit`
+  1,048,576 GB; `cloud-state.json` `growth: "at-limit"`, last spend 2026-07-28 04:38) and **can
+  never spend again this node.** Cash reached **$38.7t with `totalReserved: 0`** — and **M stayed
+  flat anyway**, 45.5h since install #25. So the race was real but **not the binding constraint**;
+  it was masking a second blocker (`gainPhase: "horizon-under-bound"` — the trigger waits out a
+  ~1.8h rep horizon that keeps renewing, at a **613× price ladder**). Phase 36 was rescoped to that.
+  - **The arbitration fix below is SHELVED, not rejected — it returns in the next node**, where the
+    fleet grows again. Everything measured on 7/27 is still correct *about 7/27*; keep it.
+  - **Answers the "reserve circularity" worry for whoever builds it:** during spend-down
+    `augfarmer.js:2787` already reserves `money` **wholesale**, not a ladder-derived figure.
+  - Measured over 11.5h on 2026-07-27: `auto-cloud-upgrade` took **$3,391.0b across 210 txns ($82.0M/s sustained,** individual
   upgrades $74.99b, one at $179.97b**)** against **$110.9b to augs — a 30.6:1 ratio.** Cash went
   **$53.25b → $5.95b in ~40 min.**
   - **The mechanism is a race, not a deadlock.** `totalGain` is dominated by `projectedNfgFactor`,
@@ -140,6 +150,15 @@ do, and what's broken?*
     only BitWire, NFG×5, Neurotrainer I, Synaptic Enhancement Implant) **and both rep-met** at
     CyberSec (rep 19,142): **Cranial Signal Processors Gen I — $270M, ×1.05**, and **Gen II —
     $470M, ×1.07**. The engine chose $475M for **+0%** over $270M for **+5%**, on a $5M price gap.
+  - **⬆️ PROMOTED INTO SCOPE 2026-07-28 as Phase 36 part 2** (`phase-36-install-cadence.features.md`
+    D4) — at BN5's live **613× price ladder**, buy-set composition is the dominant term in
+    dollars-per-M-point, not a polish item. **Design note, so the obvious fix isn't attempted:**
+    **do NOT re-sort score-first.** `augfarmer.js:849`'s price-DESC is commented *"escalation-optimal"*
+    and is genuinely correct — buy *i* is taxed `1.9^i`, so buying expensive augs first minimises
+    total spend **for a fixed set**. The defect is that nothing keeps zero-M augs *in* the set. Fix
+    upstream (score floor / M-contribution filter), then let price-DESC inherit the filtered set.
+    ⚠️ **Open:** a membership change also changes `mustBuyCost`, and `mustBuyTotal`
+    (`augfarmer.js:1462–1469`) assumes a caller-sorted price-DESC list — trace before speccing.
   - **It is not just a lost aug — it is the head of the chain that has BN5 flat at ~$5k/s.** The
     $475M reservation zeroes `finance-state.available` → cloudmanager can't buy its $68.1M/1024GB
     server (`affordable: false`) → the fleet keeps **one** 512GB purchased host → the batcher's

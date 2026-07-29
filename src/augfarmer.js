@@ -117,7 +117,14 @@ export const SCORE_W_MONEY = 0.15;
 export const SCORE_W_SPEED = 0.15;
 export const ALLOWLIST_SCORE = 0.25;
 export const MIN_TOTAL_GAIN = 1.1;
-export const GRIND_HORIZON_MS = 8 * 3600_000;
+// ⚠️ STOPGAP 2026-07-28 (Phase 36) -- was 8h. The 8h bound assumes waiting for
+// a short rep grind is cheap. It is not once the cycle's price ladder is deep:
+// live at 613x escalation (1.9^10 queued buys) with $38.7t idle and the fleet
+// permanently at-limit, the ratchet sat 45.5h on a "1.8h away" horizon that
+// kept renewing -- each closed grind bought an aug and exposed the next. The
+// real fix is a ladder-aware arm (Phase 36 part 1); this constant is the
+// blunt version and MUST be reverted when that ships.
+export const GRIND_HORIZON_MS = 1 * 3600_000;
 export const TRIGGER_SUSTAIN_MS = 600_000;
 export const RATE_MIN_SAMPLES = 30;
 export const RATE_EWMA_ALPHA = 0.2;
