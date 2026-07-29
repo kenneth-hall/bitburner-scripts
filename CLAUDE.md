@@ -9,117 +9,45 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **IN BN5.1 (Artificial Intelligence) as of
-  2026-07-23** — entered straight off the BN2.1 clear.
+- **Current goal (keep this line current):** **IN BN6.1 (Bladeburners) as of 2026-07-29** —
+  entered straight off the BN5.1 clear.
   - **✅ BN2.1 CLEARED 2026-07-23** — `w0r1d_d43m0n` backdoored (`backdoorwd.js` auto-fired once
     hacking crossed the gate), confirmed on the BitVerse screen (`bb-shot.png`). **Cleared at
     M≈34.3, NOT the M≈45 target**: the exp stack overshot (13.9B exp) and put the level at
     **15,019 ≥ the 15,000 gate** first. Full record + retrospective in
     [`docs/gang-engine.md`](docs/gang-engine.md).
-  - **🔨 FIRST TASK IN BN5 — document and make durable the SF5 feature facts.** SF5 unlocks three
-    things. Each must be **verified live in-node** and written into a durable doc (not left in
-    chat), per the standing "read the whole interface before designing against it" rule:
-      1. **`getBitNodeMultipliers()` Netscript function** — returns any node's multiplier table
-         programmatically. `docs/bitnodes.md` currently carries hand-read tables plus an explicit
-         note that this call *requires BN5/SF5*; that note is now dischargeable. Verify the real
-         signature + return shape **against this fork** (it is not vanilla) and record it.
-      2. **Permanent access to `Formulas.exe`** — no longer a $5b in-node purchase. Check what this
-         means for `procureformulas.js` (is that companion now a no-op here?) and for the
-         formulas-gated code paths that currently guard on ownership.
-         - **Two findings already confirmed live 2026-07-24, record them:** the daemon logged
-           `formulas: true` at startup with **$0 spent and no `procureformulas.js` run**; and because
-           `hasFormulas` is `ns.fileExists("Formulas.exe", "home")` (`src/resourcemanager.js:253`),
-           the **$5b `formulas` reservation can never fire in BN5** — in BN1/BN2 it fenced off $5b the
-           moment hacking crossed 400. That's $5b more `available`, and it matters because money is
-           this node's binding constraint.
-      3. **BitNode multiplier information on the Stats page** — the in-UI surface.
-      4. **~~Stale claims in `docs/bitnodes.md`~~ — DONE 2026-07-26** (five, not the two originally
-         listed): the `getBitNodeMultipliers` "we have neither" note; the WD-gate "INFERENCE" block
-         (discharged with `logs/gatewatch-result.json`'s live `gateRequirement: 15000`, confirming
-         both the 3,000 base and linearity, which promotes BN5's 4,500 to derived-from-measured);
-         plus three more found in the same pass — the `ns.singularity.*` "not scriptable for us"
-         note (obsolete since Phase 21's SF4.3 grant, 2026-07-12), `SF1 level 1/3` (it is **3/3**;
-         a `augCount: 0` dump reads every mult at exactly **1.28**), and `SF2 level 0/3 (not
-         cleared)`. **Also corrected an overclaim nobody had flagged:** "BN5's requirement is
-         already MET… cleared territory" — M does not cross a node boundary, so the real ask is
-         ×7.6 from the 1.28 floor at ~13× worse aug-buying power.
-    Deliverable: durable doc updates (extend `docs/bitnodes.md`, or a new reference) **plus** any
-    script/companion changes the three imply.
-  - **BN5 operating facts** (from `docs/bitnodes.md` — read it before planning a BN5 clear).
-    Gate = **`w0r1d_d43m0n` 4,500** (Difficulty 150%), needing **M ≈ 9.7** — a bar our BN1 stack
-    already exceeded. **No BN10-style wall**: Hacking Level mult and Server Max Money are both 100%,
-    so the ceiling is reachable.
-    - **The primary earner is the hacking batcher (`daemon.js`)** — BN5 un-benches it, unlike BN2's
-      8% money cap. **There is no gang crutch here.** SF2.1 makes gangs portable but they are
-      karma-gated at ≤ **−54,000**, and we enter with **all combat stats at 1** (a hard reset wipes
-      them — the Str 5 / Def 4 / Dex 7 / Agi 4 figure this line used to carry was end-of-BN2 state,
-      corrected 2026-07-24), which is the worst possible starting point for grinding it.
-      **Decided 2026-07-23: don't force a gang in BN5** — bank SF2 for a later node where
-      **SF10 Sleeves** makes karma cheap (the counter the docs name).
-    - **Economy nerfs that throttle the mult lever:** Stolen Money From Hack **15%**, Server Starting
-      Money **50%**, Starting Security **200%**, Hacking Exp **50%**, Aug Money Cost **200%**. Money
-      is the binding constraint on NFG, exactly as in BN1 — steal 15% × aug cost 200% ≈ **~13× worse
-      aug-buying power than BN1**.
-      - **Sizing (folded in from the playstyle analysis, 2026-07-24):** start at **M = 1.28**, need
-        **M ≈ 8.5–9.7** → roughly **×7**. Node budget ≈ **$2–4t total** (~$0.3–0.8t discrete augs +
-        NFG tail at 200% prices + **~$1.5–2t Daedalus donation** + fleet). Timeline **~1.5–3 weeks**.
-      - ⚠️ **"2–3 install-cycle" was a misreading and is retired.** Expect the ratchet's usual
-        **~8–12 installs**; `bitnodes.md`'s "2–3 install-cycle" budget means 2–3 *Daedalus-endgame*
-        cycles, not 2–3 installs. Plan cadence accordingly.
-      - ⚠️ **Post-install re-climbs cost 1–4h here, not BN1's ~2 min** (Hacking Exp 50% + Starting
-        Security 200%). Troughs are wide — any plan that assumes cheap installs is wrong in BN5.
-    - **cloudmanager must be ON in BN5** (the opposite of BN2's endgame): fleet RAM feeds the
-      batcher, now the only earner. The BN2-era pause marker `cloud-upgrade-off.txt` has been
-      deleted. ⚠️ **Its underlying gap is unfixed** — the finance reserve never covers the NFG
-      *spend-down batch*, so cloudmanager can starve a deep NFG tail. Re-check before BN5's endgame;
-      see `docs/gang-engine.md`'s "cloudmanager has no aug reserve" open issue.
-  - **🎯 ARMED TRIPWIRE — batcher-primary, gang DEFERRED (decided 2026-07-23, ~75–80% confidence).**
-    Load-bearing conclusions are folded into this block; the full workings (crime tables, income
-    comparison, per-install carry math, and the §7 list of unverified assumptions) are archived at
-    [`docs/archive/bn5-playstyle-analysis.md`](docs/archive/bn5-playstyle-analysis.md).
-    - **Why deferred, not rejected:** gang permanence across installs is REAL (members/respect/
-      equipment/ascension mults survive; karma is a once-per-node cost) — but the payoff step is
-      dead here: the in-game gang doc says gangs outside BN2 *"will not be a way to destroy the
-      BitNode alone"*, so **there is no Red Pill from a BN5 gang** (that was BN2-specific). Red Pill
-      comes via the normal Daedalus donation runbook the ratchet already automates. The ordering
-      also fails: the gang's payoff window is the day-1–4 bootstrap trough, exactly when it *cannot
-      exist* (karma is slowest at stats 1, then it ramps from 3 members for 2–4 more days); by
-      maturity (~day 5–7) the batcher is 10–30× the gang.
-    - **~~CHECK AT: 2026-07-26 (+72h)~~ — CHECKED 2026-07-26. Verdict: DO NOT build the gang.
-      Re-armed below.** Both firing clauses had triggered (the date, and `lastAugReset` put the
-      first install ~10h earlier), and on the stated numbers it fires overwhelmingly: measured
-      income was **$0.77/s → $5.4k/s → $0/s**, versus a $15M/s threshold, with **$333** banked
-      against a $2–4t node budget.
-      **It fires on a bug, not on BN5's economy, so firing it would be wrong.** Of the first ~72h
-      in-node, ~64h were spent inside engine deadlocks (11h floor-reserve, 53h `fundBlocked`, plus
-      the single-host placement bug that was *"the last thing holding BN5 at $0/s"* — all in
-      `docs/phases/CHANGELOG.md` 07-24/25). **We still have zero valid measurement of what this
-      node's batcher actually earns.**
-      **Lesson to keep: a tripwire needs a validity precondition, not just a date.** A threshold on
-      a measured quantity silently assumes the instrument works; this one had no clause requiring
-      the engine to be alive, so a bug and a strategic verdict were indistinguishable to it.
-    - **🎯 RE-ARMED — CHECK AT: 2026-08-02, and NOT before 24h of continuous batch placement.**
-      **Precondition (new, load-bearing):** the verdict is only valid on a window where
-      `daemon-status.json` shows batches actually launching — `warns.skipServers` empty and
-      `utilizationPct` moving. If that window hasn't happened yet, the answer is *"no valid
-      measurement,"* not *"income is low."*
-      **Then build the gang if** sustained batcher income < **~$15M/s** while **≥$2t** still needs
-      spending, **or** the node forecast exceeds 3 weeks. Otherwise stay batcher-only.
-      **Default if this line is never revisited: stay batcher-only** (unchanged).
-    - **Why deferring is free (the whole argument):** karma is grindable mid-node with **zero loss**,
-      so waiting costs nothing, while committing early costs 1–2 days of player-slot occupation at
-      the worst possible moment. **Default if this line is never revisited: stay batcher-only.**
-    - **If the tripwire DOES fire, this is the bill:** ~**24–36h of continuous player-action-slot**
-      occupation (homicide from combat-stats 1, incl. ~2–6h of gym training first) **plus ~half a
-      day of new dev** — a crime-loop companion *and* a suppression flag in `augfarmer.js`, because
-      the karma grind seizes the single player action slot and would otherwise be cancelled by
-      `workForFaction` re-asserting every poll (`src/augfarmer.js:2653`). The slot is taken from the
-      early faction-rep path, which is **serial** (money is parallel, rep is not) — that, not the
-      wall-clock, is the real cost.
-    - ⚠️ **Treat ~$15M/s as the thing to MEASURE, not a prediction** — fable's BN5 income figures are
-      order-of-magnitude scalings, which is exactly why this ships as a measured tripwire. Its other
-      unverified assumptions (fork crime constants, does karma survive an install here, which
-      factions allow `createGang` in BN5) are listed in the analysis doc.
+  - **✅ BN5.1 CLEARED 2026-07-29** — `w0r1d_d43m0n` backdoored, confirmed live: BitVerse selection
+    screen (`bb-shot.png`), `logs/ratchet-log.json` install #35 (3:16:01 PM), and a fresh in-node
+    `auginfo.js` run reading `mults.hacking: 1.3824` = `1.28 × 1.08` — exactly SF5 level 1's +8% on
+    the 1.28 SF1.3 floor (SF2 L1's +24% crime/charisma also confirmed still intact). Full record:
+    `docs/bitnodes.md`'s BN5 section.
+    - **The armed tripwire never fired — resolved by outcome, not by checking the date.** The
+      2026-07-23 decision was: build a gang if sustained batcher income stayed under ~$15M/s past
+      2026-08-02. BN5 cleared first. **Batcher-only was sufficient for BN5, end to end** — real
+      evidence for the next node's version of this same question, not just an expired clock.
+    - **Left undone, still open:** the `getBitNodeMultipliers()` live-signature verification never
+      ran before the clear. Not a missed window — SF5 persists across nodes, so it's still doable
+      from BN6 or anywhere, whenever it's worth the ~10-minute detour.
+  - **🔨 FIRST TASK IN BN6 — read the Bladeburner interface fully before designing anything.**
+    Per the standing "read the whole interface before designing against it" rule (the exact Phase
+    27 gang-brainstorm failure it exists to prevent): before any features doc for a Bladeburner
+    engine, bulk-read `ns.bladeburner.*`'s complete API surface — methods, return types, action
+    stat-weight tables, any Formulas support — not just a method list. **No Bladeburner automation
+    exists yet.** Unlike BN5 (which reused the mature batcher untouched), this is genuinely new
+    gameplay to build from scratch.
+  - **BN6 operating facts** (from `docs/bitnodes.md`'s BN6 panel — read it before planning).
+    `w0r1d_d43m0n` Difficulty **200%**; **Hacking Level mult 35%** — a real wall on the standard
+    hack-to-backdoor path, but BN6 is exactly the node whose designed counter is native: the
+    Bladeburner Black-Ops alt-destroy path sidesteps the hacking gate entirely. **Daedalus Augs
+    Requirement raised to 35** (vs BN1's 30) if the standard Red Pill route is used instead. Server
+    Max Money 20%, Starting Money 50%, Starting Security 150%, Stolen Money 75% — batcher income is
+    nerfed but not starved; Hacknet Production 20%.
+  - **This is the counter-map's predicted next step, not a fresh decision.** `docs/bitnodes.md`'s
+    2026-07-18 counter-map order was BN1→BN2→BN5→BN4(held)→**BN6→BN7**→BN10→harsh nodes→BN12→BN11
+    — we're on it. BN6's purpose in that order is banking the alt WD-destroy path that later
+    defangs BN9/BN13's hacking-level walls. **BN7 is the expected follow-on once BN6 clears**, not
+    a separately-decided fork — revisiting that needs new evidence, per the "don't re-argue a
+    settled call" rule, not just discomfort with a new engine.
   - **⚠️ Ordering lesson carried out of BN2 — don't repeat it.** The counter-map put BN2 before BN5
     because "the gang is a rep-tax killer." But in BN2 **rep saturated and was a non-issue**; the
     binding constraint was money→mult. Worse, BN2's gate is *mult*-gated while BN5's reward is **+8%
@@ -147,24 +75,19 @@ on request — hold to them even when the moment is uncomfortable.
     auto-backdoors WD — see that spec's "Close-out (2026-07-15)" section for the full done-vs-left
     record (auto-*install* specifically is still unexercised, deliberately skipped for that run's
     final install).
-  - **[Reopened 2026-07-18 — was superseded, now a live candidate again, still not decided]** The
-    pre-1.3 plan was to **stop at 1.2** and make **BN5** the next *extending* node — reasoning: 1.2→1.3
-    is only +4pp for another entire endgame (poor ROI at full manual rep-tax); BN5 re-priced by cold
-    review as a 2–3-install mult grind, least-bad under a "no new engine" constraint; BN10 deferred
-    (×0.35 hacking-level wall needs in-node Grafting); BN4 + economy-nerfed nodes deferred until a
-    second engine exists. That reasoning was written pre-1.3-clear and hasn't been re-checked
-    against what Phase 26 now proves (unattended clears are cheaper than assumed) — worth
-    revisiting, not assuming still holds. Full prior reasoning + all 15 nodes' multiplier tables
-    lives in `docs/bitnodes.md` → "Our next-node plan (mature batcher)" and in git history; the
-    batcher engine itself (architecture/lifecycle/strategy) is `docs/batcher-engine.md`.
-  - **In parallel:** (a) **Phase 20 XP-farm engine shipped 2026-07-13** (`docs/phases/phase-20-xpfarm.spec.md`)
-    — hack-saturation of surplus fleet RAM, S7 ON/OFF A/B gate measured 5.15× exp/sec; (b) **prototype
-    a second engine** — only **IPvGO** (`ns.go` / CIA Sector-12) or **darknet** (DarkscapeNavigator +
-    TOR) are buildable now; gang/corp/bladeburner/sleeves are node-locked.
-  - **Open strategic Q (surfaced by cold review, not yet decided):** our "no new engine" constraint
-    excludes all three rep-tax killers (gang/sleeves/darknet), so we accept paying the full Daedalus
-    tax every clear. Gang (BN2) is a *small* script and the game's designed answer — worth
-    reconsidering once the tax bites across multiple clears.
+  - **[CLOSED 2026-07-29 — superseded by outcome]** The old pre-1.3 "stop at BN1.2, make BN5 the
+    next extending node" plan, and the node-order deliberation that followed it, are moot: the
+    counter-map order actually ran (BN1→BN2→BN5→BN6, see `docs/bitnodes.md`), not this line's
+    reasoning. Kept only so the superseded reasoning isn't re-derived from scratch; the batcher
+    engine itself (architecture/lifecycle/strategy) is still `docs/batcher-engine.md`.
+  - **(a) Phase 20 XP-farm engine shipped 2026-07-13** (`docs/phases/phase-20-xpfarm.spec.md`) —
+    hack-saturation of surplus fleet RAM, S7 ON/OFF A/B gate measured 5.15× exp/sec.
+  - **Open strategic Q — RESOLVED BY ACTION, 2026-07-29.** The "no new engine" constraint that
+    picked BN5 over BN2's rep-tax-killer tradeoff is now explicitly abandoned: **entering BN6 means
+    building Bladeburner, a genuinely new engine**, precisely because it's the counter-map's next
+    rep-tax/hacking-wall killer. Not a silent drift — the counter-map already named this tradeoff on
+    2026-07-18, and BN6 is the node where it's finally paid down rather than deferred again. IPvGO/
+    darknet remain available as *other* second-engine options later, just no longer the only ones.
   - **Note on Singularity — UPDATED 2026-07-12:** `ns.singularity.*` is now available. Phase 21
     granted SF4 level 3 via a deliberate save edit (`docs/phases/phase-21-sf4-grant.spec.md`) — a
     permanent grant on the current save, not tied to this BN1.2 run, so it persists across future

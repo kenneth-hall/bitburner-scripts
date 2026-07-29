@@ -5,15 +5,17 @@ General BitNode info for this build. Sources: the in-game **Documentation → Bi
 screen** for BN4's detailed multiplier table. This build has **15 BitNodes** (vanilla stops at
 14; **BN15 is custom to this build**).
 
-**API note — UNBLOCKED 2026-07-23, we are inside BN5.** `ns.getBitNodeMultipliers(n?, lvl?)`
-returns any node's multipliers programmatically. The API doc states the precondition exactly:
-*"This function requires you to be in BitNode 5 or have Source-File 5 in order to run"*, RAM cost
-**4 GB**, values returned in **decimal** (`1.5`, not `150%`) —
-`markdown/bitburner.ns.getbitnodemultipliers.md`. We entered BN5.1 on 2026-07-23, so the
-precondition is met *now*, without SF5.
+**API note — PERMANENTLY UNBLOCKED 2026-07-29.** `ns.getBitNodeMultipliers(n?, lvl?)` returns any
+node's multipliers programmatically. The API doc states the precondition exactly: *"This function
+requires you to be in BitNode 5 or have Source-File 5 in order to run"*, RAM cost **4 GB**, values
+returned in **decimal** (`1.5`, not `150%`) — `markdown/bitburner.ns.getbitnodemultipliers.md`.
+**BN5.1 cleared 2026-07-29 (SF5 level 1 granted, confirmed live)** — the precondition is now met
+*permanently*, in any node, not just while inside BN5.
 ⚠️ **Every per-node table below is still hand-read off the BitVerse selection panel by eye, and
 this build is a fork.** Until a live sweep re-verifies them against the call, treat them as
-transcriptions, not authority. That sweep is the open SF5 task in `CLAUDE.md`.
+transcriptions, not authority. **That sweep was never run while inside BN5** (left undone when the
+node cleared) — but since SF5 persists, it's still doable now, from BN6 or any future node. Still
+an open task, not a missed window.
 
 **Singularity note — OBSOLETE since 2026-07-12, kept only so the old claim isn't re-derived.**
 `ns.singularity.*` is fully scriptable. Phase 21 granted **SF4 level 3** by deliberate save edit
@@ -271,6 +273,11 @@ departure. If the goal is "keep improving the batcher," BN2 delays it; if the go
 the BitVerse efficiently," BN2 comes first. That's the actual decision — a priorities call,
 not a math one.
 
+**Resolved by what actually happened:** the real order was BN1.2/1.3 → **BN2.1 (2026-07-23)** →
+**BN5.1 (2026-07-29)** → **BN6.1 (2026-07-29, current)** — matching this doc's own counter-map
+order exactly (line ~226 above), not the "BN5 first" plan CLAUDE.md was running on entry into
+BN5. Per that same counter-map, **BN6 → BN7 is next in sequence** after BN6.1 clears.
+
 ---
 
 ## BitVerse selection panels (live-read, per node)
@@ -422,7 +429,18 @@ SF3: create corporations in other nodes (some disable it), **L3 unlocks full Cor
 Full multiplier table is the **detailed BN4 section below** — re-verified against this live panel
 (all values match: WD 300%, hacking exp 40%, server max money 11.25%, gift power 150%, etc.).
 
-### BN5: Artificial Intelligence — owned **SF5 level 0 / 3** (not cleared)
+### BN5: Artificial Intelligence — owned **SF5 level 1 / 3** (BN5.1 CLEARED 2026-07-29)
+**Cleared via batcher-only — no gang built.** The 2026-07-23 armed tripwire (build a gang if
+sustained batcher income stayed below ~$15M/s past 2026-08-02) never got the chance to fire: the
+node cleared first. That's a real answer to the open question, not just an unfired trigger —
+batcher-only was sufficient for BN5 end to end. Confirmed live via `bb-shot.png` (BitVerse
+selection screen) + `logs/ratchet-log.json` install #35 (3:16:01 PM) + a fresh `auginfo.js` run in
+BN6.1 reading `mults.hacking: 1.3824` = `1.28 × 1.08` — exactly SF5 L1's +8%, with SF2 L1's +24%
+(charisma/crime 1.5872) also confirmed intact. The `getBitNodeMultipliers()` live-signature
+verification task from the BN5 entry was **not completed before the clear** — still open, now
+doable from any node since SF5 persists. Formulas.exe/`procureformulas.js` no-op finding stands
+(confirmed 2026-07-24, see `CLAUDE.md` history).
+
 SF5: **Intelligence stat** (permanent, never resets to 1) + `getBitNodeMultipliers()` +
 permanent Formulas.exe + BitNode-mult info on Stats page; +hacking mults L1 8 / L2 12 / L3 14%.
 Multiplier table (rest baseline):
@@ -454,7 +472,10 @@ looks — `getBitNodeMultipliers()` is largely *redundant with this very doc* (w
 and Intelligence accrues glacially for a scripted no-Singularity playstyle. Pick BN5 *despite*
 the tooling, not because of it.
 
-### BN6: Bladeburners — owned **SF6 level 0 / 3** (not cleared)
+### BN6: Bladeburners — owned **SF6 level 0 / 3** (ENTERED 2026-07-29, in progress)
+Fresh entry confirmed live: `Hack 2`, all combat stats `1`, `Money $115` — a clean cold start, no
+lingering BN5 state. This is the first node where **Bladeburner is new gameplay to build**, not a
+mult grind on the existing batcher — no automation exists yet.
 SF6: Bladeburner in other nodes; +combat level & exp gain L1 8 / L2 12 / L3 14%. Multiplier
 table (rest baseline):
 - **General** — `w0r1d_d43m0n` Difficulty: **200%** · **Daedalus Augs Requirement: 35** (vs BN1's
