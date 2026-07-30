@@ -216,7 +216,28 @@ Per the convergence rules: each carries a default so it can't renew itself silen
 
 ---
 
-## 6. What carries over unchanged
+## 6. Instrumentation: what the GOAL panel means in BN6
+
+**Retargeted 2026-07-29.** The tracker was still aimed at BN5 on entry, which mattered because it's
+the surface liveness and tripwires are read off.
+
+- **`M x/30 (fallback)`** — `M_TARGET` is now BN6's *fallback* hacking gate, and the label says
+  "fallback" precisely so it can't be misread as the plan. 🔑 **M is not this node's win condition**;
+  the black-op rank ladder is. M is kept because (a) `evalTripwire`'s "M flat ⇒ ratchet stuck" test
+  is valid under either win path, and (b) if the black-op ladder turns out infeasible this becomes
+  the real gate again with no code change. `forecast.daysToGate` likewise projects the fallback path.
+- **`next: n/a (augfarmer stale)`** — new. `augfarmer-state.json` is only trustworthy while the
+  farmer is alive (it heartbeats every 5 min); past 3 missed beats `nextAug` is withheld rather than
+  shown. **This was a live bug on entry:** the panel reported *"NeuroFlux Governor / Tian Di Hui /
+  $8.5b, awaiting-money 4.6h"* — every field left over from the BN5.1 install, because
+  `augfarmer.js` needs 64.10 GB and a fresh home is 32 GB, so it had never run in BN6 at all.
+  Stale-but-plausible is worse than absent: it invites planning against a target that doesn't exist.
+  `next: none` (nothing to buy) and `next: n/a` (nobody's looking) are now different strings.
+- ⚠️ **Still node-stale by design:** the `GOAL (BN6.1)` title and `M_TARGET` are hand-set constants.
+  **Bump both on every node entry** — `goallog.js`'s `M_TARGET` block and `dashboard.js`'s
+  `goalPanel` title.
+
+## 7. What carries over unchanged
 
 - **The batcher** (`daemon.js` et al.) — still the only income engine, still the thing that funds
   everything. `docs/batcher-engine.md`.
@@ -229,7 +250,7 @@ Per the convergence rules: each carries a default so it can't renew itself silen
 
 ---
 
-## 7. Changelog
+## 8. Changelog
 
 - **2026-07-29** — Created on BN6.1 entry. Decision: Bladeburner black-op path over hacking, with
   the hacking-path cost computed (🧮 M≈28–37, +35-aug Daedalus gate) rather than asserted. BN6

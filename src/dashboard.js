@@ -571,7 +571,10 @@ export function augPanel(state, now) {
  * strings, not substring checks.
  */
 export function goalPanel(state, now) {
-  const title = "GOAL (BN5.1)";
+  // Node label -- bump on every node entry (BN6.1 as of 2026-07-29). In BN6 the
+  // M line reads "(fallback)": M is NOT this node's win condition, the
+  // Bladeburner black-op rank ladder is. See goallog.js's M_TARGET comment.
+  const title = "GOAL (BN6.1)";
   if (state === null) return [`-- ${title} --`, "no data yet"];
   if (state === PARSE_FAILED) return [`-- ${title} --`, "unreadable"];
 
@@ -651,7 +654,12 @@ export function goalPanel(state, now) {
   }
 
   const next = state.nextAug;
-  if (!next || !next.aug) {
+  // Same row either way -- this distinguishes "nothing to buy" from "the farmer
+  // that would tell us isn't running", which read identically as "none" before
+  // 2026-07-29 and let a 4.6h-stale BN5 target sit on the BN6 panel unnoticed.
+  if (state.augStateStale === true) {
+    lines.push("next: n/a (augfarmer stale)");
+  } else if (!next || !next.aug) {
     lines.push("next: none");
   } else {
     let line = `next: ${next.aug} $${fmtNum(next.price)}`;

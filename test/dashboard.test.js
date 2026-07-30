@@ -658,6 +658,16 @@ describe('goalPanel', () => {
     expect(lines).toContain('next: none');
   });
 
+  it('next: distinguishes a stale augfarmer from having nothing to buy', () => {
+    // Both have nextAug null; only the stale one is a problem worth seeing.
+    const staleLines = goalPanel({ timestamp: NOW, mProgress: {}, income: {}, nextAug: null, augStateStale: true }, NOW);
+    expect(staleLines).toContain('next: n/a (augfarmer stale)');
+    expect(staleLines).not.toContain('next: none');
+
+    const cannotTell = goalPanel({ timestamp: NOW, mProgress: {}, income: {}, nextAug: null, augStateStale: null }, NOW);
+    expect(cannotTell).toContain('next: none');
+  });
+
   it('next: aug + price, no waiting segment outside awaiting-money', () => {
     const lines = goalPanel(
       { timestamp: NOW, mProgress: {}, income: {}, nextAug: { aug: 'Cranial Signal Processors V', price: 15_400_000_000, phase: 'grinding' } },
@@ -729,7 +739,9 @@ describe('renderAll', () => {
 
   it('GOAL renders as the first panel (lines[0] is the dashboard header)', () => {
     const lines = renderAll(allMissing, NOW);
-    expect(lines[1]).toContain('-- GOAL (BN5.1) --');
+    // Ordering is what this asserts -- match the panel name, not the node label
+    // baked into it, so a node entry doesn't require editing this test.
+    expect(lines[1]).toMatch(/^-- GOAL \(BN\d+\.\d+\) --/);
   });
 
   it('every line is within COLUMN_BUDGET on an all-missing render', () => {

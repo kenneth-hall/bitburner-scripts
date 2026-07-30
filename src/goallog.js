@@ -59,24 +59,43 @@ export const DAEMON_STATUS_STALE_MS = 10 * 60 * 1000; // 10 min -- past this, da
 // resident to pull in for one constant).
 const BOUNDARY_WINDOW_MS = 16 * 60 * 60 * 1000;
 
-// BN5.1 target (retargeted 2026-07-24, entering BN5 off the BN2.1 clear). The
-// clear condition is the w0r1d_d43m0n hacking-level gate = 4,500 (Difficulty
-// 150% x 3,000 base). BN5's hacking-level multiplier is 100%, so -- unlike BN2 --
-// there is NO 0.8 haircut; the curve is the vanilla one:
-//     level = M * (32*ln(exp + 534.6) - 200)
-// Inverting for level 4,500, exp needed collapses super-exponentially in M:
-//   M=9.7 -> 1.0B   M=10.5 -> 340M   M=12 -> 64M   M=15 -> 6.1M
-// So M=9.7 is the *bare* gate (a corner that also demands ~1B hacking exp, real
-// under BN5's 50% exp nerf); a few more M make the exp side trivial. We hold a
-// single target at the bare gate for now -- a comfort-overshoot target (BN2's
-// "45" role) is a deferred decision (install-cycles vs exp-grind), see the
-// Current-goal block / bitnodes.md. When set, raise M_GATE_TARGET above
-// M_TARGET and the second panel line re-appears.
-export const M_TARGET = 9.7;
-export const M_TARGET_LABEL = "gate";
+// BN6.1 target (retargeted 2026-07-29, entering BN6 off the BN5.1 clear).
+//
+// ⚠️ READ THIS BEFORE TRUSTING THE NUMBER: in BN6, M IS NOT THE WIN CONDITION.
+// BN6 is cleared by completing the final Bladeburner black op (Operation
+// Daedalus) -- a *rank* ladder, and rank is bought with actions, not money
+// (decision + arithmetic in docs/bn6-playbook.md). So unlike BN2/BN5, this
+// target is NOT the finish line. It is the *fallback* hacking path's gate,
+// kept for two reasons that are still genuinely useful:
+//   1. M remains the honest proxy for "is the aug ratchet converting money into
+//      progress at all" -- which is what evalTripwire below actually tests, and
+//      that test is valid regardless of which win path we take.
+//   2. If the black-op ladder turns out to be infeasible (playbook §5's first
+//      open question, resolved cheaply at Stage 2), this becomes the real gate
+//      again with no code change.
+// The label is "fallback", not "gate", so the dashboard cannot misread it as the
+// plan. `forecast.daysToGate` likewise projects the fallback path -- a real
+// number for a path we do not currently intend to walk.
+//
+// The fallback arithmetic: gate = 6,000 (Difficulty 200% x 3,000 base -- the
+// linearity was confirmed live at BN2's 500% -> 15,000). BN6's hacking-level
+// multiplier is 0.35, so the curve carries that haircut:
+//     level = 0.35 * M * (32*ln(exp + 534.6) - 200)
+// Inverting for level 6,000:
+//   exp  1.0B -> M 37.0    5.0B -> M 33.3   13.9B -> M 31.3
+//   exp 50.0B -> M 29.1  100.0B -> M 28.1
+// (Formula validated against the BN2.1 clear: predicts level 15,020 at M=34.3 /
+// 13.9B exp; the actual reading was 15,019.) 13.9B is what BN2 actually banked,
+// and BN6 nerfs exp gain to 0.25 -- 2x worse than BN5, 4x worse than BN1/BN2 --
+// so a bigger stack is expensive here. M=30 is the honest middle of that curve.
+// Note the fallback path ALSO needs 35 augs for the Daedalus invite (live-read
+// DaedalusAugsRequirement: 35, up from the usual 30), which this target does
+// not capture.
+export const M_TARGET = 30;
+export const M_TARGET_LABEL = "fallback";
 // Overshoot/comfort target. Equal to M_TARGET while undecided, which suppresses
 // the dashboard's separate gate line (it only renders when gateTarget > target).
-export const M_GATE_TARGET = 9.7;
+export const M_GATE_TARGET = 30;
 
 // GP2 tripwire (BN2.1 goalposts): M only ever climbs (installs), so "M has not
 // increased across the last FLAT_WINDOW" == the ratchet is stuck (no install /
@@ -333,6 +352,17 @@ export function computeTrend(series, nowMs, windowMs) {
  * {status, reason, sinceMs, boundaryStartMs} block main() builds from
  * evalStuck's verdict.
  */
+// augfarmer-state.json is written on change PLUS a 5-min heartbeat while
+// augfarmer.js is alive, so a file older than this means the farmer is NOT
+// running and its contents describe a past that may not even be this BitNode.
+// Caught live 2026-07-29: on BN6.1 entry the GOAL panel reported
+// nextAug "NeuroFlux Governor / Tian Di Hui / $8.5b, awaiting-money for 4.6h"
+// -- every field left over from the BN5.1 install, because augfarmer needs
+// 64.10 GB and a fresh node's home is 32 GB, so it had never run here at all.
+// Stale-but-plausible is worse than absent: it invites planning against a
+// target that does not exist. 15 min = 3 missed heartbeats.
+export const AUG_STATE_STALE_MS = 15 * 60 * 1000;
+
 export function buildSnapshot(series, augState, nowMs, liveness = null) {
   const list = Array.isArray(series) ? series : [];
   const latest = list.length > 0 ? list[list.length - 1] : null;
@@ -360,8 +390,14 @@ export function buildSnapshot(series, augState, nowMs, liveness = null) {
   // measurement", same convention as `perSec`.
   const perSec24h = computeRateRange(list, nowMs - INCOME_WINDOW_24H_MS, nowMs, "total");
 
+  // Suppress a stale farmer's target rather than reporting it as live. `stale`
+  // is surfaced so the dashboard can say "not running" instead of silently
+  // showing nothing (a missing file and a dead farmer are different problems).
+  const augTs = augState && typeof augState.timestamp === "number" ? augState.timestamp : null;
+  const augStateStale = augTs !== null && nowMs - augTs > AUG_STATE_STALE_MS;
+
   let nextAug = null;
-  if (augState && augState.target) {
+  if (augState && augState.target && !augStateStale) {
     nextAug = {
       aug: augState.target.aug ?? null,
       faction: augState.target.faction ?? null,
@@ -385,6 +421,9 @@ export function buildSnapshot(series, augState, nowMs, liveness = null) {
     tripwire: evalTripwire(list, nowMs),
     liveness,
     nextAug,
+    // true == augfarmer.js has missed >=3 heartbeats, so nextAug is deliberately
+    // withheld. null when there is no state file at all (never ran / fresh node).
+    augStateStale: augTs === null ? null : augStateStale,
   };
 }
 

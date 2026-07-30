@@ -20,6 +20,7 @@ import {
   DAEMON_STATUS_STALE_MS,
   computeForecast,
   FORECAST_MIN_SPAN_MS,
+  AUG_STATE_STALE_MS,
 } from '../src/goallog.js';
 
 const T = 1_000_000_000;
@@ -173,6 +174,32 @@ describe('buildSnapshot', () => {
   it('nextAug is null when augState is missing/unreadable', () => {
     expect(buildSnapshot([], null, T).nextAug).toBeNull();
     expect(buildSnapshot([], undefined, T).nextAug).toBeNull();
+  });
+
+  it('nextAug is withheld when augfarmer-state is stale (farmer not running)', () => {
+    // Regression: BN6.1 entry showed a 4.6h-stale BN5 target as if it were live,
+    // because augfarmer needs 64.10 GB and a fresh node's home is 32 GB.
+    const target = { aug: 'NeuroFlux Governor', faction: 'Tian Di Hui', livePrice: 8.5e9 };
+    const stale = { timestamp: T - AUG_STATE_STALE_MS - 1, target, phase: 'awaiting-money', awaitingMoneySince: T - 5 * 3_600_000 };
+    const snap = buildSnapshot([], stale, T);
+    expect(snap.nextAug).toBeNull();
+    expect(snap.augStateStale).toBe(true);
+  });
+
+  it('nextAug is reported normally when augfarmer-state is fresh', () => {
+    const target = { aug: 'BitWire', faction: 'CyberSec', livePrice: 1e6 };
+    const fresh = { timestamp: T - AUG_STATE_STALE_MS + 1000, target, phase: 'grinding' };
+    const snap = buildSnapshot([], fresh, T);
+    expect(snap.nextAug).not.toBeNull();
+    expect(snap.nextAug.aug).toBe('BitWire');
+    expect(snap.augStateStale).toBe(false);
+  });
+
+  it('augStateStale is null (not false) when there is no timestamp to judge', () => {
+    // A missing file and a dead farmer are different problems -- null means
+    // "cannot tell", which the dashboard renders as "none", not "stale".
+    expect(buildSnapshot([], null, T).augStateStale).toBeNull();
+    expect(buildSnapshot([], { target: { aug: 'x' } }, T).augStateStale).toBeNull();
   });
 
   it('nextAug is null when augState has no target (plateau)', () => {
@@ -507,13 +534,26 @@ describe('computeForecast', () => {
   });
 
   it('reproduces the live BN5 reading that motivated the field', () => {
-    // Measured 2026-07-26: M 1.28 -> 1.4126 across 54h of node time.
+    // MEASURED EVIDENCE, do not edit: M 1.28 -> 1.4126 across 54h of BN5.1 node
+    // time (2026-07-26). The fixture is the measurement; daysToGate is derived
+    // from it AND from M_TARGET, so the projection moves when the node's target
+    // moves while the evidence below stays fixed.
+    //   - Under BN5's target (M_TARGET 9.7) this read ~152 days -- the original
+    //     headline: months, not that plan's 1.5-3 weeks.
+    //   - Under BN6's fallback target (M_TARGET 30) the same rate reads ~485
+    //     days, which is precisely why BN6 is not being cleared by the hacking
+    //     path (docs/bn6-playbook.md §1).
+    // Asserted against the live constant so this test tracks retargets instead
+    // of silently rotting, while the two readings above preserve both verdicts.
     const s = [pt(T, 1.28, 81e6), pt(T + 54 * HOUR, 1.4126, 1.835e9)];
     const r = computeForecast(s, T + 54 * HOUR);
     expect(r.status).toBe('OK');
-    // The headline: months, not the plan's 1.5-3 weeks.
+    const mPerDay = (1.4126 - 1.28) / (54 / 24);
+    expect(r.mPerDay).toBeCloseTo(mPerDay, 6);
+    // The rate is so slow that the projection is months under ANY target we've
+    // held -- that, not a specific day count, is the durable conclusion.
+    expect(r.daysToGate).toBeCloseTo((M_TARGET - 1.4126) / mPerDay, 4);
     expect(r.daysToGate).toBeGreaterThan(100);
-    expect(r.daysToGate).toBeLessThan(200);
   });
 
   it('is surfaced on the snapshot', () => {
