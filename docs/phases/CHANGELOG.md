@@ -36,6 +36,16 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   had zero recorded disarms across 17 recorded arms. Added `lostSustainedMs` (the previous pass's
   `sustainedMs`) and a rate-limited `shouldLogClear` (60s) with a carried `suppressedCount`. 1029
   tests pass; `augfarmer.js` RAM unchanged at 64.10 GB.
+- **Phase 36 F-A shipped** (2 of 4 work items now done). The install-trigger's arm survives a
+  restart: new pure `resolveArmResume` resumes a **start time** (never a fired state — `armed` is
+  still recomputed fresh every pass, so a resume can only shorten a wait for a currently-true
+  condition) from `augfarmer-state.json`, gated on four ordered guards
+  (`no-state`/`cycle-mismatch`/`not-armed`/`stale`, 15 min bound). Fixes the case that made an
+  install arithmetically impossible under any restart cadence under ~15 min. A `trigger-resume`
+  decision record fires once at startup; `triggerArmChanged` joins the state-write gate on the exact
+  precedent of `awaitingMoneySinceChanged` so a just-armed stamp is never lost to the 5-min
+  heartbeat. 11 new tests, 1040 total pass; `augfarmer.js` RAM unchanged at 64.10 GB. Only the
+  buy-set filter remains, deliberately deferred pending real BN6 income data.
 
 ## 2026-07-26
 

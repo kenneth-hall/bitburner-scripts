@@ -54,6 +54,8 @@ import {
   evalTrigger,
   shouldLogClear,
   CLEAR_LOG_MIN_INTERVAL_MS,
+  resolveArmResume,
+  ARM_RESUME_MAX_AGE_MS,
   decideInstall,
   INSTALL_OVERHEAD_MS,
   spendDownPlan,
@@ -1699,6 +1701,90 @@ describe('evalTrigger', () => {
       expect(duringSpendDown.fired).toBe(true);
       expect(duringSpendDown.latched).toBe(true);
     });
+  });
+
+  describe('resumedArmSinceMs — Phase 36 decision 9 (F-A: arm survives a restart)', () => {
+    it('is used as the start time on a cold first pass (no priorState) when armed', () => {
+      const t = evalTrigger(baseInputs({ now: 5_000_000, resumedArmSinceMs: 4_700_000 }), null);
+      expect(t.armed).toBe(true);
+      expect(t.armedSinceMs).toBe(4_700_000);
+      expect(t.sustainedMs).toBe(300_000); // shortens the wait -- not a fresh clock from `now`
+    });
+
+    it('an in-memory priorState.armedSinceMs always wins over a resumed stamp', () => {
+      const t0 = evalTrigger(baseInputs({ now: 0 }), null); // armed from now=0, no resume offered
+      const t1 = evalTrigger(baseInputs({ now: 1000, resumedArmSinceMs: 999_999 }), t0);
+      expect(t1.armedSinceMs).toBe(0); // priorState wins, resumedArmSinceMs is ignored
+    });
+
+    it('falls back to `now` when armed with neither priorState nor a resumed stamp', () => {
+      const t = evalTrigger(baseInputs({ now: 42 }), null);
+      expect(t.armedSinceMs).toBe(42);
+    });
+
+    it('never uses a resumed stamp while not armed', () => {
+      const t = evalTrigger(baseInputs({ paused: true, now: 1000, resumedArmSinceMs: 500 }), null);
+      expect(t.armed).toBe(false);
+      expect(t.armedSinceMs).toBeNull();
+    });
+
+    it('the post-restart sequence: survives an intermediate armed:false pass to the pass that re-arms', () => {
+      // Pinned per the spec: the first draft cleared the resume on "the first
+      // pass where armed is false" -- which is EVERY first pass after a
+      // restart by construction, making the whole feature dead code. The
+      // caller (the loop) must keep offering resumedArmSinceMs across a false
+      // pass; this proves evalTrigger itself does the right thing when it is.
+      const resumed = 100_000;
+      const p1 = evalTrigger(baseInputs({ paused: true, now: 100_300, resumedArmSinceMs: resumed }), null);
+      expect(p1.armed).toBe(false);
+      const p2 = evalTrigger(baseInputs({ now: 400_000, resumedArmSinceMs: resumed }), p1);
+      expect(p2.armed).toBe(true);
+      expect(p2.armedSinceMs).toBe(resumed); // not `now` (400_000) -- the resume was honored
+      expect(p2.sustainedMs).toBe(300_000);
+    });
+  });
+});
+
+describe('resolveArmResume — Phase 36 decision 9 (F-A: arm resume guards)', () => {
+  const NOW = 10_000_000;
+  const goodState = () => ({
+    timestamp: NOW - 5 * 60_000, // 5 min old -- well within the 15 min bound
+    lastAugReset: 500,
+    trigger: { armed: true, armedSinceMs: NOW - 8 * 60_000 },
+  });
+
+  it('accepts the happy path', () => {
+    const r = resolveArmResume(goodState(), 500, NOW);
+    expect(r).toEqual({ resumed: true, armedSinceMs: NOW - 8 * 60_000, reason: null });
+  });
+
+  it('rejects no-state when savedState is null/unparseable', () => {
+    expect(resolveArmResume(null, 500, NOW)).toEqual({ resumed: false, armedSinceMs: null, reason: 'no-state' });
+    expect(resolveArmResume({}, 500, NOW)).toEqual({ resumed: false, armedSinceMs: null, reason: 'no-state' });
+  });
+
+  it('rejects cycle-mismatch when lastAugReset differs (an install happened in between)', () => {
+    const r = resolveArmResume(goodState(), 999, NOW);
+    expect(r).toEqual({ resumed: false, armedSinceMs: null, reason: 'cycle-mismatch' });
+  });
+
+  it('rejects not-armed when the saved trigger was not armed', () => {
+    const s = { ...goodState(), trigger: { armed: false, armedSinceMs: null } };
+    expect(resolveArmResume(s, 500, NOW)).toEqual({ resumed: false, armedSinceMs: null, reason: 'not-armed' });
+  });
+
+  it('rejects stale past ARM_RESUME_MAX_AGE_MS, accepts exactly at the boundary', () => {
+    const tooOld = { ...goodState(), timestamp: NOW - ARM_RESUME_MAX_AGE_MS - 1 };
+    expect(resolveArmResume(tooOld, 500, NOW).reason).toBe('stale');
+    const atBoundary = { ...goodState(), timestamp: NOW - ARM_RESUME_MAX_AGE_MS };
+    expect(resolveArmResume(atBoundary, 500, NOW).resumed).toBe(true);
+  });
+
+  it('falls back to the saved timestamp when armedSinceMs is missing/malformed', () => {
+    const s = { ...goodState(), trigger: { armed: true, armedSinceMs: 'not-a-number' } };
+    const r = resolveArmResume(s, 500, NOW);
+    expect(r.resumed).toBe(true);
+    expect(r.armedSinceMs).toBe(s.timestamp);
   });
 });
 

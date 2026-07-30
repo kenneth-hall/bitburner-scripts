@@ -23,9 +23,9 @@ do, and what's broken?*
 ## Bugs
 
 - **🟡 [PARTIALLY SHIPPED 2026-07-29] Phase 36 (`phase-36-install-cadence.spec.md`, twice
-  cold-reviewed) has 4 work items; only the F-B slice has landed.** BN6.1 entry surfaced this as
-  stranded — features + spec sat in the repo root, never in `docs/phases/CHANGELOG.md`, only the
-  `GRIND_HORIZON_MS` stopgap (1h, was 8h) actually shipped.
+  cold-reviewed) has 4 work items; F-B and F-A have landed, the buy-set filter has not.** BN6.1
+  entry surfaced this as stranded — features + spec sat in the repo root, never in
+  `docs/phases/CHANGELOG.md`, only the `GRIND_HORIZON_MS` stopgap (1h, was 8h) had shipped.
   - **✅ F-B shipped 2026-07-29** — disarms are no longer invisible in auto mode. Deleted the
     `mode !== "auto"` guard on `trigger-clear` logging; added `lostSustainedMs` (the previous pass's
     `sustainedMs` — the one field that would have diagnosed the 19:28 restart-voided-the-arm failure
@@ -33,11 +33,18 @@ do, and what's broken?*
     60s) with a `suppressedCount` so a flapping trigger reads as flapping, not silence, without
     flooding the 500-entry `DECISIONS_CAP` ring. 3 new tests, 1029 total pass, `augfarmer.js` RAM
     unchanged at 64.10 GB (no new `ns` calls).
-  - **Still open — F-A, arm persistence across restarts.** `armedSinceMs` lives only in in-memory
-    `triggerState`; any restart under ~15 min makes an install arithmetically impossible (the arm
-    resets, then ~5 min of `no-rate-sample` eats into the 10 min sustain window). `resolveArmResume`
-    is speced (decision 9, four guards: `stale`/`cycle-mismatch`/`not-armed`/`no-state`) but
-    unimplemented. Node-independent — matters in BN6 exactly as it did in BN5. **Next candidate.**
+  - **✅ F-A shipped 2026-07-29** — the arm now survives a restart. New pure `resolveArmResume`
+    (decision 9's four guards, checked in order: `no-state`/`cycle-mismatch`/`not-armed`/`stale`,
+    bound at `ARM_RESUME_MAX_AGE_MS` = 15 min) reads `augfarmer-state.json` at startup and resumes a
+    **start time**, never a fired state — `evalTrigger` still recomputes `armed` fresh every pass, so
+    a resumed stamp can only shorten a wait for a condition true right now, never fire on a lapsed
+    one. Held across passes (surviving an intermediate `armed:false` pass, the exact case the first
+    draft got wrong per the spec) until consumed on the first `armed:true` pass or expired by
+    wall-clock against the *original* save timestamp, whichever comes first. A `trigger-resume`
+    decision record fires once at startup (`{resumed, reason, savedArmedSinceMs, savedAgeMs}`), and
+    `triggerArmChanged` joins the state-write gate (decision 10, exact precedent of
+    `awaitingMoneySinceChanged`) so a just-armed stamp is never lost to the 5-min heartbeat window.
+    11 new tests, 1040 total pass, `augfarmer.js` RAM unchanged at 64.10 GB.
   - **Still open, deliberately deferred — the buy-set filter** (`augIsWorthLadder`,
     `ladderCountsFrom`, `pickTarget` tier 4, `ladderArmed`, the T-INV grid). ~75% of the phase's test
     surface. Tuned to BN5's 613× price ladder and needs re-deriving against BN6 numbers (aug cost

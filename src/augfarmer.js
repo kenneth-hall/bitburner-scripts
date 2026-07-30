@@ -135,6 +135,13 @@ export const TRIGGER_SUSTAIN_MS = 600_000;
 // window; suppressed disarms increment a counter carried on the next emitted
 // record, so flapping is visible as flapping rather than as silence.
 export const CLEAR_LOG_MIN_INTERVAL_MS = 60_000;
+// Phase 36 (decision 9, F-A): armedSinceMs lives only in in-memory triggerState,
+// so any restart under ~15 min made an install arithmetically impossible --
+// the arm resets, then RATE_MIN_SAMPLES x POLL_MS (~5 min) of no-rate-sample
+// eats into the 10 min TRIGGER_SUSTAIN_MS window before a horizon even exists.
+// Bounds how old a saved armed-since stamp can be and still be trusted; the gap
+// is treated as armed (accepted risk -- the alternative failure is never firing).
+export const ARM_RESUME_MAX_AGE_MS = 15 * 60_000;
 export const RATE_MIN_SAMPLES = 30;
 export const RATE_EWMA_ALPHA = 0.2;
 export const DONATION_BUFFER = 1.2;
@@ -1227,6 +1234,10 @@ export function evalTrigger(inputs, priorState) {
     incomePerSec = null,
     targetIsNFG = false,
     now,
+    // Phase 36 (decision 9, F-A): a start time carried across a restart, held
+    // by the caller until consumed (first armed:true pass) or expired. Only
+    // ever a fallback -- an in-memory priorState.armedSinceMs always wins.
+    resumedArmSinceMs = null,
   } = inputs;
 
   if (priorState?.fired && mode === "auto" && !paused) {
@@ -1303,7 +1314,7 @@ export function evalTrigger(inputs, priorState) {
 
   const armed = decision.armed;
   const wasArmedSince = priorState?.armed ? priorState.armedSinceMs : null;
-  const armedSinceMs = armed ? (wasArmedSince ?? now) : null;
+  const armedSinceMs = armed ? (wasArmedSince ?? resumedArmSinceMs ?? now) : null;
   const sustainedMs = armed ? now - armedSinceMs : 0;
   const fired = armed && sustainedMs >= TRIGGER_SUSTAIN_MS;
 
@@ -1337,6 +1348,38 @@ export function evalTrigger(inputs, priorState) {
 export function shouldLogClear(lastClearLogMs, nowMs) {
   if (lastClearLogMs === null || lastClearLogMs === undefined) return true;
   return nowMs - lastClearLogMs >= CLEAR_LOG_MIN_INTERVAL_MS;
+}
+
+/**
+ * Pure (Phase 36, decision 9). Resumes a START TIME, never a fired state --
+ * `evalTrigger` still recomputes `armed` fresh every pass, so a resumed start
+ * time can only ever shorten a wait for a condition that is true RIGHT NOW; it
+ * can never fire on one that has lapsed. Accepts the saved `armedSinceMs` iff
+ * ALL of: the state exists and parses, the saved trigger was armed, the saved
+ * `lastAugReset` matches the current cycle (an install in between invalidates
+ * it), and the save is no older than ARM_RESUME_MAX_AGE_MS. Any single failure
+ * rejects with its own `reason`, checked in this order: `no-state` (missing/
+ * unparseable), `cycle-mismatch`, `not-armed`, `stale`.
+ * @param {object|null} savedState - augfarmer-state.json's parsed contents
+ * @param {number} currentLastAugReset - ns.getResetInfo().lastAugReset, read fresh at startup
+ * @param {number} nowMs
+ * @returns {{resumed: boolean, armedSinceMs: number|null, reason: string|null}}
+ */
+export function resolveArmResume(savedState, currentLastAugReset, nowMs) {
+  if (!savedState || typeof savedState.timestamp !== "number") {
+    return { resumed: false, armedSinceMs: null, reason: "no-state" };
+  }
+  if (savedState.lastAugReset !== currentLastAugReset) {
+    return { resumed: false, armedSinceMs: null, reason: "cycle-mismatch" };
+  }
+  if (!savedState.trigger?.armed) {
+    return { resumed: false, armedSinceMs: null, reason: "not-armed" };
+  }
+  if (nowMs - savedState.timestamp > ARM_RESUME_MAX_AGE_MS) {
+    return { resumed: false, armedSinceMs: null, reason: "stale" };
+  }
+  const armedSinceMs = typeof savedState.trigger.armedSinceMs === "number" ? savedState.trigger.armedSinceMs : savedState.timestamp;
+  return { resumed: true, armedSinceMs, reason: null };
 }
 
 /**
@@ -2021,6 +2064,23 @@ export async function main(ns) {
     }
   }
 
+  // Phase 36 (decision 9, F-A): resume the install-trigger arm's start time
+  // across this restart, if the saved state still qualifies. Held until the
+  // first pass that consumes it (armed:true) or ARM_RESUME_MAX_AGE_MS elapses
+  // from the ORIGINAL save, whichever comes first -- checked every pass below,
+  // not just here, so a slow warm-up after restart still expires on time.
+  const startupNowMs = Date.now();
+  const armResume = resolveArmResume(savedState, lastAugReset, startupNowMs);
+  let resumedArmSinceMs = armResume.resumed ? armResume.armedSinceMs : null;
+  const savedArmedTimestamp = savedState && typeof savedState.timestamp === "number" ? savedState.timestamp : null;
+  appendDecision(ns, "trigger-resume", {
+    now: startupNowMs,
+    resumed: armResume.resumed,
+    reason: armResume.reason,
+    savedArmedSinceMs: savedState?.trigger?.armedSinceMs ?? null,
+    savedAgeMs: savedArmedTimestamp !== null ? startupNowMs - savedArmedTimestamp : null,
+  });
+
   let lastFailureKey = null;
   let previousPhase = null;
   let previousTargetAug = null;
@@ -2459,6 +2519,14 @@ export async function main(ns) {
     const cycleIntervalsMs = recentCycleIntervals(ratchetLogRecords, resetInfo.lastNodeReset ?? 0);
     const stalled = nowMs - lastAugReset > computeStallThreshold(cycleIntervalsMs);
 
+    // Phase 36 (decision 9): re-check expiry every pass against the ORIGINAL
+    // save timestamp, not just once at startup -- a slow warm-up (extended
+    // no-rate-sample stretch) must still expire on time, not get an unbounded
+    // extension from however long that warm-up happens to take.
+    if (resumedArmSinceMs !== null && savedArmedTimestamp !== null && nowMs - savedArmedTimestamp > ARM_RESUME_MAX_AGE_MS) {
+      resumedArmSinceMs = null;
+    }
+
     const triggerInputs = {
       queuedGain,
       queuedCount: queuedNames.length,
@@ -2485,9 +2553,25 @@ export async function main(ns) {
       // return shape carries no such key (see decideInstall's header).
       targetIsNFG: !!target && target.aug === NFG_NAME,
       now: nowMs,
+      resumedArmSinceMs,
     };
     const prevTrigger = triggerState;
     triggerState = evalTrigger(triggerInputs, triggerState);
+    // Consumed: once armed is true, priorState.armedSinceMs takes over on every
+    // future pass (evalTrigger's own precedence), so the resumed stamp has done
+    // its one job and is cleared rather than lingering as dead state.
+    if (triggerState.armed && resumedArmSinceMs !== null) {
+      resumedArmSinceMs = null;
+    }
+    // Phase 36 (decision 10): on the exact precedent of awaitingMoneySinceChanged
+    // below -- without a dedicated term, a restart could inherit an
+    // armedSinceMs up to 5 min stale (the heartbeat interval) or miss a
+    // just-armed stamp entirely if the process dies before the next heartbeat.
+    // prevTrigger IS last pass's committed value, and this term joining the
+    // write gate keeps "last pass" and "last written" in sync by construction
+    // (any change forces an immediate write), same invariant awaitingMoneySince
+    // relies on.
+    const triggerArmChanged = triggerState.armed !== prevTrigger?.armed || triggerState.armedSinceMs !== (prevTrigger?.armedSinceMs ?? null);
 
     // Phase 34 (decision 6): rising-edge WARN when the escalation rule is
     // blocked solely by a missing/stale goal-state.json income signal -- a
@@ -2884,7 +2968,9 @@ export async function main(ns) {
     // write cadence for every consumer, out of scope here. The new
     // awaitingMoneySinceChanged term is what actually gets this stamp
     // persisted promptly instead of waiting up to 5min for the heartbeat.
-    if (stateChanged || heartbeatDue || boughtThisPass || plan.phase !== previousPhase || awaitingMoneySinceChanged) {
+    // triggerArmChanged (Phase 36 decision 10) is the same fix for the
+    // install-trigger arm's start time -- see its definition above.
+    if (stateChanged || heartbeatDue || boughtThisPass || plan.phase !== previousPhase || awaitingMoneySinceChanged || triggerArmChanged) {
       const stateRecord = {
         timestamp: nowMs,
         time: timeLabel,
