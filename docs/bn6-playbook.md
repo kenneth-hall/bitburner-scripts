@@ -8,12 +8,14 @@ code. This file is the one that churns; that one shouldn't.
 **Entered BN6.1 on 2026-07-29**, straight off the BN5.1 clear. Owned SF: `{1:3, 2:1, 4:3, 5:1}`.
 
 > **Epistemic status, stated up front because it's load-bearing.** The strategic *shape* of this
-> node is settled and grounded in verified numbers. The *tuning* mostly still isn't: the division
-> is now joined (2026-07-30) and the **black-op rank ladder is measured** (final gate: rank
-> 400,000), but action yields, skill costs, and chaos/stamina behaviour remain **unmeasured** (see
-> the reference's §8). Every number below is labelled ✅ verified, 🧮 computed, or ❓ unknown. **Do
-> not let a ❓ get quietly promoted to a planning assumption** — that's the Phase 27 failure mode,
-> and it cost most of a session.
+> node is settled and grounded in verified numbers. The division is joined and action yields are
+> now measured too (2026-07-30) — and the result is a live yellow flag: **the best measured
+> grind rate projects ~5–6 months to the final black op, ~8x slower than the ~3-week flip bar**,
+> at zero skill investment. Whether skill points or scouting change that is still genuinely
+> unknown (see §1) — **do not read the current rate as a final verdict, and do not read "the
+> ladder is measured" as "feasibility is settled."** Every number below is labelled ✅ verified,
+> 🧮 computed, or ❓ unknown. **Do not let a ❓ get quietly promoted to a planning assumption** —
+> that's the Phase 27 failure mode, and it cost most of a session.
 
 ---
 
@@ -83,9 +85,55 @@ open-ended deliberation. Logged per the dropped-objections rule.
 
 **✅ Half the re-check is done (2026-07-30): the ladder itself is sane.** All 21 black ops are
 flat-rate rank gates (2,500 → 400,000, no team/stat/aug preconditions surfaced by the API) — no
-sign of the "gated on something we can't supply" failure mode. **The other half — is 400,000 rank
-reachable inside ~3 weeks — is still open**, because it needs a measured rank-gain-per-action
-number Stage 2 hasn't produced yet. The re-check isn't closed until that lands.
+sign of the "gated on something we can't supply" failure mode.
+
+**⚠️ The other half — the rate — came back BAD, and this is now the strongest live objection to
+the whole decision.** `src/bladeburneractionprobe.js` measured every action's yield at our actual
+post-join state (rank 0, combat 172, **zero Bladeburner skill points spent — all 12 skills level
+0, because skill points come from rank and we have none yet**). Expected rank/sec (success chance
+× rank gain − failure chance × rank loss), best case:
+
+| Action | Expected rank/sec (at min success chance) |
+|---|---|
+| **Raid** (best) | **0.0277** |
+| Tracking | 0.0211 |
+| Retirement | 0.0172 |
+| Bounty Hunter | 0.0167 |
+| Undercover Operation | 0.0068 |
+| Investigation | 0.0059 |
+| Sting Operation | ~0 |
+| Stealth Retirement Operation | **negative** |
+| Assassination | **negative** |
+
+🧮 **At Raid's rate, rank 400,000 is ~4,000 hours away — ~5–6 months, not ~3 weeks.** Even at the
+optimistic end of Raid's success-chance range (9.68% vs the 7.53% used above), it's still ~3.3
+months. **Every black op itself is currently a losing bet** — e.g. Operation Typhoon (the first,
+rank 2,500) has a 2.8–3.1% success chance with a 10 rank *loss* on failure, deeply negative
+expected value at rank 0. This is squarely the flip condition's ~3-week bar, missed by roughly an
+order of magnitude on the numbers we can currently measure.
+
+**Why this is NOT yet a verdict — two real unknowns still stand between this and a decision:**
+1. **Skill investment is completely untested, and is probably the whole point of the tree.**
+   `Blade's Intuition` (first level: 3 SP), and most other skills, are priced for ~1-3 SP at level
+   1 — cheap — but we hold **zero skill points** (rank 0 ⇒ nothing to spend yet) and the
+   rank→skill-point conversion rate is undocumented (`docs/bladeburner-reference.md` §8). If
+   skills compound success chance/rank gain even moderately, the naive flat-rate extrapolation
+   above is wrong by construction — it assumes the rate measured at zero investment holds for the
+   whole climb, which is exactly the kind of assumption that's usually false in this codebase's
+   other compounding systems (NFG's ladder, the aug ratchet).
+2. **The in-game doc's unverified claim that "the estimate narrows as you scout"** (§5 of the
+   reference) is *consistent* with what we measured: near-zero success chance before any `Field
+   Analysis` (100%-success, always-available) has been run. A real engine's first move is
+   plausibly scouting, not grinding Raid cold — untested here.
+
+**Neither unknown is resolvable by more read-only probing** — both need an actual action to run
+(spend a skill point once rank/SP exist, or run `Field Analysis` and re-measure). That crosses from
+"measure" into "run the mechanic," which is Stage 3 territory by the playbook's own staging, not
+something to hand-roll ad hoc. **Recommendation: hold the flip decision open, don't default to
+hacking yet** — the ladder-sanity half of the re-check passed, and the rate half is bad but
+incompletely measured, not conclusively bad. **Next: a short, deliberate live trial** (a few
+Field Analysis + Raid attempts, hand-run or via a minimal script) to see whether either lever
+moves the rate meaningfully, before committing to either path.
 
 ---
 
@@ -173,16 +221,18 @@ the only gap is nothing was left alive to *stop* it exactly at the gate, which c
 `joinBladeburnerDivision()` permanently locks out Stanek's Gift.** This warning stays here for the
 BN7 repeat, where it *will* bind.
 
-**Stage 2 — measure, then decide, then spec. 🔨 IN PROGRESS.** `src/bladeburnerprobe.js` re-run
-2026-07-30 immediately after the join (`docs/bladeburner-reference.md` §3/§8/§10) — filled in the
-reachability map (10/10 now work) and the **full 21-black-op rank ladder** (final gate: rank
-**400,000** at `Operation Daedalus`). **Still needed before the §1 cheap re-check can actually run:**
-rank gained per action (nothing yields a time estimate to 400,000 without it), action
-times/success ranges for the 15 contracts/operations/general actions, the 12 skills' cost curves,
-and a first look at chaos/population/stamina. None of that is in the current probe — it reads
-reachability + rank + the black-op ladder, not per-action yields. **Next concrete step:** a new
-probe (or extend the existing one) that calls `getActionTime`/`getActionEstimatedSuccessChance`/
-`getActionRankGain`/`getSkillUpgradeCost` etc. per action/skill now that employment unlocks them.
+**Stage 2 — measure, then decide, then spec. 🔨 IN PROGRESS, and it just produced the pivotal
+number.** `src/bladeburnerprobe.js` re-run 2026-07-30 immediately after the join
+(`docs/bladeburner-reference.md` §3/§8/§10) — filled in the reachability map (10/10 now work) and
+the **full 21-black-op rank ladder** (final gate: rank **400,000** at `Operation Daedalus`). Two
+new sibling probes followed same-day: `src/bladeburneractionprobe.js` (per-action time/success/
+rank-gain/rank-loss/rep sweep across all 36 actions) and `src/bladeburnerskillprobe.js` (per-skill
+cost/level). **Result: at zero skill investment (0 SP available, rank 0), the best grindable
+action's expected rank/sec projects to ~5–6 months to rank 400,000 — far past the §1 flip bar of
+~3 weeks.** See §1 for the full number and the two open unknowns (skill scaling, scouting) that
+keep this from being a final verdict. **Still needed:** whether skill investment or `Field
+Analysis` scouting change the rate — unmeasurable without running an actual action, which is a
+deliberate small live trial, not another read-only probe.
 
 **Stage 3 — build the engine.** A `bladeburnermanager.js` companion in the established mould
 (headless resident, `RESIDENT_COMPANIONS` slot, `bladeburner-state.json` + `bladeburner-log.json`,
@@ -203,11 +253,17 @@ assumed into any plan.
 
 Per the convergence rules: each carries a default so it can't renew itself silently.
 
-- **❓ Black-op rank ladder feasibility — half resolved 2026-07-30.** The ladder shape is sane (flat
-  rank gates, 2,500 → 400,000, no hidden team/stat/aug precondition) — that half is closed. **Still
-  open:** rank-gain-per-action, needed to turn 400,000 into a time estimate. *Resolve the rest at
-  Stage 2* (needs a new action-yield probe, see Stage 2 above). **Default if it looks bad:** switch
-  to the hacking path and treat Bladeburner as an income/rank side-quest, keeping SF6 as the reward.
+- **⚠️ Black-op rank ladder feasibility — the rate half came back bad, 2026-07-30, but is not
+  final.** Ladder shape is sane (closed). Measured rate at zero skill investment: ~5–6 months to
+  rank 400,000 at the best action (Raid), ~8x too slow for the ~3-week flip bar. **Two unknowns
+  block calling this a verdict:** does skill investment (untested, 0 SP available at rank 0)
+  compound the rate, and does `Field Analysis` scouting raise success chance per the in-game doc's
+  unverified "estimate narrows as you scout" claim. **Resolve via a short live trial** (a few
+  Field Analysis + Raid attempts, re-measure) — **not** more read-only probing, and not yet run;
+  flagged to Kenneth rather than run ad hoc since it's the first action that actually plays the
+  mechanic rather than just reading it. **Default if the trial doesn't move the rate materially:**
+  switch to the hacking path and treat Bladeburner as an income/rank side-quest, keeping SF6 as the
+  reward.
 - **❓ Does a Bladeburner engine need a team, and does `Recruitment` gate the black ops?** Teams
   apply only to Operations/BlackOps; the `Recruitment`→team-members link is **inferred from the
   action's name and is not documented anywhere**. *Resolve at Stage 2.* **Default:** assume a team
@@ -278,9 +334,14 @@ the surface liveness and tripwires are read off.
   (0.15) while aug-buying power is 2× better. Combat-100 gate sized at 21,668 exp. Recorded that
   rank/skill points survive installs but faction rep does not.
 - **2026-07-30** — Stage 1 done: combat overshot to 172 (unattended grind ran past the 100 gate,
-  harmless), division joined via `src/joinbladeburner.js`. Stage 2 started: `bladeburnerprobe.js`
-  re-run recovered the full 21-black-op rank ladder (final gate rank 400,000 at Operation
-  Daedalus) and confirmed the ladder has no hidden precondition — half the §1 flip-condition
-  re-check is closed, the other half (rank-gain-per-action) still needs a new probe. Home RAM hit
-  128 GB, closing the Stage 0 deadlock. Surfaced BN6's neutral `BladeburnerRank`/`BladeburnerSkillCost`
-  (1.0/1.0) against BN7's worse 0.6/2.0.
+  harmless), division joined via `src/joinbladeburner.js`. Stage 2: `bladeburnerprobe.js` re-run
+  recovered the full 21-black-op rank ladder (final gate rank 400,000, no hidden precondition —
+  half the §1 flip-condition re-check closed). Two new sibling probes
+  (`bladeburneractionprobe.js`, `bladeburnerskillprobe.js`) measured the other half — the rate —
+  and it came back bad: ~5–6 months to rank 400,000 at zero skill investment, ~8x past the
+  3-week flip bar. Not treated as a verdict: skill-point scaling and `Field Analysis` scouting are
+  both untested and both plausibly change the rate, neither resolvable without running an actual
+  action. Home RAM hit 128 GB, closing the Stage 0 deadlock. Surfaced BN6's neutral
+  `BladeburnerRank`/`BladeburnerSkillCost` (1.0/1.0) against BN7's worse 0.6/2.0. Also found and
+  fixed a `vite.config.ts` gap — new probe filenames need an explicit sync-filter entry or their
+  output never reaches `logs/` (silent, not an error).

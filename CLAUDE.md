@@ -59,17 +59,24 @@ on request — hold to them even when the moment is uncomfortable.
     the `commitCrime` player action it started kept running unattended past the gate with nothing
     alive to stop it — harmless overshoot, ~90 min of pointless Mug. New `src/joinbladeburner.js`
     stopped the action and called `joinBladeburnerDivision()` → `true`.
-  - **🔨 STAGE 2 IN PROGRESS 2026-07-30 — `bladeburnerprobe.js` re-run post-join.** All 10
-    previously-throwing calls now work; recovered the **full 21-black-op rank ladder** (final gate
-    **rank 400,000** at `Operation Daedalus`, confirmed no hidden team/stat/aug precondition — half
-    the black-ops-vs-hacking re-check from `bn6-playbook.md` §1 is now closed). **Still open:**
-    rank-gain-per-action (needed to turn 400,000 into a time estimate), action times/success
-    ranges, the 12 skills' cost curves, chaos/population/stamina — none of that is in the current
-    probe. **Next action:** a new action-yield probe (extend `bladeburnerprobe.js` or write a
-    sibling) exercising `getActionTime`/`getActionEstimatedSuccessChance`/`getActionRankGain`/
-    `getSkillUpgradeCost` now that employment unlocks them. **Stage 3 (the actual engine —
-    brainstorm→spec→spec-reviewer→implement) stays blocked until that data lands.** Full record:
-    `docs/bladeburner-reference.md` §3/§8/§10, `docs/bn6-playbook.md` Stage 1/2.
+  - **⚠️ STAGE 2 MOSTLY DONE 2026-07-30, AND THE RESULT IS A LIVE YELLOW FLAG ON THE WHOLE
+    BLACK-OP DECISION.** `bladeburnerprobe.js` re-run post-join recovered the **full 21-black-op
+    rank ladder** (final gate **rank 400,000** at `Operation Daedalus`, no hidden team/stat/aug
+    precondition — ladder-sanity half of the §1 flip-condition re-check is closed). Two new sibling
+    probes (`bladeburneractionprobe.js`, `bladeburnerskillprobe.js`) then measured the rate half:
+    **at zero skill investment (0 SP available, rank 0), the best grindable action projects
+    ~5–6 months to rank 400,000 — ~8x past the playbook's ~3-week flip bar**, and every black op is
+    currently strongly-negative expected value. **NOT yet a verdict** — two unknowns could
+    materially change this and neither is resolvable read-only: whether spending skill points
+    (untestable until rank/SP exist) meaningfully raises success chance/rank gain, and whether
+    `Field Analysis` scouting does what the in-game doc's unverified "estimate narrows as you
+    scout" line implies. **Next action, needs a call from Kenneth, not a unilateral probe:** a
+    short live trial (a few `Field Analysis` + `Raid` attempts) to see whether either lever moves
+    the rate — that's the first action that actually *plays* the mechanic rather than reading it,
+    which is why it wasn't run automatically under the standing data-gathering grant. **Stage 3
+    (the actual engine) stays blocked either way** — on building the trial if the rate might be
+    salvageable, or on the hacking-path pivot if it isn't. Full record: `docs/bladeburner-reference.md`
+    §3/§8/§9/§10, `docs/bn6-playbook.md` §1/Stage 2.
   - **Decision: clear BN6 via the Bladeburner black-op path, not hacking** (2026-07-29, high
     confidence on ordering). The hacking path is **not** the cheap option: computed **M ≈ 28–37**
     (WD gate 6,000 at Hacking Level mult 0.35) — squarely BN2 territory — **plus 35 augs** for the

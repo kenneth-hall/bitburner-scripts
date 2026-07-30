@@ -111,6 +111,8 @@ export default defineConfig({
         if (file === 'combatgrind-log.json') return 'logs/combatgrind-log.json'; // src/combatgrind.js -- ring-capped combat-grind progress samples (BN6 bladeburner join gate)
         if (/^combatrouteprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/combatrouteprobe.js -- one-off: crime-vs-gym route comparison for the combat 1->100 gate
         if (/^bladeburnerprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburnerprobe.js -- BN6 bladeburner API reachability + live getBitNodeMultipliers() read, one file per run
+        if (/^bladeburneractionprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburneractionprobe.js -- per-action yield sweep (time/success/rank gain-loss/rep/count), one file per run
+        if (/^bladeburnerskillprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburnerskillprobe.js -- per-skill cost/level sweep, one file per run
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';

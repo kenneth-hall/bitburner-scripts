@@ -404,17 +404,34 @@ reachability + rank + the black-op ladder, not per-action yields).
 - **✅ ANSWERED — `getBlackOpNames()` returns rank-sorted (ascending) order.** The list above reads
   strictly increasing in the enum's own order — not documented, but now empirically confirmed, not
   assumed.
-- **❓ Still open — rank gain per action**, and therefore any time estimate to rank 25 (faction) or
-  to rank 400,000 (final black op). This is the input the Stage-1 objection's flip condition (§1)
-  actually needs, and it isn't in this probe.
-- **❓ Still open — action times, success chances, counts** for all 15 contracts/operations/general
-  actions.
-- **❓ Still open — the 12 skills' effects and cost curves** — `getSkillUpgradeCost` needs a real
-  skill name + level now that we're employed; not yet run. `skillMaxUpgradeCount` was reachable
-  even pre-join but needs real `level`/`skillPoints` args to be meaningful.
-- **❓ Still open — chaos and population dynamics**, and whether `Field Analysis` / `Diplomacy` do
-  what their names suggest.
-- **❓ Still open — stamina drain and regen**, and its coupling to success chance.
+- **✅ ANSWERED (badly) — rank gain per action**, via `src/bladeburneractionprobe.js`
+  (`logs/bladeburneractionprobe-1785412426030.json`). At rank 0 / zero skill investment, the best
+  grindable action (Raid: 66s, 7.5–9.7% success, +55/-2.5 rank) nets an expected **0.0277–0.0465
+  rank/sec** — projecting **~5–6 months** to rank 400,000. Every black op is currently
+  strongly-negative expected value (e.g. Operation Typhoon: 2.8–3.1% success, +50/-10 rank). Full
+  per-action table and the strategic read: `bn6-playbook.md` §1. **This is a snapshot, not a
+  verdict** — see the two open items directly below, both of which could change it substantially.
+- **✅ ANSWERED — the 12 skills' cost curves**, via `src/bladeburnerskillprobe.js`
+  (`logs/bladeburnerskillprobe-1785412431533.json`). All 12 at level 0 (fresh join). First-level
+  costs are cheap (1–3 SP): `Cyber's Edge`/`Hyperdrive` 1, most others 2–3, none above 3.
+  **`getSkillPoints()` reads 0** at rank 0 — **the rank→skill-point conversion rate is still
+  unmeasured**, so "cheap in SP" doesn't yet mean "reachable soon."
+- **❓ Still open — does spending skill points meaningfully change success chance/rank gain/rank
+  loss?** Cannot be measured read-only: we hold 0 skill points (need rank first), so the next data
+  point requires actually running an action to earn rank/SP, then re-probing. This is the single
+  biggest lever that could overturn the bad rate above.
+- **❓ Still open — does `Field Analysis` scouting raise success chance over time**, per the
+  in-game doc's unverified "the estimate narrows as you scout" line? Also needs a live trial, not
+  a probe — `Field Analysis` is always 100% success and free to run, but its effect on *other*
+  actions' chance is unmeasured.
+- **❓ Still open — action times/success/counts for the actions not yet summarized above** (already
+  captured in the raw probe output for all 36 actions — see the JSON — just not all surfaced in
+  prose here).
+- **❓ Still open — chaos and population dynamics**, and whether `Diplomacy` does what its name
+  suggests (unlike `Field Analysis`, not directly measured).
+- **❓ Still open — stamina drain and regen**, and its coupling to success chance. `getStamina()`
+  read `[61.44, 61.44]` (current = max, i.e. full) at probe time, so the low success chances above
+  are **not** a stamina-depletion artifact.
 - **❓ Still open — whether `switchCity` interrupts the current action or costs anything.**
 
 ---
@@ -426,6 +443,18 @@ reachability + rank + the black-op ladder, not per-action yields).
 | `src/bladeburnerprobe.js` | 19.20 GB (measured 2026-07-30 live; earlier 16.20/16.40 GB figures were stale) | API reachability map (per-method throw text), the combat-100 join gate, `getResetInfo` (node + owned SF + `disableBladeburner`), **live `getBitNodeMultipliers()` for the current node and BN7**, the Bladeburner faction invite requirement, Intelligence, and `formulas.bladeburner`'s method list. Staged breadcrumb writes → survives a mid-run death. Needs a companion (e.g. `augfarmer.js`, 64.10 GB) killed temporarily on a RAM-tight home — it does not fit alongside the full companion stack even on a 128 GB home. |
 | `src/combatgateprobe.js` | small | Exp needed per combat stat for level 100 at the current mult, plus the exp-vs-mult curve. |
 | `src/joinbladeburner.js` | 7.60 GB | One-shot: stops the current player action, calls `joinBladeburnerDivision()`, logs before/after state. Not idempotent-dangerous — safe to re-run (both join calls return `true` for an existing member). |
+| `src/bladeburneractionprobe.js` | 33.60 GB | Post-employment-only. Per-action `getActionTime`/`getActionEstimatedSuccessChance`/`getActionCountRemaining`/`getActionRankGain`/`getActionRankLoss`/`getActionRepGain` across all 36 actions (3 contracts, 6 operations, 6 general, 21 black ops), plus rank/stamina and a derived expected-rank/sec summary for contracts+operations. Sibling to `bladeburnerprobe.js`, not a rewrite — keeps that one's reachability record stable. |
+| `src/bladeburnerskillprobe.js` | 13.60 GB | Post-employment-only. Per-skill `getSkillLevel`/`getSkillUpgradeCost`(1 and 5)/`skillMaxUpgradeCount` across all 12 skills, plus `getSkillPoints()`. |
+
+⚠️ **New probe output files need a `vite.config.ts` sync-filter entry, or they never reach
+`logs/`.** Found live 2026-07-30: both new probes above ran and wrote their file in-game (`mem`/
+`run` confirmed success), but nothing appeared in `logs/` for ~40s because the filter regex list
+(`vite.config.ts`) is an explicit allowlist by filename pattern — a new probe's filename doesn't
+match any existing entry until one is added. Silent, not an error: the in-game write succeeds,
+`ps`/`run` report success, and the dev server keeps exporting every *other* file normally, so it
+looks like a sync stall rather than a missing filter line. Add the regex, then restart
+`npm run dev` (config changes need a restart, not just a hot-reload) before assuming the bridge
+itself is broken.
 
 **Already re-run after joining the division (2026-07-30)** — see §3, §8, §10 for the results. The
 reachability table is now a real before/after record.
@@ -484,5 +513,11 @@ State at doc creation (2026-07-29, pre-grind):
   `getBlackOpNames()` order confirmed rank-ascending. Surfaced the previously-buried
   `BladeburnerRank`/`BladeburnerSkillCost` BN6-vs-BN7 comparison (1.0/1.0 vs 0.6/2.0 — BN7 is a
   slower, pricier Bladeburner grind, not just the Stanek's Gift loss). Corrected the probe's RAM
-  figure to the measured 19.20 GB. Rank-gain-per-action and all action/skill yields remain
-  unmeasured — Stage 2's real remaining work.
+  figure to the measured 19.20 GB.
+- **2026-07-30 (same day, later)** — Two new sibling probes (`bladeburneractionprobe.js`,
+  `bladeburnerskillprobe.js`) measured the rest of §8: per-action yields for all 36 actions, and
+  per-skill costs for all 12 skills. Result: at zero skill investment, the best grind rate
+  projects ~5–6 months to rank 400,000, ~8x past the playbook's 3-week flip bar — a live yellow
+  flag against the black-op path, but explicitly not a verdict (skill-point scaling and `Field
+  Analysis` scouting are both untested and both plausibly change the rate). Found and fixed a
+  `vite.config.ts` sync-filter gap that silently dropped both probes' first outputs.
