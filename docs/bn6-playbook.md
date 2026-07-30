@@ -8,12 +8,12 @@ code. This file is the one that churns; that one shouldn't.
 **Entered BN6.1 on 2026-07-29**, straight off the BN5.1 clear. Owned SF: `{1:3, 2:1, 4:3, 5:1}`.
 
 > **Epistemic status, stated up front because it's load-bearing.** The strategic *shape* of this
-> node is settled and grounded in verified numbers. The *tuning* is not, and cannot be: the entire
-> `ns.bladeburner` API throws until we join the division, so black-op rank requirements, action
-> yields, skill costs, and chaos/stamina behaviour are all **unmeasured** (see the reference's §8).
-> Every number below is labelled ✅ verified, 🧮 computed, or ❓ unknown. **Do not let a ❓ get
-> quietly promoted to a planning assumption** — that's the Phase 27 failure mode, and it cost most
-> of a session.
+> node is settled and grounded in verified numbers. The *tuning* mostly still isn't: the division
+> is now joined (2026-07-30) and the **black-op rank ladder is measured** (final gate: rank
+> 400,000), but action yields, skill costs, and chaos/stamina behaviour remain **unmeasured** (see
+> the reference's §8). Every number below is labelled ✅ verified, 🧮 computed, or ❓ unknown. **Do
+> not let a ❓ get quietly promoted to a planning assumption** — that's the Phase 27 failure mode,
+> and it cost most of a session.
 
 ---
 
@@ -81,6 +81,12 @@ gated on something we can't supply (team size, a stat wall, an aug we can't affo
 readable the moment we join — so this decision gets **one cheap re-check at Stage 2**, not an
 open-ended deliberation. Logged per the dropped-objections rule.
 
+**✅ Half the re-check is done (2026-07-30): the ladder itself is sane.** All 21 black ops are
+flat-rate rank gates (2,500 → 400,000, no team/stat/aug preconditions surfaced by the API) — no
+sign of the "gated on something we can't supply" failure mode. **The other half — is 400,000 rank
+reachable inside ~3 weeks — is still open**, because it needs a measured rank-gain-per-action
+number Stage 2 hasn't produced yet. The re-check isn't closed until that lands.
+
 ---
 
 ## 2. Node facts — live-verified
@@ -104,6 +110,7 @@ any per-node table in `bitnodes.md`, and it vindicates the whole hand-read corpu
 | `GangSoftcap` / `GangUniqueAugs` | 0.7 / 0.2 | Gang income possible but softcapped |
 | Corp / Stanek | 0.2 val, 0.8 div, 0.9 softcap / 0.5 power, +2 size | Not our engines |
 | **Aug money cost** | **1.0 (not nerfed)** | 🔑 see below |
+| `BladeburnerRank` / `BladeburnerSkillCost` | **1.0 / 1.0 (neutral)** | BN6 is the cheap Bladeburner node. BN7 reads **0.6 / 2.0** (40% slower rank, 2× skill cost) — restate this at BN7 entry, it compounds with BN7's Stanek's-Gift lockout. |
 
 ### 🔑 The economic surprise: BN6 is *better* for the mult ratchet than BN5 was
 
@@ -144,27 +151,38 @@ differs.** Nothing about choosing Bladeburner means turning the batcher off — 
 
 ## 4. Staged plan
 
-**Stage 0 — bootstrap, no new code.** ✅ *In progress.* Standard fresh-node recovery: batcher up,
-fleet growing, hacking climbing, ratchet running. Reuses everything unchanged. The cold-start
-hardening from Phase 35 should make this unattended; **watch it anyway** — BACKLOG's "Cold-start
-hardening" entry has a present-tense trigger and BN6 is its first exercise since. Note home is
-32 GB and `augfarmer.js` needs 64.10 GB, so the known home-RAM deadlock applies until a tier is
-bought (`upgradehomeramonce.js` is the safe lever).
+**Stage 0 — bootstrap, no new code.** ✅ *Done — home RAM cleared the deadlock.* Standard
+fresh-node recovery: batcher up, fleet growing, hacking climbing, ratchet running. Home reached
+**128 GB** by 2026-07-30 (started at 32 GB, `augfarmer.js` needs 64.10 GB), so the home-RAM
+deadlock this section warned about is resolved — `augfarmer.js` runs continuously now, alongside
+the full companion stack (a one-off probe like `bladeburnerprobe.js` at 19.20 GB still needs a
+companion killed temporarily to fit, see the reference's §9).
 
-**Stage 1 — combat 1→100, join the division.** 🧮 21,668 exp total. Gym in Sector-12 (we land
-there, no travel needed). ⚠️ **This seizes the single player-action slot**, which is the same
-serial resource the early faction-rep path needs — the exact conflict the BN5 gang analysis
-identified. It's short here, but sequence it deliberately rather than fighting `augfarmer.js`'s
-`workForFaction` re-assertion every poll (`src/augfarmer.js:2653`). Then
-`joinBladeburnerDivision()` → returns `true`.
-⚠️ Restated at point of execution: **under SF7.3 this call permanently locks out Stanek's Gift.**
-We hold SF7 level 0 so it does not bind today — but this warning stays here for the BN7 repeat.
+**Stage 1 — combat 1→100, join the division. ✅ DONE 2026-07-30.** Combat stats reached
+172/172/172/172 (target 100, overshot — see below). `src/joinbladeburner.js` stopped the crime
+action and called `joinBladeburnerDivision()` → `true`; `inBladeburner()` → `true`. No Stanek's
+Gift side-effect (SF7 level 0, as expected).
+⚠️ **What actually happened, worth recording:** `combatgrind.js` died mid-run (its own documented
+RAM-contention risk), but the `commitCrime` player action it started kept running unattended with
+nothing alive to detect gate-met and call `stopAction()` — so combat overshot to 172 before anyone
+intervened. Cost was zero (no overshoot penalty) plus ~90 min of a pointless Mug loop. Not a
+process failure to fix — this is exactly the "the grind survives unattended, the script is a
+measurement harness not the thing doing the work" behavior `combatgrind.js`'s docstring predicted;
+the only gap is nothing was left alive to *stop* it exactly at the gate, which cost nothing here.
+⚠️ Restated for the record even though it didn't bind this time: **under SF7.3,
+`joinBladeburnerDivision()` permanently locks out Stanek's Gift.** This warning stays here for the
+BN7 repeat, where it *will* bind.
 
-**Stage 2 — measure, then decide, then spec.** Re-run `src/bladeburnerprobe.js` the moment the
-division join lands; it fills in most of the reference's §8 in one shot. **Then** do the cheap
-re-check from §1 (are the black-op ranks sane?) **before** writing an engine spec. Deliverables:
-the 21 black-op rank requirements, action times/yields/success ranges, the 12 skills' costs, and a
-first look at chaos/population/stamina.
+**Stage 2 — measure, then decide, then spec. 🔨 IN PROGRESS.** `src/bladeburnerprobe.js` re-run
+2026-07-30 immediately after the join (`docs/bladeburner-reference.md` §3/§8/§10) — filled in the
+reachability map (10/10 now work) and the **full 21-black-op rank ladder** (final gate: rank
+**400,000** at `Operation Daedalus`). **Still needed before the §1 cheap re-check can actually run:**
+rank gained per action (nothing yields a time estimate to 400,000 without it), action
+times/success ranges for the 15 contracts/operations/general actions, the 12 skills' cost curves,
+and a first look at chaos/population/stamina. None of that is in the current probe — it reads
+reachability + rank + the black-op ladder, not per-action yields. **Next concrete step:** a new
+probe (or extend the existing one) that calls `getActionTime`/`getActionEstimatedSuccessChance`/
+`getActionRankGain`/`getSkillUpgradeCost` etc. per action/skill now that employment unlocks them.
 
 **Stage 3 — build the engine.** A `bladeburnermanager.js` companion in the established mould
 (headless resident, `RESIDENT_COMPANIONS` slot, `bladeburner-state.json` + `bladeburner-log.json`,
@@ -185,9 +203,11 @@ assumed into any plan.
 
 Per the convergence rules: each carries a default so it can't renew itself silently.
 
-- **❓ Black-op rank ladder feasibility.** *Resolve at Stage 2* (free — one probe re-run).
-  **Default if it looks bad:** switch to the hacking path and treat Bladeburner as an income/rank
-  side-quest, keeping SF6 as the reward.
+- **❓ Black-op rank ladder feasibility — half resolved 2026-07-30.** The ladder shape is sane (flat
+  rank gates, 2,500 → 400,000, no hidden team/stat/aug precondition) — that half is closed. **Still
+  open:** rank-gain-per-action, needed to turn 400,000 into a time estimate. *Resolve the rest at
+  Stage 2* (needs a new action-yield probe, see Stage 2 above). **Default if it looks bad:** switch
+  to the hacking path and treat Bladeburner as an income/rank side-quest, keeping SF6 as the reward.
 - **❓ Does a Bladeburner engine need a team, and does `Recruitment` gate the black ops?** Teams
   apply only to Operations/BlackOps; the `Recruitment`→team-members link is **inferred from the
   action's name and is not documented anywhere**. *Resolve at Stage 2.* **Default:** assume a team
@@ -257,3 +277,10 @@ the surface liveness and tripwires are read off.
   multipliers live-verified 20/20. Found that BN6's effective hack income equals BN5's exactly
   (0.15) while aug-buying power is 2× better. Combat-100 gate sized at 21,668 exp. Recorded that
   rank/skill points survive installs but faction rep does not.
+- **2026-07-30** — Stage 1 done: combat overshot to 172 (unattended grind ran past the 100 gate,
+  harmless), division joined via `src/joinbladeburner.js`. Stage 2 started: `bladeburnerprobe.js`
+  re-run recovered the full 21-black-op rank ladder (final gate rank 400,000 at Operation
+  Daedalus) and confirmed the ladder has no hidden precondition — half the §1 flip-condition
+  re-check is closed, the other half (rank-gain-per-action) still needs a new probe. Home RAM hit
+  128 GB, closing the Stage 0 deadlock. Surfaced BN6's neutral `BladeburnerRank`/`BladeburnerSkillCost`
+  (1.0/1.0) against BN7's worse 0.6/2.0.

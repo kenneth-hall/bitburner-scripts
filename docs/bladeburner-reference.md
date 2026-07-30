@@ -101,7 +101,12 @@ Live sweep at combat stats 1 / not employed (`logs/bladeburnerprobe-178537156537
 | `getNextBlackOp()` | 2 GB | ❌ threw |
 | `getRank()` | 4 GB | ❌ threw |
 
-Every failure is the same message:
+**✅ Post-join re-sweep, 2026-07-30 (`logs/bladeburnerprobe-1785411469942.json`): all 10/10 worked,
+0 threw.** Same uniform-gate behavior confirmed from the other side — nothing partial, nothing
+still locked at rank 0. `getRank()` read `0` (fresh join, no actions run yet); `getCurrentAction()`
+read `null`; `getNextBlackOp()` read `{name: "Operation Typhoon", rank: 2500}`.
+
+Every failure (pre-join) is the same message:
 
 ```
 bladeburner.<method>: You must be a member of the Bladeburner division to use this API.
@@ -336,6 +341,14 @@ operations). All four read **1.0** in BN6.1 at zero augs
 (`logs/auginfo-1785369135460.json`) — no SF or aug contribution yet.
 `BitNodeMultipliers.BladeburnerRank` · `BladeburnerSkillCost` · `BitNodeBooleanOptions.disableBladeburner`.
 
+⚠️ **`BladeburnerRank`/`BladeburnerSkillCost` are both neutral (1.0) in BN6, but worse in BN7** —
+live-read via `getBitNodeMultipliers(7, 1)` in the same probe, no SF7 needed: **`BladeburnerRank:
+0.6`** (rank gains 40% slower) and **`BladeburnerSkillCost: 2`** (skills cost double). BN7 also
+disables Stanek's Gift the moment `joinBladeburnerDivision()` fires under SF7.3 (§1). Neither of
+these is new data — `getBitNodeMultipliers()` doesn't require employment — but it went unsurfaced
+in prose until this update; the playbook's BN7-repeat warnings should account for a slower, pricier
+grind, not just the Stanek loss.
+
 ---
 
 ## 7. Gotchas — the implementer's list
@@ -367,21 +380,42 @@ operations). All four read **1.0** in BN6.1 at zero augs
 
 ## 8. Not knowable until we join — the honest gap
 
-Everything below is **unmeasurable today** and must not be assumed by any plan. This list is the
-first work item after `joinBladeburnerDivision()` succeeds.
+**Updated 2026-07-30 — division joined, first re-probe done.** Two items below are now answered;
+the rest still need Stage 2's action-level instrumentation (the current probe only reads
+reachability + rank + the black-op ladder, not per-action yields).
 
-- **Rank requirement of all 21 black ops** — the entire win-condition ladder. `getBlackOpRank`
-  throws.
-- **Rank gain per action**, and therefore any time estimate to rank 25 (faction) or to the final
-  black op.
-- **Action times, success chances, counts** for all 15 contracts/operations/general actions.
-- **The 12 skills' effects and cost curves** — `getSkillUpgradeCost` throws;
-  `skillMaxUpgradeCount` is reachable but needs a real `level`/`skillPoints` to be meaningful.
-- **Chaos and population dynamics**, and whether `Field Analysis` / `Diplomacy` do what their names
-  suggest.
-- **Stamina drain and regen**, and its coupling to success chance.
-- Whether `getBlackOpNames()` returns rank-sorted order.
-- Whether `switchCity` interrupts the current action or costs anything.
+- **✅ ANSWERED — rank requirement of all 21 black ops**, read live via `getBlackOpRank`
+  (`logs/bladeburnerprobe-1785411469942.json`):
+
+  | Op | Rank | Op | Rank | Op | Rank |
+  |---|---|---|---|---|---|
+  | Typhoon | 2,500 | Red Dragon | 25,000 | Ion Storm | 175,000 |
+  | Zero | 5,000 | K | 30,000 | Annihilus | 200,000 |
+  | X | 7,500 | Deckard | 40,000 | Ultron | 250,000 |
+  | Titan | 10,000 | Tyrell | 50,000 | Centurion | 300,000 |
+  | Ares | 12,500 | Wallace | 75,000 | Vindictus | 350,000 |
+  | Archangel | 15,000 | Shoulder of Orion | 100,000 | **Daedalus** | **400,000** |
+  | Juggernaut | 20,000 | Hyron | 125,000 | | |
+  | | | Morpheus | 150,000 | | |
+
+  **The final gate is rank 400,000** — this is the number Stage 2's "is the ladder feasible"
+  re-check needs a rank-gain-rate against. Still unmeasured: rank gained per action, so no time
+  estimate yet.
+- **✅ ANSWERED — `getBlackOpNames()` returns rank-sorted (ascending) order.** The list above reads
+  strictly increasing in the enum's own order — not documented, but now empirically confirmed, not
+  assumed.
+- **❓ Still open — rank gain per action**, and therefore any time estimate to rank 25 (faction) or
+  to rank 400,000 (final black op). This is the input the Stage-1 objection's flip condition (§1)
+  actually needs, and it isn't in this probe.
+- **❓ Still open — action times, success chances, counts** for all 15 contracts/operations/general
+  actions.
+- **❓ Still open — the 12 skills' effects and cost curves** — `getSkillUpgradeCost` needs a real
+  skill name + level now that we're employed; not yet run. `skillMaxUpgradeCount` was reachable
+  even pre-join but needs real `level`/`skillPoints` args to be meaningful.
+- **❓ Still open — chaos and population dynamics**, and whether `Field Analysis` / `Diplomacy` do
+  what their names suggest.
+- **❓ Still open — stamina drain and regen**, and its coupling to success chance.
+- **❓ Still open — whether `switchCity` interrupts the current action or costs anything.**
 
 ---
 
@@ -389,11 +423,12 @@ first work item after `joinBladeburnerDivision()` succeeds.
 
 | Script | RAM | What it captures |
 |---|---|---|
-| `src/bladeburnerprobe.js` | 16.20 GB | API reachability map (per-method throw text), the combat-100 join gate, `getResetInfo` (node + owned SF + `disableBladeburner`), **live `getBitNodeMultipliers()` for the current node and BN7**, the Bladeburner faction invite requirement, Intelligence, and `formulas.bladeburner`'s method list. Staged breadcrumb writes → survives a mid-run death. |
+| `src/bladeburnerprobe.js` | 19.20 GB (measured 2026-07-30 live; earlier 16.20/16.40 GB figures were stale) | API reachability map (per-method throw text), the combat-100 join gate, `getResetInfo` (node + owned SF + `disableBladeburner`), **live `getBitNodeMultipliers()` for the current node and BN7**, the Bladeburner faction invite requirement, Intelligence, and `formulas.bladeburner`'s method list. Staged breadcrumb writes → survives a mid-run death. Needs a companion (e.g. `augfarmer.js`, 64.10 GB) killed temporarily on a RAM-tight home — it does not fit alongside the full companion stack even on a 128 GB home. |
 | `src/combatgateprobe.js` | small | Exp needed per combat stat for level 100 at the current mult, plus the exp-vs-mult curve. |
+| `src/joinbladeburner.js` | 7.60 GB | One-shot: stops the current player action, calls `joinBladeburnerDivision()`, logs before/after state. Not idempotent-dangerous — safe to re-run (both join calls return `true` for an existing member). |
 
-**Re-run `bladeburnerprobe.js` immediately after joining the division** — the same file will then
-fill in most of §8 in one shot, and the reachability table becomes a before/after record.
+**Already re-run after joining the division (2026-07-30)** — see §3, §8, §10 for the results. The
+reachability table is now a real before/after record.
 
 Outputs land in `logs/bladeburnerprobe-<epoch>.json` / `logs/combatgateprobe-<epoch>.json` (filters
 wired in `vite.config.ts`). One file per run, so before/after diffs are free.
@@ -401,6 +436,8 @@ wired in `vite.config.ts`). One file per run, so before/after diffs are free.
 ---
 
 ## 10. Live BN6.1 state at time of writing
+
+State at doc creation (2026-07-29, pre-grind):
 
 - **Node:** BN6.1. **Owned SF:** `{1: 3, 2: 1, 4: 3, 5: 1}` — SF6 not yet held.
   `disableBladeburner: false`.
@@ -414,6 +451,25 @@ wired in `vite.config.ts`). One file per run, so before/after diffs are free.
   `getBitNodeMultipliers()`, and it **validates the whole hand-read corpus**. That discharges the
   standing ⚠️ "treat them as transcriptions, not authority" warning at the top of that doc.
 
+### ✅ Update 2026-07-30 — combat gate cleared, division joined
+
+- **Combat stats: 172/172/172/172** (target was 100 — overshot by 72). The grind ran via
+  `combatgrind.js`'s documented failure mode: the harness script died mid-run (the predicted
+  32 GB-home RAM-contention risk, though home was later upgraded to 128 GB), but `commitCrime`'s
+  player action survived and kept running unattended with nothing alive to detect gate-met and
+  call `stopAction()` — confirmed by `ps` (no `combatgrind.js` process) and the live UI still
+  showing "Attempting to Mug" at 172. Cost: zero (no penalty for combat overshoot), plus ~90 min of
+  a pointless-but-harmless Mug loop. `src/joinbladeburner.js` (new) called `stopAction()` before
+  joining.
+- **`joinBladeburnerDivision()` → `true`. `inBladeburner()` → `true`.** Division joined, no
+  Stanek's Gift side-effect (SF7 still level 0, as expected).
+- **`getRank()` → `0`** (fresh join, zero actions run). **`getNextBlackOp()` →
+  `{name: "Operation Typhoon", rank: 2500}`.**
+- **Hacking 115→116, money ~$110.6m, city Aevum** — the batcher/aug-ratchet kept running the whole
+  time (unrelated engine, still the only income source).
+- **Full black-op rank ladder now known** (§8) — final gate **rank 400,000** at `Operation
+  Daedalus`.
+
 ---
 
 ## 11. Changelog
@@ -422,3 +478,11 @@ wired in `vite.config.ts`). One file per run, so before/after diffs are free.
   files + type enums; static catalog recovered from enum types despite the live API being inert;
   both gates verified live (combat 100 / rank 25); combat-100 gate sized at 21,668 exp total;
   BN6 multipliers validated 20/20 against the hand-read panel; two RAM-analyzer footguns recorded.
+- **2026-07-30** — Combat grind cleared (172/172/172/172, target overshot), division joined via new
+  `src/joinbladeburner.js`, `bladeburnerprobe.js` re-run post-join: all 10 previously-throwing calls
+  now work, full 21-black-op rank ladder recovered (final gate rank 400,000 at Operation Daedalus),
+  `getBlackOpNames()` order confirmed rank-ascending. Surfaced the previously-buried
+  `BladeburnerRank`/`BladeburnerSkillCost` BN6-vs-BN7 comparison (1.0/1.0 vs 0.6/2.0 — BN7 is a
+  slower, pricier Bladeburner grind, not just the Stanek's Gift loss). Corrected the probe's RAM
+  figure to the measured 19.20 GB. Rank-gain-per-action and all action/skill yields remain
+  unmeasured — Stage 2's real remaining work.
