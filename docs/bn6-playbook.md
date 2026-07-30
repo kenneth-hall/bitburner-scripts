@@ -131,9 +131,22 @@ order of magnitude on the numbers we can currently measure.
 "measure" into "run the mechanic," which is Stage 3 territory by the playbook's own staging, not
 something to hand-roll ad hoc. **Recommendation: hold the flip decision open, don't default to
 hacking yet** — the ladder-sanity half of the re-check passed, and the rate half is bad but
-incompletely measured, not conclusively bad. **Next: a short, deliberate live trial** (a few
-Field Analysis + Raid attempts, hand-run or via a minimal script) to see whether either lever
-moves the rate meaningfully, before committing to either path.
+incompletely measured, not conclusively bad.
+
+**✅ Live trial started 2026-07-30 (`src/bladeburnertrial.js`, Kenneth's go-ahead).** First result
+already in on unknown #2: **scouting is real.** A v1 control-loop bug (`startAction` auto-repeats
+like `commitCrime` — `getCurrentAction()` never returns `null` between reps, so a naive
+wait-for-null loop never exits) accidentally ran ~50 unplanned `Field Analysis` reps unattended
+for 23 minutes before being caught and fixed. That's a much bigger scouting sample than the
+planned 15, and it answered the question outright: **Raid's success-chance *range* collapsed from
+a spread (`[0.075, 0.097]` pre-trial) to a single point estimate, `0.0901`** — direct confirmation
+that scouting narrows the estimate, exactly as the unverified in-game doc line claimed. The
+**central value didn't jump dramatically** though (0.0901 sits inside the original range, not
+above it) — so scouting reduces *uncertainty*, not obviously the *rate* on its own. Unknown #1
+(skill investment) is still being tested — v1's bug meant it never got there; a v2 fix (detect
+completions via `getActionCurrentTime()` wraparound instead of the broken null-check) is now
+running, skipping re-scouting and going straight to the adaptive grind + skill-spend loop. Not yet
+resolved — check `logs/bladeburnertrial-log.json` for current status before reading this as final.
 
 ---
 

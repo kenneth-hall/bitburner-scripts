@@ -256,7 +256,7 @@ the cheap calls.
 
 | Method | RAM | Semantics |
 |---|---|---|
-| `startAction(type, name): boolean` | 4 | `true` if started. **The docs never enumerate why it fails** (rank? count? stamina?) — one opaque boolean. |
+| `startAction(type, name): boolean` | 4 | `true` if started. **The docs never enumerate why it fails** (rank? count? stamina?) — one opaque boolean. ⚠️ **Confirmed live 2026-07-30: NOT one-shot — the action auto-repeats indefinitely**, exactly like `ns.singularity.commitCrime` (docs/bladeburner-reference.md's own combat-grind precedent). `getCurrentAction()` never returns `null` between reps; a control loop waiting on that will hang forever mid-first-rep (cost `src/bladeburnertrial.js` v1 23 real minutes, harmlessly, before the bug was caught). **Detect one completed rep via `getActionCurrentTime()` wrapping** (drops from near the action's full time back to ~0), not via `getCurrentAction()` going `null`. Calling `startAction` with a *different* action appears to preempt the repeat (observed, not documented). |
 | `stopBladeburnerAction(): void` | 2 | No return, no failure signal. |
 | `getCurrentAction(): BladeburnerCurAction \| null` | 1 | `null` when idle. ⚠️ Returns `{name: string, type: string}` as **plain strings**, not the branded types the other methods demand. |
 | `getActionCurrentTime(): number` | 4 | **Milliseconds** already spent on the current action. Undefined behavior when idle. |
@@ -375,6 +375,10 @@ grind, not just the Stanek loss.
 11. **The whole API throws one uniform error until you join the division** — including six 0 GB
     methods. There is no partial access tier.
 12. **Static dot-notation only** for calls you intend to `try/catch` (see §3 footgun 1).
+13. **`startAction` auto-repeats — it is not one-shot.** Confirmed live 2026-07-30 (§6's Lifecycle
+    table). `getCurrentAction()` stays non-`null` across reps, so a control loop must detect
+    completion via `getActionCurrentTime()` wrapping, not via waiting for `null`. Same shape as
+    `ns.singularity.commitCrime`.
 
 ---
 
@@ -420,10 +424,14 @@ reachability + rank + the black-op ladder, not per-action yields).
   loss?** Cannot be measured read-only: we hold 0 skill points (need rank first), so the next data
   point requires actually running an action to earn rank/SP, then re-probing. This is the single
   biggest lever that could overturn the bad rate above.
-- **❓ Still open — does `Field Analysis` scouting raise success chance over time**, per the
-  in-game doc's unverified "the estimate narrows as you scout" line? Also needs a live trial, not
-  a probe — `Field Analysis` is always 100% success and free to run, but its effect on *other*
-  actions' chance is unmeasured.
+- **✅ ANSWERED 2026-07-30 — `Field Analysis` scouting narrows the success-chance estimate.**
+  Confirmed live via `src/bladeburnertrial.js` (an accidental ~50-rep sample — see the `startAction`
+  gotcha in §6/§7): Raid's `[MIN, MAX]` success-chance range collapsed from `[0.075, 0.097]`
+  (pre-scout) to a single point value `0.0901` (post ~50 reps) — MIN and MAX converged to the same
+  number. This is direct confirmation of the in-game doc's previously-unverified "the estimate
+  narrows as you scout" line. **Caveat: the central value didn't move much** (0.0901 sits inside
+  the original range) — scouting narrows *uncertainty*, it doesn't obviously raise the *rate* on
+  its own. How many reps this needs, and whether it holds for other actions, is still unmeasured.
 - **❓ Still open — action times/success/counts for the actions not yet summarized above** (already
   captured in the raw probe output for all 36 actions — see the JSON — just not all surfaced in
   prose here).
@@ -445,6 +453,8 @@ reachability + rank + the black-op ladder, not per-action yields).
 | `src/joinbladeburner.js` | 7.60 GB | One-shot: stops the current player action, calls `joinBladeburnerDivision()`, logs before/after state. Not idempotent-dangerous — safe to re-run (both join calls return `true` for an existing member). |
 | `src/bladeburneractionprobe.js` | 33.60 GB | Post-employment-only. Per-action `getActionTime`/`getActionEstimatedSuccessChance`/`getActionCountRemaining`/`getActionRankGain`/`getActionRankLoss`/`getActionRepGain` across all 36 actions (3 contracts, 6 operations, 6 general, 21 black ops), plus rank/stamina and a derived expected-rank/sec summary for contracts+operations. Sibling to `bladeburnerprobe.js`, not a rewrite — keeps that one's reachability record stable. |
 | `src/bladeburnerskillprobe.js` | 13.60 GB | Post-employment-only. Per-skill `getSkillLevel`/`getSkillUpgradeCost`(1 and 5)/`skillMaxUpgradeCount` across all 12 skills, plus `getSkillPoints()`. |
+| `src/bladeburnertrial.js` | 46.60 GB | **Not a probe — a real engine trial.** Calls `startAction`/`upgradeSkill`, both state-mutating. Runs an adaptive grind loop (best-EV contract/operation each cycle) and auto-spends skill points, logging every completion to `bladeburnertrial-log.json` (ring-capped, unbounded run — check the log, don't wait for it to end). Only run with an explicit go-ahead, per this file's own "measure vs. play the mechanic" line in §8. |
+| `src/bladeburnerdiag.js` | ~10.6 GB | Throwaway spot-check: rank, current action + elapsed time, skill points, Raid's live success chance. Useful for confirming a resident script (like the trial) is actually progressing rather than stuck. |
 
 ⚠️ **New probe output files need a `vite.config.ts` sync-filter entry, or they never reach
 `logs/`.** Found live 2026-07-30: both new probes above ran and wrote their file in-game (`mem`/
