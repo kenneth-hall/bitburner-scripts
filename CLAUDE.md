@@ -51,6 +51,16 @@ on request — hold to them even when the moment is uncomfortable.
       are genuinely empirical — the opposite of Phase 27, where the formulas module already had the
       answers. The lesson was *read the interface first, then find out which you need*; we read, and
       the answer came back "measure."
+  - **🔨 STAGE 1 IN PROGRESS 2026-07-29 — combat 1→100 grind, running unattended.** Route measured,
+    not assumed: Iron Gym priced out ($120/s per stat, one stat at a time, vs ~$3.9k banked at $0/s
+    income); crime (Mug) measured at **0.179 exp/sec/stat**, settling the failed-crime-exp question
+    empirically (neither of the predicted bounds). `combatgrind.js`/`combatrouteprobe.js` are the
+    scripts. Learned live: `commitCrime` sets a **player action that outlives the script** — the
+    grind survives `daemon.js` restarts and doesn't need the harness alive. **Next action, no
+    decision needed:** once all four combat stats hit 100, call `joinBladeburnerDivision()`, then
+    re-run `bladeburnerprobe.js` — it fills in most of the reference's §8 unknowns in one shot, and
+    triggers the one cheap re-check of the black-ops-vs-hacking decision above. **Stage 3 (the
+    actual engine — brainstorm→spec→spec-reviewer→implement) stays blocked until that data lands.**
   - **Decision: clear BN6 via the Bladeburner black-op path, not hacking** (2026-07-29, high
     confidence on ordering). The hacking path is **not** the cheap option: computed **M ≈ 28–37**
     (WD gate 6,000 at Hacking Level mult 0.35) — squarely BN2 territory — **plus 35 augs** for the
