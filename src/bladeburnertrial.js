@@ -148,10 +148,23 @@ export async function main(ns) {
   }
 
   // --- Grind phase, unbounded ---
-  ns.tprint("bladeburnertrial: entering adaptive grind loop");
+  // v3: chance decayed steadily across v2's 22-cycle run, unrelated to rank/skills -- likely the
+  // undocumented chaos mechanic. Every DIPLOMACY_EVERY cycles, run Diplomacy once (always 100%
+  // success per the earlier action-yield probe) and log Raid's chance immediately before/after,
+  // to test whether it's a chaos-reduction lever.
+  const DIPLOMACY_EVERY = 5;
+  ns.tprint("bladeburnertrial: entering adaptive grind loop (v3, testing Diplomacy every " + DIPLOMACY_EVERY + ")");
   let lastRank = ns.bladeburner.getRank();
   let actionsRun = 0;
   while (true) {
+    if (actionsRun > 0 && actionsRun % DIPLOMACY_EVERY === 0) {
+      const preChance = ns.bladeburner.getActionEstimatedSuccessChance(REFERENCE_ACTION.type, REFERENCE_ACTION.name);
+      await runOneCompletion("General", "Diplomacy");
+      const postChance = ns.bladeburner.getActionEstimatedSuccessChance(REFERENCE_ACTION.type, REFERENCE_ACTION.name);
+      append({ t: Date.now(), event: "diplomacy", actionsRun, preChance, postChance });
+      ns.tprint("bladeburnertrial: Diplomacy run -- Raid chance " + JSON.stringify(preChance) + " -> " + JSON.stringify(postChance));
+    }
+
     const choice = bestAction();
     await runOneCompletion(choice.type, choice.name);
     actionsRun++;

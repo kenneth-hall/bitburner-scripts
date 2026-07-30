@@ -133,20 +133,33 @@ something to hand-roll ad hoc. **Recommendation: hold the flip decision open, do
 hacking yet** — the ladder-sanity half of the re-check passed, and the rate half is bad but
 incompletely measured, not conclusively bad.
 
-**✅ Live trial started 2026-07-30 (`src/bladeburnertrial.js`, Kenneth's go-ahead).** First result
-already in on unknown #2: **scouting is real.** A v1 control-loop bug (`startAction` auto-repeats
-like `commitCrime` — `getCurrentAction()` never returns `null` between reps, so a naive
-wait-for-null loop never exits) accidentally ran ~50 unplanned `Field Analysis` reps unattended
-for 23 minutes before being caught and fixed. That's a much bigger scouting sample than the
-planned 15, and it answered the question outright: **Raid's success-chance *range* collapsed from
-a spread (`[0.075, 0.097]` pre-trial) to a single point estimate, `0.0901`** — direct confirmation
-that scouting narrows the estimate, exactly as the unverified in-game doc line claimed. The
-**central value didn't jump dramatically** though (0.0901 sits inside the original range, not
-above it) — so scouting reduces *uncertainty*, not obviously the *rate* on its own. Unknown #1
-(skill investment) is still being tested — v1's bug meant it never got there; a v2 fix (detect
-completions via `getActionCurrentTime()` wraparound instead of the broken null-check) is now
-running, skipping re-scouting and going straight to the adaptive grind + skill-spend loop. Not yet
-resolved — check `logs/bladeburnertrial-log.json` for current status before reading this as final.
+**✅ Live trial started 2026-07-30 (`src/bladeburnertrial.js`, Kenneth's go-ahead).** Three findings
+so far, one per version:
+
+- **v1 (accidental, 23 min stuck): scouting is real.** A control-loop bug (`startAction`
+  auto-repeats like `commitCrime` — `getCurrentAction()` never returns `null` between reps, so a
+  naive wait-for-null loop never exits) accidentally ran ~50 `Field Analysis` reps unattended.
+  Raid's success-chance *range* collapsed from a spread (`[0.075, 0.097]` pre-trial) to a single
+  point estimate, `0.0901` — direct confirmation of the in-game doc's "estimate narrows as you
+  scout" line. Central value barely moved (0.0901 sits inside the original range) — scouting cuts
+  *uncertainty*, not obviously the *rate*.
+- **v2 (fixed, 22 real grind cycles): skill investment gives a modest one-time bump, NOT a trend
+  change.** A lucky success at cycle 11 funded 9 skills to level 1 each (round-robin cheapest
+  first). Chance jumped from 0.0757 (cycle 11, pre-spend) to 0.0872 (cycle 12, post-spend) — real,
+  ~15% relative, but a **step**, not a slope change.
+- **⚠️ v2's bigger finding: success chance DECAYS steadily over repeated cycles, independent of
+  rank/skills — likely the undocumented chaos mechanic.** Chance fell every single cycle in both
+  the pre-investment run (0.088 → 0.077 over cycles 2–10, zero skills spent) and the
+  post-investment run (0.087 → 0.072 over cycles 12–22, no further skills available to spend) —
+  same slope, different starting point. By cycle 22, `predictedExpectedPerSec` (0.0252) had fallen
+  **below the original zero-investment baseline (0.0277)**. Grinding the same operation
+  repeatedly appears to erode its own viability over time, which the flat-rate 5–6-month estimate
+  did not account for — the true climb may be *worse* than that estimate, not better, absent a
+  countermeasure.
+- **🔨 v3 running now: testing `Diplomacy`** (a General action, always 100% success, name
+  suggestive of chaos reduction) as a chaos-mitigation lever — run once every 5 grind cycles,
+  Raid's chance logged immediately before/after. Not yet resolved — check
+  `logs/bladeburnertrial-log.json` for current status before reading any of the above as final.
 
 ---
 
