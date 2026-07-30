@@ -28,26 +28,48 @@ on request — hold to them even when the moment is uncomfortable.
     - **Left undone, still open:** the `getBitNodeMultipliers()` live-signature verification never
       ran before the clear. Not a missed window — SF5 persists across nodes, so it's still doable
       from BN6 or anywhere, whenever it's worth the ~10-minute detour.
-  - **🔨 FIRST TASK IN BN6 — read the Bladeburner interface fully before designing anything.**
-    Per the standing "read the whole interface before designing against it" rule (the exact Phase
-    27 gang-brainstorm failure it exists to prevent): before any features doc for a Bladeburner
-    engine, bulk-read `ns.bladeburner.*`'s complete API surface — methods, return types, action
-    stat-weight tables, any Formulas support — not just a method list. **No Bladeburner automation
-    exists yet.** Unlike BN5 (which reused the mature batcher untouched), this is genuinely new
-    gameplay to build from scratch.
-  - **BN6 operating facts** (from `docs/bitnodes.md`'s BN6 panel — read it before planning).
-    `w0r1d_d43m0n` Difficulty **200%**; **Hacking Level mult 35%** — a real wall on the standard
-    hack-to-backdoor path, but BN6 is exactly the node whose designed counter is native: the
-    Bladeburner Black-Ops alt-destroy path sidesteps the hacking gate entirely. **Daedalus Augs
-    Requirement raised to 35** (vs BN1's 30) if the standard Red Pill route is used instead. Server
-    Max Money 20%, Starting Money 50%, Starting Security 150%, Stolen Money 75% — batcher income is
-    nerfed but not starved; Hacknet Production 20%.
+  - **📕 ALL THINGS BN6 LIVE IN TWO DOCS — read them before planning or coding anything here.**
+    - **[`docs/bladeburner-reference.md`](docs/bladeburner-reference.md)** — the interface: access
+      model, complete static catalog, every method's semantics + RAM, gotchas, and an explicit
+      "not knowable until we join" list. Gated the same way `batcher-engine.md` is: read it before
+      designing against the Bladeburner API.
+    - **[`docs/bn6-playbook.md`](docs/bn6-playbook.md)** — the strategy: the win-path decision and
+      its arithmetic, node facts, the staged plan, and the open questions with defaults/dates.
+    - **✅ FIRST TASK DONE 2026-07-29 — the full interface read happened before any design.** Both
+      docs above are its output. Key results: the **entire `ns.bladeburner` API throws until you
+      join the division** (uniform error; even six 0 GB methods throw — the gang lesson repeating),
+      but the **complete static catalog was recovered from the enum types anyway** (3 contracts, 6
+      operations, **21 black ops ending at `Operation Daedalus`**, 6 general actions, 12 skills).
+      Two gates verified live: **combat stats ≥ 100** for the division, **rank ≥ 25** for the
+      faction. `src/bladeburnerprobe.js` + `src/combatgateprobe.js` are the reusable probes.
+    - **🔑 Two facts that drive everything:** **Bladeburner rank and skill points SURVIVE
+      augmentation installs** (faction rep does not, and can only be earned via Bladeburner
+      actions) — the only monotonic progress axis we've ever had. And **combat 1→100 is only
+      21,668 exp** (measured), so the prerequisite is a gym trip, not a grind.
+    - **⚠️ Unlike gangs, measuring IS correct here.** `formulas.bladeburner` has exactly **one**
+      method and the in-game doc is three paragraphs, so action yields/skill effects/chaos/stamina
+      are genuinely empirical — the opposite of Phase 27, where the formulas module already had the
+      answers. The lesson was *read the interface first, then find out which you need*; we read, and
+      the answer came back "measure."
+  - **Decision: clear BN6 via the Bladeburner black-op path, not hacking** (2026-07-29, high
+    confidence on ordering). The hacking path is **not** the cheap option: computed **M ≈ 28–37**
+    (WD gate 6,000 at Hacking Level mult 0.35) — squarely BN2 territory — **plus 35 augs** for the
+    Daedalus invite. And clearing by hacking would forfeit the whole reason BN6 is next: banking a
+    working alt-destroy **engine** for the hacking-walled back half (BN9/BN10/BN13/BN14). SF6 drops
+    either way; the engine is the actual deliverable. Full argument + the flip condition (re-checked
+    once, cheaply, at Stage 2) in the playbook.
+  - **🧮 BN6 is economically *better* than BN5 for the mult ratchet** — a computed result worth not
+    re-deriving: effective steal is `ServerMaxMoney × ScriptHackMoney` = 0.2 × 0.75 = **0.15,
+    identical to BN5's** 1.0 × 0.15, and BN6 has **no aug-cost penalty** where BN5 carried 200% →
+    **2× the aug-buying power at equal income**. The real regressions are exp (**0.25**, 2× slower
+    than BN5) and fleet cost (`CloudServerSoftcap` **2.0** vs 1.2), so ⚠️ **post-install re-climbs
+    are worse than BN5's 1–4h** and "rank survives installs" does *not* rescue the batcher's climb.
   - **This is the counter-map's predicted next step, not a fresh decision.** `docs/bitnodes.md`'s
     2026-07-18 counter-map order was BN1→BN2→BN5→BN4(held)→**BN6→BN7**→BN10→harsh nodes→BN12→BN11
-    — we're on it. BN6's purpose in that order is banking the alt WD-destroy path that later
-    defangs BN9/BN13's hacking-level walls. **BN7 is the expected follow-on once BN6 clears**, not
-    a separately-decided fork — revisiting that needs new evidence, per the "don't re-argue a
-    settled call" rule, not just discomfort with a new engine.
+    — we're on it. **BN7 is the expected follow-on once BN6 clears**, not a separately-decided fork
+    — revisiting that needs new evidence, per the "don't re-argue a settled call" rule, not just
+    discomfort with a new engine. ⚠️ **In BN7, `joinBladeburnerDivision()` under SF7.3 permanently
+    locks out Stanek's Gift** — restate at execution time.
   - **⚠️ Ordering lesson carried out of BN2 — don't repeat it.** The counter-map put BN2 before BN5
     because "the gang is a rep-tax killer." But in BN2 **rep saturated and was a non-issue**; the
     binding constraint was money→mult. Worse, BN2's gate is *mult*-gated while BN5's reward is **+8%
@@ -369,11 +391,15 @@ completion, move a dated, condensed entry to `docs/phases/CHANGELOG.md` — keep
 of BACKLOG. **Update as part of the work, not after** — stage the BACKLOG/CHANGELOG edit in
 the same commit as the change it describes, so it doesn't become a separate git cycle.
 
-**Keep the engine reference docs current *without being asked*.** The three gated references —
+**Keep the engine reference docs current *without being asked*.** The gated references —
 [`docs/gang-engine.md`](docs/gang-engine.md), [`docs/batcher-engine.md`](docs/batcher-engine.md),
-and [`docs/stock-engine.md`](docs/stock-engine.md) — are the durable homes for each subsystem's
+[`docs/stock-engine.md`](docs/stock-engine.md), and (added 2026-07-29)
+[`docs/bladeburner-reference.md`](docs/bladeburner-reference.md) +
+[`docs/bn6-playbook.md`](docs/bn6-playbook.md) — are the durable homes for each subsystem's
 architecture, strategy, and open questions, and the thing future sessions read to answer "what's
-the plan / was this already tried." When a feature or bug changes what one of them asserts — a
+the plan / was this already tried." The Bladeburner pair is deliberately **split** where the others
+are fused: `bladeburner-reference.md` is the immutable interface (should rarely change),
+`bn6-playbook.md` is the churning strategy — so keep edits in the right one rather than merging them. When a feature or bug changes what one of them asserts — a
 number that was an inference and is now measured, an open question that got answered, a target that
 got superseded, a new landmine worth warning the next session about — **take the initiative to
 update the affected doc in the same commit**, the same way BACKLOG/CHANGELOG get staged with the
@@ -452,6 +478,13 @@ See `docs/INDEX.md` for on-demand references (logging patterns, dev-server / Rem
 architecture, lifecycle behavior across installs, strategy across BitNodes, open tripwires — live
 in [`docs/batcher-engine.md`](docs/batcher-engine.md).** Read it before designing or recommending
 anything batcher-related, the same way `docs/gang-engine.md` gates gang-related work.
+
+**All things Bladeburner — the API surface/semantics/gotchas and what's still unmeasured live in
+[`docs/bladeburner-reference.md`](docs/bladeburner-reference.md); the BN6 win-path decision, staged
+plan, and open questions live in [`docs/bn6-playbook.md`](docs/bn6-playbook.md).** Read the
+reference before writing any `ns.bladeburner` code (the whole API throws pre-join, and two
+RAM-analyzer footguns are recorded there), and the playbook before proposing anything about how BN6
+gets cleared.
 
 **Check the script library before hand-doing a task or writing a one-off.** `docs/scripts.md`
 indexes every `src/` script. A network/scan/**path**/aug/rep/backdoor task, or anything that

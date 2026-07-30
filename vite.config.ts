@@ -107,6 +107,8 @@ export default defineConfig({
         if (file === 'augfarmer-catalog.json') return 'logs/augfarmer-catalog.json'; // Phase 23 -- static per-node catalog, rewritten on rebuild (startup + faction-membership change)
         if (file === 'ramcheck-result.json') return 'logs/ramcheck-result.json';
         if (/^homeramprobe-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 35 WI8 -- one-off D4/D10 verification probe, one file per run
+        if (/^combatgateprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/combatgateprobe.js -- one-off: exp needed for combat level 100 (BN6 bladeburner join gate)
+        if (/^bladeburnerprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburnerprobe.js -- BN6 bladeburner API reachability + live getBitNodeMultipliers() read, one file per run
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';
