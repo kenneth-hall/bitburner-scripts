@@ -9,8 +9,11 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **IN BN6.1 (Bladeburners) as of 2026-07-29** —
-  entered straight off the BN5.1 clear.
+- **Current goal (keep this line current):** **IN BN6.1 as of 2026-07-29** — entered straight off
+  the BN5.1 clear. **Win path is hacking, not Bladeburner, as of 2026-07-30** (the Bladeburner
+  black-op path was tried and measured non-viable — see the decision-flip entry below; rank/skills
+  are banked but the dedicated engine is shelved). "Bladeburners" dropped from this line's own
+  title since it's no longer the plan.
   - **✅ BN2.1 CLEARED 2026-07-23** — `w0r1d_d43m0n` backdoored (`backdoorwd.js` auto-fired once
     hacking crossed the gate), confirmed on the BitVerse screen (`bb-shot.png`). **Cleared at
     M≈34.3, NOT the M≈45 target**: the exp stack overshot (13.9B exp) and put the level at
@@ -59,31 +62,41 @@ on request — hold to them even when the moment is uncomfortable.
     the `commitCrime` player action it started kept running unattended past the gate with nothing
     alive to stop it — harmless overshoot, ~90 min of pointless Mug. New `src/joinbladeburner.js`
     stopped the action and called `joinBladeburnerDivision()` → `true`.
-  - **⚠️ STAGE 2 MOSTLY DONE 2026-07-30, AND THE RESULT IS A LIVE YELLOW FLAG ON THE WHOLE
-    BLACK-OP DECISION.** `bladeburnerprobe.js` re-run post-join recovered the **full 21-black-op
-    rank ladder** (final gate **rank 400,000** at `Operation Daedalus`, no hidden team/stat/aug
-    precondition — ladder-sanity half of the §1 flip-condition re-check is closed). Two new sibling
-    probes (`bladeburneractionprobe.js`, `bladeburnerskillprobe.js`) then measured the rate half:
-    **at zero skill investment (0 SP available, rank 0), the best grindable action projects
-    ~5–6 months to rank 400,000 — ~8x past the playbook's ~3-week flip bar**, and every black op is
-    currently strongly-negative expected value. **NOT yet a verdict** — two unknowns could
-    materially change this and neither is resolvable read-only: whether spending skill points
-    (untestable until rank/SP exist) meaningfully raises success chance/rank gain, and whether
-    `Field Analysis` scouting does what the in-game doc's unverified "estimate narrows as you
-    scout" line implies. **Next action, needs a call from Kenneth, not a unilateral probe:** a
-    short live trial (a few `Field Analysis` + `Raid` attempts) to see whether either lever moves
-    the rate — that's the first action that actually *plays* the mechanic rather than reading it,
-    which is why it wasn't run automatically under the standing data-gathering grant. **Stage 3
-    (the actual engine) stays blocked either way** — on building the trial if the rate might be
-    salvageable, or on the hacking-path pivot if it isn't. Full record: `docs/bladeburner-reference.md`
-    §3/§8/§9/§10, `docs/bn6-playbook.md` §1/Stage 2.
-  - **Decision: clear BN6 via the Bladeburner black-op path, not hacking** (2026-07-29, high
-    confidence on ordering). The hacking path is **not** the cheap option: computed **M ≈ 28–37**
-    (WD gate 6,000 at Hacking Level mult 0.35) — squarely BN2 territory — **plus 35 augs** for the
-    Daedalus invite. And clearing by hacking would forfeit the whole reason BN6 is next: banking a
-    working alt-destroy **engine** for the hacking-walled back half (BN9/BN10/BN13/BN14). SF6 drops
-    either way; the engine is the actual deliverable. Full argument + the flip condition (re-checked
-    once, cheaply, at Stage 2) in the playbook.
+  - **🔴 DECISION FLIPPED 2026-07-30 — HACKING IS NOW THE PRIMARY PATH, NOT BLADEBURNER.** The
+    ~3-week flip condition set at Stage 1 (see the superseded reasoning below) was re-checked live
+    and failed decisively. `bladeburnerprobe.js` + two sibling probes first found a bad *predicted*
+    rate at zero investment (~5–6 months to the rank-400,000 `Operation Daedalus` gate, ~8x past
+    the bar). A ~75-minute, 3-version live trial (`src/bladeburnertrial.js`, Kenneth's go-ahead)
+    then tested every lever that could plausibly close that gap — `Field Analysis` scouting
+    (confirmed real, but only narrows uncertainty, not the rate), skill investment (13 SP across 10
+    skills — a one-time step, not a trend change), and a `Diplomacy` chaos-countermeasure (a small,
+    consistent bump, 2–3x smaller than the decay it was fighting). **All three were insufficient
+    against a steady, undocumented decay in success chance** that hit regardless of which action
+    ran or how many skills were bought — almost certainly the game's chaos mechanic, city-scoped
+    and never mitigated by anything tested. **The actual achieved rate (real rank gained ÷ real
+    elapsed time, not the pre-action prediction) was 0.0144 rank/sec — projecting ~10.5 months, a
+    number *worse* than the original naive zero-investment estimate.** Every mitigation tried made
+    the outcome worse than doing nothing, not better — this is off the 3-week bar by roughly two
+    orders of magnitude, not one, and is a load-bearing result, not a hedge.
+    **Bladeburner rank/skills are not wasted** — they persist across installs (the fact that made
+    trying this worth it) — but building the Stage 3 engine is no longer justified by what's
+    measured, so it's shelved, not scheduled. **One untested lever is logged, not closed:** city
+    rotation (every cycle ran in one city) — revisit only if the hacking path also stalls badly, or
+    on request for one more cheap experiment. Full record: `docs/bladeburner-reference.md`
+    §3/§6/§8/§9/§10, `docs/bn6-playbook.md` §1 (has the actual rate math + the full trial log
+    trail) and its 2026-07-30 changelog entries.
+  - **Next action: re-derive the hacking-path plan** using the M≈28–37 / +35-aug-Daedalus math
+    below (already computed, not stale) and `docs/bitnodes.md`'s BN2 precedent for how that climb
+    actually played out.
+  - **[SUPERSEDED 2026-07-30 by the flip above — kept for the numbers, not the conclusion]
+    Original decision: clear BN6 via the Bladeburner black-op path, not hacking** (2026-07-29, high
+    confidence on ordering *at the time* — the flip condition this section itself set was then
+    triggered by the live re-check). The hacking path is **not** the cheap option: computed
+    **M ≈ 28–37** (WD gate 6,000 at Hacking Level mult 0.35) — squarely BN2 territory — **plus 35
+    augs** for the Daedalus invite. And clearing by hacking would forfeit the whole reason BN6 is
+    next: banking a working alt-destroy **engine** for the hacking-walled back half
+    (BN9/BN10/BN13/BN14). SF6 drops either way; the engine is the actual deliverable. Full argument
+    + the flip condition (now triggered) in the playbook.
   - **🧮 BN6 is economically *better* than BN5 for the mult ratchet** — a computed result worth not
     re-deriving: effective steal is `ServerMaxMoney × ScriptHackMoney` = 0.2 × 0.75 = **0.15,
     identical to BN5's** 1.0 × 0.15, and BN6 has **no aug-cost penalty** where BN5 carried 200% →

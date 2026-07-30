@@ -126,40 +126,55 @@ order of magnitude on the numbers we can currently measure.
    Analysis` (100%-success, always-available) has been run. A real engine's first move is
    plausibly scouting, not grinding Raid cold — untested here.
 
-**Neither unknown is resolvable by more read-only probing** — both need an actual action to run
-(spend a skill point once rank/SP exist, or run `Field Analysis` and re-measure). That crosses from
-"measure" into "run the mechanic," which is Stage 3 territory by the playbook's own staging, not
-something to hand-roll ad hoc. **Recommendation: hold the flip decision open, don't default to
-hacking yet** — the ladder-sanity half of the re-check passed, and the rate half is bad but
-incompletely measured, not conclusively bad.
+**✅ RE-CHECK CONCLUDED 2026-07-30 — flip to the hacking path as primary.** Full live trial
+(`src/bladeburnertrial.js`, Kenneth's go-ahead), ~75 minutes end to end, three versions:
 
-**✅ Live trial started 2026-07-30 (`src/bladeburnertrial.js`, Kenneth's go-ahead).** Three findings
-so far, one per version:
+- **v1 (accidental, 23 min stuck): scouting is real, but only narrows uncertainty.** A
+  control-loop bug (`startAction` auto-repeats like `commitCrime` — `getCurrentAction()` never
+  returns `null` between reps, so a naive wait-for-null loop never exits) accidentally ran ~50
+  `Field Analysis` reps unattended. Raid's success-chance *range* collapsed from a spread
+  (`[0.075, 0.097]` pre-trial) to a single point estimate, `0.0901` — confirms the in-game doc's
+  "estimate narrows as you scout" line, but the central value barely moved.
+- **v2 (fixed, 22 real grind cycles): skill investment gives a one-time step, not a trend change.**
+  A lucky success at cycle 11 funded 9 skills to level 1 each. Chance jumped from 0.0757 to 0.0872
+  (~15% relative) — real, but flat afterward, not compounding.
+- **v2's bigger finding: success chance DECAYS every cycle, independent of rank/skills** — same
+  decline slope with 0 skills spent as with 9 spent, just from a different starting point. By
+  cycle 22, `predictedExpectedPerSec` (0.0252) had already fallen *below* the zero-investment
+  baseline (0.0277).
+- **v3 (23 more cycles, testing `Diplomacy` as a chaos-mitigation lever): insufficient.** Run every
+  5 cycles, Diplomacy gave a small, consistent bump each time (~+0.003 to Raid's min chance) — but
+  the decay *between* Diplomacy runs was 2–3× larger than that bump. Net effect: still declining,
+  just slightly slower. `predictedExpectedPerSec` fell to **0.0112** by the trial's end (action 45)
+  — under half the original baseline. The decay tracked together across both Raid (the probed
+  reference) and Tracking (the action actually being run from cycle 25 on, after `bestAction()`
+  adaptively switched away from Raid as its EV fell) — this is a **global** effect, not specific to
+  one action, consistent with city-wide chaos rather than an action-specific cost.
 
-- **v1 (accidental, 23 min stuck): scouting is real.** A control-loop bug (`startAction`
-  auto-repeats like `commitCrime` — `getCurrentAction()` never returns `null` between reps, so a
-  naive wait-for-null loop never exits) accidentally ran ~50 `Field Analysis` reps unattended.
-  Raid's success-chance *range* collapsed from a spread (`[0.075, 0.097]` pre-trial) to a single
-  point estimate, `0.0901` — direct confirmation of the in-game doc's "estimate narrows as you
-  scout" line. Central value barely moved (0.0901 sits inside the original range) — scouting cuts
-  *uncertainty*, not obviously the *rate*.
-- **v2 (fixed, 22 real grind cycles): skill investment gives a modest one-time bump, NOT a trend
-  change.** A lucky success at cycle 11 funded 9 skills to level 1 each (round-robin cheapest
-  first). Chance jumped from 0.0757 (cycle 11, pre-spend) to 0.0872 (cycle 12, post-spend) — real,
-  ~15% relative, but a **step**, not a slope change.
-- **⚠️ v2's bigger finding: success chance DECAYS steadily over repeated cycles, independent of
-  rank/skills — likely the undocumented chaos mechanic.** Chance fell every single cycle in both
-  the pre-investment run (0.088 → 0.077 over cycles 2–10, zero skills spent) and the
-  post-investment run (0.087 → 0.072 over cycles 12–22, no further skills available to spend) —
-  same slope, different starting point. By cycle 22, `predictedExpectedPerSec` (0.0252) had fallen
-  **below the original zero-investment baseline (0.0277)**. Grinding the same operation
-  repeatedly appears to erode its own viability over time, which the flat-rate 5–6-month estimate
-  did not account for — the true climb may be *worse* than that estimate, not better, absent a
-  countermeasure.
-- **🔨 v3 running now: testing `Diplomacy`** (a General action, always 100% success, name
-  suggestive of chaos reduction) as a chaos-mitigation lever — run once every 5 grind cycles,
-  Raid's chance logged immediately before/after. Not yet resolved — check
-  `logs/bladeburnertrial-log.json` for current status before reading any of the above as final.
+**🧮 The number that closes the re-check: actual achieved rate over the v3 window (real rank
+gained ÷ real elapsed time, not the pre-action prediction) was rank 90.72 → 105.12 in 998.7s =
+`0.01443 rank/sec`.** Extrapolated to the 400,000 gate: **~321 days (~10.5 months)** — *worse*
+than the original naive zero-investment estimate (~5–6 months), despite active scouting, 13 skill
+points spent across 10 different skills, and Diplomacy run every 5 cycles. **Every lever tried
+made the outcome worse than doing nothing, not better** — this is not "unclear," it's a load-bearing
+result: whatever generates the decay outpaces every mitigation tested. Against the flip
+condition's ~3-week bar, this is off by roughly two orders of magnitude, not one.
+
+**Decision: hacking is now the primary path; Bladeburner is a background side-quest, not the
+plan.** Rank (105+ at trial's end) and the 10 skill levels bought are **not wasted** — rank/skill
+points persist across installs (§5 of the reference, the one fact that made trying this worth it),
+so idle rank accumulation via `nextUpdate` bonus time or occasional actions remains free value. But
+committing further session time to a dedicated Bladeburner engine (Stage 3) is not justified by
+what's measured. **Re-derive the hacking path's M-target plan next**, using `docs/bitnodes.md`'s
+BN2 precedent (§1 above already has the formula: M≈28–37, +35-aug Daedalus gate).
+
+**Dropped, not closed — logged per the dropped-objections rule:** city rotation was never tested.
+Every cycle of this trial ran in one city; if chaos is genuinely city-scoped (plausible, given
+`getCityChaos(city)` exists per-city in the API), rotating between cities before each city's chaos
+saturates could change this verdict substantially. **Wake condition:** revisit if the hacking path
+also stalls badly, or specifically if Kenneth wants one more cheap experiment before fully
+shelving Bladeburner — city rotation is the obvious next lever, untested, and cheap to check
+(`switchCity` is 4 GB, already cataloged in the reference's §6).
 
 ---
 
@@ -371,3 +386,14 @@ the surface liveness and tripwires are read off.
   `BladeburnerRank`/`BladeburnerSkillCost` (1.0/1.0) against BN7's worse 0.6/2.0. Also found and
   fixed a `vite.config.ts` gap — new probe filenames need an explicit sync-filter entry or their
   output never reaches `logs/` (silent, not an error).
+- **2026-07-30 (later same day) — Stage 2's re-check concluded: FLIP TO HACKING AS PRIMARY.** A
+  ~75-minute live trial (`src/bladeburnertrial.js`, 3 versions) tested every lever that could
+  plausibly close the rate gap — scouting, skill investment, and a `Diplomacy` chaos-mitigation
+  attempt — and all three were insufficient against a steady, undocumented decay in success chance
+  that hit regardless of which action ran (Raid or Tracking) or how many skills were bought.
+  Actual achieved rate (real rank gained ÷ real elapsed time, not the pre-action prediction):
+  0.0144 rank/sec — projecting **~10.5 months** to rank 400,000, *worse* than the original
+  zero-investment naive estimate (~5–6 months). Bladeburner rank/skills persist across installs
+  (not wasted) but are no longer the primary win-condition plan; Stage 3 (the dedicated engine) is
+  not being built. City rotation (never tested — every cycle ran in one city) is logged as the one
+  cheap, untested lever left, with a wake condition if the hacking path also stalls.
