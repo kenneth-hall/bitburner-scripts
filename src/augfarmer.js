@@ -126,6 +126,15 @@ export const MIN_TOTAL_GAIN = 1.1;
 // blunt version and MUST be reverted when that ships.
 export const GRIND_HORIZON_MS = 1 * 3600_000;
 export const TRIGGER_SUSTAIN_MS = 600_000;
+// Phase 36 (decision 11, F-B): `trigger-clear` used to log only when
+// `mode !== "auto"` -- silent in the mode we actually run. 2026-07-27 recorded
+// 17 `trigger-arm` events in 3.5h and zero explanation for any of them ending.
+// Deleting that guard on a flapping trigger would instead flood
+// ratchet-decisions.json and evict install history from the 500-entry
+// DECISIONS_CAP ring, so disarms are rate-limited to one record per this
+// window; suppressed disarms increment a counter carried on the next emitted
+// record, so flapping is visible as flapping rather than as silence.
+export const CLEAR_LOG_MIN_INTERVAL_MS = 60_000;
 export const RATE_MIN_SAMPLES = 30;
 export const RATE_EWMA_ALPHA = 0.2;
 export const DONATION_BUFFER = 1.2;
@@ -1321,6 +1330,16 @@ export function evalTrigger(inputs, priorState) {
 }
 
 /**
+ * Pure (Phase 36, decision 11). Rate limit for `trigger-clear` logging: at most
+ * one record per CLEAR_LOG_MIN_INTERVAL_MS. `lastClearLogMs` is null before the
+ * first emitted clear, which always logs.
+ */
+export function shouldLogClear(lastClearLogMs, nowMs) {
+  if (lastClearLogMs === null || lastClearLogMs === undefined) return true;
+  return nowMs - lastClearLogMs >= CLEAR_LOG_MIN_INTERVAL_MS;
+}
+
+/**
  * Pure (Phase 26 B2, S4). Adaptive stall-age threshold: STALL_CYCLE_FACTOR x
  * the median of `cycleIntervalsMs`, clamped to [STALL_MIN_MS, STALL_MAX_MS].
  * Fewer than 2 measured intervals (can't derive a meaningful median from 0 or
@@ -2026,6 +2045,9 @@ export async function main(ns) {
   // blocked solely by a missing income signal" WARN -- one WARN per crossing,
   // not one per poll (the terminal-flood lesson, BACKLOG.md).
   let incomeWarnActive = false;
+  // Phase 36 (decision 11, F-B): trigger-clear rate-limit state.
+  let lastClearLogMs = null;
+  let suppressedClearCount = 0;
 
   while (true) {
     const nowMs = Date.now();
@@ -2511,8 +2533,28 @@ export async function main(ns) {
           `${triggerState.nfgLevelsProjected} projected NFG level(s) (mode: ${mode})`,
       );
     }
-    if (!triggerState.armed && prevTrigger?.armed && mode !== "auto") {
-      appendDecision(ns, "trigger-clear", { now: nowMs, mode, phase: previousPhase, trigger: triggerState, money: player.money });
+    // Phase 36 (decision 11, F-B): the `mode !== "auto"` guard here used to
+    // make every disarm invisible in the mode we actually run -- 2026-07-27
+    // recorded 17 arms and zero recorded clears. `lostSustainedMs` is the
+    // single field that would have diagnosed the 19:28 restart-voided-the-arm
+    // failure in one read (prevTrigger is the pass BEFORE this one, i.e. the
+    // last pass the arm was still held).
+    if (!triggerState.armed && prevTrigger?.armed) {
+      if (shouldLogClear(lastClearLogMs, nowMs)) {
+        appendDecision(ns, "trigger-clear", {
+          now: nowMs,
+          mode,
+          phase: previousPhase,
+          trigger: triggerState,
+          money: player.money,
+          lostSustainedMs: prevTrigger.sustainedMs,
+          suppressedCount: suppressedClearCount,
+        });
+        lastClearLogMs = nowMs;
+        suppressedClearCount = 0;
+      } else {
+        suppressedClearCount += 1;
+      }
     }
     // Phase 33 decision 9: must-buy hold rising edge (arming suppressed).
     if (triggerState.mustBuyHold && !prevTrigger?.mustBuyHold) {

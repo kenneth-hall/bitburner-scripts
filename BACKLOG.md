@@ -22,6 +22,29 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🟡 [PARTIALLY SHIPPED 2026-07-29] Phase 36 (`phase-36-install-cadence.spec.md`, twice
+  cold-reviewed) has 4 work items; only the F-B slice has landed.** BN6.1 entry surfaced this as
+  stranded — features + spec sat in the repo root, never in `docs/phases/CHANGELOG.md`, only the
+  `GRIND_HORIZON_MS` stopgap (1h, was 8h) actually shipped.
+  - **✅ F-B shipped 2026-07-29** — disarms are no longer invisible in auto mode. Deleted the
+    `mode !== "auto"` guard on `trigger-clear` logging; added `lostSustainedMs` (the previous pass's
+    `sustainedMs` — the one field that would have diagnosed the 19:28 restart-voided-the-arm failure
+    in one read) and rate-limited via the new pure `shouldLogClear` (`CLEAR_LOG_MIN_INTERVAL_MS` =
+    60s) with a `suppressedCount` so a flapping trigger reads as flapping, not silence, without
+    flooding the 500-entry `DECISIONS_CAP` ring. 3 new tests, 1029 total pass, `augfarmer.js` RAM
+    unchanged at 64.10 GB (no new `ns` calls).
+  - **Still open — F-A, arm persistence across restarts.** `armedSinceMs` lives only in in-memory
+    `triggerState`; any restart under ~15 min makes an install arithmetically impossible (the arm
+    resets, then ~5 min of `no-rate-sample` eats into the 10 min sustain window). `resolveArmResume`
+    is speced (decision 9, four guards: `stale`/`cycle-mismatch`/`not-armed`/`no-state`) but
+    unimplemented. Node-independent — matters in BN6 exactly as it did in BN5. **Next candidate.**
+  - **Still open, deliberately deferred — the buy-set filter** (`augIsWorthLadder`,
+    `ladderCountsFrom`, `pickTarget` tier 4, `ladderArmed`, the T-INV grid). ~75% of the phase's test
+    surface. Tuned to BN5's 613× price ladder and needs re-deriving against BN6 numbers (aug cost
+    1.0×, not BN5's 200%) — wait for real BN6 income data before touching it, per the "gathering
+    data before analysis" standing grant.
+  - Historical context below (why Phase 36 exists) is unchanged and still accurate:
+
 - **🟡 [SUPERSEDED 2026-07-28 — the race is over, the stall was not caused by it] cloudmanager and
   the aug ratchet race for one wallet. → now `phase-36-install-cadence.features.md`.**
   **What changed:** cloudmanager hit BN5's hard fleet ceiling (25/25 servers, all at `ramLimit`

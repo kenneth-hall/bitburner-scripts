@@ -52,6 +52,8 @@ import {
   pickGateFiller,
   updateRepRates,
   evalTrigger,
+  shouldLogClear,
+  CLEAR_LOG_MIN_INTERVAL_MS,
   decideInstall,
   INSTALL_OVERHEAD_MS,
   spendDownPlan,
@@ -1697,6 +1699,24 @@ describe('evalTrigger', () => {
       expect(duringSpendDown.fired).toBe(true);
       expect(duringSpendDown.latched).toBe(true);
     });
+  });
+});
+
+describe('shouldLogClear — Phase 36 decision 11 (F-B: disarm logging rate limit)', () => {
+  it('always logs the first clear (no prior timestamp)', () => {
+    expect(shouldLogClear(null, 1_000_000)).toBe(true);
+    expect(shouldLogClear(undefined, 1_000_000)).toBe(true);
+  });
+
+  it('suppresses a second clear within the interval', () => {
+    const t0 = 1_000_000;
+    expect(shouldLogClear(t0, t0 + CLEAR_LOG_MIN_INTERVAL_MS - 1)).toBe(false);
+  });
+
+  it('permits a clear once the interval has fully elapsed', () => {
+    const t0 = 1_000_000;
+    expect(shouldLogClear(t0, t0 + CLEAR_LOG_MIN_INTERVAL_MS)).toBe(true);
+    expect(shouldLogClear(t0, t0 + CLEAR_LOG_MIN_INTERVAL_MS + 1)).toBe(true);
   });
 });
 

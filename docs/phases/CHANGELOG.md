@@ -6,6 +6,37 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-29
+
+- **BN5.1 CLEARED**, entered BN6.1 straight off it. `w0r1d_d43m0n` backdoored, confirmed live
+  (BitVerse selection screen + `logs/ratchet-log.json` install #35 + a fresh `auginfo.js` reading
+  `mults.hacking: 1.3824` = exactly SF5 L1's +8%). Cleared via **batcher-only — the armed gang
+  tripwire never fired**, resolving that open question by outcome rather than by its 2026-08-02
+  check date. Full record: `docs/bitnodes.md`'s BN5 section; retrospective in `CLAUDE.md`.
+- **BN6 reference pair shipped**: [`docs/bladeburner-reference.md`](../bladeburner-reference.md)
+  (the interface — full API surface extracted from 41 method files + type enums, both join gates
+  verified live, two RAM-analyzer footguns recorded) and
+  [`docs/bn6-playbook.md`](../bn6-playbook.md) (the strategy — Bladeburner black-op path chosen
+  over hacking, with the hacking path's cost computed rather than assumed: M≈28–37 plus a 35-aug
+  Daedalus gate). `getBitNodeMultipliers()` (permanent via SF5) matched the hand-read BitVerse panel
+  20/20 — first live validation of that corpus.
+- **GOAL panel retargeted to BN6** (`goallog.js`/`dashboard.js`) — `M_TARGET` was still BN5's 9.7;
+  now 30 (BN6's fallback hacking gate) labelled `"fallback"` since M isn't this node's win condition.
+  Fixed a live bug in the same pass: `nextAug` was showing a 4.6h-stale BN5 target as current because
+  `augfarmer.js` (64.10 GB) has never fit on a fresh 32 GB home — added an `AUG_STATE_STALE_MS`
+  guard so a dead farmer reads as `"n/a (augfarmer stale)"`, not as live data. 1026 tests pass.
+- **Combat 1→100 route measured, not assumed**, for the `joinBladeburnerDivision()` gate. Iron Gym
+  priced out ($120/s per stat, one stat at a time, vs ~$3.9k banked at $0/s income). Crime (Mug)
+  measured at 0.179 exp/sec/stat — neither of the two predicted bounds (30.4h success-only vs 1.57h
+  all-attempts) for the failed-crime-exp question, settling it empirically. `combatrouteprobe.js` +
+  `combatgrind.js` are the reusable scripts; also surfaced that `commitCrime` sets a player action
+  that survives the script dying (verified: crime kept running with no script alive).
+- **Phase 36 F-B shipped** (of 4 work items; see `BACKLOG.md` for the other three's status).
+  `trigger-clear` disarm logging is no longer gated on `mode !== "auto"` — the mode we actually run
+  had zero recorded disarms across 17 recorded arms. Added `lostSustainedMs` (the previous pass's
+  `sustainedMs`) and a rate-limited `shouldLogClear` (60s) with a carried `suppressedCount`. 1029
+  tests pass; `augfarmer.js` RAM unchanged at 64.10 GB.
+
 ## 2026-07-26
 
 - **Fleet-RAM fix — `tryRoot` no longer refuses to root above-level servers (`src/hosts.js`).**
