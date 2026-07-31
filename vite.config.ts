@@ -114,6 +114,7 @@ export default defineConfig({
         if (/^bladeburnerprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburnerprobe.js -- BN6 bladeburner API reachability + live getBitNodeMultipliers() read, one file per run
         if (/^bladeburneractionprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburneractionprobe.js -- per-action yield sweep (time/success/rank gain-loss/rep/count), one file per run
         if (/^bladeburnerskillprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburnerskillprobe.js -- per-skill cost/level sweep, one file per run
+        if (/^slotconflictprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/slotconflictprobe.js -- Phase 38 blocker: does a bladeburner action occupy augfarmer's player-work slot, one file per run
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';
