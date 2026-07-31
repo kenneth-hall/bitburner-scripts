@@ -86,11 +86,18 @@ why "just do another trial" is rejected (§4).
 
 ## 3. Proposed decisions
 
-**D2 — Bladeburner never wins a resource conflict with the hacking path. Proposed.**
+**D2 — Bladeburner never wins a resource conflict with the hacking path. Proposed — but ⚠️ the
+action-slot clause is NOT implementable as written; see §5's resolved blocker.**
 Hacking is the BN6 win path (7/30, unchanged). Where the two compete, Bladeburner yields:
-- **RAM:** the engine must fit in the *residual* home budget, not displace a companion (see D5).
-- **Player action slot:** see the blocker in §5 — if Bladeburner occupies the same slot
-  `augfarmer.js` uses for rep-grinding, the engine must yield to the ratchet, not the reverse.
+- **RAM:** ✅ **no longer a real constraint** — home was upgraded to **512 GB** on 2026-07-30
+  (~162 GB free at measurement). D5's original 13 GB squeeze is obsolete; the engine can afford
+  4 GB getters without contortions, though the cheap-call discipline is still good practice.
+- **Player action slot:** 🔴 **the blocker resolved against this clause.** Bladeburner and
+  singularity player-work share one exclusive slot, but `getCurrentWork()` cannot see Bladeburner,
+  so `augfarmer.js` re-grabs the slot ~4s after any Bladeburner action starts and kills it.
+  **"The engine yields" is not achievable by the engine alone** — augfarmer would have to stop
+  taking the slot, which is win-path code §6 declared out of scope. Needs a decision between
+  §5's options (a)/(b)/(c) before spec.
 - **Money:** the engine spends nothing. Skill points are its only currency and they aren't money.
 
 **D3 — City rotation is the first hypothesis, and the engine is built around it. Proposed.**
@@ -116,16 +123,15 @@ Headless resident, `RESIDENT_COMPANIONS` slot, `bladeburner-state.json` (overwri
 (`daemon.js:158`) — that gate exists specifically because an ungated always-exiting resident
 relaunch-storms (9.1h of it observed in BN5).
 
-⚠️ **RAM is the hard design constraint, and it is tight.** Home is 128 GB with **~114 GB already
-committed** — roughly **13 GB of headroom**. The 7/30 trial script alone was **46.6 GB** and only
-existed because `augfarmer.js` (64.10 GB) was killed for its duration. **An engine that requires
-killing the aug ratchet to run is a non-starter under D2.** The reference's own guidance applies:
-build the control loop on the **cheap** calls — `nextUpdate` / `getBonusTime` / `inBladeburner` /
-the five name-listers are **0 GB**, `getCurrentAction` is 1 GB, `stopBladeburnerAction` /
-`getBlackOpRank` / `getNextBlackOp` are 2 GB — and treat every 4 GB getter as a budgeted purchase.
-**Open design question:** whether the expensive per-action getters can be sampled by a short-lived
-`exec`'d companion that writes a file and exits (the `purchasescripts.js` pattern), keeping the
-resident loop cheap. That is the difference between an engine that fits and one that doesn't.
+✅ **RAM is no longer the binding constraint — superseded 2026-07-30.** This decision was drafted
+against a 128 GB home with ~13 GB headroom, where the 7/30 trial's 46.6 GB only fit because
+`augfarmer.js` (64.10 GB) was killed. **Home is now 512 GB** (~162 GB free, measured 2026-07-31),
+so the engine no longer has to contort around 4 GB getters and the short-lived-`exec`-sampler
+workaround is unnecessary. The cheap-call discipline from the reference (0 GB: `nextUpdate` /
+`getBonusTime` / `inBladeburner` / the five name-listers; 1 GB `getCurrentAction`; 2 GB
+`stopBladeburnerAction` / `getBlackOpRank` / `getNextBlackOp`) is still worth following for a
+resident poll loop, but as good practice rather than as a survival requirement. **The binding
+constraint moved to the player action slot instead — see §5.**
 
 **D6 — `startAction`'s auto-repeat is load-bearing, not a bug to work around. Proposed.**
 Confirmed 7/30 (reference §6/§7 gotcha 13): `startAction` auto-repeats like `commitCrime`, and the
@@ -187,22 +193,62 @@ non-viable** — the engine keeps rank accruing in the background but stops bein
 
 ## 5. Open questions
 
-### 🔴 Blocker — must be answered before this phase can be spec'd
+### 🔴 Blocker — RESOLVED 2026-07-31, and the answer is bad: **mutual preemption**
 
-- **Does a Bladeburner action occupy the same player-action slot `augfarmer.js` uses for faction
-  rep work?** `slotAvailable()` (`augfarmer.js:711`) yields on *any* `getCurrentWork()` type that
-  isn't `CLASS` or own-faction `FACTION`. If a running Bladeburner action surfaces there, the aug
-  ratchet **permanently yields** → rep grind stops → the hacking path's aug→M pipeline stalls. That
-  would put this engine in direct conflict with the BN6 win path and force a duty-cycling design
-  (or kill the concurrent-run idea entirely).
-  **Status:** genuinely unknown. Circumstantial only: during the trial the in-game Overview showed
-  `Bladeburner: General: Field Analysis` in the same region that later showed `Working for
-  Sector-12`, which is suggestive but not proof — and `augfarmer.js` was killed for RAM throughout,
-  so the interaction was never observed.
-  **Cost to resolve: ~2 minutes** — start any Bladeburner action with `augfarmer.js` running and
-  read `singularity.getCurrentWork()` + augfarmer's phase. ⚠️ **Mutating** (starts an action), so
-  it needs an explicit go-ahead rather than the standing read-only data-gathering grant. **This
-  should be the first thing done if this phase proceeds** — it can invalidate the whole design.
+**There IS a conflict, and it is a worse shape than either predicted answer.** Measured live with
+`src/slotconflictprobe.js` (`logs/slotconflictprobe-1785462422976.json`), with `augfarmer.js`
+running and actively rep-grinding (PCMatrix @ Aevum, 94.8k deficit):
+
+| Moment | `getCurrentWork()` | `getCurrentAction()` (BB) |
+|---|---|---|
+| before | `FACTION`/Aevum, **cyclesWorked 7989** | `null` |
+| immediately after `startAction("General","Field Analysis")` | **`null`** | `Field Analysis` |
+| +25s | `FACTION`/Aevum, **cyclesWorked 105** | **`null`** |
+
+Reading the three transitions:
+1. **Starting a Bladeburner action cancels in-progress faction work** — 7,989 accumulated cycles
+   went to `work: null` instantly.
+2. **`singularity.getCurrentWork()` is BLIND to Bladeburner** — it returns `null` during an active
+   Bladeburner action, not a Bladeburner-shaped work object.
+3. **So `augfarmer.js` reads the slot as `idle` / *available*** (`slotAvailable(null, …)` →
+   `{available: true, reason: "idle"}`, `augfarmer.js:712`), immediately re-grabs it with
+   `workForFaction`, **and that kills the Bladeburner action.** `cyclesWorked` restarting at 105
+   (≈21s of fresh work at the observed ~5 cycles/s) dates the re-grab to ~4s after the action
+   started — i.e. augfarmer's very next poll.
+
+🔑 **The core problem: augfarmer cannot yield to something it cannot see.** The existing
+`slotAvailable()` guard — which correctly yields to crime, university, and other factions' work —
+is structurally unable to detect Bladeburner, because Bladeburner doesn't surface in the API that
+guard reads. Left alone, the two would **thrash**: engine starts action → faction work dies →
+augfarmer polls (~10s) → work restarts → action dies → repeat, with neither making progress and
+the rep-work session resetting every cycle.
+
+⚠️ **This directly contradicts D2 in its current form.** "Bladeburner yields on conflict" is not
+implementable by the engine alone: yielding requires *augfarmer* to stop grabbing the slot, and
+augfarmer is win-path code this phase said it wouldn't touch (§6). The options, none free:
+- **(a) Duty-cycle via a coordination marker** — the engine writes a marker; `augfarmer.js` learns
+  to treat it like the existing off-marker pattern and holds off. Small, well-precedented change,
+  but it *is* a change to win-path code.
+- **(b) Engine runs only in augfarmer's slot-free phases** (`awaiting-money`, `idle-plateau`,
+  `install-ready`), read from `augfarmer-state.json`. Touches nothing — but ⚠️ **augfarmer is in
+  `grinding` most of the time**, so the engine would get very little slot time, which directly
+  worsens the rank rate that is already this phase's central problem. **Naming the cost honestly:
+  this option may reduce the engine to a rounding error.**
+- **(c) Explicit time-slicing** — e.g. N minutes Bladeburner / M minutes rep, negotiated through a
+  shared file. Most controllable, most design surface.
+
+**This is exactly what the blocker check existed to surface before speccing** — it invalidates the
+"just run it concurrently" assumption the engine sketch was resting on, and it means D2 needs
+rewriting before this phase can proceed to spec. **Recommend deciding (a)/(b)/(c) with Kenneth
+first**, since (a) and (c) both cross into win-path code that §6 currently declares out of scope.
+
+**Process note worth keeping:** the probe's own automated verdict said **"NO CONFLICT"** and was
+**wrong**. It compared work *type* before-vs-during (`FACTION` → `FACTION`) and augfarmer's *phase*
+(`grinding` → `grinding`) — both unchanged, because **the conflict resolves itself inside the
+observation window**. Only the raw `cyclesWorked` reset and the nulled `bbAction` revealed it. The
+verdict logic has been corrected in the script; the lesson generalises: *when a system
+self-heals faster than you sample, steady-state comparisons show nothing — look for the scar
+(a reset counter, a restarted session), not the wound.*
 
 ### Considerations — real, but none of them stop the phase
 
@@ -238,13 +284,36 @@ non-viable** — the engine keeps rank accruing in the background but stops bein
 
 ## 7. Recommendation
 
-**Proceed — but resolve the §5 blocker first, and treat D8's stopping condition as binding.**
+**Updated 2026-07-31, after the §5 blocker resolved against the design.**
 
-The case rests on one asymmetry: the cost of building is bounded (~a week, one companion, reusing
-an established mould), while the cost of *not* knowing is four nodes of strategy resting on a
-single adverse 17-minute measurement taken in the worst possible regime — in the one node where the
-experiment is clean. Rank and skill points **persist across installs**, so nothing the engine earns
-is ever wasted even if the verdict comes back negative.
+The strategic case is unchanged and still good: the cost of building is bounded (~a week, one
+companion, an established mould), while the cost of *not* knowing is four nodes of strategy resting
+on a single adverse 17-minute measurement taken in the worst possible regime — in the one node
+where the experiment is clean. Rank and skill points **persist across installs**, so nothing the
+engine earns is wasted even on a negative verdict. Two things also got *better* since drafting:
+RAM stopped being a constraint (512 GB home), and the blocker was caught **before** a spec was
+written rather than after.
 
-**The honest framing of what's being bought: not a faster BN6 clear — a decision about BN7, BN9,
-BN10 and BN13, made now instead of three nodes from now.**
+**But the blocker landed badly and it changes the shape of the ask.** Bladeburner and the aug
+ratchet mutually preempt over one invisible shared slot, so the engine cannot simply coexist with
+the win path — and the cheapest fix (option (b), run only in augfarmer's slot-free phases) may
+starve the engine badly enough to make its measurement worthless, since `grinding` is augfarmer's
+normal state. The options that actually give the engine meaningful slot time ((a) and (c)) both
+require touching `augfarmer.js` — **win-path code this phase explicitly scoped out** (§6).
+
+**Recommendation: do not proceed to spec yet. One decision is needed first —**
+
+> **Is modifying `augfarmer.js` to cooperate with a Bladeburner engine in scope?**
+> - **Yes** → option (a) or (c); the phase proceeds roughly as drafted, with a small, precedented
+>   marker-based change to win-path code added to scope, and D2/§6 rewritten accordingly.
+> - **No** → option (b) only. **Then this phase is probably not worth running**, because a
+>   slot-starved engine can't produce a trustworthy rank curve, and an untrustworthy curve is
+>   exactly what got us here. Better to say so than to build an instrument that can't measure.
+
+That is a real fork with a real recommendation attached: **I'd take (a)** — a marker-based
+hold-off is the same shape as the existing `cloud-upgrade-off.txt` / `gang-off.txt` pattern the
+codebase already uses, it's a handful of lines, and it's reversible by deleting a file. The cost if
+I'm wrong is a small amount of added surface in the most safety-critical script we have.
+
+**The honest framing of what's being bought remains: not a faster BN6 clear — a decision about BN7,
+BN9, BN10 and BN13, made now instead of three nodes from now.**

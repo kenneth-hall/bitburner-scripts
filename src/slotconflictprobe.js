@@ -87,26 +87,45 @@ export async function main(ns) {
     "  augPhase=" + out.afterStop.augfarmer.phase);
 
   // --- 4. verdict ---
-  // The conflict exists if, while the Bladeburner action ran, EITHER the player work slot stopped
-  // showing augfarmer's faction work, OR augfarmer itself flipped to "yielded".
+  // ⚠️ v1's verdict logic was WRONG and reported "NO CONFLICT" on data that plainly showed one
+  // (run 1785462422976). It compared work TYPE before-vs-during (FACTION -> FACTION, unchanged)
+  // and augfarmer's phase (grinding -> grinding, unchanged), and missed the actual dynamics
+  // entirely. Both of those look identical whether or not a conflict exists, because the conflict
+  // resolves itself WITHIN the observation window: augfarmer reclaims the slot and everything
+  // looks normal again by the time you sample.
+  //
+  // The three signals that actually detect it:
+  //  (a) work goes NULL the instant a Bladeburner action starts  -> Bladeburner cancels faction work
+  //  (b) bbAction goes NULL by the end of the observe window     -> augfarmer's re-grab killed it
+  //  (c) cyclesWorked RESETS (large -> small)                    -> the work session restarted
   const workBefore = out.before.currentWork;
+  const workImmediate = out.immediatelyAfter.currentWork;
   const workDuring = out.afterObserve.currentWork;
-  const workTypeChanged = (workBefore?.type ?? null) !== (workDuring?.type ?? null);
-  const augYielded = out.afterObserve.augfarmer.phase === "yielded";
-  const conflict = workTypeChanged || augYielded;
+
+  const bbCancelledWork = workBefore != null && workImmediate == null;
+  const augKilledBb = out.immediatelyAfter.bladeburnerAction != null && out.afterObserve.bladeburnerAction == null;
+  const cyclesBefore = workBefore?.cyclesWorked ?? null;
+  const cyclesDuring = workDuring?.cyclesWorked ?? null;
+  const cyclesReset = cyclesBefore != null && cyclesDuring != null && cyclesDuring < cyclesBefore;
+
+  const conflict = bbCancelledWork || augKilledBb || cyclesReset;
 
   out.verdict = {
     conflict,
+    bbCancelledWork,
+    augKilledBb,
+    cyclesReset,
+    cyclesBefore,
+    cyclesDuring,
     workTypeBefore: workBefore?.type ?? null,
+    workImmediatelyAfterStart: workImmediate?.type ?? null,
     workTypeDuring: workDuring?.type ?? null,
-    workTypeChanged,
     augPhaseBefore: out.before.augfarmer.phase,
     augPhaseDuring: out.afterObserve.augfarmer.phase,
-    augYielded,
     augPhaseAfterStop: out.afterStop.augfarmer.phase,
     interpretation: conflict
-      ? "CONFLICT: a Bladeburner action displaces/blocks augfarmer's faction rep work. A Bladeburner engine cannot run concurrently with the aug ratchet without duty-cycling."
-      : "NO CONFLICT: Bladeburner actions run on a SEPARATE track from the singularity player-work slot. The engine can run concurrently with the aug ratchet.",
+      ? "CONFLICT (mutual preemption): Bladeburner and singularity player-work share one exclusive slot, but getCurrentWork() is BLIND to Bladeburner (returns null while an action runs). So augfarmer reads the slot as 'idle/available', re-grabs it, and kills the Bladeburner action -- it cannot yield to something it cannot see. An engine must coordinate explicitly; it cannot just run alongside."
+      : "NO CONFLICT: Bladeburner actions run on a separate track from the singularity player-work slot.",
   };
 
   const file = "slotconflictprobe-" + out.ts + ".json";
