@@ -1,0 +1,6 @@
+Paused 2026-07-30: cloudmanager's per-host upgrade spend ($675.84m/tier) was consuming
+essentially all income, starving the aug ratchet's install trigger below its ~1.1 totalGain
+threshold for 24h+ (nfgBoundBy: money). Fleet utilization was 49.1% at pause time -- not obviously
+RAM-constrained. Now that the win path is hacking (not Bladeburner), the mult ratchet's M growth
+matters more than further fleet growth. Remove this file once the ratchet fires (or once
+utilization climbs and fleet growth is needed again).
