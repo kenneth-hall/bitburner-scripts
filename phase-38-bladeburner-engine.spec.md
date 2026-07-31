@@ -9,6 +9,29 @@ own rank curve, the narrow `augfarmer.js` cooperative slot hold that makes it po
 supervisor gating. **Deliverable is a decision** — is the counter-map's back-half Bladeburner
 premise real? — not a BN6 clear. Hacking remains the BN6 win path.
 
+**✅ Slice A (WI1) shipped and live-green 2026-07-31.** `resolveSlotHold` + the `planPass`
+`slotHold` suppression sites landed on `phase-38-bladeburner-engine` (35 new tests, `npm test`
+1060/1060, `npm run verify:log`'s 3 failures pre-existing/unrelated — confirmed via `git stash`).
+Ship gate T1/T2/R1/V1/V2 all cleared:
+- **R1** — `mem augfarmer.js` re-measured live at **64.10 GB**, byte-identical to the pre-change
+  baseline. No RAM drift from the marker read (0 GB `ns.read`) or the new identifiers.
+- **V1/V2** — exercised live with a throwaway stand-in harness (`slotholdtest.js`, deleted after
+  the run per its own header — not committed) that played bladeburnermanager's role: stopped the
+  player's action, wrote/refreshed the marker for 40s, then stopped refreshing and watched for
+  30s+. Transcript (abridged): marker written → `augfarmer.js: INFO: slot held by slotholdtest --
+  rep work suppressed` within one poll; `getCurrentWork()` stayed `null` for the full 40s hold
+  while `phase` stayed `"grinding"` throughout (never leaked, decision 1 confirmed); refresh
+  stopped → ~32s later `augfarmer.js: INFO: slot hold released -- rep work resuming`, work
+  resumed with a fresh `cyclesWorked` count, no operator action. Matches decision 5's ~30s
+  self-healing bound and blocker B8's prompt-write-gate intent exactly.
+- **Known cosmetic gap, not a correctness issue:** `augfarmer-state.json`'s `slotHold.holdAgeMs`
+  does not tick upward during a sustained hold — it's only rewritten on `slotHoldChanged` (a
+  transition edge) or the 5-min heartbeat, the same precedent as `awaitingMoneySinceChanged`/
+  `triggerArmChanged`. The live-observed ground truth (`getCurrentWork()`, the log lines) is what
+  was actually tested; a consumer reading `holdAgeMs` mid-hold sees a stale-but-not-wrong age.
+
+**Slice B (WI2-4, `bladeburnermanager.js` + supervisor gating) is next — not started.**
+
 ## Context
 
 Two of the features doc's conclusions were overturned by its own process, and the spec inherits the
