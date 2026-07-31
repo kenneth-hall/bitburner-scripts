@@ -126,8 +126,29 @@ order of magnitude on the numbers we can currently measure.
    Analysis` (100%-success, always-available) has been run. A real engine's first move is
    plausibly scouting, not grinding Raid cold — untested here.
 
-**✅ RE-CHECK CONCLUDED 2026-07-30 — flip to the hacking path as primary.** Full live trial
-(`src/bladeburnertrial.js`, Kenneth's go-ahead), ~75 minutes end to end, three versions:
+> 🔴 **READ THIS FIRST — the verdict below is UNSOUND as of 2026-07-31.** Everything in this
+> subsection was computed before the **in-game Bladeburner panel** was ever opened. That panel
+> (see `bladeburner-reference.md` §5) documents mechanics the projection assumed away, and at least
+> four of its load-bearing assumptions are now known false:
+> 1. **Action time is not constant.** `Overclock` cuts it 1%/level to **max level 90 ⇒ 10× faster**.
+> 2. **Skill investment does not stay at 13 SP.** The game grants **1 SP per 3 ranks**, so the
+>    400,000-rank climb banks **~133,000 SP**. The trial measured the lowest-investment regime that
+>    exists and extrapolated it linearly across the whole curve.
+> 3. **Team size was 0 throughout**, and teams (via `Recruitment`, 100% success for us) explicitly
+>    improve Operation/BlackOp success.
+> 4. **Action levels rise with success** and grant more rank/exp/money — Tracking has since reached
+>    **level 8/8, 100% success, 12s**.
+>
+> Live re-read on 2026-07-31, after chaos decayed to 0.271 and 13 SP went in, shows success chances
+> roughly **double** the trial's: Investigation 27.9–68.3%, Raid 10.6–25.8%. **The ~10.5-month
+> figure should be treated as a worst-case floor for naive play, not as this node's answer.**
+> The flip to hacking as BN6's *primary* path is not being reversed on this alone — hacking is
+> working and needs no new engine — but **the claim that Bladeburner is non-viable, including for
+> the counter-map's back half, does not survive.** Phase 38 exists to settle it properly.
+
+**RE-CHECK AS CONCLUDED 2026-07-30 (superseded — kept for the measurements, not the conclusion).**
+Full live trial (`src/bladeburnertrial.js`, Kenneth's go-ahead), ~75 minutes end to end, three
+versions:
 
 - **v1 (accidental, 23 min stuck): scouting is real, but only narrows uncertainty.** A
   control-loop bug (`startAction` auto-repeats like `commitCrime` — `getCurrentAction()` never

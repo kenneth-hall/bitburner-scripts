@@ -26,17 +26,34 @@ Those are different statements, and the gap between them is the entire content o
 honest version of the finding is **"naive single-city grinding with minimal skill investment is
 non-viable"** — which is unsurprising, and says much less than it appeared to.
 
+> 🔴 **Strengthened 2026-07-31 — the gap is wider than this section originally argued.** After
+> Kenneth pointed out the **in-game Bladeburner panel** (never opened before that), the 7/30 model
+> turns out to contradict documented mechanics rather than merely under-sample them: action time is
+> reducible **10×** (`Overclock`, max 90), skill points accrue at **1 per 3 ranks** (~133,000 over
+> the climb, vs 13 measured), teams were at **size 0** the whole time, and action levels rise with
+> success (Tracking now **8/8 at 100%**). A live re-read after chaos decayed shows success chances
+> roughly **double** the trial's. **This phase is no longer "test whether the verdict was
+> premature" — the verdict is already known to be unsound. The phase is now: find out what the real
+> curve is.**
+
 Specifically untested, every one of which plausibly bends the rate:
 
-| Untested lever | Why it plausibly matters |
+> ⚠️ **Rewritten 2026-07-31.** The original column was headed *"why it plausibly matters"* and was
+> speculation. Reading the **in-game Bladeburner panel** (never opened until Kenneth asked) turned
+> most of it into documented fact — and made the case materially **stronger** than drafted. Source
+> text: `bladeburner-reference.md` §5.
+
+| Untested lever | Status after reading the in-game panel |
 |---|---|
-| **City rotation** | `getCityChaos(city)` / `switchCity(city)` are **per-city**, so the chaos decay that dominated the trial is almost certainly city-scoped. 6 cities ⇒ each can recover while the others are worked. This was logged as the wake condition on 7/30 and never tested. |
-| **Skill investment at scale** | The trial peaked at **13 SP**. A 400,000-rank climb banks SP orders of magnitude beyond that. `Overclock` (action speed) and `Blade's Intuition` (success chance) are exactly the shapes that compound. Extrapolating linearly from the most under-invested regime possible is weak evidence. |
-| **Action levels / autolevel** | `setActionLevel`/`getActionAutolevel` were never touched. Level's coupling to time/reward/success is undocumented (reference §5). |
-| **Teams / `Recruitment`** | Teams apply to Operations and BlackOps. Never recruited, never sized. Black-op success may be team-gated. |
-| **Contract count regeneration** | `countRemaining` was finite and consumable (117 Tracking, 66 Raid). Regeneration rate is unmeasured; it changes whether a steady state even exists. |
-| **Stamina management** | `Hyperbolic Regeneration Chamber` exists and was never run. Trial ran at full stamina throughout, so stamina wasn't the cause of the low chances — but it was also never *used* as a lever. |
-| **Bonus time** | `getBonusTime()` banks while the game is inactive and spends at up to **5×**. Untested interaction with an unattended engine. |
+| **`Overclock` — action speed** | 🔴 **The biggest term, and it wasn't even on the original list.** −1% action time per level, **max level 90 ⇒ actions at 10% of base time**. The 7/30 projection held action time constant, so it understates throughput by up to **10×** on this term alone. |
+| **Skill investment at scale** | ✅ **Confirmed decisive.** Panel states **1 skill point per 3 ranks** ⇒ rank 400,000 banks **~133,000 SP** against the trial's **13**. Effects are additive within a skill and **multiplicative across skills**. The trial measured the lowest-investment regime that exists and extrapolated it flat. |
+| **City rotation** | ✅ **Confirmed city-scoped by the game's own words**, not inferred: `Diplomacy` *"will reduce the chaos level of your current city"*; `Stealth Retirement Operation` also decreases it. ⚠️ New wrinkle: **chaos also rises spontaneously from world events** (riot entries in the event log), so rotation alone isn't sufficient — active suppression is part of steady state. |
+| **Teams / `Recruitment`** | ✅ **Confirmed relevant, confirmed never used.** *"Having a larger team will improve your chances of success"* (Operations/BlackOps only). **Team Size was 0 for the entire trial**; our `Recruitment` success chance reads **100%**. Free upside, never taken. |
+| **Action levels / autolevel** | ✅ **Confirmed to compound.** Levels unlock by completing an action successfully and *"grant more rank, experience, and money."* Live proof: **Tracking is now level 8/8 at 100% success in 12s** vs the probe's level-1 84.8% at 11s. |
+| **Contract count regeneration** | ✅ **Answered:** `Incite Violence` *"will generate additional contracts and operations"* (cost: chaos in **all** cities). Counts also read far healthier than feared (Tracking 496, Raid 268 remaining). Inventory is not the binding constraint. |
+| **Stamina management** | ✅ Not currently binding — panel shows **Stamina Penalty 0.0%**. Levers if it ever does: `Hyperbolic Regeneration Chamber`, `Cyber's Edge` (+2% max stamina/level). |
+| **Hospitalization cost** | 🔴 **New, and previously uncounted anywhere.** Panel tracks **22 hospitalizations / $229.5m lost**, nearly all from the trial's 2-success/22-failure Raid grinding. Failed operations cost **HP *and* rank**; `Investigation` is the only action with no HP loss on failure. **An engine must weigh failure cost, not just expected rank** — the trial's action picker did not. |
+| **Bonus time** | Still untested. `getBonusTime()` banks while the game is inactive, spends at up to **5×**; with sleep disabled and 24/7 uptime it may never meaningfully accrue. |
 
 ### The reason this is worth more than BN6
 
@@ -100,21 +117,53 @@ Hacking is the BN6 win path (7/30, unchanged). Where the two compete, Bladeburne
   D9's staleness guard is what keeps that from silently stalling the win path.
 - **Money:** the engine spends nothing. Skill points are its only currency and they aren't money.
 
-**D3 — City rotation is the first hypothesis, and the engine is built around it. Proposed.**
-It is the top untested lever, it is cheap, and it directly targets the mechanism that killed the
-7/30 run. Design implication: the control loop is **city-aware from the start** — track per-city
-chaos, rotate on a chaos threshold rather than a fixed cadence, and log the chaos curve per city so
-the rotation policy can be tuned from data instead of guessed. ⚠️ `switchCity`'s cost and whether
-it interrupts the current action are **undocumented** (reference §8) — measure before relying on it.
+**D3 — ~~City rotation is the first hypothesis~~ → SUPERSEDED 2026-07-31: skill compounding is,
+and `Overclock` specifically. Revised.**
 
-**D4 — Skill spending must be targeted, not round-robin-cheapest. Proposed.**
-The trial bought the cheapest available skill each time, which is how it ended up with 10 skills at
-level 1 and no concentration. That was fine for "does investment do anything at all" and wrong for
-"does investment compound." Proposal: concentrate on the success-chance / action-speed skills
-(`Blade's Intuition`, `Overclock`, plus whichever of `Cloak`/`Digital Observer`/`Reaper` prove to
-matter for the chosen action mix), and **log the counterfactual** (`getSkillUpgradeCost` for the
-alternatives) so the policy is auditable. ⚠️ Skill *effects* are undocumented — the engine should
-measure marginal effect per level rather than assume the names mean what they suggest.
+The original draft made city rotation the centrepiece because it was the lever that looked like it
+explained the 7/30 decay. Reading the panel reorders the priorities decisively — **the throughput
+terms dwarf the chaos term**:
+
+1. **`Overclock` → up to 10× throughput** (−1%/level, max 90). Nothing else in the tree is close.
+2. **Skill compounding generally** — ~133,000 SP across the climb at 1 SP / 3 ranks, additive
+   within a skill and **multiplicative across skills**.
+3. **Action levelling** — unlocks by success, grants more rank/exp/money, and is already visible
+   (Tracking at level 8/8, 100%, 12s).
+4. **Teams** — free success-chance upside, never used (size 0 all trial).
+5. **Chaos management** — still real, but now demoted to *hygiene*: keep it suppressed via
+   `Diplomacy`/`Stealth Retirement` and rotation, rather than treating rotation as the main play.
+
+⚠️ **Chaos is not purely self-inflicted** — it rises from world events regardless of what we do, so
+"just don't grind one city" was never going to be a complete answer. Rotation stays in the design;
+it stops being *the* design. **Still to measure:** whether `switchCity` interrupts the running
+action or costs anything (reference §8).
+
+**Design implication (unchanged in shape, changed in emphasis):** the control loop stays city-aware
+and logs per-city chaos, but the **skill-spend policy is the primary object of tuning**, and the
+engine's first job is to drive `Overclock` and the success-chance skills up as fast as SP allows.
+
+**D4 — Skill spending must be targeted, not round-robin-cheapest. Proposed; sharpened 2026-07-31
+now that every skill's effect is known.**
+
+The trial bought the cheapest available skill each time, ending with 10 skills at level 1 and no
+concentration — fine for "does investment do anything at all," wrong for "does investment compound."
+⚠️ The original text said *"skill effects are undocumented — measure marginal effect."* **They are
+documented** (reference §5); the engine should spend against known effects and *verify*, not
+discover from scratch. Proposed priority, derived from the published effects:
+
+| Priority | Skill | Why |
+|---|---|---|
+| **1** | **`Overclock`** | −1% action time/level, **max 90 ⇒ 10× throughput**. Multiplies every other gain and is hard-capped, so there is a finite, knowable amount to buy. |
+| **2** | `Blade's Intuition` | +3%/level success across **all** action classes — the broadest success term. |
+| **3** | `Digital Observer` / `Tracer` | +4%/level for Operations+BlackOps / Contracts respectively — pick per the action mix actually being run. |
+| **4** | `Reaper`, `Evasive System` | +2% combat / +4% dex+agi per level. Matter more later: BlackOps success is *"significantly affected by combat stats."* |
+| **5** | `Cloak`, `Short-Circuit` | +5.5%/level but **narrow** (stealth / retirement actions only) — high value *if* the mix leans that way. |
+| skip | `Hands of Midas`, `Hyperdrive`, `Cyber's Edge`, `Datamancer` | money / exp / stamina / estimate-accuracy. None move rank throughput, which is the metric this phase exists to answer. |
+
+**Still to verify empirically** (the panel gives effects, not the cost curve): the SP cost growth
+per level, so the engine can decide *how deep* to push `Overclock` before diverting. Observed so
+far: 1–3 SP at level 0, 4–5 SP at levels 1–3. **Log the counterfactual** (`getSkillUpgradeCost` for
+alternatives) so the policy stays auditable.
 
 **D5 — Architecture: `gangmanager.js`'s mould, and RAM is the binding constraint. Proposed.**
 Headless resident, `RESIDENT_COMPANIONS` slot, `bladeburner-state.json` (overwrite-in-place) +
@@ -191,6 +240,14 @@ Per the convergence rules, this phase carries its own kill switch so it can't re
 > baseline (~10.5 months ⇒ ~1 month or better), Bladeburner is declared non-viable as a
 > node-clearing path — for BN6 and for the counter-map's back half — and `docs/bitnodes.md`'s node
 > order is re-derived without it.**
+
+⚠️ **Recalibration note, 2026-07-31.** `Overclock` alone is worth up to **10×** on action time, so
+the ~10× bar above is now roughly *"does the single biggest documented lever actually land."* That
+makes it a **weaker** test than intended — it could be cleared while the climb is still far too
+slow overall. **The spec should re-derive this threshold** from the published mechanics (throughput
+× success × rank-per-action at realistic skill levels) rather than inheriting a bar set against a
+model now known to be wrong. Keeping the ~10× figure as a placeholder floor, explicitly not as the
+final bar.
 
 That is a real, falsifiable bar set before the data arrives. ~1 month is still not *good*, but it's
 the threshold where the mechanic becomes a plausible node-clearer at all; anything less means the
@@ -340,6 +397,14 @@ require touching `augfarmer.js` — **win-path code this phase explicitly scoped
 **✅ The fork is decided: Kenneth chose option (a), the cooperative marker, on 2026-07-31.**
 `augfarmer.js` is in scope for a narrow, heartbeat-guarded hold-off (D9); D2 and §6 are rewritten
 accordingly. **Stage 1 is complete — this doc is ready to hand to Stage 2 (spec).**
+
+**⚠️ Amended 2026-07-31 — the case got stronger, and one prerequisite got added.** Reading the
+in-game panel (§1) showed the shelving verdict contradicts documented mechanics, not merely
+under-samples them, so the strategic argument for building the instrument is firmer than when this
+was drafted. **Added prerequisite for the spec:** re-derive D8's threshold from published mechanics
+(`Overclock` ×10 throughput, 1 SP/3 ranks, team bonuses, action levelling) instead of inheriting a
+bar calibrated against the broken model. A phase whose exit criterion is wrong is worse than one
+with no exit criterion, because it looks rigorous.
 
 **What the spec must not lose:**
 1. **D9's staleness guard is the phase's one safety-critical requirement.** A crashed engine

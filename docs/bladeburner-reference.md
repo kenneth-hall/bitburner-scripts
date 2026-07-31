@@ -10,9 +10,16 @@ editing, and the playbook can churn freely. That's a deliberate departure from
 [`gang-engine.md`](gang-engine.md), which fused both into one doc.
 
 **Sources:** `markdown/bitburner.bladeburner.*.md` (41 method files) + the bladeburner type/enum
-files, the in-game **Documentation → Bladeburner** page (read via CDP 2026-07-29), and two live
-read-only probes (`src/bladeburnerprobe.js`, `src/combatgateprobe.js`). This build is a **fork** —
-these local files are authoritative and upstream/online NS docs will mislead you.
+files, the in-game **Documentation → Bladeburner** page (read via CDP 2026-07-29), live read-only
+probes (`src/bladeburnerprobe.js`, `src/bladeburneractionprobe.js`, `src/bladeburnerskillprobe.js`,
+`src/combatgateprobe.js`), one live trial (`src/bladeburnertrial.js`), and — **added 2026-07-31,
+after being missed entirely** — the **in-game Bladeburner panel itself** (World → Bladeburner, five
+tabs). This build is a **fork** — these local files are authoritative and upstream/online NS docs
+will mislead you.
+
+⚠️ **Read the in-game panel before claiming any mechanic is undocumented** (§5). The first version
+of this doc listed chaos, action levels, stamina, teams and all 12 skill effects as "not covered
+anywhere"; every one of them is stated in that panel, which had never been opened.
 
 **Written 2026-07-29, in BN6.1, at combat stats 1 and NOT employed by Bladeburner.** That state
 is why §3's reachability table reads the way it does.
@@ -197,30 +204,103 @@ substance because it is short and two of its claims are strategically load-beari
    No `workForFaction` path, no donation path. So Bladeburner *augs* are expensive in a way the
    ratchet's usual rep machinery cannot shortcut, while *rank* is cheap in a way nothing else is.
 
-### What the mechanics docs do NOT cover — anywhere
+### 🔴 CORRECTION 2026-07-31 — the in-game Bladeburner UI documents nearly all of this
 
-Not in the API docs, not in-game, and not computable from `formulas.bladeburner` (which has
-exactly **one** method):
+**The section that used to sit here listed chaos, population estimation, action levels, stamina,
+and all 12 skill effects as "not covered anywhere." That was wrong.** Every one of them is stated
+plainly in the **in-game Bladeburner panel** (World → Bladeburner), which had never been opened —
+all prior work came from the 41 `markdown/` API files plus the three-paragraph *Documentation →
+Bladeburner* page. Kenneth noticed the panel existed on 2026-07-30 and asked whether it had been
+read; it had not.
 
-- What **chaos** does, its scale, or how to reduce it (`Diplomacy` is the obvious lever by name only).
-- How **Synthoid population** estimation works, or why success chance is a **range**. The API
-  states min/max but gives **no reason** — "the estimate narrows as you scout" is a plausible
-  inference, *not documented*.
-- What an action **level** does. The only documented coupling is that `getActionRankGain` /
-  `getActionRankLoss` / `getActionRepGain` accept a `level` argument. Nothing ties level to time,
-  success chance, or reward, and nothing states autolevel's increment rule.
-- **Stamina**'s effect on success chance, or its regeneration rate.
-- What each of the **12 skills** actually does, or its cost curve.
-- **Rank gain rates**, and the **rank requirement of any black op**.
+⚠️ **The generalised lesson, and it is sharper than CLAUDE.md's existing rule.** "Read the whole
+interface before designing against it" was followed *for the API* — exhaustively — and still
+produced a badly wrong model, because **the rendered game UI is also part of the interface**, and
+in this build it is where the mechanics are actually documented. A method list plus a types file is
+not the whole interface when the game ships an explanatory panel. **Check the in-game UI for a
+mechanic before declaring anything about it undocumented.** Cost of skipping it here: a shelving
+verdict (`bn6-playbook.md`) built on assumptions the game explicitly contradicts.
 
-**This is the mirror image of the gang situation, and it flips the design conclusion.** For gangs,
-`GangTaskStats` + `ns.formulas.gang.*` exposed every yield, which is precisely why Phase 27's
-"build an observer and derive the thresholds empirically" premise was *false* and got that
-brainstorm invalidated three times. Here, the formulas module has one method and the in-game doc is
-three paragraphs — so **an observe-and-measure approach is genuinely correct for Bladeburner
-yields**. Do not carry the gang lesson over as "always read, never measure"; the lesson was *read
-the interface first, then you know which of the two you need*. Read first — we did — and the answer
-came back "measure."
+**Read via CDP:** `cli.mjs goto Bladeburner`, then `cli.mjs click "<tab>"` + `cli.mjs body` per tab.
+Five tabs: **General · Contracts · Operations · BlackOps · Skills**. `body` beats `shot` here — the
+panel scrolls, and `body` captures the whole DOM text including off-screen content.
+
+### The 12 skills — full effects, from the Skills tab
+
+**🔑 `Skill Points: you gain one skill point every 3 ranks.`** Verbatim from the panel. This is the
+rank→SP conversion that was previously called unmeasured, and it is the single most important
+number for any long-horizon projection: **rank 400,000 ⇒ ~133,000 skill points banked.**
+
+**Stacking rule, verbatim:** *"the benefit for that skill is additive. However, the effects of
+different skills with each other is multiplicative."*
+
+| Skill | Effect **per level** | Notes |
+|---|---|---|
+| **Overclock** | **−1% action time** | ⚠️ **Max Level 90** ⇒ actions at **10% of base time, a 10× throughput multiplier.** The highest-leverage skill in the tree by a wide margin. |
+| Blade's Intuition | +3% success, **all** Contracts/Operations/BlackOps | the broad one |
+| Cloak | +5.5% success, **stealth**-related | |
+| Short-Circuit | +5.5% success, **retirement**-related | |
+| Digital Observer | +4% success, all **Operations + BlackOps** | |
+| Tracer | +4% success, all **Contracts** | |
+| Reaper | +2% **effective combat stats** for Bladeburner actions | compounds with BlackOps' combat-stat sensitivity |
+| Evasive System | +4% effective **dexterity and agility** | |
+| Datamancer | +5% effectiveness in **population analysis/investigation** | improves estimate-accuracy actions |
+| Cyber's Edge | +2% **max stamina** | |
+| Hands of Midas | +10% **money from Contracts** | economy only, not rank |
+| Hyperdrive | +10% **experience** from actions | |
+
+Observed SP cost for the *next* level (2026-07-31, at levels 1–3): **4 SP** for most, **5 SP** for
+Blade's Intuition (lvl 1), Cloak (lvl 3), Hands of Midas (lvl 1). Costs escalate with level; the
+level-0 costs were 1–3 SP (`bladeburnerskillprobe`), so the curve is shallow early.
+
+The Skills tab also displays **live aggregate multipliers**, which is the cleanest way to read
+current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract Success Chance`,
+`Action Time`, `Effective Strength/Defense/Dexterity/Agility`, `Synthoid Data Estimate`, `Stamina`,
+`Contract Money`, `Experience Gain`.
+
+### Chaos, population, teams and levels — all documented in-panel
+
+- **Chaos is per-city and has explicit levers.** `Diplomacy` — *"reduce the chaos level of your
+  current city"* (city-scoping confirmed by the game, not inferred). `Stealth Retirement Operation`
+  — *"will DECREASE the chaos level of your current city."* Raising it: `Bounty Hunter`,
+  `Retirement`, `Sting Operation`, `Raid`, and `Incite Violence` (*"increasing the chaos level of
+  **all** cities"*).
+- ⚠️ **Chaos also rises on its own, from world events.** The panel's event log shows unprompted
+  `Tensions between Synthoids and humans lead to riots in <city>! Chaos increased` — so chaos is not
+  purely self-inflicted, and a steady state requires active suppression, not just restraint.
+- **Population migrates between cities continuously** (`Intelligence indicates that a large number
+  of Synthoids migrated from X…`), so per-city desirability drifts on its own.
+- **`Incite Violence` regenerates inventory** — *"generate additional contracts and operations"* —
+  answering how contract/operation counts are replenished.
+- **Teams:** recruited via `Recruitment`, usable on **Operations and BlackOps only**, and *"having a
+  larger team will improve your chances of success."* `Set Team Size` is exposed per-action.
+- **Action levels:** *"You can unlock higher-level contracts by successfully completing them.
+  Higher-level contracts are more difficult, but grant more rank, experience, and money."* Same text
+  for operations. This is the autolevel progression the API's `level` argument refers to.
+- **Failure costs:** contracts cost **HP** (→ hospitalization); operations cost **HP and rank**;
+  black ops incur *"heavy HP and rank losses."* **`Investigation` is the exception — no HP loss on
+  failure.** The panel tracks `Num Times Hospitalized` and `Money Lost From Hospitalizations`
+  (read 22 / **$229.5m** on 2026-07-31 — hospitalization is a real, uncounted cost of grinding).
+- **BlackOps, verbatim:** *"Black Ops success significantly affected by combat stats. Many Ops
+  benefit from Hacking skill. Unaffected by Charisma."*
+- **`Raid` has a precondition:** *"there must be an existing Synthoid community in your current city
+  in order for this Operation to be successful"* — so `Synthoid Communities` (panel stat) gates it.
+
+### What the API genuinely doesn't expose (the honest, much shorter list)
+
+- Exact **formulas** behind success chance, rank gain, chaos accumulation/decay rates.
+- The **skill cost curve** in closed form (`getSkillUpgradeCost` gives point values; the growth law
+  isn't stated).
+- **Stamina**'s precise coupling to success chance (the panel shows a `Stamina Penalty:` percentage,
+  so the effect is at least *observable* live).
+
+**Revised design conclusion — the gang comparison was drawn wrongly.** The old text argued that,
+unlike gangs (where `GangTaskStats` + `ns.formulas.gang.*` exposed every yield), Bladeburner was
+genuinely empirical and so "observe-and-measure" was correct. **That framing survives only in part.**
+The mechanics *are* documented — just in the UI rather than in `markdown/` — so the correct posture
+is the same as it always was: **read everything first, and "everything" includes the game's own
+screens.** Measurement is still needed for exact yield formulas, but not for what the levers are or
+what they do.
 
 ---
 
@@ -382,11 +462,12 @@ grind, not just the Stanek loss.
 
 ---
 
-## 8. Not knowable until we join — the honest gap
+## 8. Open questions — mostly closed now
 
-**Updated 2026-07-30 — division joined, first re-probe done.** Two items below are now answered;
-the rest still need Stage 2's action-level instrumentation (the current probe only reads
-reachability + rank + the black-op ladder, not per-action yields).
+**Updated 2026-07-31.** This section was originally "not knowable until we join." Joining answered
+some; **reading the in-game UI (§5) answered most of the rest**, including several items previously
+asserted to be undocumented anywhere. What remains is genuinely narrow: exact formulas, not
+mechanics.
 
 - **✅ ANSWERED — rank requirement of all 21 black ops**, read live via `getBlackOpRank`
   (`logs/bladeburnerprobe-1785411469942.json`):
@@ -420,26 +501,48 @@ reachability + rank + the black-op ladder, not per-action yields).
   costs are cheap (1–3 SP): `Cyber's Edge`/`Hyperdrive` 1, most others 2–3, none above 3.
   **`getSkillPoints()` reads 0** at rank 0 — **the rank→skill-point conversion rate is still
   unmeasured**, so "cheap in SP" doesn't yet mean "reachable soon."
-- **❓ Still open — does spending skill points meaningfully change success chance/rank gain/rank
-  loss?** Cannot be measured read-only: we hold 0 skill points (need rank first), so the next data
-  point requires actually running an action to earn rank/SP, then re-probing. This is the single
-  biggest lever that could overturn the bad rate above.
+- **✅ ANSWERED 2026-07-31 (UI) — rank→skill-point rate: ONE SKILL POINT PER 3 RANKS.** Verbatim
+  from the Skills tab. Previously called "still unmeasured" directly above, which is now
+  superseded. ⚠️ **This is the number that breaks the 7/30 extrapolation**: rank 400,000 banks
+  **~133,000 SP**, against the **13 SP** the trial actually spent. Any projection built on
+  low-SP-regime rates is measuring a different game than the one being played at scale.
+- **✅ ANSWERED 2026-07-31 (UI) — what every skill does** (full table in §5). ⚠️ **`Overclock`:
+  −1% action time per level, max level 90 ⇒ 10× throughput.** The 7/30 model held action time
+  constant, which alone invalidates it.
 - **✅ ANSWERED 2026-07-30 — `Field Analysis` scouting narrows the success-chance estimate.**
   Confirmed live via `src/bladeburnertrial.js` (an accidental ~50-rep sample — see the `startAction`
-  gotcha in §6/§7): Raid's `[MIN, MAX]` success-chance range collapsed from `[0.075, 0.097]`
-  (pre-scout) to a single point value `0.0901` (post ~50 reps) — MIN and MAX converged to the same
-  number. This is direct confirmation of the in-game doc's previously-unverified "the estimate
-  narrows as you scout" line. **Caveat: the central value didn't move much** (0.0901 sits inside
-  the original range) — scouting narrows *uncertainty*, it doesn't obviously raise the *rate* on
-  its own. How many reps this needs, and whether it holds for other actions, is still unmeasured.
-- **❓ Still open — action times/success/counts for the actions not yet summarized above** (already
-  captured in the raw probe output for all 36 actions — see the JSON — just not all surfaced in
-  prose here).
-- **❓ Still open — chaos and population dynamics**, and whether `Diplomacy` does what its name
-  suggests (unlike `Field Analysis`, not directly measured).
-- **❓ Still open — stamina drain and regen**, and its coupling to success chance. `getStamina()`
-  read `[61.44, 61.44]` (current = max, i.e. full) at probe time, so the low success chances above
-  are **not** a stamina-depletion artifact.
+  gotcha in §6/§7): Raid's `[MIN, MAX]` range collapsed from `[0.075, 0.097]` (pre-scout) to a
+  single point value `0.0901` (post ~50 reps). The UI corroborates the mechanism: Field Analysis
+  *"will improve the accuracy of your Synthoid population estimated in the current city."*
+  **Caveat: it narrows *uncertainty*, not obviously the *rate*.**
+- **✅ ANSWERED 2026-07-31 (UI) — chaos dynamics.** Per-city; `Diplomacy` and `Stealth Retirement
+  Operation` reduce it; `Incite Violence` raises it everywhere; several contracts/ops raise it
+  locally; and ⚠️ **it also rises spontaneously from world events** (riot messages in the event
+  log). Population migrates between cities on its own. Full detail in §5.
+- **✅ ANSWERED 2026-07-31 (UI) — teams.** `Recruitment` (4m22s, success chance shown per-attempt —
+  read **100%** for us) yields team members; usable on **Operations and BlackOps only**; larger team
+  ⇒ better success. `Team Size` was **0** for the entire 7/30 trial, i.e. every operation was run
+  with the team bonus at zero.
+- **✅ ANSWERED 2026-07-31 (UI) — action levels.** Higher levels unlock **by completing an action
+  successfully**, and *"grant more rank, experience, and money."* Observed live: **Tracking reached
+  Level 8/8 with 100.0% success at 12s** — versus the probe's level-1 reading of 84.8% at 11s.
+- **⚠️ Superseded context for the "rank gain per action" entry above.** Those figures were taken at
+  rank 0, 0 SP, team size 0, action level 1, and elevated chaos. Live re-read on 2026-07-31 after
+  chaos decayed (City Chaos 0.271) and 13 SP were spent shows roughly **double** the success
+  chances: Investigation 27.9–68.3% (was 16.4–21.1%), Undercover 23.4–57.3% (was 14.1–18.2%),
+  Sting 14.6–35.8% (was 8.7–11.2%), Raid 10.6–25.8% (was 7.5–9.7%). **Treat the probe's table as a
+  worst-case floor, not a steady state.**
+- **✅ ANSWERED 2026-07-31 (UI) — hospitalization is a real cost.** Panel tracks it directly:
+  **22 hospitalizations, $229.5m lost** as of 2026-07-31, almost entirely from the 7/30 trial's
+  failed Raids (2 successes / 22 failures). Failed contracts cost HP; failed operations cost HP
+  **and rank**; black ops incur heavy losses of both. `Investigation` is the only listed action with
+  no HP loss on failure.
+- **❓ Still open — exact formulas** for success chance, rank gain, and chaos accumulation/decay
+  rates. The levers and their directions are documented; the closed-form math is not.
+- **❓ Still open — stamina's precise coupling to success chance.** The panel exposes a
+  `Stamina Penalty:` percentage (read **0.0%** on 2026-07-31), so the effect is observable live even
+  though the formula isn't stated. Stamina was full throughout the 7/30 trial, so it was **not** the
+  cause of the low chances there.
 - **❓ Still open — whether `switchCity` interrupts the current action or costs anything.**
 
 ---
@@ -531,3 +634,17 @@ State at doc creation (2026-07-29, pre-grind):
   flag against the black-op path, but explicitly not a verdict (skill-point scaling and `Field
   Analysis` scouting are both untested and both plausibly change the rate). Found and fixed a
   `vite.config.ts` sync-filter gap that silently dropped both probes' first outputs.
+- **2026-07-31 — 🔴 MAJOR CORRECTION: the in-game Bladeburner panel was never read, and it
+  documents nearly everything this doc called unknown.** Prompted by Kenneth noticing the panel
+  exists. Newly recorded as fact rather than inference: **1 skill point per 3 ranks** (⇒ ~133,000 SP
+  at rank 400,000, vs the 13 the trial spent); **all 12 skill effects**, including **`Overclock`
+  −1% action time per level to max 90 ⇒ 10× throughput**; chaos is per-city with explicit up/down
+  levers *and* rises spontaneously from world events; `Incite Violence` regenerates contract/op
+  inventory; teams come from `Recruitment` (100% success chance for us) and were **size 0** for the
+  entire trial; action levels unlock by success and grant more rank/exp/money (Tracking observed at
+  **level 8/8, 100% success, 12s**); hospitalization is a tracked cost (**22 times, $229.5m**).
+  Live re-read after chaos decayed shows success chances roughly **double** the probe's figures.
+  **Net: the 7/30 shelving verdict rests on a model the game contradicts** — constant action time,
+  constant success chance, no teams, no level progression, extrapolated from the lowest-investment
+  regime. Also records the generalised lesson: *the rendered game UI is part of the interface*, and
+  reading 41 API files exhaustively is not a substitute for opening the panel.
