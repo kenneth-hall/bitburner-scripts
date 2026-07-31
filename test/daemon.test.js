@@ -13,6 +13,7 @@ import {
   SUPERVISOR_RETRY_MS,
   supervisedResidents,
   GANG_GATED_COMPANIONS,
+  BLADEBURNER_GATED_COMPANIONS,
   loadBoundaryLog,
   mirrorBoundaryRecord,
   seedFloorReserve,
@@ -177,6 +178,12 @@ describe('planRelaunches — Phase 26 B1 (S5/S10)', () => {
     expect(RESIDENT_COMPANIONS[cloudIdx + 1]).toBe('gangmanager.js');
   });
 
+  it('Phase 38 Slice B: bladeburnermanager.js is resident, right after gangmanager.js', () => {
+    expect(RESIDENT_COMPANIONS).toContain('bladeburnermanager.js');
+    const gangIdx = RESIDENT_COMPANIONS.indexOf('gangmanager.js');
+    expect(RESIDENT_COMPANIONS[gangIdx + 1]).toBe('bladeburnermanager.js');
+  });
+
   it('multiple missing residents are all handled in one pass', () => {
     const r = planRelaunches(new Set(), residents, new Set(), {}, 1000);
     expect(r.launch.sort()).toEqual(['a.js', 'b.js', 'c.js']);
@@ -205,6 +212,40 @@ describe('planRelaunches — Phase 26 B1 (S5/S10)', () => {
       // ...and the gate is the only thing suppressing it: with a gang it plans.
       const withGang = planRelaunches(new Set(), supervisedResidents(RESIDENT_COMPANIONS, true), new Set(), {}, 1000);
       expect(withGang.launch).toContain('gangmanager.js');
+    });
+  });
+
+  describe('supervisedResidents -- Phase 38 Slice B: Bladeburner gate (third param)', () => {
+    it('two-arg call sites are behaviour-identical -- hasBladeburner defaults to true', () => {
+      expect(supervisedResidents(RESIDENT_COMPANIONS, true)).toEqual(RESIDENT_COMPANIONS);
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, false);
+      expect(gated).toContain('bladeburnermanager.js');
+      expect(gated).toEqual(RESIDENT_COMPANIONS.filter((s) => s !== 'gangmanager.js'));
+    });
+
+    it('without Bladeburner access, bladeburnermanager.js is dropped and nothing else is', () => {
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, true, false);
+      expect(gated).not.toContain('bladeburnermanager.js');
+      expect(gated).toEqual(RESIDENT_COMPANIONS.filter((s) => s !== 'bladeburnermanager.js'));
+    });
+
+    it('both gates compose -- no gang AND no Bladeburner drops both, only both', () => {
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, false, false);
+      expect(gated).toEqual(RESIDENT_COMPANIONS.filter((s) => s !== 'gangmanager.js' && s !== 'bladeburnermanager.js'));
+    });
+
+    it('every Bladeburner-gated name is actually a resident -- a typo would silently gate nothing', () => {
+      for (const script of BLADEBURNER_GATED_COMPANIONS) expect(RESIDENT_COMPANIONS).toContain(script);
+    });
+
+    it('a Bladeburner-less gate means no relaunch is ever planned for bladeburnermanager.js', () => {
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, true, false);
+      const r = planRelaunches(new Set(), gated, new Set(), {}, 1000);
+      expect(r.launch).not.toContain('bladeburnermanager.js');
+      expect(r.lastAttemptMs['bladeburnermanager.js']).toBeUndefined();
+      // ...and the gate is the only thing suppressing it: with access it plans.
+      const withAccess = planRelaunches(new Set(), supervisedResidents(RESIDENT_COMPANIONS, true, true), new Set(), {}, 1000);
+      expect(withAccess.launch).toContain('bladeburnermanager.js');
     });
   });
 });

@@ -131,6 +131,7 @@ export const RESIDENT_COMPANIONS = [
   "resourcemanager.js",
   "cloudmanager.js",
   "gangmanager.js", // Phase 27 -- priority slot right after cloudmanager.js, matches the launch-block order above
+  "bladeburnermanager.js", // Phase 38 Slice B -- same dynamic-gate shape as gangmanager.js, see BLADEBURNER_GATED_COMPANIONS
   "augfarmer.js",
   "dashboard.js",
   "xpfarm.js",
@@ -157,17 +158,30 @@ export const SUPERVISOR_RETRY_MS = 5 * 60_000; // per-script backoff so an insta
 // restart needed.
 export const GANG_GATED_COMPANIONS = ["gangmanager.js"];
 
+// Phase 38 Slice B (WI4): same shape as GANG_GATED_COMPANIONS -- bladeburnermanager.js
+// exits immediately when ns.bladeburner.inBladeburner() is false, so a node without
+// Bladeburner access would otherwise see it missing forever and relaunch it every
+// SUPERVISOR_RETRY_MS, the exact 110-attempt/9.1h flood the gang precedent above
+// documents. Filtered out of the supervised set until the division is joined.
+export const BLADEBURNER_GATED_COMPANIONS = ["bladeburnermanager.js"];
+
 /**
- * Pure. The supervised resident set for the current gang state: the full list
- * when a gang exists, minus GANG_GATED_COMPANIONS when it doesn't. Order
- * preserved.
+ * Pure. The supervised resident set for the current gang/Bladeburner state:
+ * the full list minus GANG_GATED_COMPANIONS when there's no gang, minus
+ * BLADEBURNER_GATED_COMPANIONS when there's no Bladeburner access. Order
+ * preserved. `hasBladeburner` defaults to `true` so every pre-Phase-38
+ * two-arg call site (and its fixtures) stays behaviour-identical.
  * @param {string[]} residents
  * @param {boolean} hasGang
+ * @param {boolean} hasBladeburner
  * @returns {string[]}
  */
-export function supervisedResidents(residents, hasGang) {
-  if (hasGang) return residents;
-  return residents.filter((s) => !GANG_GATED_COMPANIONS.includes(s));
+export function supervisedResidents(residents, hasGang, hasBladeburner = true) {
+  return residents.filter((s) => {
+    if (!hasGang && GANG_GATED_COMPANIONS.includes(s)) return false;
+    if (!hasBladeburner && BLADEBURNER_GATED_COMPANIONS.includes(s)) return false;
+    return true;
+  });
 }
 
 // Phase 24 (S2): a purpose-built status snapshot for dashboard.js -- distinct
@@ -224,6 +238,22 @@ function launchDetached(ns, script, ...args) {
 
   const pid = ns.exec(script, "home", 1, ...args);
   if (pid === 0) tprintTs(ns, `ERROR: failed to start ${script}`);
+}
+
+/**
+ * Phase 38 Slice B (review S7): `inBladeburner()` is documented 0 GB and the
+ * one API-access-free call, but docs/bladeburner-reference.md's own gotcha
+ * 11 claims the whole API throws uniformly pre-join -- including 0 GB
+ * methods -- while its S6 measurement recorded `inBladeburner()` returning
+ * `false` live pre-join without throwing. The reference contradicts itself;
+ * the supervisor loop is not where that should get resolved. Throw => false.
+ */
+function inBladeburnerSafe(ns) {
+  try {
+    return ns.bladeburner.inBladeburner();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -748,6 +778,14 @@ export async function main(ns) {
   } else {
     tprintTs(ns, "INFO: no gang -- gangmanager.js/gangratelog.js not launched, gangmanager.js supervision suspended");
   }
+  // Phase 38 Slice B: Bladeburner engine -- same startup-launch shape as the
+  // gang gate directly above (launched here too, not just left to the first
+  // supervisor check, so it doesn't wait up to SUPERVISOR_CHECK_MS/review S6).
+  if (inBladeburnerSafe(ns)) {
+    launchDetached(ns, "bladeburnermanager.js");
+  } else {
+    tprintTs(ns, "INFO: no Bladeburner access -- bladeburnermanager.js not launched, supervision suspended");
+  }
   // Phase 32: BN2.1 progress sampler -- installed hacking mult `M` toward the
   // w0r1d_d43m0n gate, a smoothed gang+hacking income $/sec + trend, and the
   // $-to-next-aug/awaiting-money timer. ~3.1 GB (getMoneySources+getPlayer).
@@ -1041,15 +1079,17 @@ export async function main(ns) {
     if (supervisorNowMs - lastSupervisorCheck >= SUPERVISOR_CHECK_MS) {
       lastSupervisorCheck = supervisorNowMs;
       const runningNames = new Set(ns.ps("home").map((p) => p.filename));
-      // Re-read the gang gate every check rather than reusing the startup
-      // value (ns.gang.inGang() is 0 GB): a gang created mid-session by
-      // gangcreate.js starts being supervised within one check, and no
-      // gangless node pays for a companion that can only exit.
-      const supervised = supervisedResidents(RESIDENT_COMPANIONS, ns.gang.inGang());
-      // Drop bookkeeping for anything the gate just removed, so a later
-      // createGang() starts from a clean slate instead of inheriting a
-      // multi-hour missing-since and a mid-backoff attempt clock.
-      for (const script of GANG_GATED_COMPANIONS) {
+      // Re-read the gang/Bladeburner gates every check rather than reusing
+      // the startup value (both underlying calls are 0 GB, inBladeburnerSafe
+      // guards the doc-contradicting throw): a gang created mid-session by
+      // gangcreate.js, or the division joined mid-session, starts being
+      // supervised within one check, and neither a gangless nor a
+      // Bladeburner-less node pays for a companion that can only exit.
+      const supervised = supervisedResidents(RESIDENT_COMPANIONS, ns.gang.inGang(), inBladeburnerSafe(ns));
+      // Drop bookkeeping for anything a gate just removed, so a later
+      // createGang()/division-join starts from a clean slate instead of
+      // inheriting a multi-hour missing-since and a mid-backoff attempt clock.
+      for (const script of [...GANG_GATED_COMPANIONS, ...BLADEBURNER_GATED_COMPANIONS]) {
         if (supervised.includes(script)) continue;
         delete companionMissingSince[script];
         delete companionAttemptCount[script];

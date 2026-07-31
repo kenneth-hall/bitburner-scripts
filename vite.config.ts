@@ -94,6 +94,8 @@ export default defineConfig({
         if (/^worktypeprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/worktypeprobe.js -- which joined factions offer faction work, one file per run (root-caused augfarmer's NiteSec workForFaction throw: gang factions offer none)
         if (file === 'gang-state.json') return 'logs/gang-state.json'; // Phase 27 Tier 1 -- gangmanager.js overwrite-in-place snapshot + restart-persistence source
         if (file === 'gang-log.json') return 'logs/gang-log.json'; // Phase 27 Tier 1 -- gangmanager.js ring-capped event log (recruit/promote/demote/sink/startup/off-marker)
+        if (file === 'bladeburner-state.json') return 'logs/bladeburner-state.json'; // Phase 38 Slice B -- bladeburnermanager.js overwrite-in-place snapshot
+        if (file === 'bladeburner-log.json') return 'logs/bladeburner-log.json'; // Phase 38 Slice B -- bladeburnermanager.js ring-capped event log (startup/off-marker/stand-down/skill-buy)
         if (file === 'gang-rate-log.json') return 'logs/gang-rate-log.json'; // Phase 30 survivor -- gangratelog.js durable respect-rate/ascension-mult series (ring-capped, 5min samples)
         if (file === 'goal-state.json') return 'logs/goal-state.json'; // Phase 32 -- goallog.js overwrite-in-place snapshot, dashboard.js's GOAL panel source
         if (file === 'goal-log.json') return 'logs/goal-log.json'; // Phase 32 -- goallog.js ring-capped cumulative series (gangCum/hackingCum/mHacking, 60s samples)
