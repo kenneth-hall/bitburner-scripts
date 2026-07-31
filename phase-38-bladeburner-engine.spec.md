@@ -30,7 +30,39 @@ Ship gate T1/T2/R1/V1/V2 all cleared:
   `triggerArmChanged`. The live-observed ground truth (`getCurrentWork()`, the log lines) is what
   was actually tested; a consumer reading `holdAgeMs` mid-hold sees a stale-but-not-wrong age.
 
-**Slice B (WI2-4, `bladeburnermanager.js` + supervisor gating) is next — not started.**
+**🟡 Slice B (WI2-4) implemented and partially live-validated 2026-07-31 — on branch
+`phase-38-slice-b`, NOT YET merged.** All ten spec-listed pure functions (`expectedRankPerSec`,
+`pickRankAction`, `planSkillBuy`, `shouldRotateCity`, `classifyWindow`, `higherPriorityClaimant`,
+`computeRealizedRates`, `computeDutyCycle`, `computeRepForegone`, `projectRankEta`) plus
+`estimateRepRatePerSec` (a RAM-free `repForegone` input, derived from two `augfarmer-state.json`
+reads rather than adding a Singularity call). `bladeburnermanager.js` main loop, WI3 instrumentation
+(`bladeburner-state.json`/`bladeburner-log.json` + `vite.config.ts` filters), WI4 daemon supervisor
+gating (`BLADEBURNER_GATED_COMPANIONS`, `supervisedResidents`'s third param, `inBladeburnerSafe`).
+87 new tests, `npm test` 1117/1117 green, `npm run verify:log`'s same 3 pre-existing failures
+(confirmed via `git stash`).
+- **RAM, measured live:** `bladeburnermanager.js` **61.00 GB** — but only after finding and fixing a
+  **`window` identifier collision with the DOM global** mid-measurement (false **+25 GB**, first
+  reading 86.00 GB). Same bug class as CLAUDE.md's `share`/`ls`/`exec` list; `window` wasn't
+  previously on it and is now worth adding. `daemon.js` re-measured at **16.30 GB** with no
+  `bladeburner.*` line in the breakdown — `inBladeburner()`'s documented 0 GB held live (**R2**).
+- **V3 (L4), partial:** daemon restart auto-launched `bladeburnermanager.js`; `backdoorfactions.js`
+  happened to already be running, and the engine logged a **stand-down within ~300ms of startup**,
+  released the slot-hold marker (confirmed absent via `ls --grep`), and `backdoorfactions.js`
+  completed a backdoor (CSEC) uncontended while stood down — **decision 3 confirmed live**, the
+  harder/riskier direction to get right.
+  ⚠️ **Not yet confirmed live: the normal (non-stand-down) operating path** — acquire the marker,
+  `startAction`, refresh independent of progress, accrue `repForegone`, write
+  `bladeburner-state.json`. `backdoorfactions.js` has occupied the higher-priority slot
+  continuously since the engine started (hacking 154 vs NiteSec's ~202 gate — a real, possibly
+  multi-hour wait, not a bug) — a 600s log-file watch never saw a `stand-down-clear` event, and
+  `bladeburner-state.json` has never been written this run (only the off-marker/stand-down branches
+  have fired). **L5** (kill mid-action, confirm `atExit` cleanup) is blocked on the same thing —
+  there's no action to kill mid-flight yet. Left running; will self-resolve once `backdoorfactions.js`
+  clears (naturally, or check back next session) — revisit then, not by killing it early to force
+  the test.
+- **Not merged to master pending the rest of V3.** Decision 9's checkpoints A (24h)/B (1wk) are
+  explicitly "not a merge blocker" (precedent: Phase 35's V3) and are a separate, longer-horizon
+  concern from shipping the code — but V3 (the wiring actually working end-to-end) is not optional.
 
 ## Context
 

@@ -329,6 +329,13 @@ site rather than trusting recall.
   `ns.ls`'s 0.20 GB on the *name alone* — 16.50 GB measured vs 16.30 expected — and renaming to
   `live` recovered it exactly. Short, innocuous-looking names are the dangerous ones: `ls`, `ps`,
   `rm`, `mv`, `run`, `kill`, `read`, `write`, `scan`, `hack`, `grow`, `share`, `exec`, `tail`.
+  **The collision isn't limited to `ns.*` names — it reaches the browser global namespace too.**
+  Confirmed live 2026-07-31: `bladeburnermanager.js` (phase-38 Slice B) named a local `window`
+  (`const window = classifyWindow(...)`) and was silently billed **+25 GB** for the DOM `window`
+  object (86.00 GB measured vs. 61.00 GB expected) — renaming to `windowKind` recovered it exactly.
+  Add `window` (and by the same logic, other DOM/Node globals: `document`, `location`, `navigator`,
+  `history`, `self`, `top`, `parent`, `global`, `process`) to the mental danger list alongside the
+  `ns.*` names above.
 - **Import bleed — importing a pure helper charges the whole module's `ns` surface.** The
   analyzer bills an imported module's *entire* `ns` footprint, not just the symbol you named.
   Confirmed 2026-07-18: `targetsmonitor.js` imported the four-line, zero-`ns` `isPrepped` from
