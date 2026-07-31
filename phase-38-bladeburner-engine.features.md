@@ -201,6 +201,10 @@ not a nice-to-have:
 - Rank curve vs. the black-op ladder — **is it linear, or does it bend?** The whole verdict turns
   on this and a linear extrapolation is the thing that burned us.
 - Projected ETA to rank 400,000 recomputed continuously, with its own confidence trend.
+- **Duty cycle and its price (D10):** fraction of held slot time spent on rank-producing actions vs
+  zero-rank overhead, and the running **rep foregone** (`contested slot seconds × ~1.214 rep/sec`).
+  Without this the engine's rate reads better than it is *and* the cost to the win path stays
+  invisible — the two failure modes that produced the 7/30 verdict in the first place.
 
 **D9 — The slot-hold marker contract. Decided 2026-07-31 (Kenneth chose option (a)).**
 
@@ -222,6 +226,11 @@ rather than the spec, because they're about *safety and scope*, not implementati
 - **Holds are bounded, never indefinite.** The engine requests the slot in *slices* and must
   re-assert to keep it. Combined with the staleness guard, the worst case for a crashed engine is
   one slice of lost rep-grinding, not an unbounded stall.
+- **Holds are phase-aware (D10).** Before claiming a contested slice the engine reads
+  `augfarmer-state.json`; when augfarmer has no rep deficit to grind it can take the slot freely,
+  and when it does, the engine spends that scarce time on **rank-producing actions only**, never on
+  zero-rank overhead. The hold's *cost* is `slice seconds × ~1.214 rep/sec` — the spec should log
+  that figure so the price of the experiment is visible rather than implicit.
 - **augfarmer stays in charge of its own critical work.** The hold is advisory for *rep grinding*
   only — it must not block buying, targeting, the install trigger, spend-down, or anything else
   augfarmer does. Narrowest possible cut into win-path code.
@@ -232,6 +241,69 @@ rather than the spec, because they're about *safety and scope*, not implementati
 - **Open for spec:** slice length, whether augfarmer can *refuse* a hold when a rep deficit is
   urgent (e.g. close to an install boundary), and whether the engine should voluntarily release on
   reading a critical augfarmer phase. All tuning; none of them change the contract's shape.
+
+**D10 — General actions are zero-rank overhead, and that overhead is billed to `augfarmer.js`.
+Proposed 2026-07-31 (Kenneth's prompt: how do Training / Field Analysis fit against augfarmer?).**
+
+The draft treated "the engine holds the slot" as if slot time converted to rank. **It doesn't —
+most of it can't.** Measured yields (`logs/bladeburneractionprobe-1785412426030.json`):
+
+| General action | Time | Rank | What it actually buys |
+|---|---|---|---|
+| `Recruitment` | **291s** | **0** | team members (Ops/BlackOps success) |
+| `Diplomacy` | 60s | **0** | chaos ↓ in current city |
+| `Hyperbolic Regeneration Chamber` | 60s | **0** | HP + stamina recovery |
+| `Incite Violence` | 60s | **0** | contract/op inventory (chaos ↑ everywhere) |
+| `Training` | 30s | **0** | combat exp + max stamina |
+| `Field Analysis` | 30s | 0.1 | population-estimate accuracy |
+
+Against the best rank producers — `Raid` 0.83 rank/s raw, `Assassination` 0.36, `Stealth
+Retirement` 0.27 (raw = on success, before failure/chaos discounting).
+
+**So the engine's real rate is rank ÷ *total* slot time including overhead, and every second of
+that total is charged to augfarmer at its observed ~1.214 rep/sec.** Concretely: one `Recruitment`
+attempt = **291s = ~353 faction rep foregone**, for zero rank. A five-member team is ~24 minutes of
+slot time and ~1,760 rep. That cost appears nowhere in the 7/30 analysis or in this doc's earlier
+drafts, and it is not small.
+
+⚠️ **The overhead is not optional either** — chaos rises on its own (world events), HP loss is real
+(22 hospitalizations, $229.5m), and teams/inventory need building. A steady-state engine has a
+**duty cycle**, and the spec must model it explicitly: *fraction of slot time producing rank* is a
+first-class output, not an afterthought.
+
+### 🔑 The asymmetry that should drive the policy: what survives an install
+
+- **Bladeburner rank and skill points SURVIVE augmentation installs** (reference §5) — they
+  compound across the whole node, monotonically.
+- **Combat stats and stamina do NOT** — they're player skills, reset to 1 by every install, exactly
+  like hacking level.
+
+**Therefore `Training` is the weakest use of contested slot time**: it's the one overhead action
+whose entire product is wiped at the next install boundary, while the same seconds spent on a
+contract would have produced permanent rank. It only earns its place immediately before a BlackOp
+attempt (where *"success significantly affected by combat stats"* applies) and when no install is
+imminent. **Proposal: the engine does not run `Training` as routine upkeep** — combat is already
+175+ from the crime grind, and `Reaper`/`Evasive System` raise *effective* combat stats through
+skill points, which **do** survive installs. Buying combat via SP rather than via slot time is
+strictly better under this asymmetry.
+
+Same lens on the rest: `Diplomacy` / `Hyperbolic Regeneration Chamber` / `Incite Violence` /
+`Recruitment` are **protective or enabling** — their product (low chaos, health, inventory, team)
+persists within the cycle and is genuinely needed, so they stay. `Field Analysis` is near-worthless
+per §1's finding (narrows the estimate, barely moves the central value) and should be rare, not the
+~50 reps the trial accidentally ran.
+
+### When the slot is actually free — prefer these windows
+
+augfarmer only needs the slot while it has a **rep deficit to grind**. It does not during
+`spend-down`, `installing`, the post-install window before factions are rejoined, `idle-plateau`,
+or any pass where the target is already rep-met and it's purely money-blocked. **Proposal: the
+engine reads `augfarmer-state.json`'s phase/`workTarget.deficit` and preferentially schedules its
+zero-rank overhead (Recruitment, Diplomacy, HRC) into those windows**, spending contested
+slot time on rank-producing actions only. That converts much of the overhead from "billed to the
+win path" to "free," and it needs no extra coordination beyond the state file augfarmer already
+writes. ⚠️ Tuning belongs in the spec; the *principle* — **overhead goes in the gaps, rank goes in
+the contested time** — is the decision here.
 
 **D8 — A stopping condition, set in advance. Proposed.**
 Per the convergence rules, this phase carries its own kill switch so it can't renew itself:
