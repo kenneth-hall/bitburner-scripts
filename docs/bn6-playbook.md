@@ -275,18 +275,30 @@ keep this from being a final verdict. **Still needed:** whether skill investment
 Analysis` scouting change the rate — unmeasurable without running an actual action, which is a
 deliberate small live trial, not another read-only probe.
 
-**Stage 3 — build the engine.** A `bladeburnermanager.js` companion in the established mould
-(headless resident, `RESIDENT_COMPANIONS` slot, `bladeburner-state.json` + `bladeburner-log.json`,
-an off-marker file, gated out of the supervisor when `inBladeburner()` is false exactly as
-`gangmanager.js` is now). Control loop on **`await ns.bladeburner.nextUpdate()`** — 0 GB and it
-wakes on the engine's own boundary. **Do not spec this before Stage 2 completes.** Full brainstorm →
-spec → spec-reviewer → implement, per the three-stage workflow.
+**🚫 Stage 3 — build the engine. SHELVED 2026-07-30, NEVER STARTED.** No code, no phase doc, no
+phase number — it never entered the brainstorm→spec→implement pipeline. **The gate below did its
+job:** Stage 2's measurement came back at ~10.5 months to the rank-400,000 gate (see §1), so the
+engine went from "blocked pending data" straight to "not worth building" without a line written.
+That is the staging working as designed, not an abandonment. Design sketch kept only in case city
+rotation (§1's one untested lever) ever reopens this: a `bladeburnermanager.js` companion in the
+established mould (headless resident, `RESIDENT_COMPANIONS` slot, `bladeburner-state.json` +
+`bladeburner-log.json`, an off-marker file, gated out of the supervisor when `inBladeburner()` is
+false exactly as `gangmanager.js` is now), control loop on **`await ns.bladeburner.nextUpdate()`**
+(0 GB, wakes on the engine's own boundary). *Original gating instruction, preserved because it is
+the reason this section is short:* "Do not spec this before Stage 2 completes."
 
-**Stage 4 — rank ladder → black ops → `Operation Daedalus`.** Rank 25 also unlocks the Bladeburner
-faction; its augs are worth a look, but note ⚠️ **Bladeburner faction rep resets every install and
-can only be earned through Bladeburner actions** — no donation shortcut, no `workForFaction`. So
-Bladeburner augs are structurally expensive in a way the ratchet cannot fix, and should not be
-assumed into any plan.
+**🚫 Stage 4 — rank ladder → black ops → `Operation Daedalus`. SHELVED 2026-07-30** along with
+Stage 3 — this was the win condition the engine existed to reach, and the node is now being cleared
+via hacking instead (§1). Retained facts, still true and still relevant if Bladeburner is ever
+revisited: rank 25 unlocks the Bladeburner faction, and ⚠️ **Bladeburner faction rep resets every
+install and can only be earned through Bladeburner actions** — no donation shortcut, no
+`workForFaction`, so its augs are structurally expensive in a way the ratchet cannot fix and should
+not be assumed into any plan.
+
+**➡️ The live plan is now the hacking path** — M≈28–37 to the WD gate 6,000, plus 35 augs for the
+Daedalus invite (§1/§3). That runs on existing machinery (batcher + aug ratchet), which is why it
+needs no Stage-3-equivalent build: **the "no new engine" property that made it look boring on
+2026-07-29 is exactly what makes it the surviving option.**
 
 ---
 

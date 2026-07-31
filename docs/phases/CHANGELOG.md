@@ -6,6 +6,43 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-07-30
+
+- **BN6 win path FLIPPED from Bladeburner black-ops to hacking** — the 2026-07-29 decision's own
+  ~3-week flip condition was re-checked live and failed by ~2 orders of magnitude. Sequence:
+  combat gate cleared (overshot to 172/172/172/172 — an unattended `commitCrime` grind ran past
+  the 100 gate with no harness alive to stop it), division joined (`src/joinbladeburner.js`),
+  then `bladeburnerprobe.js` re-run post-join unlocked all 10 previously-throwing calls and
+  recovered the **full 21-black-op rank ladder (final gate: rank 400,000 at `Operation
+  Daedalus`)**. Two new probes (`bladeburneractionprobe.js`, `bladeburnerskillprobe.js`) measured
+  a bad *predicted* rate (~5–6 months), then a ~75-minute 3-version live trial
+  (`src/bladeburnertrial.js`) tested every lever that could close it: **scouting** (real, but only
+  narrows the estimate's range, not the rate), **skill investment** (13 SP over 10 skills — a
+  one-time ~15% step, not a compounding trend), and **`Diplomacy`** as a chaos countermeasure (a
+  consistent bump, 2–3× smaller than the decay it fought). **Measured achieved rate — real rank
+  gained ÷ real elapsed time, not the prediction — was 0.0144 rank/sec ⇒ ~10.5 months, WORSE than
+  the naive zero-investment estimate.** Every mitigation made it worse than doing nothing.
+  Bladeburner rank/skills persist across installs so they're banked, not wasted, but **Stage 3 (the
+  engine) was shelved without a line of code written** — the "don't spec before Stage 2 completes"
+  gate working as designed. One lever logged untested: **city rotation**. Full record:
+  [`docs/bn6-playbook.md`](../bn6-playbook.md) §1, [`docs/bladeburner-reference.md`](../bladeburner-reference.md) §3/§8/§9/§10.
+- **New permanent API gotcha recorded:** `ns.bladeburner.startAction` is **not one-shot — it
+  auto-repeats** like `ns.singularity.commitCrime`, so `getCurrentAction()` never returns `null`
+  between reps and a wait-for-null control loop hangs forever. Detect completion via
+  `getActionCurrentTime()` wrapping instead. Cost 23 min of a stuck script before it was caught
+  (which incidentally produced the ~50-rep scouting sample that answered the scouting question).
+- **`vite.config.ts` sync-filter gap found and fixed** — a new script's output file needs an
+  explicit filter entry or it **silently never reaches `logs/`**: the in-game write succeeds, `run`
+  reports success, and every other file keeps exporting normally, so it presents as a bridge stall
+  rather than a missing line. Added entries for the three new Bladeburner probes/trial.
+- **`cloudmanager.js` paused (`cloud-upgrade-off.txt`) to unstick the aug ratchet** — per-host
+  upgrades ($675.84m/tier) were absorbing essentially all income, holding `totalGain` (1.0615)
+  under the ~1.1 install-trigger threshold for **24h+** (`nfgBoundBy: "money"`), while fleet
+  utilization sat at **49.1%**. This is the known cloud-vs-ratchet wallet race from `BACKLOG.md`,
+  resurfacing under BN6's harsher `CloudServerSoftcap` (2.0 vs BN5's 1.2) and mattering more now
+  that the win path is hacking, i.e. M-growth-bound. Confirmed live: `cloud-state.json`
+  `paused: true`. ⚠️ **Remove the marker once the ratchet fires** or once utilization climbs.
+
 ## 2026-07-29
 
 - **BN5.1 CLEARED**, entered BN6.1 straight off it. `w0r1d_d43m0n` backdoored, confirmed live
