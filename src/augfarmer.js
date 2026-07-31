@@ -104,6 +104,17 @@ export const PAUSE_FILE = "augfarmer-pause.txt";
 export const TRAVEL_COST = 200_000;
 const DAEDALUS_AUG_GATE = 30;
 
+// Phase 38 (spec Slice A, decision 5): the Bladeburner engine's cooperative
+// slot-hold marker. augfarmer only ever reads this file -- the marker
+// contract's sole writer/deleter is bladeburnermanager.js (WI2, Slice B, not
+// yet written). Every failure mode (absent, malformed, stale, future-dated)
+// resolves to holdActive: false -- resolveSlotHold fails OPEN, so a crashed
+// Slice-B engine costs at most SLOT_HOLD_MAX_AGE_MS of paused rep grinding,
+// self-healing, no operator action.
+export const SLOT_HOLD_FILE = "bladeburner-slot-hold.json";
+export const SLOT_HOLD_MAX_AGE_MS = 30_000;
+export const SLOT_HOLD_FUTURE_TOLERANCE_MS = 5_000;
+
 // Phase 25 constants (spec S1/work item 1). Every one of these rides into
 // every decision record (buildDecisionRecord) so observe-mode data can
 // re-derive better values offline -- they are declared provisional by
@@ -715,6 +726,41 @@ export function slotAvailable(currentWork, factionScope) {
     return { available: true, reason: "own-faction-work" };
   }
   return { available: false, reason: currentWork.type };
+}
+
+/**
+ * Pure (Phase 38 spec Slice A, decision 5). Resolves the raw text of
+ * SLOT_HOLD_FILE (as read via `ns.read`, which returns "" for an absent
+ * file) into a hold verdict. Fails OPEN on every malformed input -- this is
+ * the phase's one safety-critical requirement, so every branch below must
+ * return `holdActive: false` except the final well-formed/fresh case.
+ * @param {string|null|undefined} raw
+ * @param {number} nowMs
+ * @param {number} maxAgeMs
+ * @param {number} futureToleranceMs
+ * @returns {{holdActive: boolean, holdReason: string, holderName: string|null, holdAgeMs: number|null}}
+ */
+export function resolveSlotHold(raw, nowMs, maxAgeMs = SLOT_HOLD_MAX_AGE_MS, futureToleranceMs = SLOT_HOLD_FUTURE_TOLERANCE_MS) {
+  if (!raw) return { holdActive: false, holdReason: "no-marker", holderName: null, holdAgeMs: null };
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { holdActive: false, holdReason: "unparseable", holderName: null, holdAgeMs: null };
+  }
+
+  const ts = parsed?.ts;
+  if (typeof ts !== "number" || !Number.isFinite(ts)) {
+    return { holdActive: false, holdReason: "no-timestamp", holderName: null, holdAgeMs: null };
+  }
+
+  const holderName = typeof parsed.holder === "string" ? parsed.holder : null;
+  const holdAgeMs = nowMs - ts;
+  if (holdAgeMs > maxAgeMs) return { holdActive: false, holdReason: "stale", holderName, holdAgeMs };
+  if (ts - nowMs > futureToleranceMs) return { holdActive: false, holdReason: "future-timestamp", holderName, holdAgeMs };
+
+  return { holdActive: true, holdReason: "held", holderName, holdAgeMs };
 }
 
 /**
@@ -1717,7 +1763,13 @@ export function buildDecisionRecord(kind, inputs) {
  * `mode !== "auto"` so a misused installSeq can never leak a spend-down/
  * exec/install action in observe mode (the rail test). Phase 33 decision 4:
  * a `target.fundBlocked` head takes its own branch before the repMet check --
- * see that branch's inline comment.
+ * see that branch's inline comment. `slotHold` (Phase 38 spec Slice A,
+ * decision 1) is advisory for rep grinding only: when `holdActive`, the
+ * `work` action is suppressed at both sites that would otherwise emit one,
+ * but `phase` is left EXACTLY as it would have been without the hold -- the
+ * Bladeburner engine's slot-holding minutes must never leak into
+ * `evalTrigger`'s phase-keyed arming logic. Defaults to `{ holdActive: false
+ * }` so every existing call site and fixture is behaviour-identical.
  */
 export function planPass({
   target,
@@ -1738,6 +1790,7 @@ export function planPass({
   fired,
   installSeq,
   gateFill,
+  slotHold = { holdActive: false },
 }) {
   if (paused) return { actions: [], reserve: 0, phase: "paused" };
 
@@ -1830,6 +1883,9 @@ export function planPass({
     const slot = slotAvailable(currentWork, factionScope);
     if (!slot.available) {
       actions.push({ type: "yield" });
+    } else if (slotHold.holdActive) {
+      // Phase 38 decision 1: the Bladeburner engine holds the slot -- no
+      // work action, but phase stays "grinding" exactly as it would have.
     } else if (workTarget?.faction) {
       const workType = pickWorkType(workTarget.workTypes);
       const alreadyWorking =
@@ -1874,6 +1930,12 @@ export function planPass({
   if (!slot.available) {
     actions.push({ type: "yield" });
     return { actions, reserve: reserveAmount, phase: "yielded" };
+  }
+
+  if (slotHold.holdActive) {
+    // Phase 38 decision 1: no work action while the Bladeburner engine holds
+    // the slot, but `phase` is whatever this pass would otherwise report.
+    return { actions, reserve: reserveAmount, phase };
   }
 
   if (workTarget?.faction) {
@@ -2108,6 +2170,9 @@ export async function main(ns) {
   // Phase 36 (decision 11, F-B): trigger-clear rate-limit state.
   let lastClearLogMs = null;
   let suppressedClearCount = 0;
+  // Phase 38 (spec Slice A): rising-edge tracker for the slot-hold
+  // acquire/release transition log lines, precedent `previousPhase`.
+  let previousSlotHoldActive = false;
 
   while (true) {
     const nowMs = Date.now();
@@ -2115,6 +2180,9 @@ export async function main(ns) {
     const paused = ns.fileExists(PAUSE_FILE, "home");
     const modeRaw = ns.read(RATCHET_MODE_FILE);
     const mode = modeRaw?.trim() === "auto" ? "auto" : "observe";
+    // Phase 38 (spec Slice A): read-only, 0 GB (`ns.read`). augfarmer never
+    // writes/deletes this file -- see SLOT_HOLD_FILE's declaration comment.
+    const slotHold = resolveSlotHold(ns.read(SLOT_HOLD_FILE), nowMs);
 
     const resetInfo = ns.getResetInfo();
     if (resetInfo.lastAugReset !== lastAugReset) {
@@ -2765,6 +2833,7 @@ export async function main(ns) {
       mode,
       fired: triggerState.fired,
       installSeq,
+      slotHold,
     });
 
     let boughtThisPass = false;
@@ -2951,14 +3020,28 @@ export async function main(ns) {
     if (previousPhase === "yielded" && plan.phase !== "yielded") {
       tprintTs(ns, "INFO: resuming -- action slot free");
     }
+    // Phase 38 (spec Slice A): transition-only, precedent the yielded lines
+    // just above -- never logged per-poll.
+    if (slotHold.holdActive && !previousSlotHoldActive) {
+      tprintTs(ns, `INFO: slot held by ${slotHold.holderName ?? "unknown"} -- rep work suppressed`);
+    }
+    if (!slotHold.holdActive && previousSlotHoldActive) {
+      tprintTs(ns, "INFO: slot hold released -- rep work resuming");
+    }
     // Phase 32 KPI 3: computed BEFORE previousPhase is reassigned below (the
     // function only needs the current phase + the prior stamp, but the
     // ordering keeps this next to the other phase-transition bookkeeping).
     const priorAwaitingMoneySince = awaitingMoneySince;
     awaitingMoneySince = nextAwaitingSince(awaitingMoneySince, plan.phase, nowMs);
     const awaitingMoneySinceChanged = awaitingMoneySince !== priorAwaitingMoneySince;
+    // Phase 38 (spec Slice A, blocker B8): same precedent as
+    // awaitingMoneySinceChanged/triggerArmChanged -- a 5-min heartbeat is too
+    // slow for a field a consumer (a future dashboard read, or Kenneth
+    // diagnosing a stuck grind) depends on.
+    const slotHoldChanged = slotHold.holdActive !== previousSlotHoldActive;
     previousPhase = plan.phase;
     previousTargetAug = target?.aug ?? null;
+    previousSlotHoldActive = slotHold.holdActive;
 
     const stateChanged = !launchedSummary;
     const heartbeatDue = nowMs - lastStateWrite >= 5 * 60_000;
@@ -2970,13 +3053,22 @@ export async function main(ns) {
     // persisted promptly instead of waiting up to 5min for the heartbeat.
     // triggerArmChanged (Phase 36 decision 10) is the same fix for the
     // install-trigger arm's start time -- see its definition above.
-    if (stateChanged || heartbeatDue || boughtThisPass || plan.phase !== previousPhase || awaitingMoneySinceChanged || triggerArmChanged) {
+    if (
+      stateChanged ||
+      heartbeatDue ||
+      boughtThisPass ||
+      plan.phase !== previousPhase ||
+      awaitingMoneySinceChanged ||
+      triggerArmChanged ||
+      slotHoldChanged
+    ) {
       const stateRecord = {
         timestamp: nowMs,
         time: timeLabel,
         phase: plan.phase,
         mode,
         awaitingMoneySince,
+        slotHold: { holdActive: slotHold.holdActive, holderName: slotHold.holderName, holdAgeMs: slotHold.holdAgeMs, holdReason: slotHold.holdReason },
         target: target
           ? { aug: target.aug, faction: target.faction, repReq: target.repReq, deficit: target.deficit, livePrice, fundBlocked: target.fundBlocked, fundCap, fundCapSource }
           : null,

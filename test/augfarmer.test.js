@@ -76,6 +76,9 @@ import {
   evalStall,
   STALL_QUEUE_FLOOR,
   nextAwaitingSince,
+  resolveSlotHold,
+  SLOT_HOLD_MAX_AGE_MS,
+  SLOT_HOLD_FUTURE_TOLERANCE_MS,
 } from '../src/augfarmer.js';
 
 function statsAllOnes(overrides = {}) {
@@ -2141,6 +2144,71 @@ describe('nextAwaitingSince — Phase 32 KPI 3', () => {
   });
 });
 
+describe('resolveSlotHold — Phase 38 spec Slice A (decision 5, marker contract)', () => {
+  const T = 1_000_000_000;
+
+  it('file absent (raw null) -> not held, "no-marker"', () => {
+    expect(resolveSlotHold(null, T)).toEqual({ holdActive: false, holdReason: 'no-marker', holderName: null, holdAgeMs: null });
+  });
+
+  it('file empty (raw "") -> not held, "no-marker"', () => {
+    expect(resolveSlotHold('', T)).toEqual({ holdActive: false, holdReason: 'no-marker', holderName: null, holdAgeMs: null });
+  });
+
+  it('unparseable JSON -> not held, "unparseable"', () => {
+    expect(resolveSlotHold('not json', T)).toEqual({ holdActive: false, holdReason: 'unparseable', holderName: null, holdAgeMs: null });
+  });
+
+  it('missing ts -> not held, "no-timestamp"', () => {
+    expect(resolveSlotHold(JSON.stringify({ holder: 'bladeburnermanager' }), T))
+      .toEqual({ holdActive: false, holdReason: 'no-timestamp', holderName: null, holdAgeMs: null });
+  });
+
+  it('non-numeric ts -> not held, "no-timestamp"', () => {
+    expect(resolveSlotHold(JSON.stringify({ ts: 'now', holder: 'bladeburnermanager' }), T))
+      .toEqual({ holdActive: false, holdReason: 'no-timestamp', holderName: null, holdAgeMs: null });
+  });
+
+  it('T-SAFE: exactly at maxAgeMs is NOT stale -- still held (only strictly-over is stale)', () => {
+    const r = resolveSlotHold(JSON.stringify({ ts: T - SLOT_HOLD_MAX_AGE_MS, holder: 'bladeburnermanager' }), T);
+    expect(r).toEqual({ holdActive: true, holdReason: 'held', holderName: 'bladeburnermanager', holdAgeMs: SLOT_HOLD_MAX_AGE_MS });
+  });
+
+  it('T-SAFE (the phase\'s safety test): one ms past maxAgeMs -> not held, "stale" -- the crashed-engine backstop', () => {
+    const r = resolveSlotHold(JSON.stringify({ ts: T - SLOT_HOLD_MAX_AGE_MS - 1, holder: 'bladeburnermanager' }), T);
+    expect(r.holdActive).toBe(false);
+    expect(r.holdReason).toBe('stale');
+  });
+
+  it('future beyond tolerance -> not held, "future-timestamp"', () => {
+    const r = resolveSlotHold(JSON.stringify({ ts: T + SLOT_HOLD_FUTURE_TOLERANCE_MS + 1, holder: 'bladeburnermanager' }), T);
+    expect(r.holdActive).toBe(false);
+    expect(r.holdReason).toBe('future-timestamp');
+  });
+
+  it('future within tolerance -> held (clock skew is not corruption)', () => {
+    const r = resolveSlotHold(JSON.stringify({ ts: T + SLOT_HOLD_FUTURE_TOLERANCE_MS, holder: 'bladeburnermanager' }), T);
+    expect(r.holdActive).toBe(true);
+    expect(r.holdReason).toBe('held');
+  });
+
+  it('fresh and well-formed -> held, holderName/holdAgeMs surfaced', () => {
+    const r = resolveSlotHold(JSON.stringify({ ts: T - 1000, holder: 'bladeburnermanager' }), T);
+    expect(r).toEqual({ holdActive: true, holdReason: 'held', holderName: 'bladeburnermanager', holdAgeMs: 1000 });
+  });
+
+  it('holder is informational only -- a missing/non-string holder still resolves held, just with holderName null', () => {
+    const r = resolveSlotHold(JSON.stringify({ ts: T - 1000 }), T);
+    expect(r.holdActive).toBe(true);
+    expect(r.holderName).toBeNull();
+  });
+
+  it('honours custom maxAgeMs/futureToleranceMs arguments', () => {
+    expect(resolveSlotHold(JSON.stringify({ ts: T - 100 }), T, 50).holdActive).toBe(false);
+    expect(resolveSlotHold(JSON.stringify({ ts: T + 100 }), T, 30_000, 50).holdActive).toBe(false);
+  });
+});
+
 describe('pickNfgSeller', () => {
   it('picks the joined seller with the MOST rep, not catalog order', () => {
     // The gap-6 regression, with install #6's real shape: catalog order put
@@ -2674,6 +2742,93 @@ describe('planPass', () => {
       expect(plan.actions).toEqual([]);
       expect(plan.reserve).toBe(5000);
       expect(plan.phase).toBe('installing');
+    });
+  });
+
+  describe('Phase 38 spec Slice A — slotHold suppresses only the work action (decision 1)', () => {
+    const grindTarget = { aug: 'X', faction: 'CyberSec', repReq: 1000, deficit: 500, status: 'joined', workTypes: ['hacking'] };
+    const fundBlockedTarget = { aug: 'X', faction: 'CyberSec', repReq: 100, deficit: 0, status: 'joined', fundBlocked: true, workTypes: ['hacking'] };
+    const held = { holdActive: true, holderName: 'bladeburnermanager' };
+
+    it('called without slotHold behaves exactly as before (default-parameter test)', () => {
+      const opts = { target: grindTarget, workTarget: grindTarget, currentWork: null, factionScope: scope, money: 0, livePrice: null, paused: false };
+      const withDefault = planPass(opts);
+      const withExplicitAbsent = planPass({ ...opts, slotHold: { holdActive: false } });
+      expect(withDefault).toEqual(withExplicitAbsent);
+    });
+
+    it('fallthrough site (:1873): suppresses the work action, reports the identical phase/reserve as the no-hold run', () => {
+      const opts = { target: grindTarget, workTarget: grindTarget, currentWork: null, factionScope: scope, money: 0, livePrice: null, paused: false };
+      const noHold = planPass(opts);
+      const withHold = planPass({ ...opts, slotHold: held });
+      expect(withHold.actions.some((a) => a.type === 'work')).toBe(false);
+      expect(withHold.phase).toBe(noHold.phase);
+      expect(withHold.reserve).toBe(noHold.reserve);
+    });
+
+    it('fallthrough site, donation-eligible/money-blocked path (:1860-1871, awaiting-money falling through to the slot logic): hold still reports "awaiting-money"', () => {
+      const opts = {
+        target: grindTarget, currentWork: null, factionScope: scope, money: 1000, livePrice: 1000, paused: false,
+        favor: 200, favorToDonate: 150, hasFormulas: true, donationCost: 5000,
+      };
+      const noHold = planPass(opts);
+      const withHold = planPass({ ...opts, slotHold: held });
+      expect(noHold.phase).toBe('awaiting-money');
+      expect(withHold.phase).toBe('awaiting-money');
+      expect(withHold.actions.some((a) => a.type === 'work')).toBe(false);
+      expect(withHold.actions.some((a) => a.type === 'donate')).toBe(false);
+      expect(withHold.reserve).toBe(noHold.reserve);
+    });
+
+    it('fallthrough site, non-null currentWork (the yielded branch, :1874-1876): a foreign work type still yields regardless of the hold -- independent conditions', () => {
+      const opts = { target: grindTarget, workTarget: grindTarget, currentWork: { type: 'COMPANY' }, factionScope: scope, money: 0, livePrice: null, paused: false };
+      const noHold = planPass(opts);
+      const withHold = planPass({ ...opts, slotHold: held });
+      expect(noHold.phase).toBe('yielded');
+      expect(withHold.phase).toBe('yielded');
+      expect(withHold.actions).toContainEqual({ type: 'yield' });
+      expect(withHold.actions.some((a) => a.type === 'work')).toBe(false);
+    });
+
+    it('fundBlocked branch (:1829-1840): suppresses the work action, phase stays "grinding" identical to the no-hold run', () => {
+      const opts = { target: fundBlockedTarget, workTarget: fundBlockedTarget, currentWork: null, factionScope: scope, money: 1e9, livePrice: 500, paused: false };
+      const noHold = planPass(opts);
+      const withHold = planPass({ ...opts, slotHold: held });
+      expect(noHold.phase).toBe('grinding');
+      expect(withHold.phase).toBe('grinding');
+      expect(withHold.actions.some((a) => a.type === 'work')).toBe(false);
+    });
+
+    it('fundBlocked branch: a foreign currentWork still yields regardless of the hold', () => {
+      const opts = { target: fundBlockedTarget, workTarget: fundBlockedTarget, currentWork: { type: 'COMPANY' }, factionScope: scope, money: 1e9, livePrice: 500, paused: false };
+      const withHold = planPass({ ...opts, slotHold: held });
+      expect(withHold.actions).toContainEqual({ type: 'yield' });
+      expect(withHold.phase).toBe('grinding');
+    });
+
+    it('a hold still emits join/travel/buy and an identical reserve -- advisory for rep grinding only', () => {
+      const metTarget = { aug: 'X', faction: 'CyberSec', repReq: 100, deficit: 0, status: 'joined', workTypes: ['hacking'] };
+      const opts = {
+        target: metTarget, joinFactions: ['F1'], travel: { city: 'Aevum', faction: 'F1' },
+        currentWork: null, factionScope: scope, money: 500, livePrice: 500, paused: false,
+      };
+      const noHold = planPass(opts);
+      const withHold = planPass({ ...opts, slotHold: held });
+      expect(withHold.actions).toContainEqual({ type: 'join', faction: 'F1' });
+      expect(withHold.actions).toContainEqual({ type: 'travel', city: 'Aevum', faction: 'F1' });
+      expect(withHold.actions.some((a) => a.type === 'buy')).toBe(true);
+      expect(withHold.reserve).toBe(noHold.reserve);
+    });
+
+    it('a hold still emits donate and an identical reserve', () => {
+      const opts = {
+        target: grindTarget, currentWork: null, factionScope: scope, money: 7200, livePrice: 1000, paused: false,
+        favor: 200, favorToDonate: 150, hasFormulas: true, donationCost: 5000,
+      };
+      const noHold = planPass(opts);
+      const withHold = planPass({ ...opts, slotHold: held });
+      expect(withHold.actions).toContainEqual({ type: 'donate', faction: 'CyberSec', amount: 5000, deficit: 500 });
+      expect(withHold.reserve).toBe(noHold.reserve);
     });
   });
 });
