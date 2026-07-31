@@ -86,18 +86,18 @@ why "just do another trial" is rejected (§4).
 
 ## 3. Proposed decisions
 
-**D2 — Bladeburner never wins a resource conflict with the hacking path. Proposed — but ⚠️ the
-action-slot clause is NOT implementable as written; see §5's resolved blocker.**
+**D2 — Bladeburner never wins a resource conflict with the hacking path. Proposed; action-slot
+clause rewritten 2026-07-31 after the blocker resolved.**
 Hacking is the BN6 win path (7/30, unchanged). Where the two compete, Bladeburner yields:
 - **RAM:** ✅ **no longer a real constraint** — home was upgraded to **512 GB** on 2026-07-30
   (~162 GB free at measurement). D5's original 13 GB squeeze is obsolete; the engine can afford
   4 GB getters without contortions, though the cheap-call discipline is still good practice.
-- **Player action slot:** 🔴 **the blocker resolved against this clause.** Bladeburner and
-  singularity player-work share one exclusive slot, but `getCurrentWork()` cannot see Bladeburner,
-  so `augfarmer.js` re-grabs the slot ~4s after any Bladeburner action starts and kills it.
-  **"The engine yields" is not achievable by the engine alone** — augfarmer would have to stop
-  taking the slot, which is win-path code §6 declared out of scope. Needs a decision between
-  §5's options (a)/(b)/(c) before spec.
+- **Player action slot:** ✅ **resolved — cooperative marker (option (a)), decided by Kenneth
+  2026-07-31.** The two mutually preempt over one slot that `getCurrentWork()` cannot see (§5), so
+  "the engine yields" is not achievable by the engine alone. `augfarmer.js` gains a narrow,
+  marker-based hold-off so it can decline the slot deliberately instead of blindly re-grabbing it.
+  **Full contract in D9.** ⚠️ Yielding is now *cooperative*, which means it can **fail unsafely** —
+  D9's staleness guard is what keeps that from silently stalling the win path.
 - **Money:** the engine spends nothing. Skill points are its only currency and they aren't money.
 
 **D3 — City rotation is the first hypothesis, and the engine is built around it. Proposed.**
@@ -152,6 +152,37 @@ not a nice-to-have:
 - Rank curve vs. the black-op ladder — **is it linear, or does it bend?** The whole verdict turns
   on this and a linear extrapolation is the thing that burned us.
 - Projected ETA to rank 400,000 recomputed continuously, with its own confidence trend.
+
+**D9 — The slot-hold marker contract. Decided 2026-07-31 (Kenneth chose option (a)).**
+
+The engine claims the player action slot by writing a marker; `augfarmer.js` reads it and declines
+to take the slot rather than blindly re-grabbing it. Design points that belong in the brainstorm
+rather than the spec, because they're about *safety and scope*, not implementation:
+
+- **🔴 The marker MUST be heartbeat-stamped, and `augfarmer.js` MUST ignore it when stale.
+  Non-negotiable.** This is the single most dangerous thing this phase adds. A plain
+  presence-checked file (the `cloud-upgrade-off.txt` / `gang-off.txt` shape) is **wrong here**,
+  because those are hand-placed by an operator who knows they placed them. This marker is written
+  by a *program that can crash*, and if it dies holding the slot, `augfarmer.js` stops grinding rep
+  **forever, silently** — stalling the actual BN6 win path with no error and no obvious cause.
+  This codebase has been burned by exactly this failure shape repeatedly (the 53h `fundBlocked`
+  reserve deadlock, the 11h floor-reserve carve, the 21.7h unread `STALLED`). **Precedent to copy:
+  `resourcemanager.js` already does this correctly** — *"`augfarmer-reserve.json` is stale —
+  treating as no reservation until it recovers"*. Same rule, same shape: stale marker ⇒ hold is
+  void ⇒ augfarmer resumes normally.
+- **Holds are bounded, never indefinite.** The engine requests the slot in *slices* and must
+  re-assert to keep it. Combined with the staleness guard, the worst case for a crashed engine is
+  one slice of lost rep-grinding, not an unbounded stall.
+- **augfarmer stays in charge of its own critical work.** The hold is advisory for *rep grinding*
+  only — it must not block buying, targeting, the install trigger, spend-down, or anything else
+  augfarmer does. Narrowest possible cut into win-path code.
+- **The state must be legible.** A distinct phase (e.g. `"slot-held"`, alongside the existing
+  `"yielded"`) so the dashboard/state file shows *why* rep work paused. An invisible hold is how
+  this becomes a multi-hour mystery later — and per the Phase 24 observability convention, the
+  GOAL/AUG-FARMER panel surfacing is a brainstorm decision, not a silent addition.
+- **Open for spec:** slice length, whether augfarmer can *refuse* a hold when a rep deficit is
+  urgent (e.g. close to an install boundary), and whether the engine should voluntarily release on
+  reading a critical augfarmer phase. All tuning; none of them change the contract's shape.
 
 **D8 — A stopping condition, set in advance. Proposed.**
 Per the convergence rules, this phase carries its own kill switch so it can't renew itself:
@@ -272,9 +303,14 @@ self-heals faster than you sample, steady-state comparisons show nothing — loo
 
 ## 6. What this phase explicitly does not touch
 
-- **The BN6 win path.** Hacking remains primary (7/30). Nothing here changes `augfarmer.js`,
-  `daemon.js`'s batcher, or the M-target plan — beyond the one `RESIDENT_COMPANIONS`/gating entry
-  the new companion needs.
+- **The BN6 win path.** Hacking remains primary (7/30). Nothing here changes `daemon.js`'s batcher
+  or the M-target plan — beyond the one `RESIDENT_COMPANIONS`/gating entry the new companion needs.
+  ⚠️ **Amended 2026-07-31: `augfarmer.js` IS now in scope, narrowly.** The marker hold-off (D9)
+  requires it, per Kenneth's option-(a) decision. The cut is deliberately minimal — read a
+  heartbeat-stamped marker, decline the work slot while it's fresh, expose a `"slot-held"` phase —
+  and touches nothing about buying, targeting, the install trigger, or spend-down. **This is the
+  one place this phase reaches into win-path code, and D9's staleness guard is the price of
+  admission.**
 - **`cloud-upgrade-off.txt`.** Currently pausing `cloudmanager.js` to unstick the aug ratchet
   (2026-07-30). Unrelated, and **still needs removing once the ratchet fires** — flagged here only
   so it isn't forgotten while attention is on this phase.
@@ -301,19 +337,20 @@ starve the engine badly enough to make its measurement worthless, since `grindin
 normal state. The options that actually give the engine meaningful slot time ((a) and (c)) both
 require touching `augfarmer.js` — **win-path code this phase explicitly scoped out** (§6).
 
-**Recommendation: do not proceed to spec yet. One decision is needed first —**
+**✅ The fork is decided: Kenneth chose option (a), the cooperative marker, on 2026-07-31.**
+`augfarmer.js` is in scope for a narrow, heartbeat-guarded hold-off (D9); D2 and §6 are rewritten
+accordingly. **Stage 1 is complete — this doc is ready to hand to Stage 2 (spec).**
 
-> **Is modifying `augfarmer.js` to cooperate with a Bladeburner engine in scope?**
-> - **Yes** → option (a) or (c); the phase proceeds roughly as drafted, with a small, precedented
->   marker-based change to win-path code added to scope, and D2/§6 rewritten accordingly.
-> - **No** → option (b) only. **Then this phase is probably not worth running**, because a
->   slot-starved engine can't produce a trustworthy rank curve, and an untrustworthy curve is
->   exactly what got us here. Better to say so than to build an instrument that can't measure.
-
-That is a real fork with a real recommendation attached: **I'd take (a)** — a marker-based
-hold-off is the same shape as the existing `cloud-upgrade-off.txt` / `gang-off.txt` pattern the
-codebase already uses, it's a handful of lines, and it's reversible by deleting a file. The cost if
-I'm wrong is a small amount of added surface in the most safety-critical script we have.
+**What the spec must not lose:**
+1. **D9's staleness guard is the phase's one safety-critical requirement.** A crashed engine
+   holding a presence-only marker silently stalls the BN6 win path. It needs the
+   `resourcemanager.js` stale-reservation treatment, and it needs a test.
+2. **D8's stopping condition is binding**, and exists so this phase can conclude "non-viable"
+   as a *success*. Don't let it quietly disappear into "the engine is running, so it's working."
+3. **D1's framing** — instrument, not win condition. The moment this is spec'd as "the engine that
+   clears BN6," the stopping condition stops making sense and the phase loses its exit.
+4. **D7's realized-rate instrumentation.** The 7/30 verdict was only correct once realized rank ÷
+   realized time was computed; every prediction along the way was rosier than reality.
 
 **The honest framing of what's being bought remains: not a faster BN6 clear — a decision about BN7,
 BN9, BN10 and BN13, made now instead of three nodes from now.**
