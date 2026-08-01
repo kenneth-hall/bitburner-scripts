@@ -533,6 +533,43 @@ export async function main(ns) {
       currentAction = null;
       samples.push({ timestamp: nowMs, heldSec: 0, uptimeSec, rankDelta: 0, kind: "unheld" });
       if (samples.length > 10_000) samples = samples.slice(samples.length - 10_000);
+
+      // Mirrors the off-marker branch above -- without this, a long stand-down
+      // (the common case so far: backdoorfactions.js) left bladeburner-state.json
+      // never written at all, so nothing external could see the engine was alive
+      // and why. Confirmed live 2026-08-01 by the Phase 38 adversarial review.
+      if (nowMs - lastStateWrite >= 60_000) {
+        const rank = ns.bladeburner.getRank();
+        ns.write(
+          BB_STATE_FILE,
+          JSON.stringify(
+            buildBbState({
+              now: nowMs,
+              off: false,
+              holdActive: false,
+              holdReason: "stand-down",
+              standDownFor,
+              rank,
+              skillPoints: ns.bladeburner.getSkillPoints(),
+              skillLevels: {},
+              cityName: null,
+              chaosByCity: {},
+              teamSize: null,
+              hpFraction: null,
+              rates: computeRealizedRates(samples, RATE_WINDOWS_MS, nowMs),
+              duty: computeDutyCycle(samples, RATE_WINDOWS_MS, nowMs),
+              repForegone: repForegoneTotal,
+              hospitalizations: hospitalizationsSeen,
+              checkpointA: null,
+              checkpointB: null,
+            }),
+            null,
+            2,
+          ),
+          "w",
+        );
+        lastStateWrite = nowMs;
+      }
       ns.write(BB_LOG_FILE, JSON.stringify(logEntries, null, 2), "w");
       continue;
     }

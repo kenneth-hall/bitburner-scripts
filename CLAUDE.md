@@ -10,10 +10,16 @@ solutions — work from game mechanics and the API.
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** **IN BN6.1 as of 2026-07-29** — entered straight off
-  the BN5.1 clear. **Win path is hacking, not Bladeburner, as of 2026-07-30** (the Bladeburner
-  black-op path was tried and measured non-viable — see the decision-flip entry below; rank/skills
-  are banked but the dedicated engine is shelved). "Bladeburners" dropped from this line's own
-  title since it's no longer the plan.
+  the BN5.1 clear. **Win path is hacking, actively working, as of 2026-07-30** — proven, not just
+  cheap: BN2 and BN5 both cleared via this same automated engine in 5–6 real days each, at an
+  equal-or-harder gate than BN6's. **The 2026-07-30 "Bladeburner measured non-viable" verdict below
+  was marked UNSOUND 2026-07-31 and is being actively re-measured, not treated as closed** — see
+  the correction appended right after the decision-flip entry, and `docs/bn6-playbook.md` §1/§8 for
+  the full trail. Bladeburner rank/skill points are still banked (persist across installs); Phase
+  38 (`src/bladeburnermanager.js`, branch `phase-38-slice-b`) grinds them opportunistically in
+  slack time only, without risking the hacking path, and carries two checkpoints (24h smoke, 1-week
+  viability) to produce a real verdict. **As of 2026-08-01 it has zero data yet** — stood down for
+  `backdoorfactions.js` since it started, per its own stand-down design, not a problem.
   - **✅ BN2.1 CLEARED 2026-07-23** — `w0r1d_d43m0n` backdoored (`backdoorwd.js` auto-fired once
     hacking crossed the gate), confirmed on the BitVerse screen (`bb-shot.png`). **Cleared at
     M≈34.3, NOT the M≈45 target**: the exp stack overshot (13.9B exp) and put the level at
@@ -85,6 +91,23 @@ on request — hold to them even when the moment is uncomfortable.
     on request for one more cheap experiment. Full record: `docs/bladeburner-reference.md`
     §3/§6/§8/§9/§10, `docs/bn6-playbook.md` §1 (has the actual rate math + the full trial log
     trail) and its 2026-07-30 changelog entries.
+  - **⚠️ CORRECTION 2026-07-31, propagated here 2026-08-01 — the "non-viable" verdict just above is
+    UNSOUND, not a closed verdict.** `bladeburnertrial.js`'s model had four real flaws
+    (`docs/bladeburner-reference.md` §5, found by reading the in-game panel the original trial never
+    opened): fixed action time (misses `Overclock`'s up-to-10× cut), 13 SP tested against ~133,000
+    banked by rank 400,000, zero team size, and ignored that action success levels — and their rank
+    payout — grow with use. Hacking-primary is **not** reversed by this (BN2/BN5's 5–6-day
+    same-engine precedents independently support it as fast and proven), but treating Bladeburner as
+    *closed* was wrong. **Phase 38** (`phase-38-bladeburner-engine.spec.md`,
+    `src/bladeburnermanager.js`, branch `phase-38-slice-b`) exists to re-measure it properly:
+    opportunistic slack-time grinding only, unconditional stand-down for
+    `backdoorwd.js`/`backdoorfactions.js`/`studybootstrap.js`, two real checkpoints (24h smoke @
+    0.043 rank/held-sec, 1-week viability @ 0.1543 rank/held-sec). **As of 2026-08-01: zero data
+    yet**, stood down for `backdoorfactions.js` since it started — expected, not forced early, per
+    the spec. An adversarial cold-review agent independently re-confirmed all of this from raw logs
+    2026-08-01 after Kenneth flagged the "skipping Bladeburner in the Bladeburner node" framing as
+    off. Full trail: `docs/bn6-playbook.md` §1's correction block and its 2026-07-31/2026-08-01
+    changelog entries.
   - **Next action: re-derive the hacking-path plan** using the M≈28–37 / +35-aug-Daedalus math
     below (already computed, not stale) and `docs/bitnodes.md`'s BN2 precedent for how that climb
     actually played out.

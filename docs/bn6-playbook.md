@@ -296,17 +296,18 @@ keep this from being a final verdict. **Still needed:** whether skill investment
 Analysis` scouting change the rate — unmeasurable without running an actual action, which is a
 deliberate small live trial, not another read-only probe.
 
-**🚫 Stage 3 — build the engine. SHELVED 2026-07-30, NEVER STARTED.** No code, no phase doc, no
-phase number — it never entered the brainstorm→spec→implement pipeline. **The gate below did its
-job:** Stage 2's measurement came back at ~10.5 months to the rank-400,000 gate (see §1), so the
-engine went from "blocked pending data" straight to "not worth building" without a line written.
-That is the staging working as designed, not an abandonment. Design sketch kept only in case city
-rotation (§1's one untested lever) ever reopens this: a `bladeburnermanager.js` companion in the
-established mould (headless resident, `RESIDENT_COMPANIONS` slot, `bladeburner-state.json` +
-`bladeburner-log.json`, an off-marker file, gated out of the supervisor when `inBladeburner()` is
-false exactly as `gangmanager.js` is now), control loop on **`await ns.bladeburner.nextUpdate()`**
-(0 GB, wakes on the engine's own boundary). *Original gating instruction, preserved because it is
-the reason this section is short:* "Do not spec this before Stage 2 completes."
+**🚫 Stage 3 — build the engine. SHELVED 2026-07-30 as a *win-path* build — UNSHELVED 2026-07-31
+as a *measurement* build (see §1's correction, §8's 2026-08-01 entry).** The design sketch below
+(headless resident, `bladeburner-state.json` + `bladeburner-log.json`, off-marker file, supervisor
+gate on `inBladeburner()`) is exactly what got built as **Phase 38**
+(`phase-38-bladeburner-engine.spec.md`, `src/bladeburnermanager.js`, branch `phase-38-slice-b`,
+not yet merged to `master`). It does **not** reopen "build toward the black op" — it opportunistically
+grinds rank only in slack time the hacking path (`augfarmer.js`) isn't using, and stands down
+unconditionally for `backdoorwd.js`/`backdoorfactions.js`/`studybootstrap.js` so it can never
+compete with the actual win path. Two checkpoints (24h smoke @ 0.043 rank/held-sec, 1-week
+viability @ 0.1543 rank/held-sec) will produce the real verdict the 2026-07-30 trial couldn't.
+**Status 2026-08-01: implemented, live, zero data yet** — stood down for `backdoorfactions.js`
+since it started; not forced early, per the spec.
 
 **🚫 Stage 4 — rank ladder → black ops → `Operation Daedalus`. SHELVED 2026-07-30** along with
 Stage 3 — this was the win condition the engine existed to reach, and the node is now being cleared
@@ -327,17 +328,13 @@ needs no Stage-3-equivalent build: **the "no new engine" property that made it l
 
 Per the convergence rules: each carries a default so it can't renew itself silently.
 
-- **⚠️ Black-op rank ladder feasibility — the rate half came back bad, 2026-07-30, but is not
-  final.** Ladder shape is sane (closed). Measured rate at zero skill investment: ~5–6 months to
-  rank 400,000 at the best action (Raid), ~8x too slow for the ~3-week flip bar. **Two unknowns
-  block calling this a verdict:** does skill investment (untested, 0 SP available at rank 0)
-  compound the rate, and does `Field Analysis` scouting raise success chance per the in-game doc's
-  unverified "estimate narrows as you scout" claim. **Resolve via a short live trial** (a few
-  Field Analysis + Raid attempts, re-measure) — **not** more read-only probing, and not yet run;
-  flagged to Kenneth rather than run ad hoc since it's the first action that actually plays the
-  mechanic rather than just reading it. **Default if the trial doesn't move the rate materially:**
-  switch to the hacking path and treat Bladeburner as an income/rank side-quest, keeping SF6 as the
-  reward.
+- **⚠️ Black-op rank ladder feasibility — SUPERSEDED, now tracked by Phase 38's checkpoints, not
+  this bullet.** (Kept for the history: the trial this bullet called for did run, 2026-07-30,
+  landed on 0.0144 rank/sec / ~10.5mo, and got marked UNSOUND the next day — §1's correction, §8's
+  2026-07-31/2026-08-01 entries.) Current status: `bladeburnermanager.js` (Phase 38) is live and
+  will answer this with real data via its 24h/1-week checkpoints once `backdoorfactions.js` stops
+  occupying the player-action slot. **Default unchanged:** if the 1-week checkpoint (bar 0.1543
+  rank/held-sec) isn't met, treat Bladeburner as an income/rank side-quest, hacking stays primary.
 - **❓ Does a Bladeburner engine need a team, and does `Recruitment` gate the black ops?** Teams
   apply only to Operations/BlackOps; the `Recruitment`→team-members link is **inferred from the
   action's name and is not documented anywhere**. *Resolve at Stage 2.* **Default:** assume a team
@@ -430,3 +427,35 @@ the surface liveness and tripwires are read off.
   (not wasted) but are no longer the primary win-condition plan; Stage 3 (the dedicated engine) is
   not being built. City rotation (never tested — every cycle ran in one city) is logged as the one
   cheap, untested lever left, with a wake condition if the hacking path also stalls.
+- **2026-07-31 — the 2026-07-30 "non-viable" verdict marked UNSOUND.** Kenneth asked whether the
+  in-game Bladeburner panel had ever actually been read for this decision — it hadn't.
+  `bladeburner-reference.md` §5's read found four load-bearing assumptions in `bladeburnertrial.js`
+  that don't hold (fixed action time vs. `Overclock`'s up-to-10× cut; 13 SP tested vs. ~133,000
+  banked by rank 400,000; zero team size; action success levels — and their rank payout — grow with
+  use, never modeled). A live re-read the same day, after chaos decayed and 13 SP went in, showed
+  success chances roughly double the trial's. See §1's correction block for the full text. Hacking
+  stays primary (it's proven, not just cheap) — what changed is that Bladeburner is no longer
+  *closed*. This is the trigger for Phase 38.
+- **2026-08-01 — Phase 38 (`bladeburnermanager.js`) implemented (Slices A+B), independently
+  audited, one real bug found and fixed.** Kenneth pushed back on the "skipped Bladeburner in the
+  Bladeburner node" framing; a cold-context adversarial review agent (given raw log access, no
+  access to prior reasoning, explicitly told to try to disprove the shelving call) independently
+  re-parsed `logs/bladeburnertrial-log.json` and confirmed the 0.0144 rank/sec arithmetic is
+  correct but drawn from one noisy ~1000s slice of the 73-minute trial — other honest slices of the
+  *same* log read 0.024–0.062 rank/sec (a 1.7–4.3× spread), i.e. the number was never as settled as
+  the flip made it sound. It also independently checked the hacking-path timeline against real
+  precedent (not just the M≈28–37 formula): BN2 cleared in 5 real days at a *harder* gate
+  (hacking 15,000 vs. BN6's 6,000), BN5 in ~6, both via this same automated engine — good evidence
+  hacking-primary is fast and proven on its own merits, not just "the fallback." **Live bug found:**
+  `bladeburnermanager.js`'s stand-down branch (decision 3, yielding to
+  `backdoorwd.js`/`backdoorfactions.js`/`studybootstrap.js`) never wrote `bladeburner-state.json`,
+  unlike the off-marker branch it was modeled on — so the engine had been alive over a day across
+  two daemon restarts with **zero external visibility**, entirely because `backdoorfactions.js` has
+  occupied the player-action slot since the engine started (expected/correct per the spec, not a
+  bug in itself). Fixed same-day: the stand-down branch now writes a rate-limited state snapshot
+  (`holdReason: "stand-down"`, `standDownFor: <claimant>`) mirroring the off-marker one. **Status:
+  the engine still has zero rank-grinding data** — both 24h-smoke (bar 0.043 rank/held-sec) and
+  1-week-viability (bar 0.1543 rank/held-sec) checkpoint clocks are still waiting on
+  `backdoorfactions.js` to clear. Per the spec's own instruction, this is not being forced early.
+  `CLAUDE.md`'s "Current goal" one-liner was found to be 11 days stale against this file's own
+  2026-07-31 correction (never propagated up) and was fixed in the same pass.
