@@ -12,6 +12,8 @@ import {
   classifyWindow,
   higherPriorityClaimant,
   HIGHER_PRIORITY_CLAIMANTS,
+  classifyBackdoorActivity,
+  BACKDOOR_ACTIVITY_FRESH_MS,
   computeRealizedRates,
   computeDutyCycle,
   computeRepForegone,
@@ -215,6 +217,40 @@ describe('higherPriorityClaimant', () => {
 
   it('returns null on an empty process list', () => {
     expect(higherPriorityClaimant([])).toBeNull();
+  });
+});
+
+// --- classifyBackdoorActivity (decision 3 amendment, 2026-08-01) ------------
+
+describe('classifyBackdoorActivity', () => {
+  const T = 1_000_000_000;
+
+  it('idle: active false, fresh timestamp', () => {
+    expect(classifyBackdoorActivity({ active: false, timestamp: T }, T)).toBe('idle');
+  });
+
+  it('busy: active true, regardless of freshness', () => {
+    expect(classifyBackdoorActivity({ active: true, timestamp: T }, T)).toBe('busy');
+  });
+
+  it('busy: missing marker (null)', () => {
+    expect(classifyBackdoorActivity(null, T)).toBe('busy');
+  });
+
+  it('busy: marker without a numeric timestamp', () => {
+    expect(classifyBackdoorActivity({ active: false }, T)).toBe('busy');
+  });
+
+  it('busy: stale idle claim (older than BACKDOOR_ACTIVITY_FRESH_MS)', () => {
+    expect(classifyBackdoorActivity({ active: false, timestamp: T - BACKDOOR_ACTIVITY_FRESH_MS - 1 }, T)).toBe('busy');
+  });
+
+  it('idle: exactly at the freshness bound is still fresh', () => {
+    expect(classifyBackdoorActivity({ active: false, timestamp: T - BACKDOOR_ACTIVITY_FRESH_MS }, T)).toBe('idle');
+  });
+
+  it('busy: a stale active:true marker stays busy (fails toward safe, not toward stale-so-ignore)', () => {
+    expect(classifyBackdoorActivity({ active: true, timestamp: T - BACKDOOR_ACTIVITY_FRESH_MS - 1 }, T)).toBe('busy');
   });
 });
 

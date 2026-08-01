@@ -47,12 +47,21 @@ export const SLOT_HOLD_HOLDER_NAME = "bladeburnermanager";
 export const SLOT_HOLD_MAX_AGE_MS = 30_000;
 // Read-only reference to augfarmer.js's own state file -- window classification input.
 const AUG_STATE_FILE = "augfarmer-state.json";
+// Read-only reference to backdoorfactions.js's own activity marker (decision 3
+// amendment, 2026-08-01) -- see classifyBackdoorActivity's doc comment.
+const BACKDOOR_ACTIVITY_FILE = "backdoorfactions-activity.json";
 
 // ---- Tuning (spec decisions 4/6/7/8/9) -------------------------------------
 export const BB_POLL_MS = 10_000; // matches augfarmer's POLL_MS -- 3 marker refreshes inside SLOT_HOLD_MAX_AGE_MS
 export const HOLD_SLICE_MS = 60_000; // one-minute contested slices (decision 4)
 export const MAX_CONTESTED_DUTY = 0.25; // at most 25% of contested wall-time held, per rolling hour
 export const AUG_STATE_FRESH_MS = 60_000; // beyond this, augfarmer-state.json is treated as stale -> contested (decision 6)
+// Decision 3 amendment (2026-08-01): backdoorfactions.js writes its activity
+// marker every POLL_MS (60s, its own constant, not imported -- see the
+// import-bleed rule) while idle, so 3x that cadence is the same
+// max(3x-writer-cadence, floor) shape as every other freshness bound in this
+// codebase (dashboard.js's STALE_MS, this file's own AUG_STATE_FRESH_MS).
+export const BACKDOOR_ACTIVITY_FRESH_MS = 180_000;
 export const HP_FLOOR_FRACTION = 0.5; // below this fraction of max HP, only non-HP-risking actions run (decision 7)
 export const HOSPITALIZATION_COST_ESTIMATE = 10_400_000; // seeded from the 7/30 trial's $229.5m / 22 failures
 // RANK_MONEY_EXCHANGE is a DECLARED, PROVISIONAL constant (spec decision 7: "so
@@ -217,6 +226,38 @@ export function higherPriorityClaimant(processList) {
 }
 
 /**
+ * Pure (decision 3 amendment, 2026-08-01). `higherPriorityClaimant` alone
+ * can't distinguish "backdoorfactions.js is resident but asleep in its
+ * 60s poll" from "backdoorfactions.js is mid-installBackdoor()" -- it only
+ * sees process presence, and the process stays resident for the ENTIRE
+ * unmet-target lifetime (potentially most of the hacking climb), not just
+ * the brief windows it's actually touching the shared action slot. This
+ * reads backdoorfactions.js's own activity marker (written immediately
+ * before/after its installBackdoor() block) to recover the distinction, so
+ * the engine can reclaim the idle majority of that residency instead of
+ * standing down for the whole thing.
+ *
+ * Fails toward `"busy"` on every ambiguous case -- missing/malformed marker,
+ * an explicit `active:true`, or a stale timestamp all mean "can't prove it's
+ * safe", same fail-conservative shape as `classifyWindow`. Only an explicit
+ * `active:false` with a FRESH timestamp counts as `"idle"`. This narrows,
+ * but does not eliminate, the race decision 3 was built to avoid -- see the
+ * spec's decision 3 amendment for the accepted residual window.
+ *
+ * Deliberately backdoorfactions.js-only: `backdoorwd.js`'s single action is
+ * irreversible and run-ending (docs/bladeburner-reference.md), and
+ * `studybootstrap.js` is one-shot (never resident), so neither has this
+ * problem or is worth the same risk trade.
+ * @param {{active:boolean, timestamp:number}|null} activity
+ */
+export function classifyBackdoorActivity(activity, nowMs) {
+  if (!activity || typeof activity.timestamp !== "number") return "busy";
+  if (activity.active) return "busy";
+  if (nowMs - activity.timestamp > BACKDOOR_ACTIVITY_FRESH_MS) return "busy";
+  return "idle";
+}
+
+/**
  * Pure (decision 8, blocker B7). Per named window, sums already-recorded
  * per-tick samples ({timestamp, heldSec, uptimeSec, rankDelta}) within
  * `windowMs` of `nowMs` and derives the two realized rates. `heldSec`
@@ -376,8 +417,9 @@ function releaseSlotHold(ns) {
   }
 }
 
-function readAugState(ns) {
-  const raw = ns.read(AUG_STATE_FILE);
+/** Tolerant JSON reader shared by every read-only cross-script state file this engine consumes. */
+function readJsonState(ns, file) {
+  const raw = ns.read(file);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -433,7 +475,7 @@ export async function main(ns) {
   let previousOffMarker = null;
   let previousStandDownFor = null;
   let previousRank = ns.bladeburner.getRank();
-  let previousAugState = readAugState(ns);
+  let previousAugState = readJsonState(ns, AUG_STATE_FILE);
   let previousAugStateReadMs = Date.now();
   let contestedHeldSecTotal = 0;
   let repForegoneTotal = 0;
@@ -516,7 +558,16 @@ export async function main(ns) {
     }
 
     const processList = ns.ps("home");
-    const standDownFor = higherPriorityClaimant(processList);
+    let standDownFor = higherPriorityClaimant(processList);
+    // Decision 3 amendment (2026-08-01): backdoorfactions.js only actually
+    // needs the slot for its brief installBackdoor() windows, not its whole
+    // (potentially climb-long) residency -- see classifyBackdoorActivity's
+    // doc comment. backdoorwd.js and studybootstrap.js keep the original,
+    // fully conservative presence-only rule.
+    if (standDownFor === "backdoorfactions.js") {
+      const activity = readJsonState(ns, BACKDOOR_ACTIVITY_FILE);
+      if (classifyBackdoorActivity(activity, nowMs) === "idle") standDownFor = null;
+    }
     if (standDownFor !== previousStandDownFor) {
       logEntries = appendBbLog(logEntries, { ...ts(), kind: standDownFor ? "stand-down" : "stand-down-clear", claimant: standDownFor });
     }
@@ -575,7 +626,7 @@ export async function main(ns) {
     }
 
     // Window classification (decision 6) -- read augfarmer's state read-only.
-    const augState = readAugState(ns);
+    const augState = readJsonState(ns, AUG_STATE_FILE);
     const windowKind = classifyWindow(augState, nowMs);
 
     const rankNow = ns.bladeburner.getRank();

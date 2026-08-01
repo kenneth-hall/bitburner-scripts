@@ -48,6 +48,10 @@ import { tryRoot } from "./hosts.js";
 const FACTION_TARGETS = ["CSEC", "avmnite-02h", "I.I.I.I", "run4theh111z"];
 const POLL_MS = 60_000;
 const STATUS_FILE = "backdoor-status.json";
+// Read by bladeburnermanager.js's classifyBackdoorActivity (decision 3
+// amendment, 2026-08-01) -- own copy of the filename, not imported, same
+// import-bleed reasoning as the two scripts' other cross-referenced constants.
+const ACTIVITY_FILE = "backdoorfactions-activity.json";
 
 /**
  * Pure. classifyTarget's phase-06 contract: backdoorInstalled wins
@@ -104,6 +108,18 @@ function writeStatus(ns, { hackingLevel, targets, allDone }) {
     ),
     "w",
   );
+}
+
+// Decision 3 amendment (2026-08-01): brackets the ready-target handling
+// block (walk + installBackdoor -- the part that actually touches the
+// shared player-action slot) so bladeburnermanager.js can distinguish
+// "resident but asleep" from "mid-backdoor" instead of standing down for
+// this script's entire (potentially climb-long) residency. `active:false`
+// is the steady-state default, written every poll -- see the loop tail --
+// so its timestamp stays fresh within classifyBackdoorActivity's window
+// even across polls with nothing ready.
+function writeActivity(ns, active) {
+  ns.write(ACTIVITY_FILE, JSON.stringify({ active, timestamp: Date.now() }), "w");
 }
 
 /**
@@ -196,48 +212,65 @@ export async function main(ns) {
 
     const ready = rows.filter((r) => r.classification === "ready");
     if (ready.length > 0) {
-      let origin;
+      // active:true brackets the whole block, not just installBackdoor() --
+      // deliberately a little wider than the strict minimum (walkTo
+      // navigation is probably not slot-contending) in exchange for staying
+      // simple. try/finally guarantees the clear fires even on the
+      // exitSingularityUnavailable-and-return paths below (a `return` inside
+      // a `try` still runs `finally` first) or an unexpected throw.
+      writeActivity(ns, true);
       try {
-        origin = ns.singularity.getCurrentServer();
-        singularityProven = true;
-      } catch (e) {
-        if (!singularityProven) {
-          exitSingularityUnavailable(ns, "getCurrentServer", e);
-          return;
+        let origin;
+        try {
+          origin = ns.singularity.getCurrentServer();
+          singularityProven = true;
+        } catch (e) {
+          if (!singularityProven) {
+            exitSingularityUnavailable(ns, "getCurrentServer", e);
+            return;
+          }
+          tprintTs(ns, `WARN: getCurrentServer threw mid-run (${e?.message ?? e}) -- retrying next poll`);
+          origin = null;
         }
-        tprintTs(ns, `WARN: getCurrentServer threw mid-run (${e?.message ?? e}) -- retrying next poll`);
-        origin = null;
-      }
 
-      if (origin !== null) {
-        for (const r of ready) {
+        if (origin !== null) {
+          for (const r of ready) {
+            try {
+              if (!walkTo(ns, r.server)) {
+                tprintTs(ns, `WARN: couldn't walk to ${r.server} -- retrying next poll`);
+                continue;
+              }
+              singularityProven = true;
+              if (ns.singularity.getCurrentServer() !== r.server) {
+                tprintTs(ns, `WARN: sanity check failed after walking to ${r.server} -- retrying next poll`);
+                continue;
+              }
+              await ns.singularity.installBackdoor();
+              tprintTs(ns, `BACKDOOR: installed on ${r.server}`);
+            } catch (e) {
+              if (!singularityProven) {
+                exitSingularityUnavailable(ns, `installBackdoor(${r.server})`, e);
+                return;
+              }
+              tprintTs(ns, `WARN: action on ${r.server} threw (${e?.message ?? e}) -- retrying next poll`);
+            }
+          }
+
           try {
-            if (!walkTo(ns, r.server)) {
-              tprintTs(ns, `WARN: couldn't walk to ${r.server} -- retrying next poll`);
-              continue;
-            }
-            singularityProven = true;
-            if (ns.singularity.getCurrentServer() !== r.server) {
-              tprintTs(ns, `WARN: sanity check failed after walking to ${r.server} -- retrying next poll`);
-              continue;
-            }
-            await ns.singularity.installBackdoor();
-            tprintTs(ns, `BACKDOOR: installed on ${r.server}`);
+            walkTo(ns, origin);
           } catch (e) {
-            if (!singularityProven) {
-              exitSingularityUnavailable(ns, `installBackdoor(${r.server})`, e);
-              return;
-            }
-            tprintTs(ns, `WARN: action on ${r.server} threw (${e?.message ?? e}) -- retrying next poll`);
+            tprintTs(ns, `WARN: couldn't restore origin server ${origin} (${e?.message ?? e})`);
           }
         }
-
-        try {
-          walkTo(ns, origin);
-        } catch (e) {
-          tprintTs(ns, `WARN: couldn't restore origin server ${origin} (${e?.message ?? e})`);
-        }
+      } finally {
+        writeActivity(ns, false);
       }
+    } else {
+      // Steady-state refresh (the common case, every poll): keeps the marker
+      // fresh within BACKDOOR_ACTIVITY_FRESH_MS even across many consecutive
+      // polls with nothing ready, so classifyBackdoorActivity never sees a
+      // stale "idle" claim and falls back to "busy" for the wrong reason.
+      writeActivity(ns, false);
     }
 
     ns.clearLog();

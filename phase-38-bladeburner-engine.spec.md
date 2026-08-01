@@ -230,6 +230,51 @@ error and no criterion that would catch it.
 not re-acquire** until the claimant exits. Checked every `BB_POLL_MS`, and **before** every
 `startAction`. Verified live at **L4**.
 
+**⚠️ AMENDED 2026-08-01 — presence-only was starving the engine almost completely, not just being
+conservative.** Raised by Kenneth after `bbstartprobe.js` (a live throwaway probe, since deleted)
+proved a manually-called `startAction("General","Training")` got killed by this engine's own
+stand-down branch within ~450ms of a real `bladeburner-log.json` showing **all 3 recorded
+startups since Phase 38 began immediately stood down for `backdoorfactions.js`, zero held-seconds
+ever accumulated.** Root cause: `backdoorfactions.js` (and `backdoorwd.js`) are **residents**, not
+one-shots — `backdoorfactions.js`'s own header says it "stays resident... while any of
+[4 targets] is still unmet" (potentially most of the hacking climb, currently 1/4 done per
+`backdoor-status.json`), sleeping 59+ of every 60 seconds. `higherPriorityClaimant` can't see that
+distinction — presence alone triggers full stand-down for the ENTIRE residency, not just the brief
+`installBackdoor()` windows that actually need the slot. The checkpoints don't hang in this
+state (`uptimeMs` is wall-clock, unconditional) — they fire on schedule and cleanly **FAIL at
+`rankPerHeldSec = 0.00000`**, measuring "did the engine ever get a turn" rather than "is
+Bladeburner viable."
+
+**Fix, scoped to `backdoorfactions.js` only:** it now writes `backdoorfactions-activity.json`
+(`{active, timestamp}`) bracketing its ready-target handling block (walk + `installBackdoor()` —
+a little wider than the strict minimum, on purpose, for simplicity) via `writeActivity`, with a
+steady-state `active:false` refresh every poll so the timestamp never goes stale. New pure
+`classifyBackdoorActivity(activity, nowMs)` in `bladeburnermanager.js` reads it and returns
+`"idle"` only for an explicit `active:false` with a timestamp fresher than
+`BACKDOOR_ACTIVITY_FRESH_MS` (180s = 3x the 60s writer cadence, same shape as `classifyWindow`'s
+`AUG_STATE_FRESH_MS`) — missing/malformed/`active:true`/stale all fail toward `"busy"`, mirroring
+`classifyWindow`'s own fail-conservative shape. When `higherPriorityClaimant` returns
+`"backdoorfactions.js"` specifically, the main loop now additionally consults this classification
+before treating it as a real stand-down.
+
+**`backdoorwd.js` and `studybootstrap.js` deliberately NOT touched:** `backdoorwd.js`'s single
+action is the literal, irreversible node-clear executor (docs/bladeburner-reference.md) — the
+stakes of a false "idle" reading there are categorically higher than a delayed faction invite, and
+it hasn't been the active blocker this session (WD doesn't exist yet). `studybootstrap.js` is
+one-shot (`main()` returns after a single `universityCourse` call, no loop) — never resident, so
+it doesn't have this problem at all.
+
+**Accepted residual risk:** this narrows, but does not eliminate, decision 3's original race. The
+window is now the gap between `bladeburnermanager.js`'s read of a fresh `active:false` and its own
+`startAction` call in the same tick — both scripts are single-threaded and cooperative, so the only
+way this collides is genuine interleaving between two independent script loops at the exact wrong
+instant. Judged acceptable: categorically smaller than "stood down for the whole climb," and the
+consequence of a collision (a missed/retried faction backdoor) is recoverable, unlike WD.
+
+Tests: 7 new (`classifyBackdoorActivity`, mirroring `classifyWindow`'s null/malformed/stale/exact-
+boundary shape), 1133 total pass. `writeActivity` itself is untested directly (impure, ns-touching,
+same convention as `writeStatus`).
+
 ### 4. Duty cycle and slice length are pinned, not left to the implementer *(blocker B2)*
 
 These decide whether the experiment costs the win path 5% or 80% of its rep throughput:
