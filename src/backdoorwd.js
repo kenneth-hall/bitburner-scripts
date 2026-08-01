@@ -29,6 +29,19 @@ import { tryRoot } from "./hosts.js";
 
 const WD_HOST = "w0r1d_d43m0n";
 const POLL_MS = 60_000;
+// Read by bladeburnermanager.js's classifyBackdoorActivity, same mechanism
+// and reasoning as backdoorfactions.js's ACTIVITY_FILE (decision 3 amendment,
+// 2026-08-01, extended here): an interrupted installBackdoor() just retries
+// next poll -- WD has no closing window -- so the risk this file's own
+// header worried about (a cancelled attempt) costs the same ~60s delay as a
+// faction backdoor, not something worse. Own copy of the filename, not
+// imported, same import-bleed reasoning as the two scripts' other
+// cross-referenced constants.
+const ACTIVITY_FILE = "backdoorwd-activity.json";
+
+function writeActivity(ns, active) {
+  ns.write(ACTIVITY_FILE, JSON.stringify({ active, timestamp: Date.now() }), "w");
+}
 
 function exitSingularityUnavailable(ns, callLabel, error) {
   tprintTs(ns, `WARN: ${callLabel} threw -- Singularity unavailable right now (${error?.message ?? error})`);
@@ -44,6 +57,12 @@ export async function main(ns) {
 
   while (true) {
     const timeLabel = new Date().toLocaleTimeString();
+    // Steady-state refresh (the common case, every poll -- WD usually
+    // doesn't exist yet, or hacking hasn't cleared its requirement): keeps
+    // the activity marker fresh so classifyBackdoorActivity never sees a
+    // stale "idle" claim. Narrowed to true only right before the actual
+    // walk+installBackdoor block below.
+    writeActivity(ns, false);
 
     let server = null;
     try {
@@ -97,16 +116,25 @@ export async function main(ns) {
       continue;
     }
 
+    // active:true from here through the origin-restore below -- the part
+    // that actually touches the shared action slot. Each retry exit clears
+    // it BEFORE its sleep (not via a wrapping finally), so the marker never
+    // reads "active" through an idle 60s wait -- that would block Bladeburner
+    // for no reason during the exact time nothing is happening.
+    writeActivity(ns, true);
+
     let origin;
     try {
       origin = ns.singularity.getCurrentServer();
       singularityProven = true;
     } catch (e) {
       if (!singularityProven) {
+        writeActivity(ns, false);
         exitSingularityUnavailable(ns, "getCurrentServer", e);
         return;
       }
       tprintTs(ns, `WARN: getCurrentServer threw (${e?.message ?? e}) -- retrying next poll`);
+      writeActivity(ns, false);
       await ns.sleep(POLL_MS);
       continue;
     }
@@ -114,11 +142,13 @@ export async function main(ns) {
     try {
       if (!walkTo(ns, WD_HOST)) {
         tprintTs(ns, `WARN: couldn't walk to ${WD_HOST} -- retrying next poll`);
+        writeActivity(ns, false);
         await ns.sleep(POLL_MS);
         continue;
       }
       if (ns.singularity.getCurrentServer() !== WD_HOST) {
         tprintTs(ns, "WARN: sanity check failed after walking to w0r1d_d43m0n -- retrying next poll");
+        writeActivity(ns, false);
         await ns.sleep(POLL_MS);
         continue;
       }
@@ -128,13 +158,17 @@ export async function main(ns) {
       tprintTs(ns, "================================================");
     } catch (e) {
       if (!singularityProven) {
+        writeActivity(ns, false);
         exitSingularityUnavailable(ns, "installBackdoor(w0r1d_d43m0n)", e);
         return;
       }
       tprintTs(ns, `WARN: installBackdoor(w0r1d_d43m0n) threw (${e?.message ?? e}) -- retrying next poll`);
+      writeActivity(ns, false);
       await ns.sleep(POLL_MS);
       continue;
     }
+
+    writeActivity(ns, false);
 
     try {
       walkTo(ns, origin);

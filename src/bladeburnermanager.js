@@ -47,20 +47,28 @@ export const SLOT_HOLD_HOLDER_NAME = "bladeburnermanager";
 export const SLOT_HOLD_MAX_AGE_MS = 30_000;
 // Read-only reference to augfarmer.js's own state file -- window classification input.
 const AUG_STATE_FILE = "augfarmer-state.json";
-// Read-only reference to backdoorfactions.js's own activity marker (decision 3
-// amendment, 2026-08-01) -- see classifyBackdoorActivity's doc comment.
-const BACKDOOR_ACTIVITY_FILE = "backdoorfactions-activity.json";
+// Read-only references to the two activity-marker-bearing claimants' own
+// state files (decision 3 amendment, 2026-08-01, extended to backdoorwd.js
+// the same day -- see classifyBackdoorActivity's doc comment). Keyed by the
+// exact filename higherPriorityClaimant returns, so the main-loop lookup is
+// a plain object index, not a chain of ===. studybootstrap.js has no entry:
+// it's one-shot, never resident, so it keeps the original presence-only rule.
+const BACKDOOR_ACTIVITY_FILES = {
+  "backdoorfactions.js": "backdoorfactions-activity.json",
+  "backdoorwd.js": "backdoorwd-activity.json",
+};
 
 // ---- Tuning (spec decisions 4/6/7/8/9) -------------------------------------
 export const BB_POLL_MS = 10_000; // matches augfarmer's POLL_MS -- 3 marker refreshes inside SLOT_HOLD_MAX_AGE_MS
 export const HOLD_SLICE_MS = 60_000; // one-minute contested slices (decision 4)
 export const MAX_CONTESTED_DUTY = 0.25; // at most 25% of contested wall-time held, per rolling hour
 export const AUG_STATE_FRESH_MS = 60_000; // beyond this, augfarmer-state.json is treated as stale -> contested (decision 6)
-// Decision 3 amendment (2026-08-01): backdoorfactions.js writes its activity
-// marker every POLL_MS (60s, its own constant, not imported -- see the
-// import-bleed rule) while idle, so 3x that cadence is the same
-// max(3x-writer-cadence, floor) shape as every other freshness bound in this
-// codebase (dashboard.js's STALE_MS, this file's own AUG_STATE_FRESH_MS).
+// Decision 3 amendment (2026-08-01, extended to backdoorwd.js same day):
+// both claimants write their activity marker every POLL_MS (60s, their own
+// constant, not imported -- see the import-bleed rule) while idle, so 3x
+// that cadence is the same max(3x-writer-cadence, floor) shape as every
+// other freshness bound in this codebase (dashboard.js's STALE_MS, this
+// file's own AUG_STATE_FRESH_MS).
 export const BACKDOOR_ACTIVITY_FRESH_MS = 180_000;
 export const HP_FLOOR_FRACTION = 0.5; // below this fraction of max HP, only non-HP-risking actions run (decision 7)
 export const HOSPITALIZATION_COST_ESTIMATE = 10_400_000; // seeded from the 7/30 trial's $229.5m / 22 failures
@@ -226,16 +234,16 @@ export function higherPriorityClaimant(processList) {
 }
 
 /**
- * Pure (decision 3 amendment, 2026-08-01). `higherPriorityClaimant` alone
- * can't distinguish "backdoorfactions.js is resident but asleep in its
- * 60s poll" from "backdoorfactions.js is mid-installBackdoor()" -- it only
- * sees process presence, and the process stays resident for the ENTIRE
- * unmet-target lifetime (potentially most of the hacking climb), not just
- * the brief windows it's actually touching the shared action slot. This
- * reads backdoorfactions.js's own activity marker (written immediately
- * before/after its installBackdoor() block) to recover the distinction, so
- * the engine can reclaim the idle majority of that residency instead of
- * standing down for the whole thing.
+ * Pure (decision 3 amendment, 2026-08-01, extended to backdoorwd.js the same
+ * day). `higherPriorityClaimant` alone can't distinguish "resident but
+ * asleep in its 60s poll" from "mid-installBackdoor()" -- it only sees
+ * process presence, and both `backdoorfactions.js` and `backdoorwd.js` stay
+ * resident for their entire unmet-target lifetime (potentially most of the
+ * hacking climb), not just the brief windows they're actually touching the
+ * shared action slot. This reads the claimant's own activity marker
+ * (written immediately before/after its installBackdoor() block) to recover
+ * the distinction, so the engine can reclaim the idle majority of that
+ * residency instead of standing down for the whole thing.
  *
  * Fails toward `"busy"` on every ambiguous case -- missing/malformed marker,
  * an explicit `active:true`, or a stale timestamp all mean "can't prove it's
@@ -244,10 +252,15 @@ export function higherPriorityClaimant(processList) {
  * but does not eliminate, the race decision 3 was built to avoid -- see the
  * spec's decision 3 amendment for the accepted residual window.
  *
- * Deliberately backdoorfactions.js-only: `backdoorwd.js`'s single action is
- * irreversible and run-ending (docs/bladeburner-reference.md), and
- * `studybootstrap.js` is one-shot (never resident), so neither has this
- * problem or is worth the same risk trade.
+ * `backdoorwd.js` was initially left out of the first amendment on the
+ * assumption its irreversible, run-ending action was categorically riskier
+ * to interrupt -- re-examined the same day: an interrupted
+ * `installBackdoor()` just retries next poll either way (WD has no closing
+ * window), so the recovery cost is identical, not worse. What's actually
+ * different about WD is the importance of the event once it *fires*, not
+ * the fragility of an interruption, so the same trade applies.
+ * `studybootstrap.js` still has no marker: it's one-shot (never resident),
+ * so it never had this problem.
  * @param {{active:boolean, timestamp:number}|null} activity
  */
 export function classifyBackdoorActivity(activity, nowMs) {
@@ -559,13 +572,15 @@ export async function main(ns) {
 
     const processList = ns.ps("home");
     let standDownFor = higherPriorityClaimant(processList);
-    // Decision 3 amendment (2026-08-01): backdoorfactions.js only actually
-    // needs the slot for its brief installBackdoor() windows, not its whole
-    // (potentially climb-long) residency -- see classifyBackdoorActivity's
-    // doc comment. backdoorwd.js and studybootstrap.js keep the original,
-    // fully conservative presence-only rule.
-    if (standDownFor === "backdoorfactions.js") {
-      const activity = readJsonState(ns, BACKDOOR_ACTIVITY_FILE);
+    // Decision 3 amendment (2026-08-01, extended to backdoorwd.js same day):
+    // backdoorfactions.js/backdoorwd.js only actually need the slot for
+    // their brief installBackdoor() windows, not their whole (potentially
+    // climb-long) residency -- see classifyBackdoorActivity's doc comment.
+    // studybootstrap.js keeps the original presence-only rule (one-shot,
+    // never resident, so it never benefits from this anyway).
+    const activityFile = BACKDOOR_ACTIVITY_FILES[standDownFor];
+    if (activityFile) {
+      const activity = readJsonState(ns, activityFile);
       if (classifyBackdoorActivity(activity, nowMs) === "idle") standDownFor = null;
     }
     if (standDownFor !== previousStandDownFor) {

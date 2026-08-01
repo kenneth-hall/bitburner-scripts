@@ -1,9 +1,0 @@
-Paused 2026-07-31 (second time -- see git history for the first, 2026-07-30, briefly
-unpaused 2026-07-31 07:08-17:40 to test whether fleet growth was still free): it was not.
-Server count was already maxed at 25/25 -- every dollar since the unpause bought a per-host
-RAM tier upgrade, not new capacity. In ~10.5h it spent $14.2b (all 25 servers 512GB->1024GB,
-then started 1024GB->2048GB at $2.7b/server, ~$67.6b for that tier alone) and, measured live:
-totalGain moved AWAY from the 1.1 install-trigger threshold (1.094 -> 1.041) and fundCap
-shrank 3.75x ($10.4b -> $2.77b). The win path is hacking/M-growth, not fleet size past the
-count cap -- so this pause stands until the ratchet fires or a real capacity need reappears.
-Remove this file once the ratchet fires (or once fleet growth is genuinely needed again).
