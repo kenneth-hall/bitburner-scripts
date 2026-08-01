@@ -124,8 +124,10 @@ builds the instrument that finds the real curve, and bounds what it costs the wi
   but no identifier is named `ps`.
 - **The engine spends no money via any API.** ⚠️ It *does* lose money indirectly through
   hospitalization (22 events / **$229.5m** in a 75-minute trial), which decision 7 must bound.
-- **No dashboard change this phase** (Phase 24 gate; the features doc made no panel decision).
-  Observability is `bladeburner-state.json` + `bladeburner-log.json`.
+- **No dashboard change this phase [UPDATED 2026-08-01 — superseded, see open question 3]:**
+  the Phase 24 gate held until Kenneth explicitly asked for a panel; one shipped that day.
+  Observability is `bladeburner-state.json` + `bladeburner-log.json`, now also surfaced (minimally)
+  on the dashboard itself.
 - **Loop-inline code is not testable** — `test/augfarmer.test.js` exercises exported pure functions
   only. **Every behaviour an acceptance criterion depends on must be an exported pure function.**
 - **Existing-test policy.** Shape-extension edits are expected and cite this spec. **No behavioural
@@ -535,9 +537,19 @@ Slice A is live-green** (decision 10).
    needs rework. Logged risk, accepted.
 2. **Should the engine ever refuse to release a slice** when augfarmer's deficit is urgent? Spec says
    no — augfarmer always wins on re-assert. Revisit if holds are observed to delay an install.
-3. **Dashboard indicator for an active hold** — deliberately not built (Phase 24 gate). `slotHold` in
-   the state file is the mitigation. Raise as a brainstorm item if a silent hold ever causes a
-   diagnostic detour.
+3. **✅ RESOLVED 2026-08-01 — dashboard panel built.** The brainstorm this item asked for happened
+   (Kenneth: "what can we add to the dashboard for bladeburner stuff?"); `dashboard.js` gained a
+   `BLADEBURNER` panel: one content line reading `<mode> | rank <N> <rate>/hs (cum) | 24h:<verdict>
+   7d:<verdict>`, where mode is `OFF` / `STOOD DOWN (<claimant>)` / `held` and each checkpoint reads
+   `--`/`PASS`/`FAIL`. Deliberately minimal (not the full hold/duty/hospitalizations/repForegone
+   picture) — the window was already at its measured screen-height ceiling (1392px live-confirmed,
+   unchanged since 2026-07-23), so this cost required trimming `TRANSACTIONS`'s entry cap 3→2
+   (`TRANSACTIONS_ENTRY_CAP` in `dashboard.js`) to fit `ROW_BUDGET` 61→63 / `DASHBOARD_H` 1328→1372
+   without exceeding it (net +2 rows, landing ~1px from the ceiling — see `dashboard.js`'s own
+   `DASHBOARD_H` comment). Duty cycle / hospitalizations / rep-foregone stay log/state-file-only, per
+   the "use dashboard or logs" convention. 6 new tests in `test/dashboard.test.js`, 1126 total pass;
+   live RAM re-confirmed unchanged at 2.6 GB (`ramcheck.js dashboard.js`); live-rendered and
+   screenshotted via CDP the same session.
 4. **Bonus time** (`getBonusTime`, 5× spend) unmodelled; with sleep disabled it may never accrue.
 5. **`repForegone` uses augfarmer's observed rep/sec**, which is itself depressed while held
    (decision 2). It is therefore a slight **under**-estimate of the true price. Noted so it isn't

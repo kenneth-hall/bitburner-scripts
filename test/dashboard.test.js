@@ -15,6 +15,7 @@ import {
   transactionsPanel,
   augPanel,
   gangPanel,
+  bladeburnerPanel,
   pushGangSample,
   summarizeGangTrend,
   goalPanel,
@@ -88,6 +89,7 @@ const PANELS = [
   { name: 'cloudPanel', fn: cloudPanel },
   { name: 'augPanel', fn: augPanel },
   { name: 'goalPanel', fn: goalPanel },
+  { name: 'bladeburnerPanel', fn: bladeburnerPanel },
 ];
 
 describe('every stateful panel formatter', () => {
@@ -534,11 +536,13 @@ describe('transactionsPanel', () => {
       { type: 'income', amount: 3, firstTimestamp: NOW - 50_000, lastTimestamp: NOW - 50_000 },
     ];
     const lines = transactionsPanel(entries, NOW);
+    // Cap is 2 (Phase 38 trim -- see TRANSACTIONS_ENTRY_CAP), so the oldest
+    // (income +$1) falls off the shown list entirely; the aggregate "today:"
+    // total above still includes it, per that constant's comment.
     const idxExpense = lines.findIndex((l) => l.includes('[expense]'));
     const idxIncome3 = lines.findIndex((l) => l.includes('+$3'));
-    const idxIncome1 = lines.findIndex((l) => l.includes('+$1'));
     expect(idxExpense).toBeLessThan(idxIncome3);
-    expect(idxIncome3).toBeLessThan(idxIncome1);
+    expect(lines.some((l) => l.includes('+$1'))).toBe(false);
   });
 
   it('falls back to `timestamp` ordering when firstTimestamp/lastTimestamp are absent', () => {
@@ -595,6 +599,55 @@ describe('augPanel', () => {
   it('renders "work: none" when there are no candidates at all', () => {
     const lines = augPanel({ timestamp: NOW, phase: 'idle-plateau', target: null, workTarget: null, boughtThisCycle: [], joinedFactions: [] }, NOW);
     expect(lines.some((l) => l === 'work: none')).toBe(true);
+  });
+});
+
+// --- bladeburnerPanel (Phase 38) ----------------------------------------------
+
+describe('bladeburnerPanel', () => {
+  const held = {
+    timestamp: NOW,
+    off: false,
+    holdActive: true,
+    holdReason: 'held',
+    standDownFor: null,
+    rank: 1234.5,
+    rates: { cumulative: { rankPerHeldSec: 0.0512 } },
+    checkpointA: null,
+    checkpointB: null,
+  };
+
+  it('leads with OFF when the off-marker is set', () => {
+    const lines = bladeburnerPanel({ ...held, off: true }, NOW);
+    expect(lines[1].startsWith('OFF')).toBe(true);
+  });
+
+  it('leads with the stand-down claimant, not "held", when standDownFor is set', () => {
+    const lines = bladeburnerPanel({ ...held, standDownFor: 'backdoorfactions.js' }, NOW);
+    expect(lines[1].startsWith('STOOD DOWN (backdoorfactions.js)')).toBe(true);
+  });
+
+  it('shows "held" and the rate to 4 decimal places when actively running', () => {
+    const lines = bladeburnerPanel(held, NOW);
+    expect(lines[1]).toContain('held');
+    expect(lines[1]).toContain('0.0512/hs');
+  });
+
+  it('renders "--" for a checkpoint not yet reached (uptime under its threshold)', () => {
+    const lines = bladeburnerPanel(held, NOW);
+    expect(lines[1]).toContain('24h:--');
+    expect(lines[1]).toContain('7d:--');
+  });
+
+  it('renders PASS/FAIL once a checkpoint has a verdict', () => {
+    const passed = bladeburnerPanel({ ...held, checkpointA: { met: true, rankPerHeldSec: 0.06, bar: 0.043 } }, NOW);
+    expect(passed[1]).toContain('24h:PASS');
+    const failed = bladeburnerPanel({ ...held, checkpointB: { met: false, rankPerHeldSec: 0.02, bar: 0.1543 } }, NOW);
+    expect(failed[1]).toContain('7d:FAIL');
+  });
+
+  it('is exactly 2 lines (title + one content line) -- the fixed row budget has no slack for more', () => {
+    expect(bladeburnerPanel(held, NOW).length).toBe(2);
   });
 });
 
@@ -827,6 +880,20 @@ describe('renderAll', () => {
       nextAug: { aug: 'Cranial Signal Processors V', price: 9.99e12, phase: 'awaiting-money', awaitingSince: NOW - 599 * 60_000, waitingMs: 599 * 60_000 },
     };
 
+    // Bladeburner at its widest: a long stand-down claimant name, both
+    // checkpoints decided.
+    const worstBladeburner = {
+      timestamp: NOW,
+      off: false,
+      holdActive: false,
+      holdReason: 'stand-down',
+      standDownFor: 'backdoorfactions.js',
+      rank: 999999.9,
+      rates: { cumulative: { rankPerHeldSec: 0.9999 } },
+      checkpointA: { met: false, rankPerHeldSec: 0.0399, bar: 0.043 },
+      checkpointB: { met: true, rankPerHeldSec: 0.1601, bar: 0.1543 },
+    };
+
     const lines = renderAll(
       {
         daemon: worstDaemon,
@@ -839,6 +906,7 @@ describe('renderAll', () => {
         gangState: worstGangState,
         gangTrend: worstGangTrend,
         goal: worstGoal,
+        bladeburner: worstBladeburner,
       },
       NOW
     );

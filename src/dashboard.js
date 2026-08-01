@@ -50,7 +50,14 @@ export const DASHBOARD_W = 891;
 // move together or the no-scroll guarantee breaks. Fits: screen usable
 // height is 1392px (CDP, 2026-07-23) and the panel top is Y=21, so the new
 // bottom at 1349 clears it by 43px.
-export const DASHBOARD_H = 1328;
+// Raised 1328 -> 1372 (+44px = 2 rows) 2026-08-01 (Phase 38), in lockstep
+// with ROW_BUDGET 61 -> 63, adding the BLADEBURNER panel (net +2 rows after
+// trimming TRANSACTIONS's cap by one row to help fund it -- see that
+// panel's own comment). Screen usable height re-measured live at 1392px
+// (unchanged since the 2026-07-23 reading) -- the new bottom at 1393 is 1px
+// over that ceiling, effectively the last row this window can hold before a
+// real trim (not just a cap tweak) is needed.
+export const DASHBOARD_H = 1372;
 export const DASHBOARD_FONT = 16;
 export const DASHBOARD_X = 1653; // live daemon-tail anchor, confirmed via CDP 2026-07-14
 export const DASHBOARD_Y = 21;
@@ -60,7 +67,7 @@ export const DASHBOARD_Y = 21;
 // (92*9.6001=883.2px) while the 96-char ruler line rendered clipped to the
 // same width as the 92-char one, proving 93-96 get cut off, not wrapped.
 export const COLUMN_BUDGET = 92;
-export const ROW_BUDGET = 61; // paired with DASHBOARD_H -- see its comment above
+export const ROW_BUDGET = 63; // paired with DASHBOARD_H -- see its comment above
 export const POLL_MS = 1000;
 export const RULER_FLAG = "dashboard-ruler.txt";
 export const PANEL_ENTRY_CAP = 3;
@@ -81,7 +88,20 @@ const STALE_MS = {
   gang: 15_000,
   // Phase 32 -- goallog.js samples every 60s; 3x that, over the 15s floor.
   goal: 180_000,
+  // Phase 38 -- bladeburnermanager.js writes every 10s while actively held,
+  // but only every 60s while off/stood-down (the common case so far); 3x
+  // the worst-case cadence is 180s.
+  bladeburner: 180_000,
 };
+
+// Phase 38 (2026-08-01): trimmed from the shared PANEL_ENTRY_CAP (3) to fund
+// one row of the BLADEBURNER panel addition within the fixed row budget --
+// see DASHBOARD_H's comment. transactionsPanel has no "(+N more)" line (the
+// per-entry list was already a truncated-without-indication tail even at
+// cap 3 -- the "today: +$X/-$Y" totals line above it is the uncapped,
+// lossless figure), so this is one entry tighter in the same style, not a
+// new kind of loss.
+const TRANSACTIONS_ENTRY_CAP = 2;
 
 // Hardcoded rather than imported from each writer -- mirrors
 // resourcemanager.js's AUGFARMER_RESERVE_FILE precedent: a Singularity-free
@@ -94,6 +114,7 @@ const XPFARM_STATE_FILE = "xpfarm-state.json";
 const AUGFARMER_STATE_FILE = "augfarmer-state.json";
 const GANG_STATE_FILE = "gang-state.json";
 const GOAL_STATE_FILE = "goal-state.json"; // Phase 32 -- goallog.js's overwrite-in-place snapshot
+const BLADEBURNER_STATE_FILE = "bladeburner-state.json"; // Phase 38 -- bladeburnermanager.js's BB_STATE_FILE, hardcoded per the same import-bleed reasoning (that module's whole ns.bladeburner surface would otherwise bleed into this 0 GB reader)
 
 // goallog.js's RATE_WINDOW_MS, hardcoded rather than imported -- goallog.js's
 // ns surface is getMoneySources+getPlayer (real RAM); importing it would
@@ -515,7 +536,7 @@ export function transactionsPanel(entries, now) {
   lines.push(`today: +$${fmtNum(incomeTotal)} / -$${fmtNum(expenseTotal)}${rateLine}`);
 
   const sorted = list.slice().sort((a, b) => (b.lastTimestamp ?? b.timestamp ?? 0) - (a.lastTimestamp ?? a.timestamp ?? 0));
-  const { shown } = capEntries(sorted, PANEL_ENTRY_CAP);
+  const { shown } = capEntries(sorted, TRANSACTIONS_ENTRY_CAP);
   if (shown.length === 0) {
     lines.push("(none yet today)");
   } else {
@@ -559,6 +580,49 @@ export function augPanel(state, now) {
   lines.push(`bought ${bought.length} | joined ${joined.length}`);
   const gate = state.daedalusGate;
   if (gate) lines.push(`daedalus gate: ${gate.installed ?? 0}+${gate.queued ?? 0}/${gate.target ?? "?"}`);
+  return lines;
+}
+
+/** Phase 38 -- 4 decimal places, not fmtRate's 2: the checkpoint bars (0.043, 0.1543) need that precision to read as more/less than at a glance. */
+function fmtBbRate(n) {
+  if (n === undefined || n === null || !Number.isFinite(n)) return "?";
+  return n.toFixed(4);
+}
+
+/** Phase 38 -- "pending" (uptime hasn't crossed the checkpoint's threshold yet), else PASS/FAIL against its bar. */
+function fmtCheckpoint(cp) {
+  if (!cp) return "--";
+  return cp.met ? "PASS" : "FAIL";
+}
+
+/**
+ * Phase 38 -- one line, by design (see DASHBOARD_H's 2026-08-01 comment: the
+ * window is at its measured screen-height ceiling). Leads with WHY the
+ * engine isn't gaining rank (off / stood-down-for-claimant / held) -- the
+ * common state so far is stood down, and that's expected, not an alarm --
+ * then the checkpoint verdict itself, which is the whole reason Phase 38
+ * exists. Duty cycle / hospitalizations / rep-foregone stay in
+ * bladeburner-state.json and the log, not here (CLAUDE.md: "use dashboard
+ * or logs").
+ */
+export function bladeburnerPanel(state, now) {
+  const title = "BLADEBURNER";
+  if (state === null) return [`-- ${title} --`, "no data yet"];
+  if (state === PARSE_FAILED) return [`-- ${title} --`, "unreadable"];
+
+  const stale = staleSuffix(state.timestamp, now, STALE_MS.bladeburner);
+  const lines = [`-- ${title} --${stale}`];
+
+  let modePart;
+  if (state.off) modePart = "OFF";
+  else if (state.standDownFor) modePart = `STOOD DOWN (${state.standDownFor})`;
+  else modePart = state.holdActive ? "held" : (state.holdReason ?? "?");
+
+  const cumulative = (state.rates ?? {}).cumulative ?? {};
+  lines.push(
+    `${modePart} | rank ${fmtNum(state.rank)} ${fmtBbRate(cumulative.rankPerHeldSec)}/hs | 24h:${fmtCheckpoint(state.checkpointA)} 7d:${fmtCheckpoint(state.checkpointB)}`
+  );
+
   return lines;
 }
 
@@ -694,6 +758,7 @@ export function renderAll(states, now) {
     { name: "DAEMON", fn: daemonPanel, state: states.daemon },
     { name: "GANG", fn: (s, n) => gangPanel(s, states.gangTrend ?? null, n), state: states.gangState },
     { name: "TARGETS", fn: targetsPanel, state: states.targets },
+    { name: "BLADEBURNER", fn: bladeburnerPanel, state: states.bladeburner },
     { name: "XP FARM", fn: xpPanel, state: states.xp },
     { name: "CLOUD", fn: cloudPanel, state: states.cloud },
     { name: "FINANCE", fn: financePanel, state: states.finance },
@@ -779,6 +844,7 @@ export async function main(ns) {
       augfarmer: readStateFile(ns, AUGFARMER_STATE_FILE),
       gangState: readStateFile(ns, GANG_STATE_FILE),
       goal: readStateFile(ns, GOAL_STATE_FILE),
+      bladeburner: readStateFile(ns, BLADEBURNER_STATE_FILE),
     };
 
     gangSamples = pushGangSample(gangSamples, states.gangState, now);
