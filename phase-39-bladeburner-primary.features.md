@@ -131,20 +131,69 @@ level argument**, so hypothetical success at another level cannot be queried. It
 `setActionLevel` → read → restore. That is a *mutating* call, so the level search is engine
 behaviour, not a read-only probe.
 
-### D5 — Skill-point policy: this is the phase's hardest open call (see Q1)
+### D5 — Skill-point policy — ✅ Q1 MEASURED 2026-08-02, and it is good news
 
-Two defensible policies, and they diverge sharply:
+`bladeburnerskillprobe.js` was extended to sweep the real cost curve. **The earlier ~15,000 SP /
+~45,000 rank extrapolation was roughly 4× too pessimistic in the range that matters.**
 
-- **Overclock-first to 90** — 8.3× throughput, the only pure-multiplier skill. 🧮 Rough estimate
-  ~5,900 SP ≈ 17,700 rank. But it does nothing for the Stage A→B crossover.
-- **Success-first (Digital Observer + Blade's Intuition)** — these gate the tier switch, which is
-  worth ~20×, i.e. more than Overclock.
+| Investment | Cost (rank) | Operation success multiplier |
+|---|---|---|
+| *(current: BI 6, DO 5)* | — | ×1.42 |
+| BI + DO both **L10** | **477** | ×1.82 (1.29× better) |
+| BI + DO both **L25** | **3,915** | ×3.50 (**2.47× better**) |
+| BI + DO both **L50** | **15,945** | ×7.50 (5.30× better) |
+| BI + DO both **L75** | **35,850** | ×13.00 (9.18× better) |
+| **Overclock 17 → 90 (max)** | **16,908** | ×0.10 action time (8.3× throughput) |
 
-**Leaning: success-first until the operation crossover, then Overclock.** The tier switch is worth
-more than throughput and unlocks earlier. **Do not spend a single SP until Q1 is measured.**
+🔑 **The early rungs are extraordinarily cheap.** 477 rank — which we earn in a few hours — buys a
+29% success improvement. 3,915 rank buys **2.5×**. Against a 400,000-rank target these are rounding
+errors, and unlike everything else in this phase **skills and rank survive installs**.
 
-**Rejected:** today's diffuse spread across all 12 skills (49 levels, 407 SP). It bought a ×1.18
-total success chance and a ×0.83 action time — neither near a threshold that changes anything.
+**Applied to Raid** (currently 5.3% success at the ×1.42 multiplier, so ~3.74% base): L25 → ~13%,
+L50 → ~28%, L75 → ~49%. That is the Stage A→B crossover, and it is **~4,000–16,000 rank away, not
+45,000**.
+
+**Policy: success skills first (Blade's Intuition + Digital Observer + Tracer), in small increments,
+starting immediately at L10 → L25.** Tracer is included because it lifts *contracts*, which is what
+Stage A actually runs — the same 3,915-rank rung takes Tracking from 54.9% toward its ceiling.
+
+⚠️ **Overclock is deferred pending Q10** (see below). It is 16,908 rank for an 8.3× *time*
+multiplier — which is worth nothing if stamina, not time, is the binding constraint. Measuring that
+before spending is the single highest-value 15 minutes available.
+
+**Rejected:** today's diffuse spread across all 12 skills (49 levels, 407 SP). It bought ×1.18 total
+success and ×0.83 action time — neither near a threshold that changes anything.
+**Rejected:** Overclock-first. Cannot be justified until Q10 is answered.
+
+### D5a — 🔴 DECISION REVERSED 2026-08-02: do NOT chase Bladeburner augs, do NOT freeze installs
+
+**This supersedes Decision A (§0), D8, D10's ordering, and Q2.** Kenneth asked whether the install
+freeze should be time-gated at 8h or 24h. **The right answer is neither — the premise is wrong**, and
+the measurement above is what shows it.
+
+| Lever | Buys | Costs |
+|---|---|---|
+| **Skills** — BI+DO to L25 | **×2.47** on operation success | **3,915 rank**, ~a day of grinding, **persists across installs** |
+| **Augs** — the entire `bladeburner_success_chance` tree | **×1.28** | **~$250b+**, **62.5k faction rep ≈ 28 days**, and the rep **resets on every install** |
+
+🔑 **Skills beat the entire Bladeburner aug tree by roughly 2× on effect, at a fraction of the cost,
+in a currency that survives resets.** The augs are not worth a multi-day install freeze; they are
+barely worth buying at all at this stage.
+
+**Consequences — this dissolves the phase's biggest structural problem:**
+- **The install↔rep deadlock is not a deadlock.** It only existed because we assumed we needed the
+  aug tier. We don't.
+- **The ratchet installs freely.** No freeze, no trigger, no time gate. Q2 is closed, not deferred.
+- **D10's money split collapses** to "the ratchet keeps buying hacking augs for income compounding" —
+  there is no Bladeburner claim on money worth arbitrating yet.
+- **Installs become nearly free for Bladeburner**: rank and skill points persist, and combat stats
+  regrow from Bladeburner actions on their own (measured: 1 → 171/171/202/195 in 26h).
+
+⚠️ **What this does NOT dissolve: D11a's regular-faction-rep competition.** That one is about the
+player-action slot, not about Bladeburner rep, and it is still live and still unaddressed.
+
+**Revisit trigger:** if income ever makes the aug tier trivially affordable *and* a natural
+no-install stretch appears, buy it opportunistically. Do not engineer a window for it.
 
 ### D6 — Recruit a team
 
@@ -277,8 +326,9 @@ claimant got, and how much rep the ratchet forwent. Without it this fuse burns i
 
 | # | Question | Default if unanswered | By |
 |---|---|---|---|
-| **Q1** | Real SP cost of Overclock 17→90, and of Digital Observer / Blade's Intuition to useful levels. Extend `bladeburnerskillprobe.js` with `skillMaxUpgradeCount`. | **Spend no SP until measured.** Blocks D5. | Before Phase 39 spec |
-| **Q2** | Rep-window trigger — what condition starts the freeze? | Enter when the aug tier is affordable at current income *and* rank ≥ Stage B crossover. Needs a number. | Before spec |
+| **Q1** | ✅ **ANSWERED 2026-08-02.** Overclock 17→90 = **5,636 SP / 16,908 rank**. BI+DO to L25 = **1,305 SP / 3,915 rank** (×3.50 op success); to L50 = **15,945 rank** (×7.50). Full ladder in D5. The earlier ~45,000-rank extrapolation was ~4× too pessimistic. | — | Done |
+| **Q2** | ~~Rep-window trigger~~ 🔴 **CLOSED 2026-08-02 — question dissolved, see D5a.** Skills beat the entire Bladeburner aug tree ×2.47 vs ×1.28, cost 3,915 rank vs ~$250b + 28 days of resettable rep, and persist across installs. There is no reason to freeze installs, so there is no trigger to design. | **No freeze. Ratchet installs freely.** | Closed |
+| **Q10** | 🔴 **NEW, and it gates 16,908 rank.** Is stamina spent **per action** or **per second of action**? If per-second, Overclock's 8.3× speedup is a genuine 8.3× on sustained rank/sec. If per-action, faster actions burn stamina 8.3× faster, duty cycle collapses by the same factor, and **Overclock buys nothing sustained**. ⚠️ **Measurement attempted 2026-08-02 and FAILED** — `bladeburneractionprobe.js stamina` (written, committed, works) needs exclusive use of the action slot, but `daemon.js`'s supervisor relaunches `bladeburnermanager.js` within ~60s and the two fight. The `bladeburner-off.txt` route hit the known viteburner new-file upload bug. Probe died at `stage: "start"`, no data. | **Do not buy Overclock until answered — but this is NOT urgent**: at rank ~1,280 we are weeks from affording 16,908 rank anyway. Re-run when the supervisor can be quiesced (seed the off-marker via in-game `wget` per `docs/dev-server.md`, or add a `--pause` arg to the manager). | Before the first 10k rank |
 | **Q3** | Is max action level EV-optimal, or lower? | Probe via `setActionLevel` sweep on Tracking first (zero rank downside). | During implementation |
 | **Q4** | Marginal success-chance value per team member, and the loss rate. | Recruit to 5, measure, extrapolate. | During implementation |
 | **Q5** | **[Rewritten 2026-08-02 — was "stay in Sector-12, revisit on trigger", which treated rotation as a chaos response rather than the sustainability mechanism it is (D11).]** What is the rotation policy? Specifically: (a) what does `switchCity` actually cost — travel time, money, does it interrupt the running action? (b) what are the per-city floors for communities / chaos / inventory that trigger a rotation out? (c) how fast does population and inventory regenerate in an abandoned city? | **Measure `switchCity`'s cost first** — it gates the whole design. Then rotate on the first floor breached, starting with the `Raid` community requirement. Do **not** default to staying put; that is an untested policy at Stage B consumption rates. | (a) before spec · (b)+(c) during implementation |

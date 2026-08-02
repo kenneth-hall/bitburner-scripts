@@ -40,6 +40,27 @@ const BLACKOPS = [
 ];
 
 export async function main(ns) {
+  // ---- 2026-08-02: arg-gated stamina-cost mode (Phase 39) ---------------------
+  // `run bladeburneractionprobe.js stamina` measures THE question that decides
+  // whether Overclock is worth 16,908 rank: is stamina spent PER ACTION or PER
+  // SECOND of action?
+  //
+  //   per-SECOND  -> Overclock (8.3x faster actions) gives 8.3x the actions for the
+  //                  same stamina/min. Pure win, buy it.
+  //   per-ACTION  -> 8.3x faster means 8.3x the stamina burn, duty cycle collapses
+  //                  by the same factor, and sustained rank/sec is UNCHANGED.
+  //                  Overclock would be 16,908 rank for nothing.
+  //
+  // Discriminator: run two actions of very different duration and compare stamina
+  // drain per MINUTE. Equal drain/min => per-second. Drain/min scaling with 1/duration
+  // => per-action.
+  //
+  // ⚠️ MUTATING (startAction/stopBladeburnerAction). Kill bladeburnermanager.js first
+  // or the two will fight over the action slot. Restores nothing on its own -- the
+  // caller restarts the manager. Short windows deliberately: Tracking failures cost
+  // 3 HP each and max HP is only 27.
+  if (ns.args[0] === "stamina") return await staminaCostMode(ns);
+
   const out = { ts: Date.now(), iso: new Date().toISOString(), note: "read-only action-yield sweep" };
   out.stage = "start";
   const emit = (label) => {
@@ -97,4 +118,108 @@ export async function main(ns) {
   const best = Object.entries(out.rankPerSecEstimate).sort((a, b) => b[1] - a[1]);
   ns.tprint("  best rank/sec (expected, at min success chance): " + best.map(([n, v]) => n + "=" + v.toFixed(3)).join(", "));
   ns.tprint("  -> " + file);
+}
+
+// ---- stamina-cost mode (2026-08-02, Phase 39) --------------------------------
+
+const STAMINA_SAMPLES = [
+  { type: "Contracts", name: "Tracking", note: "short action (13s base)" },
+  { type: "Operations", name: "Investigation", note: "long action (33s base), and the only one with NO HP loss on failure" },
+];
+const STAMINA_WINDOW_MS = 150_000; // 150s per action -- long enough for several completions of both
+const STAMINA_TICK_MS = 5_000;
+
+async function staminaCostMode(ns) {
+  const out = {
+    ts: Date.now(),
+    iso: new Date().toISOString(),
+    note: "MUTATING: stamina cost per action vs per second (Phase 39 Overclock decision)",
+    windowMs: STAMINA_WINDOW_MS,
+    runs: [],
+  };
+  const emit = (label) => {
+    out.stage = label;
+    try { ns.write("bladeburneractionprobe-" + out.ts + ".json", JSON.stringify(out, null, 2), "w"); } catch (e) { /* breadcrumb only */ }
+  };
+
+  out.startRank = ns.bladeburner.getRank();
+  emit("start");
+
+  for (const target of STAMINA_SAMPLES) {
+    const actionTimeMs = ns.bladeburner.getActionTime(target.type, target.name);
+    // Rest to a known, penalty-free starting point so the two windows are comparable
+    // and neither run dips into the sub-50% penalty band (reference S5: the success
+    // multiplier is min(1, fraction/0.5), so below half the runs are not comparable).
+    ns.bladeburner.startAction("General", "Hyperbolic Regeneration Chamber");
+    let guard = 0;
+    while (guard++ < 240) {
+      const [cur, max] = ns.bladeburner.getStamina();
+      if (cur / max >= 0.75) break;
+      await ns.sleep(5_000);
+    }
+
+    const [startStam, maxStam] = ns.bladeburner.getStamina();
+    const startSucc = ns.bladeburner.getActionSuccesses(target.type, target.name);
+    const t0 = Date.now();
+    ns.bladeburner.startAction(target.type, target.name);
+
+    const samples = [];
+    while (Date.now() - t0 < STAMINA_WINDOW_MS) {
+      await ns.sleep(STAMINA_TICK_MS);
+      const [c] = ns.bladeburner.getStamina();
+      samples.push({ atMs: Date.now() - t0, stamina: c });
+    }
+
+    const [endStam] = ns.bladeburner.getStamina();
+    const endSucc = ns.bladeburner.getActionSuccesses(target.type, target.name);
+    const elapsedMin = (Date.now() - t0) / 60_000;
+    const drained = startStam - endStam;
+    // Actions ATTEMPTED (not just succeeded) is what we want per-action cost against,
+    // and the API only exposes successes -- so derive attempts from elapsed/actionTime,
+    // which is exact while the action auto-repeats uninterrupted.
+    const attempts = (Date.now() - t0) / actionTimeMs;
+
+    out.runs.push({
+      ...target,
+      actionTimeMs,
+      startStamina: startStam,
+      endStamina: endStam,
+      maxStamina: maxStam,
+      elapsedMin,
+      netDrained: drained,
+      netDrainPerMin: drained / elapsedMin,
+      estimatedAttempts: attempts,
+      netDrainPerAttempt: drained / attempts,
+      successesDuringWindow: endSucc - startSucc,
+      samples,
+    });
+    emit("ran-" + target.name);
+  }
+
+  ns.bladeburner.stopBladeburnerAction();
+  out.endRank = ns.bladeburner.getRank();
+  out.rankDelta = out.endRank - out.startRank;
+
+  // The verdict. If drain/min is roughly equal across two actions of very different
+  // duration, cost is per-second and Overclock multiplies throughput for free. If
+  // drain/min scales with actions/min instead, cost is per-action and Overclock buys
+  // nothing sustained.
+  if (out.runs.length === 2) {
+    const [a, b] = out.runs;
+    out.verdict = {
+      drainPerMinRatio: a.netDrainPerMin / b.netDrainPerMin,
+      drainPerAttemptRatio: a.netDrainPerAttempt / b.netDrainPerAttempt,
+      actionTimeRatio: b.actionTimeMs / a.actionTimeMs,
+      reading: "drainPerMinRatio near 1 => PER-SECOND (Overclock is a real multiplier). drainPerAttemptRatio near 1 => PER-ACTION (Overclock does not raise the stamina-limited ceiling).",
+    };
+  }
+
+  out.stage = "complete";
+  const file = "bladeburneractionprobe-" + out.ts + ".json";
+  ns.write(file, JSON.stringify(out, null, 2), "w");
+  for (const r of out.runs) {
+    ns.tprint(`  ${r.name}: ${r.actionTimeMs / 1000}s | drain ${r.netDrainPerMin.toFixed(2)}/min | ${r.netDrainPerAttempt.toFixed(2)}/attempt (${r.estimatedAttempts.toFixed(1)} attempts)`);
+  }
+  if (out.verdict) ns.tprint(`  ratios -> perMin ${out.verdict.drainPerMinRatio.toFixed(2)} | perAttempt ${out.verdict.drainPerAttemptRatio.toFixed(2)} | actionTime ${out.verdict.actionTimeRatio.toFixed(2)}`);
+  ns.tprint("  rankDelta " + out.rankDelta.toFixed(2) + " -> " + file);
 }
