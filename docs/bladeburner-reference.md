@@ -286,6 +286,106 @@ current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract
 - **`Raid` has a precondition:** *"there must be an existing Synthoid community in your current city
   in order for this Operation to be successful"* — so `Synthoid Communities` (panel stat) gates it.
 
+### Second full five-tab sweep, 2026-08-02 — what the first one missed
+
+The 2026-07-31 read was taken at rank ~0 with almost nothing invested. This one was taken at
+**rank 1,221** with 49 skill levels bought, and it exposes mechanics that only become visible once
+the engine has been running. Raw captures: five `cli.mjs body` dumps, one per tab.
+
+**🔑 Contracts carry NO rank loss on failure — only operations do.** Live probe
+(`bladeburneractionprobe-1785682107595.json`): `rankLoss: 0` for all three contracts, and the event
+log corroborates (`Tracking contract failed! Took 3 damage.` — no rank line), versus
+`Investigation failed! Lost 0.343 rank.` for operations. **Contracts are therefore strictly
+downside-bounded**: the only failure cost is HP. This is the single most important asymmetry for a
+low-success-chance engine and it was not previously recorded.
+
+**⚠️ Autolevel drives actions to max level and can collapse net EV.** Action level raises rank/exp/
+money per success *and* raises difficulty. With autolevel left on, observed 2026-08-02:
+
+| Action | Level | Success chance | Record |
+|---|---|---|---|
+| Tracking (contract) | **23 / 23** | 20.1% ~ 58.8% | 321 ✓ / 36 ✗ |
+| Investigation (operation) | **8 / 8** | 5.3% ~ 15.5% | 46 ✓ / **301 ✗** |
+| Raid (operation) | 5 / 5 | 1.9% ~ 5.5% | 18 ✓ / 79 ✗ |
+
+**There is an EV optimum in action level and it is not necessarily max.** `setActionLevel` +
+`setActionAutolevel` exist precisely to control this; nothing had ever used them.
+
+**🔑 The payout ratio across action tiers is enormous, and success chance is the only gate.**
+Measured rank-per-success at current levels: **Tracking 0.73 · Bounty Hunter 0.90 · Investigation
+3.53 · Undercover 4.40 · Sting 5.50 · Stealth Retirement 22.0 · Assassination 44.0 · Raid 80.5.**
+Raid pays **110× Tracking per success** but currently lands 5.3% of the time. Expected rank/sec at
+present:
+
+| Action | Time | Success (mid) | EV rank/s |
+|---|---|---|---|
+| **Tracking** | 13s | 54.9% | **0.0307** |
+| Bounty Hunter | 17s | 35.3% | 0.0187 |
+| Retirement | 14s | 42.9% | 0.0184 |
+| Raid | 64s | 5.3% | 0.0126 |
+| Undercover Operation | 34s | 15.4% | 0.0100 |
+| Investigation | 33s | 14.9% | 0.0077 |
+| Sting Operation | 44s | 9.5% | 0.0016 |
+| Stealth Retirement | 67s | 6.2% | **−0.0077** |
+| Assassination | 100s | 3.9% | **−0.0211** |
+
+⚠️ **Two actions are net-negative on rank right now.** An engine that picks by rank-per-success
+rather than by EV will happily grind backwards.
+
+**⚠️ There is ONE player-action slot — Bladeburner actions block gym, crime, and faction work.**
+This is why `The Blade's Simulacrum` exists: *"allows you to perform Bladeburner actions and other
+actions (such as working, committing crimes, etc.) at the same time."* Consequence: **you cannot
+buy combat stats at the gym while grinding rank.** Rep req is only **1.25k** (trivially met) but the
+price is **$150b base / $1.029t at current aug-count escalation**.
+
+**🔑 Bladeburner actions regenerate their own combat-stat prerequisite, for free.** Install #37
+(`ratchet-log.json`) reset `hackLevel 165 → 1` and, with it, all combat stats. **26 hours later:
+hacking 167, combat 171/171/202/195** — the combat climb came entirely from Bladeburner action exp
+(dex/agi ran ahead of str/def, matching which stats the actions exercise). So the combat-100 join
+gate is a **one-time** cost, not a per-install tax. `Hyperdrive` (+10% exp/level) accelerates it.
+
+**Faction membership survives an install; faction rep does not.** Install #37's pre/post snapshots
+both list `Bladeburners` in `factions` while every other faction is dropped — consistent with rank
+(which persists) being the membership gate. Rep read `0` on both sides and has since climbed to
+**3,869**.
+
+**Max HP is defense-derived and very small.** `maxHp = 10 + floor(defense/10)` → **27** at defense
+171. Failed contracts cost 3 HP, so **9 failures = hospitalisation**. Counter read **81
+hospitalisations / $837.4m lost** on 2026-08-02 (up from 22 / $229.5m on 2026-07-31). Hospitalisation
+is a real and fast-growing money sink, and it scales *down* with defense investment.
+
+### The Bladeburner aug shop — rep gates and prices
+
+Read live 2026-08-02 via `augcheck.js faction "Bladeburners"`. **Prices shown are at that moment's
+aug-count escalation (~6.86× base); base prices are the stable number.** ⚠️ **Rep resets on every
+install and can only be re-earned through Bladeburner actions** — this is the binding constraint on
+the whole tier, not the money.
+
+| Aug | Rep req | Base price | Why it matters |
+|---|---|---|---|
+| The Blade's Simulacrum | 1.25k | $150b | **Frees the player-action slot** (act + Bladeburn simultaneously) |
+| EsperTech Bladeburner Eyewear | 1.25k | $165m | cheapest entry |
+| EMS-4 Recombination | 2.5k | $275m | |
+| ORION-MKIV Shoulder | 6.25k | $550m | |
+| BLADE-51b Tesla Armor | 12.5k | $1.375b | gateway to the whole Tesla chain |
+| Hyperion Plasma Cannon V1 | 12.5k | $2.75b | |
+| BLADE-51b …: IPU Upgrade | 15.0k | $1.1b | `bladeburner_analysis` ×1.15 |
+| Vangelis Virus | 18.75k | $2.75b | |
+| BLADE-51b …: Power Cells | 18.75k | $2.75b | |
+| Blade's Runners | 20.0k | $8.25b | |
+| BLADE-51b …: Energy Shielding | 21.25k | $5.5b | `bladeburner_success_chance` ×1.06 |
+| Hyperion Plasma Cannon V2 | 25.0k | $5.5b | |
+| I.N.T.E.R.L.I.N.K.E.D | 25.0k | $5.5b | |
+| GOLEM Serum | 31.25k | $11b | |
+| BLADE-51b …: Unibeam | 31.25k | $16.5b | `bladeburner_success_chance` ×1.08 |
+| Vangelis Virus 3.0 | 37.5k | $11b | |
+| Glibness Enhancement | 40.5k | $2.5b | |
+| **BLADE-51b …: Omnibeam** | **62.5k** | $27.5b | `bladeburner_success_chance` ×1.10 — top of the tree |
+
+🧮 **Rep timeline at the measured 0.086 rep/s (Tracking):** 12.5k rep = **1.7 days** at 100% duty
+(~5.6 days at 30%); 62.5k rep = **8.4 days** at 100% duty (~28 days at 30%). All four
+`bladeburner_*` player mults read **1.00** as of 2026-08-02 — the entire tier is uninvested.
+
 ### What the API genuinely doesn't expose (the honest, much shorter list)
 
 - Exact **formulas** behind success chance, rank gain, chaos accumulation/decay rates.
@@ -539,12 +639,30 @@ mechanics.
   no HP loss on failure.
 - **❓ Still open — exact formulas** for success chance, rank gain, and chaos accumulation/decay
   rates. The levers and their directions are documented; the closed-form math is not.
-- **⚠️ PARTIALLY ANSWERED 2026-08-02 — stamina's coupling to success chance is severe, and the
-  formula is still unstated.** The panel exposes a `Stamina Penalty:` percentage, and two live reads
-  now bracket it: **`0.0%` at full stamina** (2026-07-31) and **`89.5%` at 4.371/83.555 = 5.2%**
-  (2026-08-02). Stamina was full throughout the 7/30 trial, so it was **not** the cause of the low
-  chances there — but under continuous fire it becomes the dominant term, not a footnote. Two further
-  behaviours confirmed live the same day, both load-bearing for any control loop:
+- **✅ ANSWERED 2026-08-02 — the stamina penalty is SOLVED IN CLOSED FORM.** A third live read
+  (`20.926 / 83.555` → penalty `49.9%`) pinned the curve that the previous two points only bracketed:
+
+  ```
+  successMultiplier = min(1, (stamina / maxStamina) / 0.5)
+  staminaPenalty    = 1 − successMultiplier
+  ```
+
+  | stamina | fraction | predicted penalty | observed | date |
+  |---|---|---|---|---|
+  | full | 1.0000 | 0.0% | **0.0%** | 2026-07-31 |
+  | 20.926 / 83.555 | 0.2504 | 49.92% | **49.9%** | 2026-08-02 |
+  | 4.371 / 83.555 | 0.0523 | 89.54% | **89.5%** | 2026-08-02 |
+
+  All three fit exactly. 🔑 **Two design consequences, both immediate:**
+  1. **There is ZERO benefit to stamina above 50% of max** — the multiplier clamps at 1. Resting
+     past the halfway mark is pure wasted wall-clock.
+  2. **Below 50% the falloff is linear and brutal** — at 25% stamina every action is rolling at half
+     its nominal success chance. The optimal control policy is to **hover at ~50%, never dip below**,
+     not to drain-and-recover.
+
+  Stamina was full throughout the 7/30 trial, so it was **not** the cause of the low chances there —
+  but under continuous fire it is the dominant term, not a footnote. Two further behaviours confirmed
+  live the same day, both load-bearing for any control loop:
   - **The game cancels a running action at stamina 0** — the in-game log line is `Your Bladeburner
     action was cancelled because your stamina hit 0`, and `getCurrentAction()` then returns **`null`**.
     An engine that tracks only its own intent will sit idle indefinitely (Phase 38 did, for most of an
@@ -553,9 +671,15 @@ mechanics.
   - **Failed actions cost rank** (`Investigation failed! Lost 0.343 rank.` repeating), so a
     stamina-starved engine goes **net negative** on rank, not merely slow. Measured: −0.00958
     rank/held-sec cumulative.
-  - **❓ Still open:** the shape of the penalty curve between 5% and 100% (only two points known), and
-    whether any General action consumes stamina — `Hyperbolic Regeneration Chamber` is assumed safe
-    for recovery, the rest are unmeasured (`BACKLOG.md` has the cheap experiment).
+  - **❓ Still open:** whether any General action consumes stamina — `Hyperbolic Regeneration
+    Chamber` is assumed safe for recovery, the rest are unmeasured (`BACKLOG.md` has the cheap
+    experiment). *(The curve-shape question that used to sit here is closed — see the formula
+    above.)*
+  - **🧮 Measured regen rate 2026-08-02:** with `Hyperbolic Regeneration Chamber` running, stamina
+    went `8.691 → 20.423` in 5 minutes = **~2.35 stamina/min**, of which the HRC log line accounts
+    for **0.836/min** (so passive regen is ~1.5/min and HRC is roughly a +55% boost, not a
+    replacement). HRC also restores **2 HP/min**. At 2.35/min, climbing from 0 to the 50% useful
+    ceiling (41.8) takes **~18 minutes** — which is the real cost of ever letting stamina bottom out.
 - **❓ Still open — whether `switchCity` interrupts the current action or costs anything.**
 
 ---
@@ -661,3 +785,16 @@ State at doc creation (2026-07-29, pre-grind):
   constant success chance, no teams, no level progression, extrapolated from the lowest-investment
   regime. Also records the generalised lesson: *the rendered game UI is part of the interface*, and
   reading 41 API files exhaustively is not a substitute for opening the panel.
+- **2026-08-02 — second full five-tab sweep, taken at rank 1,221 instead of ~0.** New in §5: the
+  **stamina penalty solved in closed form** (`min(1, fraction/0.5)`, three points fitting exactly —
+  zero benefit above 50% stamina, linear cliff below); **contracts carry no rank loss on failure**
+  while operations do; **autolevel had pushed Tracking to 23/23 and Investigation to 8/8**, collapsing
+  success chance (Investigation 46 ✓ / 301 ✗); a full **EV rank/sec table** showing two actions
+  currently **net-negative**; the **one-player-action-slot** constraint and what `The Blade's
+  Simulacrum` actually buys; **Bladeburner actions regenerate their own combat-stat prerequisite**
+  (install #37: combat 1 → 171/171/202/195 in 26h, versus hacking 1 → 167); faction **membership**
+  survives an install while **rep** does not; **max HP = 10 + defense/10 = 27**, so 9 failed contracts
+  hospitalise (81 times / **$837.4m** to date); measured stamina regen **~2.35/min** with HRC; and the
+  **full Bladeburner aug shop** with rep gates (12.5k–62.5k) and base prices. Also flags that **Phase
+  38's own measurements are untrustworthy** — its stamina floor is not enforced and its telemetry
+  reports `rankGained: 0` while rank moves.

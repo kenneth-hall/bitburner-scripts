@@ -7,19 +7,104 @@ code. This file is the one that churns; that one shouldn't.
 
 **Entered BN6.1 on 2026-07-29**, straight off the BN5.1 clear. Owned SF: `{1:3, 2:1, 4:3, 5:1}`.
 
-> **Epistemic status, stated up front because it's load-bearing.** The strategic *shape* of this
-> node is settled and grounded in verified numbers. The division is joined and action yields are
-> now measured too (2026-07-30) — and the result is a live yellow flag: **the best measured
-> grind rate projects ~5–6 months to the final black op, ~8x slower than the ~3-week flip bar**,
-> at zero skill investment. Whether skill points or scouting change that is still genuinely
-> unknown (see §1) — **do not read the current rate as a final verdict, and do not read "the
-> ladder is measured" as "feasibility is settled."** Every number below is labelled ✅ verified,
-> 🧮 computed, or ❓ unknown. **Do not let a ❓ get quietly promoted to a planning assumption** —
-> that's the Phase 27 failure mode, and it cost most of a session.
+> **Epistemic status, stated up front because it's load-bearing.** As of **2026-08-02** the win
+> path is **Bladeburner-primary** (third and current position — see §1.0). The *direction* is well
+> supported: BN6's multipliers penalise hacking four ways and Bladeburner zero ways, and that's now
+> measured, not argued. The *timeline* is **not** established. The best measured action rate still
+> projects **~150 days at 100% duty**, and the ~50× multiplier stack that makes the path viable is
+> **entirely undemonstrated** — every factor in it is a ceiling read off the game's own numbers, not
+> an observed rate. ⚠️ **Worse, the engine that produced our recent rank data has known bugs** (Phase
+> 38's stamina floor isn't enforced; its telemetry reports zero rank gained while rank moves), so the
+> honest state is *"we have not yet measured a correctly-tuned Bladeburner engine."* Every number
+> below is labelled ✅ verified, 🧮 computed, or ❓ unknown. **Do not let a ❓ get quietly promoted to
+> a planning assumption** — that's the Phase 27 failure mode, and it cost most of a session.
+
+---
+
+## 1.0 CURRENT DECISION (2026-08-02) — Bladeburner-primary, batcher as its economy
+
+**This supersedes both §1 (2026-07-29, Bladeburner-primary) and the 2026-07-30 flip to
+hacking-primary. Read this subsection first; the rest of §1 is retained for its arithmetic.**
+
+Three positions have been held on this question. Each flip was driven by new evidence, which is the
+bar for reopening a settled call — record it that way, not as vacillation:
+
+| Date | Position | What moved it |
+|---|---|---|
+| 2026-07-29 | Bladeburner-primary | Interface read; rank/SP persist across installs |
+| 2026-07-30 | Hacking-primary | Live trial measured 0.0144 rank/s → ~10.5 months |
+| **2026-07-31** | *(trial marked UNSOUND)* | In-game panel read: the trial's model was wrong on four counts |
+| **2026-08-02** | **Bladeburner-primary** | **BN6's multipliers measured: hacking penalised 4×, Bladeburner 0×** |
+
+### Why the flip is justified — measured, not argued
+
+BN6's multiplier table is a deliberate anti-hacking design, and it leaves Bladeburner untouched:
+
+| Axis | BN6 multiplier |
+|---|---|
+| `HackExpGain` | **0.25** |
+| `HackingLevelMultiplier` | **0.35** |
+| `ServerMaxMoney` | **0.20** |
+| `CloudServerSoftcap` | **2.0** |
+| `BladeburnerRank` | **1.0** |
+| `BladeburnerSkillCost` | **1.0** |
+| combat exp | **no penalty at all** |
+
+✅ **Live proof in a single window.** Install #37 reset everything to base. **26 hours later:
+hacking 1 → 167, combat 1 → 171/171/202/195.** The same engine reached hacking **4,867** post-install
+in BN5. **The "hacking cleared BN2 and BN5 in 5–6 days" precedent does not transfer** — neither node
+carried this penalty stack. And the combat climb was *free*: it came entirely from Bladeburner action
+exp, so the combat-100 gate is a one-time cost, not a per-install tax.
+
+### The strongest objection — and it is not resolved, only scheduled
+
+**The install↔rep deadlock.** Bladeburner faction rep resets on every install and can *only* be
+earned by Bladeburner actions (no donation, no `workForFaction`). The success-chance augs sit at
+**12.5k–62.5k rep**; rep accrues at a measured **0.086 rep/s** → **8.4 days at 100% duty, ~28 days at
+the ~30% duty stamina currently allows**. The ratchet installs roughly daily. These are directly
+incompatible.
+
+**Decision taken 2026-08-02: "rep window, then one install."** The ratchet installs freely until a
+trigger fires, then **freezes** while Bladeburner grinds the rep tier uninterrupted; buy the whole
+tier in one purchase; install once; resume. **Phase 39 owns specifying that trigger** — it is an open
+question with a default, not a solved problem. Cost if wrong: a frozen ratchet is a stalled mult
+climb, which is also a stalled income curve.
+
+**Second constraint: one player-action slot.** Bladeburner actions block gym/crime/faction work.
+`The Blade's Simulacrum` removes exactly this (rep 1.25k — already met; **$150b base / $1.029t at
+current escalation**). So combat stats cannot be bought at the gym while grinding rank.
+
+### The batcher's new job: funding engine only
+
+**The WD-gate hacking climb is dropped as a goal** (decided 2026-08-02). Optimise the batcher for
+**$/s** to fund Bladeburner augs and fleet. The M≈28–37 / 35-aug Daedalus arithmetic in §1 below is
+still *correct* and preserved for a fallback revival — it is simply no longer the plan. Do not
+re-derive it as if it were.
+
+### What the bet actually is, stated as a bet
+
+🧮 Best measured action (Tracking, **0.0307 rank/s**) projects **150 days at 100% duty** to rank
+400,000 — and real duty is ~30%. The path is viable only if the multiplier stack compounds:
+
+| Lever | Now | Ceiling | Factor |
+|---|---|---|---|
+| Overclock | 17/90 (×0.83 time) | 90/90 (×0.10) | **8.3×** |
+| Stamina duty cycle | ~30% | ~95% | **3.2×** |
+| Stamina success penalty | 49.9% | 0% | **~2×** |
+| Action tier (Tracking 0.73 → Raid 80.5 rank/success) | contracts | operations | **~20×** if success lands |
+| `bladeburner_*` aug mults | all **1.00** | ~1.5–2× stacked | **~1.5–2×** |
+| Team size | **0** | ? | ops/blackops only |
+
+Conservatively 8.3 × 3.2 × 2 ≈ **50×** before any tier switch → ~3 days at 100% duty. **The ceiling
+is real and read off the game's own numbers. None of it is demonstrated.** ⚠️ Do not let this table
+become a planning assumption — it is the hypothesis Phase 39 exists to test.
 
 ---
 
 ## 1. The decision: clear via Bladeburner, not via hacking
+*(2026-07-29 original — superseded in its conclusion by §1.0 above, which reaches the same place by a
+different and better-evidenced route. Retained for the hacking-path arithmetic, which is unchanged
+and still the reference if the fallback is ever revived.)*
 
 **Recommendation: take the Bladeburner black-op path.** Grind combat stats to 100, join the
 division, build an engine, and clear the node by completing the final black op

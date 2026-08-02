@@ -10,16 +10,50 @@ solutions — work from game mechanics and the API.
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** **IN BN6.1 as of 2026-07-29** — entered straight off
-  the BN5.1 clear. **Win path is hacking, actively working, as of 2026-07-30** — proven, not just
-  cheap: BN2 and BN5 both cleared via this same automated engine in 5–6 real days each, at an
-  equal-or-harder gate than BN6's. **The 2026-07-30 "Bladeburner measured non-viable" verdict below
-  was marked UNSOUND 2026-07-31 and is being actively re-measured, not treated as closed** — see
-  the correction appended right after the decision-flip entry, and `docs/bn6-playbook.md` §1/§8 for
-  the full trail. Bladeburner rank/skill points are still banked (persist across installs); Phase
-  38 (`src/bladeburnermanager.js`, branch `phase-38-slice-b`) grinds them opportunistically in
-  slack time only, without risking the hacking path, and carries two checkpoints (24h smoke, 1-week
-  viability) to produce a real verdict. **As of 2026-08-01 it has zero data yet** — stood down for
-  `backdoorfactions.js` since it started, per its own stand-down design, not a problem.
+  the BN5.1 clear. **🔵 WIN PATH FLIPPED BACK TO BLADEBURNER-PRIMARY 2026-08-02, on Kenneth's call,
+  with measured support.** Bladeburner is now **the win condition**; the batcher is **its economy,
+  not a second win path**. This is the third position on this question — the trail is
+  `docs/bn6-playbook.md` §1; read it before reopening, and note the two prior flips were each driven
+  by new evidence, as is this one.
+  - **The evidence that justifies it (measured 2026-08-02, not argued).** BN6's multiplier table
+    penalises hacking **four ways** (`HackExpGain` 0.25 · `HackingLevelMultiplier` 0.35 ·
+    `ServerMaxMoney` 0.20 · `CloudServerSoftcap` 2.0) and Bladeburner **zero ways**
+    (`BladeburnerRank` 1.0 · `BladeburnerSkillCost` 1.0 · **no combat-exp penalty at all**). Live
+    proof in one window: **26h after install #37, hacking climbed 1 → 167 while combat climbed
+    1 → 171/171/202/195** — and the combat climb came free, purely from Bladeburner actions. The
+    same engine reached hacking **4,867** post-install in BN5. **The "hacking cleared BN2/BN5 in 5–6
+    days" precedent does not transfer to BN6** — those nodes did not carry this penalty stack. That
+    is new information, not discomfort with a settled call.
+  - **The strongest objection, unresolved and load-bearing: the install↔rep deadlock.** Bladeburner
+    **faction rep resets on every install** and can *only* be earned by Bladeburner actions (no
+    donation, no `workForFaction`), yet the success-chance augs sit at **12.5k–62.5k rep** and rep
+    accrues at a measured **0.086 rep/s** → **8.4 days at 100% duty, ~28 days at the ~30% duty
+    stamina currently allows**. The ratchet installs roughly daily. **Decision taken 2026-08-02:
+    "rep window, then one install"** — ratchet installs freely until a trigger, then freezes while
+    Bladeburner grinds the rep tier, buy the whole tier at once, install once, resume. Phase 39 owns
+    specifying the trigger.
+  - **Second structural constraint: there is ONE player-action slot.** Bladeburner actions block
+    gym/crime/faction work. `The Blade's Simulacrum` removes exactly this (rep req 1.25k — we
+    already qualify; price **$1.029t**). So "fund combat stats at the gym" is never free — it costs
+    rank time. Mitigated by the finding above: **Bladeburner actions regenerate their own combat-stat
+    prerequisite**, so the post-install combat grind is not a recurring tax.
+  - **Batcher's new job: funding engine only** (decided 2026-08-02). The WD-gate hacking climb is
+    **dropped as a goal** — optimise for $/s to pay for Bladeburner augs and fleet. Do not re-derive
+    the M≈28–37 / 35-aug Daedalus plan as if it were still the target.
+  - **Phase 39 (`phase-39-*.features.md`) is the active phase — Stage 1 brainstorm.** It supersedes
+    Phase 38's *architecture* (an opportunistic slack-time grinder that stands down for other
+    scripts — the inverse of what primary needs) while reusing its telemetry plumbing. ⚠️ **Phase
+    38's measurements are not trustworthy**: its stamina floor is not enforced (state says
+    `floor: 0.5`, event log shows `stamina hit 0` three times in an hour) and its telemetry reports
+    `rankGained: 0`/`dutyCycle: 1` while rank visibly moved. **Anything measured by that engine is
+    measuring the bug.**
+  - **Current standing 2026-08-02:** rank **1,221** / 400,000 · skill points **0** (407 earned, all
+    spent across 12 skills) · **Overclock 17/90** (×0.83 action time; ceiling ×0.10 = **8.3×
+    throughput**) · team size **0** · all four `bladeburner_*` aug mults **1.00** · 81
+    hospitalisations / **$837m** lost against max HP **27**. Best measured action (Tracking,
+    0.0307 rank/s) projects **150 days at 100% duty**. The conservative multiplier stack is
+    **~50×** before switching to high-payout operations. **The ceiling is real; none of it is
+    demonstrated yet — that is the bet, and it should be stated as a bet.**
   - **✅ BN2.1 CLEARED 2026-07-23** — `w0r1d_d43m0n` backdoored (`backdoorwd.js` auto-fired once
     hacking crossed the gate), confirmed on the BitVerse screen (`bb-shot.png`). **Cleared at
     M≈34.3, NOT the M≈45 target**: the exp stack overshot (13.9B exp) and put the level at
@@ -68,7 +102,9 @@ on request — hold to them even when the moment is uncomfortable.
     the `commitCrime` player action it started kept running unattended past the gate with nothing
     alive to stop it — harmless overshoot, ~90 min of pointless Mug. New `src/joinbladeburner.js`
     stopped the action and called `joinBladeburnerDivision()` → `true`.
-  - **🔴 DECISION FLIPPED 2026-07-30 — HACKING IS NOW THE PRIMARY PATH, NOT BLADEBURNER.** The
+  - **[SUPERSEDED 2026-08-02 by the Bladeburner-primary flip at the top of this section — kept for
+    the trial numbers and the lesson, not the conclusion]
+    🔴 DECISION FLIPPED 2026-07-30 — HACKING IS NOW THE PRIMARY PATH, NOT BLADEBURNER.** The
     ~3-week flip condition set at Stage 1 (see the superseded reasoning below) was re-checked live
     and failed decisively. `bladeburnerprobe.js` + two sibling probes first found a bad *predicted*
     rate at zero investment (~5–6 months to the rank-400,000 `Operation Daedalus` gate, ~8x past
@@ -108,9 +144,10 @@ on request — hold to them even when the moment is uncomfortable.
     2026-08-01 after Kenneth flagged the "skipping Bladeburner in the Bladeburner node" framing as
     off. Full trail: `docs/bn6-playbook.md` §1's correction block and its 2026-07-31/2026-08-01
     changelog entries.
-  - **Next action: re-derive the hacking-path plan** using the M≈28–37 / +35-aug-Daedalus math
-    below (already computed, not stale) and `docs/bitnodes.md`'s BN2 precedent for how that climb
-    actually played out.
+  - **[SUPERSEDED 2026-08-02 — do not do this]** The old "next action: re-derive the hacking-path
+    plan using the M≈28–37 / +35-aug-Daedalus math" is retired with the batcher's demotion to
+    funding engine. The math itself is still correct and still in `docs/bn6-playbook.md` §1 if the
+    fallback ever needs reviving; it is simply no longer the plan.
   - **[SUPERSEDED 2026-07-30 by the flip above — kept for the numbers, not the conclusion]
     Original decision: clear BN6 via the Bladeburner black-op path, not hacking** (2026-07-29, high
     confidence on ordering *at the time* — the flip condition this section itself set was then
