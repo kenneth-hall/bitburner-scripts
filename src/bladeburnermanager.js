@@ -32,6 +32,34 @@
  * cash). No dashboard change this phase (Phase 24 gate) --
  * bladeburner-state.json + bladeburner-log.json are the observability
  * surface.
+ *
+ * Completeness fixes, 2026-08-01 (found while checking live state against
+ * features doc D10 -- confirmed live: teamSize stuck at 0, chaos climbing
+ * unchecked, for the entire session, because augfarmer.js's "grinding" phase
+ * -- its steady state during a climb -- classifies as contested, so the
+ * free-window branch that gates ALL general actions almost never runs; a
+ * known, logged, deliberately-out-of-scope augfarmer limitation per the
+ * spec's decision 6, not something this file should route around):
+ *   - `setTeamSize` was never called anywhere -- `Recruitment` building an
+ *     "available" pool never reached an Operation, which needs its own
+ *     explicit per-action assignment (a separate count from the pool, per
+ *     the API's own remarks). Now assigned every contested tick an
+ *     Operation is picked.
+ *   - `Incite Violence` -- named a "kept" action in features D10 -- was
+ *     decided-and-never-wired into `pickOverheadAction`. Added, gated on a
+ *     new `isInventoryLow` signal, as a safety net against the features
+ *     doc's one still-open question (inventory exhaustion over a multi-day
+ *     run).
+ *   - Stamina is now read and exposed in bladeburner-state.json
+ *     (visibility only, no policy attached yet) -- the prior "0% penalty"
+ *     reading was a 75min high-variety trial, not a multi-hour continuous
+ *     one; live at restart it read 22% of max, materially lower.
+ * `Field Analysis`/`Training` were deliberately NOT added to the overhead
+ * ladder or given a contested-time carve-out -- features D10 already
+ * measured Field Analysis as near-worthless (0.1 rank/30s, barely narrows
+ * the estimate) and Training as strictly dominated by Reaper/Evasive System
+ * (stats wipe on install, skill points don't). Re-litigating either would be
+ * reopening an already-reasoned decision without new evidence.
  */
 
 // ---- Files ----------------------------------------------------------------
@@ -105,6 +133,12 @@ export const SKILL_LEVEL_CAP = { Overclock: 90 }; // documented max -- beyond it
 export const CHAOS_DIPLOMACY_THRESHOLD = 1.0;
 export const TEAM_SIZE_TARGET = 6;
 export const CITY_ROTATE_CHAOS_THRESHOLD = 2.0; // shouldRotateCity's default -- open question 1: switchCity cost/interruption unmeasured
+// Provisional, logged (RANK_MONEY_EXCHANGE's pattern) -- the 7/30 trial read counts in the
+// hundreds (Tracking 496, Raid 268) and called inventory "not the binding constraint", but that
+// was a ~75min sample; the regen-vs-consumption rate over a multi-day run is the features doc's
+// own still-open question. This is a conservative floor, not a measured one -- revisit once
+// inventory-count samples exist across a long run.
+export const LOW_INVENTORY_COUNT_THRESHOLD = 20;
 
 const CONTRACTS = ["Tracking", "Bounty Hunter", "Retirement"];
 const OPERATIONS = ["Investigation", "Undercover Operation", "Sting Operation", "Raid", "Stealth Retirement Operation", "Assassination"];
@@ -175,6 +209,19 @@ export function planSkillBuy(skillLevels, points, costs, policy = {}) {
     return { skill, toLevel: level + 1, cost };
   }
   return null;
+}
+
+/**
+ * Pure. `true` when every tracked Contract/Operation's remaining count is at/under `threshold` --
+ * i.e. the whole pool is genuinely thin, not just one action drained (single-action depletion is
+ * already handled by `buildCandidates` skipping it and picking among what's left). An empty list
+ * counts as low too (nothing left at all).
+ * @param {number[]} counts
+ * @param {number} [threshold]
+ */
+export function isInventoryLow(counts, threshold = LOW_INVENTORY_COUNT_THRESHOLD) {
+  if (counts.length === 0) return true;
+  return counts.every((c) => c <= threshold);
 }
 
 /**
@@ -387,7 +434,7 @@ export function estimateRepRatePerSec(prevAugState, currAugState, dtSec) {
 }
 
 /** Pure. Assembles the bladeburner-state.json snapshot from already-computed values. */
-export function buildBbState({ now, off, holdActive, holdReason, standDownFor, rank, skillPoints, skillLevels, cityName, chaosByCity, teamSize, hpFraction, rates, duty, repForegone, hospitalizations, checkpointA, checkpointB }) {
+export function buildBbState({ now, off, holdActive, holdReason, standDownFor, rank, skillPoints, skillLevels, cityName, chaosByCity, teamSize, hpFraction, stamina = null, rates, duty, repForegone, hospitalizations, checkpointA, checkpointB }) {
   return {
     timestamp: now,
     time: new Date(now).toLocaleTimeString(),
@@ -402,6 +449,7 @@ export function buildBbState({ now, off, holdActive, holdReason, standDownFor, r
     chaosByCity,
     teamSize,
     hpFraction,
+    stamina,
     rates,
     duty,
     repForegone,
@@ -464,9 +512,30 @@ function buildCandidates(ns) {
   return candidates;
 }
 
-/** Free-window overhead choice (decision 6). Not a spec-mandated formula -- see CHAOS_DIPLOMACY_THRESHOLD's declaration. */
-function pickOverheadAction(hpFraction, cityChaos, teamSize) {
+/** Non-pure (ns-touching). Remaining counts for every tracked Contract/Operation -- feeds `isInventoryLow`. */
+function getInventoryCounts(ns) {
+  const counts = [];
+  for (const [type, names] of [
+    ["Contracts", CONTRACTS],
+    ["Operations", OPERATIONS],
+  ]) {
+    for (const name of names) counts.push(ns.bladeburner.getActionCountRemaining(type, name));
+  }
+  return counts;
+}
+
+/** Free-window overhead choice (decision 6). Not a spec-mandated formula -- see CHAOS_DIPLOMACY_THRESHOLD's declaration.
+ * `Incite Violence` added 2026-08-01: features doc D10 named it one of the four "protective or
+ * enabling" actions that stay (contract/op inventory regen), but it was decided-and-never-wired --
+ * the ladder only ever covered HRC/Diplomacy/Recruitment. Without it, if the pool ever genuinely
+ * thins over a multi-day unattended run (features doc's own still-open question: "determines
+ * whether a sustainable steady state exists or whether the engine exhausts its inventory and
+ * stalls"), `buildCandidates` would eventually return empty, `pickRankAction` would return null, and
+ * the contested branch would fall back to HRC forever with no path back -- a silent, permanent stall.
+ * Placed above chaos/team since running dry is a stall, not just an efficiency loss. */
+export function pickOverheadAction(hpFraction, cityChaos, teamSize, lowInventory) {
   if (hpFraction < HP_FLOOR_FRACTION) return { type: "General", name: "Hyperbolic Regeneration Chamber" };
+  if (lowInventory) return { type: "General", name: "Incite Violence" };
   if (cityChaos !== undefined && cityChaos > CHAOS_DIPLOMACY_THRESHOLD) return { type: "General", name: "Diplomacy" };
   if (teamSize < TEAM_SIZE_TARGET) return { type: "General", name: "Recruitment" };
   return { type: "General", name: "Hyperbolic Regeneration Chamber" };
@@ -650,17 +719,36 @@ export async function main(ns) {
 
     const player = ns.getPlayer();
     const hpFraction = player.hp.max > 0 ? player.hp.current / player.hp.max : 1;
+    // Visibility only (2026-08-01) -- no action reacts to this yet. The one prior data point
+    // ("0% Stamina Penalty") came from the 75min 7/30 trial, not a multi-hour continuous-fire
+    // run; this closes the blind spot instrumentally instead of continuing to assume it holds.
+    const [staminaCur, staminaMax] = ns.bladeburner.getStamina();
+    const staminaFraction = staminaMax > 0 ? staminaCur / staminaMax : 1;
 
     let chosenAction = null;
     if (windowKind === "contested") {
       const candidates = buildCandidates(ns);
       const picked = pickRankAction(candidates, { hpFraction });
-      chosenAction = picked ? { type: picked.type, name: picked.name } : { type: "General", name: "Hyperbolic Regeneration Chamber" };
+      if (picked) {
+        chosenAction = { type: picked.type, name: picked.name };
+        // 2026-08-01: setTeamSize was never called anywhere -- Recruitment building an
+        // "available" pool (getTeamSize() with no args) never actually reached an Operation,
+        // which needs its own explicit assignment (getTeamSize(type,name) is a SEPARATE,
+        // per-action count per the API remarks). TEAM_SIZE_TARGET existed as a real constant
+        // gating a Recruitment decision whose entire product was silently discarded.
+        if (picked.type === "Operations") {
+          const availableTeam = ns.bladeburner.getTeamSize();
+          if (availableTeam > 0) ns.bladeburner.setTeamSize(picked.type, picked.name, availableTeam);
+        }
+      } else {
+        chosenAction = { type: "General", name: "Hyperbolic Regeneration Chamber" };
+      }
     } else {
       const cityName = ns.bladeburner.getCity();
       const chaos = ns.bladeburner.getCityChaos(cityName);
       const teamSize = ns.bladeburner.getTeamSize();
-      chosenAction = pickOverheadAction(hpFraction, chaos, teamSize);
+      const lowInventory = isInventoryLow(getInventoryCounts(ns));
+      chosenAction = pickOverheadAction(hpFraction, chaos, teamSize, lowInventory);
     }
 
     // Marker write BEFORE startAction (load-bearing ordering, marker contract).
@@ -741,6 +829,7 @@ export async function main(ns) {
             chaosByCity,
             teamSize: ns.bladeburner.getTeamSize(),
             hpFraction,
+            stamina: { current: staminaCur, max: staminaMax, fraction: staminaFraction },
             rates,
             duty,
             repForegone: repForegoneTotal,

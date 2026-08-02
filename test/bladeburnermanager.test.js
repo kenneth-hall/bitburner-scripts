@@ -26,6 +26,11 @@ import {
   HP_FLOOR_FRACTION,
   AUG_STATE_FRESH_MS,
   BLACKOPS_DAEDALUS_RANK,
+  pickOverheadAction,
+  isInventoryLow,
+  LOW_INVENTORY_COUNT_THRESHOLD,
+  CHAOS_DIPLOMACY_THRESHOLD,
+  TEAM_SIZE_TARGET,
 } from '../src/bladeburnermanager.js';
 
 // --- expectedRankPerSec ----------------------------------------------------
@@ -140,6 +145,55 @@ describe('planSkillBuy', () => {
     const costs = { Overclock: Infinity, 'Blade\'s Intuition': 5 };
     const buy = planSkillBuy(levels, 10, costs);
     expect(buy.skill).toBe('Blade\'s Intuition');
+  });
+});
+
+// --- isInventoryLow -----------------------------------------------------------
+
+describe('isInventoryLow', () => {
+  it('true when every tracked count is at/under the threshold', () => {
+    expect(isInventoryLow([5, 10, 0], 20)).toBe(true);
+  });
+
+  it('false when at least one count is comfortably above the threshold', () => {
+    expect(isInventoryLow([5, 500, 0], 20)).toBe(false);
+  });
+
+  it('true on an empty pool -- nothing left at all', () => {
+    expect(isInventoryLow([], 20)).toBe(true);
+  });
+
+  it('exactly at the threshold counts as low', () => {
+    expect(isInventoryLow([20], 20)).toBe(true);
+  });
+
+  it('uses LOW_INVENTORY_COUNT_THRESHOLD as the default', () => {
+    expect(isInventoryLow([LOW_INVENTORY_COUNT_THRESHOLD])).toBe(true);
+    expect(isInventoryLow([LOW_INVENTORY_COUNT_THRESHOLD + 1])).toBe(false);
+  });
+});
+
+// --- pickOverheadAction (decision 6, Incite Violence added 2026-08-01) ------
+
+describe('pickOverheadAction', () => {
+  it('HP guard takes priority over everything else, including low inventory', () => {
+    expect(pickOverheadAction(HP_FLOOR_FRACTION - 0.01, 5, 0, true)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
+  });
+
+  it('low inventory beats chaos and team size once HP is fine', () => {
+    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true)).toEqual({ type: 'General', name: 'Incite Violence' });
+  });
+
+  it('high chaos triggers Diplomacy once HP and inventory are fine', () => {
+    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 0.1, 0, false)).toEqual({ type: 'General', name: 'Diplomacy' });
+  });
+
+  it('low team size triggers Recruitment once HP, inventory and chaos are fine', () => {
+    expect(pickOverheadAction(1, 0, TEAM_SIZE_TARGET - 1, false)).toEqual({ type: 'General', name: 'Recruitment' });
+  });
+
+  it('defaults to HRC once every other condition is satisfied', () => {
+    expect(pickOverheadAction(1, 0, TEAM_SIZE_TARGET, false)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
   });
 });
 
