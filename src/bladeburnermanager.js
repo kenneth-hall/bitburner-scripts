@@ -99,7 +99,14 @@ export const AUG_STATE_FRESH_MS = 60_000; // beyond this, augfarmer-state.json i
 // file's own AUG_STATE_FRESH_MS).
 export const BACKDOOR_ACTIVITY_FRESH_MS = 180_000;
 export const HP_FLOOR_FRACTION = 0.5; // below this fraction of max HP, only non-HP-risking actions run (decision 7)
-export const HOSPITALIZATION_COST_ESTIMATE = 10_400_000; // seeded from the 7/30 trial's $229.5m / 22 failures
+export const HOSPITALIZATION_COST_ESTIMATE = 10_400_000; // re-seeded 2026-08-02 from the live panel's $837.4m / 81 hospitalizations
+// Measured 2026-08-02 from the in-game event log: EVERY failed Tracking contract logged
+// "Took 3 damage", and max HP is `10 + floor(defense/10)` = 27 at defense 171 -- so a
+// hospitalization costs NINE failures, not one. The discount in `pickRankAction` used to
+// charge the full hospitalization estimate against every individual failure, which is a
+// ~9x overcharge at full HP and scored Tracking at -0.0316 against Investigation's +0.0016.
+// That single sign flip is why the engine ground the 4x-worse action for hours.
+export const HP_DAMAGE_PER_FAILURE = 3;
 // RANK_MONEY_EXCHANGE is a DECLARED, PROVISIONAL constant (spec decision 7: "so
 // the trade-off is visible and tunable rather than implicit") -- there is no
 // real dollars-per-rank exchange rate; this sets how strongly a candidate's
@@ -178,28 +185,63 @@ export function expectedRankPerSec({ pMin, rankGain, rankLoss, timeMs }) {
 
 /**
  * Pure (decision 7). Picks the best rank-producing candidate, EV minus a
- * priced failure cost, with a hard HP guard: below `hpFloorFraction` of max
- * HP, any candidate that risks HP on failure is dropped from consideration
- * entirely (Investigation is exempt via `risksHp: false`). Returns `null`
- * when nothing is left to pick -- the caller runs recovery overhead instead
- * (Hyperbolic Regeneration Chamber isn't a rank candidate, so it never
+ * priced failure cost.
+ *
+ * 🔴 2026-08-02 -- TWO live-measured defects fixed here. Both made the engine
+ * grind `Investigation` (true EV 0.0077 rank/s) instead of `Tracking` (0.0307),
+ * i.e. 4x worse, for hours at a stretch.
+ *
+ * 1. **The hospitalization discount was charged per FAILURE, not per
+ *    HOSPITALIZATION.** It takes `ceil(hp / HP_DAMAGE_PER_FAILURE)` failures to
+ *    hospitalize -- NINE at full HP (27 max, 3 damage a failure, both measured).
+ *    Charging the whole $10.4m against each individual failure scored Tracking at
+ *    **-0.0316** against Investigation's **+0.0016**, so the engine correctly
+ *    followed a badly wrong number. Now amortised over the failures actually
+ *    remaining before hospitalization, which also makes the discount *rise* as HP
+ *    falls -- the intended risk-aversion, now on the right scale.
+ * 2. **The HP floor was a trap, not a guard.** Below `hpFloorFraction` the pool
+ *    filtered to non-HP-risking actions, which is exactly `[Investigation]` -- and
+ *    Investigation never restores HP, so nothing could ever lift HP back above the
+ *    floor. The engine parked there indefinitely while `pickOverheadAction`'s own
+ *    HP->Hyperbolic-Regeneration-Chamber branch sat unreachable (dead code). Now the
+ *    HP-low case returns `null`, routing to that recovery branch as designed; HRC
+ *    restores HP *and* stamina, so it buys back the far more valuable action too.
+ *
+ * Returns `null` when nothing should be run -- the caller runs recovery overhead
+ * instead (Hyperbolic Regeneration Chamber isn't a rank candidate, so it never
  * appears in `candidates`).
  * @param {{type:string, name:string, pMin:number, rankGain:number, rankLoss:number, timeMs:number, risksHp:boolean}[]} candidates
- * @param {{hpFraction:number, hpFloorFraction?:number, hospitalizationCostEstimate?:number, rankMoneyExchange?:number}} opts
+ * @param {{hpFraction:number, hpCurrent?:number, hpFloorFraction?:number, hospitalizationCostEstimate?:number, rankMoneyExchange?:number, damagePerFailure?:number}} opts
  */
 export function pickRankAction(candidates, opts) {
-  const { hpFraction, hpFloorFraction = HP_FLOOR_FRACTION, hospitalizationCostEstimate = HOSPITALIZATION_COST_ESTIMATE, rankMoneyExchange = RANK_MONEY_EXCHANGE } = opts;
+  const {
+    hpFraction,
+    hpCurrent = null,
+    hpFloorFraction = HP_FLOOR_FRACTION,
+    hospitalizationCostEstimate = HOSPITALIZATION_COST_ESTIMATE,
+    rankMoneyExchange = RANK_MONEY_EXCHANGE,
+    damagePerFailure = HP_DAMAGE_PER_FAILURE,
+  } = opts;
 
-  const hpLow = hpFraction < hpFloorFraction;
-  const pool = hpLow ? candidates.filter((c) => !c.risksHp) : candidates;
-  if (pool.length === 0) return null;
+  // Defect 2: recover rather than grind the one action that can never lift HP.
+  if (hpFraction < hpFloorFraction) return null;
+  if (candidates.length === 0) return null;
+
+  // Defect 1: how many more failures we can absorb before a hospitalization.
+  // Falls back to 1 (the old, punitive behaviour) only when absolute HP is
+  // unavailable -- callers pass it, so that path is a safety net, not the norm.
+  const failuresToHospitalize =
+    hpCurrent !== null && damagePerFailure > 0 ? Math.max(1, Math.ceil(hpCurrent / damagePerFailure)) : 1;
 
   let best = null;
   let bestScore = -Infinity;
-  for (const c of pool) {
+  for (const c of candidates) {
     const ev = expectedRankPerSec(c);
     const actionSeconds = c.timeMs / 1000;
-    const discount = c.risksHp && actionSeconds > 0 ? ((1 - c.pMin) * hospitalizationCostEstimate) / actionSeconds / rankMoneyExchange : 0;
+    const discount =
+      c.risksHp && actionSeconds > 0
+        ? ((1 - c.pMin) * (hospitalizationCostEstimate / failuresToHospitalize)) / actionSeconds / rankMoneyExchange
+        : 0;
     const score = ev - discount;
     if (score > bestScore) {
       bestScore = score;
@@ -904,7 +946,7 @@ export async function main(ns) {
     let earnsRank = false;
     if (windowKind === "contested" && !staminaRecovering) {
       const candidates = buildCandidates(ns);
-      const picked = pickRankAction(candidates, { hpFraction });
+      const picked = pickRankAction(candidates, { hpFraction, hpCurrent: player.hp.current });
       if (picked) {
         chosenAction = { type: picked.type, name: picked.name };
         earnsRank = true;

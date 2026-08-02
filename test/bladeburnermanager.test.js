@@ -92,9 +92,44 @@ describe('pickRankAction', () => {
     expect(picked.name).toBe('A');
   });
 
-  it('HP guard: below the floor, HP-risking candidates are dropped even if they have the best EV', () => {
-    const picked = pickRankAction([risky, safe], { hpFraction: HP_FLOOR_FRACTION - 0.01 });
-    expect(picked.name).toBe('Investigation');
+  // 🔴 Rewritten 2026-08-02. This test used to assert `picked.name === 'Investigation'`,
+  // i.e. it locked in the bug: below the HP floor the pool filtered down to the only
+  // non-HP-risking action, which is Investigation -- and Investigation cannot restore HP,
+  // so the engine could never climb back above the floor. Live cost: hours of grinding an
+  // action worth 0.0077 rank/s over one worth 0.0307. The guard must RECOVER, not re-pick.
+  it('HP guard: below the floor, returns null so the caller can route to recovery', () => {
+    const picked = pickRankAction([risky, safe], { hpFraction: HP_FLOOR_FRACTION - 0.01, hpCurrent: 13 });
+    expect(picked).toBeNull();
+  });
+
+  it('HP guard: returns null below the floor even when only safe candidates exist', () => {
+    // The trap case specifically: Investigation alone must NOT keep the engine pinned
+    // below the floor forever.
+    const picked = pickRankAction([safe], { hpFraction: 0.1, hpCurrent: 3 });
+    expect(picked).toBeNull();
+  });
+
+  it('hospitalization cost is amortised over the failures left before hospitalization', () => {
+    // The live 2026-08-02 numbers that exposed the defect. Tracking's true EV is ~4x
+    // Investigation's, but charging the full hospitalization estimate against every
+    // single failure scored Tracking negative and handed the pick to Investigation.
+    const tracking = { type: 'Contracts', name: 'Tracking', pMin: 0.356, rankGain: 0.726, rankLoss: 0, timeMs: 13_000, risksHp: true };
+    const investigation = { type: 'Operations', name: 'Investigation', pMin: 0.0966, rankGain: 3.533, rankLoss: 0.321, timeMs: 33_000, risksHp: false };
+
+    // Old behaviour, reproduced by withholding absolute HP: 9x overcharge -> wrong pick.
+    expect(pickRankAction([tracking, investigation], { hpFraction: 1 }).name).toBe('Investigation');
+
+    // Fixed: at full HP (27) a failure costs 3, so nine failures fit before hospitalization.
+    expect(pickRankAction([tracking, investigation], { hpFraction: 1, hpCurrent: 27 }).name).toBe('Tracking');
+  });
+
+  it('the failure discount grows as HP falls, so risk aversion rises approaching the floor', () => {
+    const risky2 = { type: 'Contracts', name: 'Tracking', pMin: 0.356, rankGain: 0.726, rankLoss: 0, timeMs: 13_000, risksHp: true };
+    const safe2 = { type: 'Operations', name: 'Investigation', pMin: 0.0966, rankGain: 3.533, rankLoss: 0.321, timeMs: 33_000, risksHp: false };
+    // Healthy: the contract's raw EV dominates its amortised failure cost.
+    expect(pickRankAction([risky2, safe2], { hpFraction: 1, hpCurrent: 27 }).name).toBe('Tracking');
+    // One failure from hospitalization (but still above the floor): the discount bites.
+    expect(pickRankAction([risky2, safe2], { hpFraction: 0.6, hpCurrent: 3 }).name).toBe('Investigation');
   });
 
   it('HP guard: at/above the floor, HP-risking candidates are eligible again', () => {
