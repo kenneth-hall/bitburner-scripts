@@ -20,10 +20,19 @@ on request — hold to them even when the moment is uncomfortable.
     `ServerMaxMoney` 0.20 · `CloudServerSoftcap` 2.0) and Bladeburner **zero ways**
     (`BladeburnerRank` 1.0 · `BladeburnerSkillCost` 1.0 · **no combat-exp penalty at all**). Live
     proof in one window: **26h after install #37, hacking climbed 1 → 167 while combat climbed
-    1 → 171/171/202/195** — and the combat climb came free, purely from Bladeburner actions. The
-    same engine reached hacking **4,867** post-install in BN5. **The "hacking cleared BN2/BN5 in 5–6
-    days" precedent does not transfer to BN6** — those nodes did not carry this penalty stack. That
-    is new information, not discomfort with a settled call.
+    1 → 171/171/202/195** — and the combat climb came free, purely from Bladeburner actions. 🔴
+    **Corrected same day:** an earlier draft set that 167 against "BN5 reached 4,867 post-install,"
+    which is **not apples-to-apples** (4,867 was a *late*-BN5 install at M=6.43 with a mature fleet,
+    vs BN6's *first* install at M=1.59). The clean comparison is the table: **BN6
+    `HackingLevelMultiplier` 0.35 vs BN5's 1.00**, gate 6,000 vs 4,500 → BN6 needs ~**5× the mult BN5
+    cleared at**. ⚠️ **But BN6's ratchet economics are BETTER than BN5's** (no aug-cost penalty), so
+    **the batcher path is slower, not foreclosed — estimate 10–20 days.**
+  - **⚠️ Be honest about what the flip is.** On raw time-to-clear the **batcher is probably the
+    faster bet** (10–20 days vs a Bladeburner path measured at ~570 days for contracts alone, needing
+    a 40–70× undemonstrated improvement). Bladeburner is chosen for **engine value** — BN7 is next
+    and the hacking-walled back half (BN9/10/13/14) needs an alt-destroy engine; clearing BN6 by
+    hacking banks nothing new. **Never restate this as "Bladeburner is faster."** Hard tripwire: if
+    the Stage B operation crossover isn't reached within **~2 weeks**, revert to batcher-primary.
   - **The strongest objection, unresolved and load-bearing: the install↔rep deadlock.** Bladeburner
     **faction rep resets on every install** and can *only* be earned by Bladeburner actions (no
     donation, no `workForFaction`), yet the success-chance augs sit at **12.5k–62.5k rep** and rep

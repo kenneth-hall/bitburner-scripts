@@ -194,9 +194,19 @@ observability convention; a dashboard panel already exists and can be re-pointed
 Bars are stated against **wall-clock** rank/s, not held-sec — Phase 38's held-sec framing let a
 0%-duty engine report a 100% duty cycle.
 
-- **C1 — 24h smoke, with the corrected engine.** Sustained **≥ 0.05 rank/wall-s**. That is simply
-  "Tracking, run properly, near full duty" — it does not require any of the multiplier bets to have
-  landed. Failing this means the engine is still broken, not that the path is bad.
+- **C1 — 24h smoke, with the corrected engine.** Sustained **≥ 0.007 rank/wall-s**.
+
+  🔴 **Corrected 2026-08-02 — this bar was originally written as ≥ 0.05 rank/wall-s, which is
+  unreachable and would have failed a correctly-working engine.** The error was assuming near-full
+  duty. Measured: Tracking drains stamina at **~6.55/min net** while HRC regenerates at
+  **~2.35/min**, so the sustainable **duty cycle is ~26%** and perfectly-tuned Tracking tops out at
+  `0.0307 × 0.26 ≈ 0.008 rank/wall-s`. C1 therefore tests "the engine is not broken", nothing more.
+  ⚠️ **Contracts alone at that rate are ~570 days** — which is the real reason C2, not C1, is the
+  checkpoint that matters.
+
+  🟢 **One genuine tailwind: duty cycle self-improves.** Max stamina and stamina regen both scale
+  with agility, and Bladeburner actions grow agility for free — dex/agi already run ahead of str/def
+  (202/195 vs 171/171) purely from action exp. The 26% is a floor, not a constant.
 - **C2 — Stage B crossover reached.** Operation EV exceeds best-contract EV on live numbers. This is
   the real go/no-go: it is the moment the 82.6-day contract ceiling stops binding.
 - **C3 — 1-week viability.** Sustained **≥ 0.35 rank/wall-s** (≈ 2 weeks to rank 400,000 from here).

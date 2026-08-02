@@ -50,11 +50,58 @@ BN6's multiplier table is a deliberate anti-hacking design, and it leaves Bladeb
 | `BladeburnerSkillCost` | **1.0** |
 | combat exp | **no penalty at all** |
 
-✅ **Live proof in a single window.** Install #37 reset everything to base. **26 hours later:
-hacking 1 → 167, combat 1 → 171/171/202/195.** The same engine reached hacking **4,867** post-install
-in BN5. **The "hacking cleared BN2 and BN5 in 5–6 days" precedent does not transfer** — neither node
-carried this penalty stack. And the combat climb was *free*: it came entirely from Bladeburner action
-exp, so the combat-100 gate is a one-time cost, not a per-install tax.
+✅ **Live observation.** Install #37 reset everything to base. **26 hours later: hacking 1 → 167,
+combat 1 → 171/171/202/195.** The combat climb was *free* — entirely Bladeburner action exp — so the
+combat-100 gate is a one-time cost, not a per-install tax. **That part is solid.**
+
+🔴 **Correction 2026-08-02 — do not repeat the comparison this originally carried.** The first draft
+set the 167 against "the same engine reached hacking 4,867 post-install in BN5." **That is not
+apples-to-apples**: 4,867 was install #35's *pre*-install level, taken late in BN5 at M = 6.43 with a
+mature fleet, against BN6's *first* install at M = 1.59 with a fresh one. The direction survives; the
+magnitude was inflated, and it was the headline evidence for the flip, so the inflation mattered.
+
+**The clean comparison is the multiplier table**, not the anecdote:
+
+| | BN5 (cleared in ~5 days) | BN6 |
+|---|---|---|
+| `w0r1d_d43m0n` gate | 4,500 (150%) | **6,000** (200%) |
+| `HackingLevelMultiplier` | **1.00** | **0.35** |
+| `HackExpGain` | 0.50 | **0.25** |
+| `ServerMaxMoney` | 1.00 | 0.20 |
+| Aug money cost | **200%** | **100%** ← BN6 is *better* |
+| `CloudServerSoftcap` | 1.20 | 2.00 |
+
+🧮 BN6 needs roughly **5× the hacking mult BN5 cleared at** (M ≈ 28–37 vs BN5's achieved 6.43).
+⚠️ **But note the counter-pressure, which cuts against this section's own thesis:** BN6's *ratchet
+economics are better than BN5's* — no aug-cost penalty where BN5 carried 200%, and identical
+effective steal (§2). **The batcher path in BN6 is real, not blocked.** Honest estimate: **10–20
+days**, versus ~5 for BN5. It is slower, not foreclosed — and that is the fact §1.2 has to reckon
+with.
+
+## 1.1 So is the batcher actually the better bet? — the honest answer
+
+**On raw expected time-to-clear BN6, probably yes.** Batcher ≈ **10–20 days** against a
+Bladeburner path measured at **~570 days** for contracts alone, needing a 40–70× improvement that is
+real on paper and **entirely undemonstrated**. Anyone reading §1.0 as "Bladeburner is faster" has
+read it wrong. Three things justify taking it anyway:
+
+1. **The two engines are complements, not substitutes, and the dependency runs one way.** Every
+   Bladeburner multiplier is bought with money — augs ($1.375b–$27.5b base), fleet, and
+   hospitalisation costs ($837m burned so far). **There is no version of Bladeburner-primary that
+   does not need a strong batcher. The reverse is not true.** So "batcher secondary" understates its
+   role: it is on the critical path either way, and near-term it deserves *more* attention, not less.
+2. **The real question is what we own afterwards, not which clears faster.** The counter-map placed
+   BN6 here *specifically to build the Bladeburner engine*, because BN7 follows and the
+   hacking-walled back half (BN9/BN10/BN13/BN14) needs a working alt-destroy engine. **Clearing BN6
+   by hacking yields SF6 and banks nothing new.** This is a strategic-value argument, not a speed
+   argument, and it should be made as one rather than dressed up as a timeline claim.
+3. **Duty cycle self-improves.** Max stamina and regen both scale with agility, and Bladeburner
+   actions grow agility for free (dex/agi already lead str/def: 202/195 vs 171/171). The measured 26%
+   is a floor, not a constant.
+
+⚠️ **Because this is knowingly the slower expected path, it carries a hard tripwire:** if the Stage B
+operation crossover (§5 C2) is not reached within **~2 weeks**, revert to batcher-primary. Default is
+revert, not extend. Logged so a bad call leaves an artifact rather than a memory.
 
 ### The strongest objection — and it is not resolved, only scheduled
 
