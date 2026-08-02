@@ -234,12 +234,42 @@ top of it — if it interrupts the action or carries a cooldown, the policy shap
 **Rejected:** staying in one city and absorbing depletion. That is today's implicit policy; it is
 untested at Stage B consumption rates and has no failure signal.
 
-**Note on the rep competition Kenneth also raised:** regular-faction rep and Bladeburner rep are
-**not** fungible and largely do not compete. Regular rep is **money-buyable** via the donation
-shortcut (150 favor → donate), already automated. Bladeburner rep is **actions-only** — no donation,
-no `workForFaction`. So regular rep costs *money* and Bladeburner rep costs *player-action time*.
-They would only collide if we returned to manual faction work, which we do not do. The part that
-genuinely bites is the install reset, which D8 owns.
+### D11a — Regular faction rep IS a real competition (corrected 2026-08-02)
+
+🔴 **This section originally claimed regular-faction rep was "money-buyable via the donation
+shortcut, so it doesn't compete." Kenneth pushed back that donation is late-game, and he is right —
+the claim is wrong for BN6's current state and it was an input to D10's priority ordering.**
+
+**Why it's wrong:** donation requires **150 favor**, which needs roughly **462.5k rep plus an
+install** with that faction. Live favor readings in BN6 (2026-08-02): Chongqing **0**, Ishima **0**,
+New Tokyo **0**, Tian Di Hui **0**, Bladeburners **0**, CyberSec **7.10**. Favor does **not** carry
+across a BitNode entry. **Donation is unavailable here and will be for a long time.**
+
+**So the real picture:** regular faction rep in BN6 must come from `ns.singularity.workForFaction`
+(`augfarmer.js:2873`) — which is a **player action**, and therefore competes with Bladeburner for
+the single action slot, exactly as Kenneth suspected.
+
+**Measured right now:** Bladeburner holds the slot **continuously** — the in-game event log shows an
+unbroken contract cadence with no preemption gaps — so the ratchet is getting **~0 faction-work
+time**. Regular rep is creeping at roughly **2.5 rep/min** (Chongqing 11,391 → 11,506 over 46 min),
+which against 462.5k for favor is effectively zero.
+
+⚠️ **It is not biting yet, but it is a fuse, not a non-issue.** The ratchet is still buying augs
+(5 installed / 3 queued), so it has enough rep for its current tier. It will become blocking as
+requirements climb, and **the failure mode is silent** — the ratchet just stops finding affordable
+augs, and the batcher's income growth flattens, starving the very engine that funds Bladeburner.
+
+**Consequences for the rest of the phase:**
+- **D1's yield policy is more load-bearing than written.** It must include bounded yields for
+  `workForFaction`, not just `backdoorfactions.js`.
+- **D10's priority ordering needs a rep-starvation guard** — if the ratchet is rep-blocked, action-slot
+  time is worth more to it than to Bladeburner, because it gates *all* future income.
+- **This raises the value of `The Blade's Simulacrum`** (Q7), which removes the slot conflict outright.
+  Its $1.029t price is still far out of reach, but it is no longer a luxury — it is the structural fix.
+  **Q7's default flips from "no" to "revisit whenever income makes it plausible."**
+
+**New instrumentation need (folds into D9):** log slot-time allocation — how much wall-clock each
+claimant got, and how much rep the ratchet forwent. Without it this fuse burns invisibly.
 
 ---
 
@@ -253,7 +283,8 @@ genuinely bites is the install reset, which D8 owns.
 | **Q4** | Marginal success-chance value per team member, and the loss rate. | Recruit to 5, measure, extrapolate. | During implementation |
 | **Q5** | **[Rewritten 2026-08-02 — was "stay in Sector-12, revisit on trigger", which treated rotation as a chaos response rather than the sustainability mechanism it is (D11).]** What is the rotation policy? Specifically: (a) what does `switchCity` actually cost — travel time, money, does it interrupt the running action? (b) what are the per-city floors for communities / chaos / inventory that trigger a rotation out? (c) how fast does population and inventory regenerate in an abandoned city? | **Measure `switchCity`'s cost first** — it gates the whole design. Then rotate on the first floor breached, starting with the `Raid` community requirement. Do **not** default to staying put; that is an untested policy at Stage B consumption rates. | (a) before spec · (b)+(c) during implementation |
 | **Q6** | Do General actions other than HRC consume stamina? | Assume they do; only HRC is trusted for recovery. | Cheap experiment |
-| **Q7** | Buy `The Blade's Simulacrum` to free the player-action slot? Rep 1.25k (met), **$1.029t**. | **No** — price is far beyond current income and the slot conflict is survivable. Revisit if income clears ~$10t. | On trigger |
+| **Q7** | Buy `The Blade's Simulacrum` to free the player-action slot? Rep 1.25k (met), **$1.029t**. | 🔴 **Default flipped 2026-08-02 (was "No — the slot conflict is survivable").** D11a shows the conflict is *not* survivable indefinitely: with donation unavailable in BN6 (favor ~0 everywhere), regular faction rep needs `workForFaction`, which Bladeburner is currently starving to ~0. This aug is the structural fix, not a luxury. **Revisit whenever income makes it plausible**, and price it against the cost of a rep-starved ratchet rather than against rank. | Standing |
+| **Q9** | **Rest for HP, or accept hospitalization as a paid instant full-HP reset?** HP regen is **2/min** (HRC) while sustaining ~55%-success Tracking costs **~6.2 HP/min**, so HP — not stamina — is now the binding constraint on duty. A hospitalization is an *instant* reset to full at ~**$10.4m**. | Rest (current behaviour, D7 + the hysteresis latch). ⚠️ But the arithmetic favours paying: hospitalization buys roughly **3× the duty cycle** for money we increasingly have, and Tracking itself earns ~$693k a contract. **Measure both policies before defaulting.** | During implementation |
 | **Q8** | What is the actual Stage A → Stage B crossover condition? | Switch when operation EV exceeds best-contract EV, computed live — not a hardcoded rank. | In spec |
 
 ---
