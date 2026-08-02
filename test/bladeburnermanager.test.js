@@ -45,6 +45,8 @@ import {
   updateStaminaRecovering,
   STAMINA_FLOOR_FRACTION,
   STAMINA_RESUME_FRACTION,
+  updateHpRecovering,
+  HP_RESUME_FRACTION,
 } from '../src/bladeburnermanager.js';
 
 // --- expectedRankPerSec ----------------------------------------------------
@@ -743,5 +745,34 @@ describe('buildBbState', () => {
     expect(state.rank).toBe(42);
     expect(state.blackOpsDaedalusRank).toBe(BLACKOPS_DAEDALUS_RANK);
     expect(state.time).toBeTypeOf('string');
+  });
+});
+
+// 🔴 2026-08-02: the single-threshold HP guard was observed FLAPPING live within
+// minutes of shipping it -- HP 15 -> fail -> 12 (below floor) -> rest 1 min -> 14
+// (above floor) -> one contract -> fail -> 11 -> rest. HRC restores 2 HP/min while a
+// failed contract costs 3, so recovering only to the floor guarantees the next
+// failure re-trips it. Same latch shape as the stamina guard.
+describe('updateHpRecovering', () => {
+  it('trips below the floor', () => {
+    expect(updateHpRecovering(false, HP_FLOOR_FRACTION - 0.01)).toBe(true);
+  });
+  it('does NOT release at the floor -- that is the flap', () => {
+    expect(updateHpRecovering(true, HP_FLOOR_FRACTION + 0.01)).toBe(true);
+  });
+  it('releases only at the resume mark', () => {
+    expect(updateHpRecovering(true, HP_RESUME_FRACTION)).toBe(false);
+  });
+  it('holds its previous value inside the band', () => {
+    const mid = (HP_FLOOR_FRACTION + HP_RESUME_FRACTION) / 2;
+    expect(updateHpRecovering(false, mid)).toBe(false);
+    expect(updateHpRecovering(true, mid)).toBe(true);
+  });
+  it('pickRankAction honours the latch over the bare threshold', () => {
+    const c = { type: 'Contracts', name: 'Tracking', pMin: 0.5, rankGain: 1, rankLoss: 0, timeMs: 13_000, risksHp: true };
+    // Above the floor, but still recovering -> must keep resting, not resume.
+    expect(pickRankAction([c], { hpFraction: HP_FLOOR_FRACTION + 0.05, hpCurrent: 15, hpRecovering: true })).toBeNull();
+    // Latch released -> eligible again.
+    expect(pickRankAction([c], { hpFraction: HP_FLOOR_FRACTION + 0.05, hpCurrent: 15, hpRecovering: false }).name).toBe('Tracking');
   });
 });

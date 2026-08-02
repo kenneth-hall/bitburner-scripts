@@ -107,6 +107,13 @@ export const HOSPITALIZATION_COST_ESTIMATE = 10_400_000; // re-seeded 2026-08-02
 // ~9x overcharge at full HP and scored Tracking at -0.0316 against Investigation's +0.0016.
 // That single sign flip is why the engine ground the 4x-worse action for hours.
 export const HP_DAMAGE_PER_FAILURE = 3;
+// 🔴 2026-08-02, found live within minutes of shipping the HP-floor fix below: a single
+// threshold makes the HP guard FLAP. Observed -- HP 15 -> fail -> 12 (below the 0.5 floor)
+// -> rest 1 min -> 14 (above it) -> one contract -> fail -> 11 -> rest... Because
+// Hyperbolic Regeneration Chamber restores only 2 HP/min while one failed contract costs 3,
+// a single failure re-trips the guard immediately. Same shape, and same fix, as
+// STAMINA_RESUME_FRACTION: recover to a margin above the floor, not to the floor itself.
+export const HP_RESUME_FRACTION = 0.85;
 // RANK_MONEY_EXCHANGE is a DECLARED, PROVISIONAL constant (spec decision 7: "so
 // the trade-off is visible and tunable rather than implicit") -- there is no
 // real dollars-per-rank exchange rate; this sets how strongly a candidate's
@@ -217,6 +224,7 @@ export function pickRankAction(candidates, opts) {
   const {
     hpFraction,
     hpCurrent = null,
+    hpRecovering = null,
     hpFloorFraction = HP_FLOOR_FRACTION,
     hospitalizationCostEstimate = HOSPITALIZATION_COST_ESTIMATE,
     rankMoneyExchange = RANK_MONEY_EXCHANGE,
@@ -224,7 +232,9 @@ export function pickRankAction(candidates, opts) {
   } = opts;
 
   // Defect 2: recover rather than grind the one action that can never lift HP.
-  if (hpFraction < hpFloorFraction) return null;
+  // Prefers the caller's hysteresis latch (`updateHpRecovering`) when supplied;
+  // the bare threshold is the fallback, and it FLAPS -- see HP_RESUME_FRACTION.
+  if (hpRecovering !== null ? hpRecovering : hpFraction < hpFloorFraction) return null;
   if (candidates.length === 0) return null;
 
   // Defect 1: how many more failures we can absorb before a hospitalization.
@@ -709,6 +719,18 @@ export function updateStaminaRecovering(recovering, staminaFraction, floor = STA
   return recovering;
 }
 
+/**
+ * Pure. Same hysteresis latch as `updateStaminaRecovering`, for HP. Added
+ * 2026-08-02 after the single-threshold HP guard was observed flapping live --
+ * HRC restores 2 HP/min but one failed contract costs 3, so recovering only to
+ * the floor guarantees the very next failure re-trips it.
+ */
+export function updateHpRecovering(recovering, hpFraction, floor = HP_FLOOR_FRACTION, resume = HP_RESUME_FRACTION) {
+  if (hpFraction < floor) return true;
+  if (hpFraction >= resume) return false;
+  return recovering;
+}
+
 export function pickOverheadAction(hpFraction, cityChaos, teamSize, lowInventory, staminaRecovering = false) {
   if (hpFraction < HP_FLOOR_FRACTION) return { type: "General", name: "Hyperbolic Regeneration Chamber" };
   // Whether the other General actions consume stamina is UNMEASURED (the reference
@@ -759,6 +781,7 @@ export async function main(ns) {
   const hospitalizationsSeen = null;
   let lastStateWrite = 0;
   let staminaRecovering = false; // hysteresis latch between STAMINA_FLOOR_FRACTION and STAMINA_RESUME_FRACTION
+  let hpRecovering = false; // same latch shape for HP -- see HP_RESUME_FRACTION
 
   /** One place that records a tick, so the finite-window buffer and the since-startup
    *  totals can never drift apart (they did, silently, when each push site trimmed
@@ -941,12 +964,13 @@ export async function main(ns) {
     // A 24h checkpoint measured through this would have reported a negative rate
     // and read as a viability verdict on the mechanic rather than on the bug.
     staminaRecovering = updateStaminaRecovering(staminaRecovering, staminaFraction);
+    hpRecovering = updateHpRecovering(hpRecovering, hpFraction);
 
     let chosenAction = null;
     let earnsRank = false;
     if (windowKind === "contested" && !staminaRecovering) {
       const candidates = buildCandidates(ns);
-      const picked = pickRankAction(candidates, { hpFraction, hpCurrent: player.hp.current });
+      const picked = pickRankAction(candidates, { hpFraction, hpCurrent: player.hp.current, hpRecovering });
       if (picked) {
         chosenAction = { type: picked.type, name: picked.name };
         earnsRank = true;
@@ -977,7 +1001,7 @@ export async function main(ns) {
       const chaos = ns.bladeburner.getCityChaos(cityName);
       const teamSize = ns.bladeburner.getTeamSize();
       const lowInventory = isInventoryLow(getInventoryCounts(ns));
-      chosenAction = pickOverheadAction(hpFraction, chaos, teamSize, lowInventory, staminaRecovering);
+      chosenAction = pickOverheadAction(hpRecovering ? 0 : hpFraction, chaos, teamSize, lowInventory, staminaRecovering);
     }
 
     // Marker write BEFORE startAction (load-bearing ordering, marker contract).
