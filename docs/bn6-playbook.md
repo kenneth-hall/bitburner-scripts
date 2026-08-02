@@ -459,3 +459,71 @@ the surface liveness and tripwires are read off.
   `backdoorfactions.js` to clear. Per the spec's own instruction, this is not being forced early.
   `CLAUDE.md`'s "Current goal" one-liner was found to be 11 days stale against this file's own
   2026-07-31 correction (never propagated up) and was fixed in the same pass.
+- **2026-08-02 — the engine finally ran, and its instrumentation could not have produced a verdict.**
+  `backdoorfactions.js` released the slot 2026-08-01 5:07 PM, so the engine grind-tested for the
+  first time (~16.7h held by the next morning). A routine game-state check found three defects, one
+  of them fatal to the phase's purpose:
+  - **🔴 Both checkpoints were structurally unreachable.** The per-tick sample array was trimmed to a
+    fixed **10,000 entries** while every rate window is expressed in *wall time*; `nextUpdate()`
+    resolves ~1×/sec, so the buffer held **~2h47m**. `"24h"` and `cumulative` both silently meant
+    "the last 2h47m", and because the checkpoint trigger summed uptime from that same buffer it could
+    never reach 24h — let alone a week. The engine had been up 27h reporting `checkpointA: null`,
+    correctly per the code and uselessly per the spec. **Fixed:** `cumulative` and checkpoint uptime
+    now come from a never-pruned `totals` accumulator that is **persisted and re-seeded across
+    restarts** — load-bearing, because augfarmer's installs killed and relaunched this engine 6 times
+    in its first 27h. Pruning is now by timestamp against the widest finite window.
+  - **🧮 The rate it reported was wrong in the dangerous direction.** It read **0.00508
+    rank/held-sec**; absolute rank endpoints (106.3 on 7/30 → 1217.8 on 8/02, 16.7h held) give
+    **0.0185**, and a 272s spot sample during firing read **0.0387** — against checkpoint A's 0.043
+    bar. Given decision 9's "default if never revisited: non-viable", a 3.6× pessimistic error is
+    exactly the error that would have retired Bladeburner *and* the counter-map's back half on a
+    measurement artifact. **This is the second time in three days that a Bladeburner non-viability
+    number turned out to be an artifact of its own measurement harness** (the first: the 7/31
+    correction to the 7/30 trial). The pattern is worth naming — every measured-bad Bladeburner
+    result so far has had a broken instrument behind it, so the next one gets the harness audited
+    before the verdict is believed.
+  - **⚠️ A permanent stall existed, and would have reported as 100% productive.** In a contested
+    window with inventory exhausted, `pickRankAction` returns `null` and the code fell back to a
+    hardcoded `Hyperbolic Regeneration Chamber` — zero rank, and no way to regenerate contract/op
+    inventory. The 2026-08-01 `Incite Violence` fix for precisely this lived only in
+    `pickOverheadAction`, reachable only from the *free* branch — which live duty data showed had
+    been entered **zero times in 2h47m**. Both paths now route through `pickOverheadAction`. Separately,
+    per-tick `kind` now follows the chosen *action* rather than the *window*, so zero-rank fallback
+    time lands in `overheadSec` instead of masquerading as `rankSec` (the rate denominators were
+    never wrong — decision 8 includes overhead deliberately — but the diagnostic split was).
+  - **🔴 And two more, found by following the numbers instead of stopping at the fix.** After the
+    above landed, the live cumulative rate went **negative** (−0.00958 rank/held-sec). Reading the
+    in-game Bladeburner panel — the interface the original trial never opened, same lesson as the
+    7/31 correction — gave the cause in one screen:
+    - **`Stamina Penalty: 89.5%`** at stamina 4.371/83.555 (5.2%), vs `0.0%` at full stamina on
+      7/31. The game log showed **"Your Bladeburner action was cancelled because your stamina hit
+      0"** twice in one hour, amid a steady run of `Investigation failed! Lost 0.343 rank.` The
+      engine had no stamina guard at all — `stamina` was instrumented on 2026-08-01 as
+      *"visibility only … no action reacts to this yet"*, justified on the grounds that the one
+      prior data point came from the stamina-full 7/30 trial. A continuous run made it the
+      **dominant** term. **Fixed:** `updateStaminaRecovering`, a hysteresis latch (trip < 50%,
+      release ≥ 80% — one threshold would resume firing at the level that just failed) that routes
+      to `Hyperbolic Regeneration Chamber` until stamina recovers.
+    - **🔴 Worst of the five: the engine sat idle while billing the time as rank-earning.**
+      `startAction` auto-repeats, so the loop only restarted an action when *its own intent*
+      changed, reasoning that "there is no completion boundary this loop needs to detect." **The
+      game can cancel a running action** — and when it did (stamina 0), intent hadn't changed, so
+      the engine never restarted and never noticed. `getCurrentAction()` probed **`null`** at a
+      moment `bladeburner-state.json` claimed `holdActive: true, dutyCycle: 1`. **Fixed:** ask the
+      game, not our own intent — deliberately an `idle`/`null` check rather than an equality test on
+      the live action, because `getCurrentAction()`'s `type` strings are undocumented (gotcha 10) and
+      a never-matching comparison would restart every tick and complete nothing, which is worse than
+      the bug. Costs +1 GB, as cataloged.
+  - **Status:** 1178 tests pass (+45 new, incl. regression tests that a 24h/1-tick-per-sec run
+    survives pruning and reaches the checkpoint threshold, and a full stamina drain-and-refill
+    cycle); RAM **69 → 70 GB**, the documented cost of `getCurrentAction()` and nothing hidden;
+    live-verified `totals` persisting across a restart (`restarts: 1`, held seconds carried),
+    `stamina.recovering: true` tripping at 5.8%, and HRC time landing in `overheadSec` instead of
+    `rankSec`. **The 24h smoke clock starts from zero at 2026-08-02 10:12 AM** — `bladeburner-state.json`
+    was deliberately deleted to discard the 544 held-seconds accumulated under the broken tagging, so
+    the checkpoint-A verdict is measured entirely post-fix rather than mostly post-fix.
+  - **⚠️ The pattern, stated once so the next session doesn't relearn it:** three separate
+    Bladeburner "bad rate" readings (7/30 trial, 8/01 engine, 8/02 engine) have now each turned out
+    to be an artifact of the harness measuring them, not of the mechanic. **Audit the instrument
+    before believing the next verdict** — and note that decision 9's "default if never revisited:
+    non-viable" makes pessimistic instrument errors the ones that silently win.

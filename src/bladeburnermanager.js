@@ -114,7 +114,22 @@ export const CHECKPOINT_A_BAR = 0.043;
 export const CHECKPOINT_B_UPTIME_MS = 7 * 24 * 3600_000;
 export const CHECKPOINT_B_BAR = 0.1543;
 
-export const RATE_WINDOWS_MS = { "1h": 3_600_000, "24h": 86_400_000, cumulative: Infinity };
+// Only the FINITE windows are derived from the per-tick sample buffer. `cumulative`
+// is deliberately absent: it is built from `totals` (see emptyTotals) instead,
+// because a ring-buffered sample array can never express "since the engine
+// started" -- found live 2026-08-02, when a 10,000-sample cap silently made both
+// "24h" and "cumulative" mean "the last 2h47m" and left both checkpoints
+// permanently `null`. Adding `cumulative: Infinity` back here would reintroduce
+// exactly that bug.
+export const RATE_WINDOWS_MS = { "1h": 3_600_000, "24h": 86_400_000 };
+
+// `ns.bladeburner.nextUpdate()` resolves ~1x/sec, so the sample buffer must hold
+// at least as many samples as the largest finite window has SECONDS or that
+// window truncates without saying so. Pruning is by timestamp (exact, and it
+// self-adjusts if RATE_WINDOWS_MS changes); the count cap is only a
+// runaway backstop for a build whose tick rate is faster than assumed.
+export const MAX_FINITE_WINDOW_MS = Math.max(...Object.values(RATE_WINDOWS_MS));
+export const SAMPLE_HARD_CAP = 120_000;
 
 // Decision 3: the three scripts that outrank this engine for the player-action slot.
 export const HIGHER_PRIORITY_CLAIMANTS = ["backdoorwd.js", "backdoorfactions.js", "studybootstrap.js"];
@@ -132,6 +147,14 @@ export const SKILL_LEVEL_CAP = { Overclock: 90 }; // documented max -- beyond it
 // the team (Operations/BlackOps only benefit), else just top HP again.
 export const CHAOS_DIPLOMACY_THRESHOLD = 1.0;
 export const TEAM_SIZE_TARGET = 6;
+// Stamina guard (2026-08-02). Measured live off the in-game panel, not assumed:
+// `Stamina Penalty: 89.5%` at 4.371/83.555 stamina (5.2%), against `0.0%` at full
+// stamina on 2026-07-31. The reference's §9 "still open" note said stamina was
+// full throughout the 7/30 trial so it was not then a factor -- a continuous run
+// makes it the dominant one. Two thresholds, not one: recovering only to the
+// floor would resume firing straight back into the penalty band and flap.
+export const STAMINA_FLOOR_FRACTION = 0.5;
+export const STAMINA_RESUME_FRACTION = 0.8;
 export const CITY_ROTATE_CHAOS_THRESHOLD = 2.0; // shouldRotateCity's default -- open question 1: switchCity cost/interruption unmeasured
 // Provisional, logged (RANK_MONEY_EXCHANGE's pattern) -- the 7/30 trial read counts in the
 // hundreds (Tracking 496, Raid 268) and called inventory "not the binding constraint", but that
@@ -348,10 +371,106 @@ export function computeRealizedRates(samples, windows, nowMs) {
 }
 
 /**
+ * Pure. Drops samples older than `maxWindowMs`, with a count cap as a runaway
+ * backstop. A count cap ALONE is not sufficient and was the 2026-08-02 bug: it
+ * bounds the buffer in ticks, but every window here is expressed in wall time,
+ * so a cap smaller than `maxWindowMs / tickMs` truncates the widest window
+ * without any visible symptom. The cheap `samples[0]` check keeps the common
+ * tick allocation-free.
+ * @param {{timestamp:number}[]} samples
+ */
+export function pruneSamples(samples, nowMs, maxWindowMs = MAX_FINITE_WINDOW_MS, hardCap = SAMPLE_HARD_CAP) {
+  const cutoff = nowMs - maxWindowMs;
+  let out = samples.length > 0 && samples[0].timestamp < cutoff ? samples.filter((s) => s.timestamp >= cutoff) : samples;
+  if (out.length > hardCap) out = out.slice(out.length - hardCap);
+  return out;
+}
+
+/**
+ * Pure. A fresh since-startup accumulator. These are the numbers the Phase 38
+ * checkpoints are actually judged on, so they must NOT live in the pruned
+ * sample buffer: `uptimeSec` is what gets compared against
+ * CHECKPOINT_A/B_UPTIME_MS, and a ring buffer caps it below 24h forever.
+ * Persisted into bladeburner-state.json and re-seeded on startup by
+ * `seedTotals`, because the engine is restarted routinely (augfarmer's installs
+ * killed and relaunched it 6 times in the 27h before 2026-08-02) and an
+ * in-memory-only total would reset well inside a 24h -- let alone 1-week --
+ * measurement.
+ */
+export function emptyTotals() {
+  return { heldSec: 0, uptimeSec: 0, rankGained: 0, rankSec: 0, overheadSec: 0, unheldSec: 0, restarts: 0 };
+}
+
+/** Pure. Folds one per-tick sample into the since-startup totals. Returns a new object; never mutates. */
+export function accumulateTotals(totals, sample) {
+  const dur = sample.uptimeSec ?? 0;
+  return {
+    heldSec: totals.heldSec + (sample.heldSec ?? 0),
+    uptimeSec: totals.uptimeSec + dur,
+    rankGained: totals.rankGained + (sample.rankDelta ?? 0),
+    rankSec: totals.rankSec + (sample.kind === "contested" ? dur : 0),
+    overheadSec: totals.overheadSec + (sample.kind === "free" ? dur : 0),
+    unheldSec: totals.unheldSec + (sample.kind === "unheld" ? dur : 0),
+    restarts: totals.restarts,
+  };
+}
+
+/**
+ * Pure. Recovers the totals from a previously-persisted bladeburner-state.json
+ * so a restart continues the measurement instead of restarting it, and counts
+ * the restart. Missing/malformed/partial input degrades to a fresh accumulator
+ * rather than throwing -- a corrupt state file must not wedge the engine.
+ * @param {any} state parsed bladeburner-state.json, or null
+ */
+export function seedTotals(state) {
+  const fresh = emptyTotals();
+  const prior = state?.totals;
+  if (!prior || typeof prior !== "object") return fresh;
+  const seeded = {};
+  for (const key of Object.keys(fresh)) {
+    const value = prior[key];
+    seeded[key] = Number.isFinite(value) && value >= 0 ? value : fresh[key];
+  }
+  seeded.restarts += 1;
+  return seeded;
+}
+
+/** Pure. The `cumulative` entry of `rates`, derived from totals rather than from the pruned sample buffer. */
+export function ratesFromTotals(totals) {
+  return {
+    rankGained: totals.rankGained,
+    heldSec: totals.heldSec,
+    engineUptimeSec: totals.uptimeSec,
+    rankPerHeldSec: totals.heldSec > 0 ? totals.rankGained / totals.heldSec : 0,
+    rankPerWallSec: totals.uptimeSec > 0 ? totals.rankGained / totals.uptimeSec : 0,
+  };
+}
+
+/** Pure. The `cumulative` entry of `duty`, derived from totals. Same three-way split as computeDutyCycle. */
+export function dutyFromTotals(totals) {
+  const totalSec = totals.rankSec + totals.overheadSec + totals.unheldSec;
+  return {
+    rankSec: totals.rankSec,
+    overheadSec: totals.overheadSec,
+    unheldSec: totals.unheldSec,
+    dutyCycle: totalSec > 0 ? (totals.rankSec + totals.overheadSec) / totalSec : 0,
+  };
+}
+
+/**
  * Pure. Per named window, the three-way split of engine uptime: `rankSec`
- * (contested-window held time), `overheadSec` (free-window held time,
- * zero-rank), `unheldSec` (stood down -- off-marker or a higher-priority
- * claimant). `dutyCycle` is the held fraction of total uptime.
+ * (held time running an action that actually pays rank), `overheadSec` (held
+ * time running a zero-rank General action -- Hyperbolic Regeneration Chamber,
+ * Diplomacy, Recruitment, Incite Violence), `unheldSec` (stood down --
+ * off-marker or a higher-priority claimant). `dutyCycle` is the held fraction
+ * of total uptime.
+ *
+ * `kind` is tagged from the CHOSEN ACTION, not from the window: before
+ * 2026-08-02 a contested window that fell back to HRC (the exhausted-inventory
+ * path) was still tagged "contested" and so counted as rankSec, which made a
+ * zero-rank stall read as 100% productive duty. The rate denominators were
+ * never wrong -- `heldSec` intentionally includes overhead -- but the split
+ * that exists to make that overhead visible was.
  * @param {{timestamp:number, uptimeSec:number, kind:"contested"|"free"|"unheld"}[]} samples
  * @param {Record<string, number>} windows
  * @param {number} nowMs
@@ -434,7 +553,7 @@ export function estimateRepRatePerSec(prevAugState, currAugState, dtSec) {
 }
 
 /** Pure. Assembles the bladeburner-state.json snapshot from already-computed values. */
-export function buildBbState({ now, off, holdActive, holdReason, standDownFor, rank, skillPoints, skillLevels, cityName, chaosByCity, teamSize, hpFraction, stamina = null, rates, duty, repForegone, hospitalizations, checkpointA, checkpointB }) {
+export function buildBbState({ now, off, holdActive, holdReason, standDownFor, rank, skillPoints, skillLevels, cityName, chaosByCity, teamSize, hpFraction, stamina = null, rates, duty, totals = null, repForegone, hospitalizations, checkpointA, checkpointB }) {
   return {
     timestamp: now,
     time: new Date(now).toLocaleTimeString(),
@@ -452,6 +571,9 @@ export function buildBbState({ now, off, holdActive, holdReason, standDownFor, r
     stamina,
     rates,
     duty,
+    // Load-bearing, not diagnostic: seedTotals reads this back on restart, so
+    // dropping it from the snapshot silently restarts the measurement.
+    totals,
     repForegone,
     hospitalizations,
     checkpointA,
@@ -533,8 +655,26 @@ function getInventoryCounts(ns) {
  * stalls"), `buildCandidates` would eventually return empty, `pickRankAction` would return null, and
  * the contested branch would fall back to HRC forever with no path back -- a silent, permanent stall.
  * Placed above chaos/team since running dry is a stall, not just an efficiency loss. */
-export function pickOverheadAction(hpFraction, cityChaos, teamSize, lowInventory) {
+/**
+ * Pure. Hysteresis latch for the stamina guard: trips at `floor`, releases only
+ * at `resume`, holds its previous value in between. A single threshold would
+ * resume firing at the exact stamina level that just failed, so the engine would
+ * flap in and out of the penalty band instead of recovering out of it.
+ */
+export function updateStaminaRecovering(recovering, staminaFraction, floor = STAMINA_FLOOR_FRACTION, resume = STAMINA_RESUME_FRACTION) {
+  if (staminaFraction < floor) return true;
+  if (staminaFraction >= resume) return false;
+  return recovering;
+}
+
+export function pickOverheadAction(hpFraction, cityChaos, teamSize, lowInventory, staminaRecovering = false) {
   if (hpFraction < HP_FLOOR_FRACTION) return { type: "General", name: "Hyperbolic Regeneration Chamber" };
+  // Whether the other General actions consume stamina is UNMEASURED (the reference
+  // documents no stamina cost for any action), so recovery deliberately parks on the
+  // one action known to restore rather than spend -- if they turn out to be free,
+  // this ladder can do useful work while stamina refills instead. Logged as an open
+  // question rather than assumed either way.
+  if (staminaRecovering) return { type: "General", name: "Hyperbolic Regeneration Chamber" };
   if (lowInventory) return { type: "General", name: "Incite Violence" };
   if (cityChaos !== undefined && cityChaos > CHAOS_DIPLOMACY_THRESHOLD) return { type: "General", name: "Diplomacy" };
   if (teamSize < TEAM_SIZE_TARGET) return { type: "General", name: "Recruitment" };
@@ -550,9 +690,16 @@ export async function main(ns) {
     return;
   }
 
-  let samples = []; // {timestamp, heldSec, uptimeSec, rankDelta, kind}
+  let samples = []; // {timestamp, heldSec, uptimeSec, rankDelta, kind} -- finite windows only, pruned
+  // The checkpoint measurement continues across restarts (seedTotals' doc comment).
+  let totals = seedTotals(readJsonState(ns, BB_STATE_FILE));
   let logEntries = seedBbLog(ns.read(BB_LOG_FILE));
-  logEntries = appendBbLog(logEntries, { ...ts(), kind: "startup" });
+  logEntries = appendBbLog(logEntries, { ...ts(), kind: "startup", resumedTotals: { ...totals } });
+  // Seeded from the persisted log so a restart doesn't re-announce a verdict it
+  // already recorded (the log ring-trims, so if it ages out it is re-logged --
+  // which is the right failure direction for the phase's one deliverable).
+  let checkpointALogged = logEntries.some((entry) => entry.kind === "checkpoint-A");
+  let checkpointBLogged = logEntries.some((entry) => entry.kind === "checkpoint-B");
 
   let previousOffMarker = null;
   let previousStandDownFor = null;
@@ -569,6 +716,32 @@ export async function main(ns) {
   // them, so this stays 0 until/unless a future API exposes it. Not a bug.
   const hospitalizationsSeen = null;
   let lastStateWrite = 0;
+  let staminaRecovering = false; // hysteresis latch between STAMINA_FLOOR_FRACTION and STAMINA_RESUME_FRACTION
+
+  /** One place that records a tick, so the finite-window buffer and the since-startup
+   *  totals can never drift apart (they did, silently, when each push site trimmed
+   *  the buffer by hand and nothing accumulated a real total). */
+  const recordSample = (sample) => {
+    samples.push(sample);
+    samples = pruneSamples(samples, sample.timestamp);
+    totals = accumulateTotals(totals, sample);
+  };
+
+  /** The rates/duty/totals/checkpoint block, identical at all three state-write
+   *  sites. `cumulative` and the checkpoint uptime come from `totals`, the finite
+   *  windows from `samples` -- see RATE_WINDOWS_MS for why that split is mandatory. */
+  const buildRateBlock = (atMs) => {
+    const cumulativeRates = ratesFromTotals(totals);
+    const rate = cumulativeRates.rankPerHeldSec;
+    const uptimeMs = totals.uptimeSec * 1000;
+    return {
+      rates: { ...computeRealizedRates(samples, RATE_WINDOWS_MS, atMs), cumulative: cumulativeRates },
+      duty: { ...computeDutyCycle(samples, RATE_WINDOWS_MS, atMs), cumulative: dutyFromTotals(totals) },
+      totals: { ...totals },
+      checkpointA: uptimeMs >= CHECKPOINT_A_UPTIME_MS ? { met: rate >= CHECKPOINT_A_BAR, rankPerHeldSec: rate, bar: CHECKPOINT_A_BAR } : null,
+      checkpointB: uptimeMs >= CHECKPOINT_B_UPTIME_MS ? { met: rate >= CHECKPOINT_B_BAR, rankPerHeldSec: rate, bar: CHECKPOINT_B_BAR } : null,
+    };
+  };
 
   ns.atExit(() => {
     try {
@@ -600,8 +773,7 @@ export async function main(ns) {
       releaseSlotHold(ns);
       holdActive = false;
       currentAction = null;
-      samples.push({ timestamp: nowMs, heldSec: 0, uptimeSec, rankDelta: 0, kind: "unheld" });
-      if (samples.length > 10_000) samples = samples.slice(samples.length - 10_000);
+      recordSample({ timestamp: nowMs, heldSec: 0, uptimeSec, rankDelta: 0, kind: "unheld" });
 
       if (nowMs - lastStateWrite >= 60_000) {
         const rank = ns.bladeburner.getRank();
@@ -621,12 +793,9 @@ export async function main(ns) {
               chaosByCity: {},
               teamSize: null,
               hpFraction: null,
-              rates: computeRealizedRates(samples, RATE_WINDOWS_MS, nowMs),
-              duty: computeDutyCycle(samples, RATE_WINDOWS_MS, nowMs),
+              ...buildRateBlock(nowMs),
               repForegone: repForegoneTotal,
               hospitalizations: hospitalizationsSeen,
-              checkpointA: null,
-              checkpointB: null,
             }),
             null,
             2,
@@ -666,8 +835,7 @@ export async function main(ns) {
       releaseSlotHold(ns);
       holdActive = false;
       currentAction = null;
-      samples.push({ timestamp: nowMs, heldSec: 0, uptimeSec, rankDelta: 0, kind: "unheld" });
-      if (samples.length > 10_000) samples = samples.slice(samples.length - 10_000);
+      recordSample({ timestamp: nowMs, heldSec: 0, uptimeSec, rankDelta: 0, kind: "unheld" });
 
       // Mirrors the off-marker branch above -- without this, a long stand-down
       // (the common case so far: backdoorfactions.js) left bladeburner-state.json
@@ -691,12 +859,9 @@ export async function main(ns) {
               chaosByCity: {},
               teamSize: null,
               hpFraction: null,
-              rates: computeRealizedRates(samples, RATE_WINDOWS_MS, nowMs),
-              duty: computeDutyCycle(samples, RATE_WINDOWS_MS, nowMs),
+              ...buildRateBlock(nowMs),
               repForegone: repForegoneTotal,
               hospitalizations: hospitalizationsSeen,
-              checkpointA: null,
-              checkpointB: null,
             }),
             null,
             2,
@@ -725,12 +890,24 @@ export async function main(ns) {
     const [staminaCur, staminaMax] = ns.bladeburner.getStamina();
     const staminaFraction = staminaMax > 0 ? staminaCur / staminaMax : 1;
 
+    // 🔴 2026-08-02: this was "visibility only -- no action reacts to this yet",
+    // and the cost of that was measured, not theorised. Live panel read:
+    // `Stamina Penalty: 89.5%` at 5.2% stamina, with the game log showing
+    // "Your Bladeburner action was cancelled because your stamina hit 0" twice in
+    // one hour and a steady run of "Investigation failed! Lost 0.343 rank."
+    // Cumulative rank over that window was NEGATIVE (-1.90 rank in 198 held sec).
+    // A 24h checkpoint measured through this would have reported a negative rate
+    // and read as a viability verdict on the mechanic rather than on the bug.
+    staminaRecovering = updateStaminaRecovering(staminaRecovering, staminaFraction);
+
     let chosenAction = null;
-    if (windowKind === "contested") {
+    let earnsRank = false;
+    if (windowKind === "contested" && !staminaRecovering) {
       const candidates = buildCandidates(ns);
       const picked = pickRankAction(candidates, { hpFraction });
       if (picked) {
         chosenAction = { type: picked.type, name: picked.name };
+        earnsRank = true;
         // 2026-08-01: setTeamSize was never called anywhere -- Recruitment building an
         // "available" pool (getTeamSize() with no args) never actually reached an Operation,
         // which needs its own explicit assignment (getTeamSize(type,name) is a SEPARATE,
@@ -740,15 +917,25 @@ export async function main(ns) {
           const availableTeam = ns.bladeburner.getTeamSize();
           if (availableTeam > 0) ns.bladeburner.setTeamSize(picked.type, picked.name, availableTeam);
         }
-      } else {
-        chosenAction = { type: "General", name: "Hyperbolic Regeneration Chamber" };
       }
-    } else {
+    }
+    // Reached by a free window OR by a contested window with nothing viable left
+    // to run. The contested fallback used to hardcode Hyperbolic Regeneration
+    // Chamber, which pays no rank AND cannot regenerate contract/operation
+    // inventory -- so once `buildCandidates` came back empty (it filters on
+    // getActionCountRemaining < 1) the engine sat in HRC forever with no path
+    // back. That is the permanent stall pickOverheadAction's own comment warns
+    // about, and the `Incite Violence` fix added for it only ever ran in the free
+    // branch -- which live duty-cycle data on 2026-08-02 showed had not been
+    // entered ONCE in 2h47m of uptime. Routing both cases through
+    // pickOverheadAction closes it: the same ladder that regenerates inventory
+    // also suppresses chaos and grows the team, all strictly better than idling.
+    if (!chosenAction) {
       const cityName = ns.bladeburner.getCity();
       const chaos = ns.bladeburner.getCityChaos(cityName);
       const teamSize = ns.bladeburner.getTeamSize();
       const lowInventory = isInventoryLow(getInventoryCounts(ns));
-      chosenAction = pickOverheadAction(hpFraction, chaos, teamSize, lowInventory);
+      chosenAction = pickOverheadAction(hpFraction, chaos, teamSize, lowInventory, staminaRecovering);
     }
 
     // Marker write BEFORE startAction (load-bearing ordering, marker contract).
@@ -756,17 +943,35 @@ export async function main(ns) {
     lastMarkerWriteMs = nowMs;
     holdActive = true;
 
-    // startAction auto-repeats (reference S6/S7 gotcha 13) -- only called
-    // when the chosen action changes, not every tick. This sidesteps needing
-    // getActionCurrentTime() wrap-detection entirely: nothing here reacts to
-    // an individual rep completing, only to the *choice* changing (a window
-    // flip, an HP-guard trip, or a re-ranked EV), so there is no completion
-    // boundary this loop needs to detect. On a failed start (opaque boolean,
-    // undocumented cause), `currentAction` is left null so the next tick
-    // retries rather than assuming an action is running that never started.
-    if (!currentAction || currentAction.type !== chosenAction.type || currentAction.name !== chosenAction.name) {
+    // startAction auto-repeats (reference S6/S7 gotcha 13), so this must NOT fire
+    // every tick -- restarting a running action would reset its progress and
+    // nothing would ever complete. The original guard compared the chosen action
+    // against `currentAction`, i.e. intent against intent, and reasoned that "there
+    // is no completion boundary this loop needs to detect."
+    //
+    // 🔴 That reasoning was wrong, and cost the whole first grind window
+    // (2026-08-02): the GAME can cancel a running action out from under the engine.
+    // Live evidence -- the in-game log shows "Your Bladeburner action was cancelled
+    // because your stamina hit 0" twice in an hour, and `getCurrentAction()` probed
+    // `null` at a moment when `bladeburner-state.json` claimed `holdActive: true`,
+    // `dutyCycle: 1`. The engine sat idle, never restarted (its intent hadn't
+    // changed, so the guard stayed shut), and went on billing the time as held AND
+    // rank-earning. That is the single largest error in the measurement.
+    //
+    // Fixed by asking the GAME, not our own intent. Deliberately an idle check
+    // rather than an equality check on the live action: `getCurrentAction()` returns
+    // plain strings whose exact values for the `type` field are undocumented
+    // (reference gotcha 10), so comparing them could silently never match and
+    // restart every tick -- strictly worse than the bug being fixed. `null`-when-idle
+    // IS documented, and is confirmed live. 1 GB.
+    const liveAction = ns.bladeburner.getCurrentAction();
+    const idle = !liveAction || !liveAction.name;
+    // On a failed start (opaque boolean, undocumented cause), `currentAction` is left
+    // null so the next tick retries rather than assuming an action that never started.
+    if (idle || !currentAction || currentAction.type !== chosenAction.type || currentAction.name !== chosenAction.name) {
       const started = ns.bladeburner.startAction(chosenAction.type, chosenAction.name);
       currentAction = started ? chosenAction : null;
+      if (idle && !started) logEntries = appendBbLog(logEntries, { ...ts(), kind: "restart-failed", action: chosenAction, staminaFraction, hpFraction });
     }
 
     // Refresh the marker independently of action progress (decision 4) --
@@ -803,14 +1008,14 @@ export async function main(ns) {
     previousAugState = augState;
     previousAugStateReadMs = nowMs;
 
-    samples.push({ timestamp: nowMs, heldSec: uptimeSec, uptimeSec, rankDelta, kind: windowKind === "contested" ? "contested" : "free" });
-    if (samples.length > 10_000) samples = samples.slice(samples.length - 10_000);
+    // `kind` follows the chosen ACTION, not the window (computeDutyCycle's doc
+    // comment): a contested window that fell through to a zero-rank General
+    // action is overhead, and tagging it "contested" made a stall read as 100%
+    // productive duty.
+    recordSample({ timestamp: nowMs, heldSec: uptimeSec, uptimeSec, rankDelta, kind: earnsRank ? "contested" : "free" });
 
     if (nowMs - lastStateWrite >= 10_000) {
-      const rates = computeRealizedRates(samples, RATE_WINDOWS_MS, nowMs);
-      const duty = computeDutyCycle(samples, RATE_WINDOWS_MS, nowMs);
-      const cumulativeRankPerHeldSec = rates.cumulative?.rankPerHeldSec ?? 0;
-      const uptimeMs = samples.reduce((sum, s) => sum + (s.uptimeSec ?? 0) * 1000, 0);
+      const rateBlock = buildRateBlock(nowMs);
       const cityName = ns.bladeburner.getCity();
       const chaosByCity = { [cityName]: ns.bladeburner.getCityChaos(cityName) };
       ns.write(
@@ -829,26 +1034,39 @@ export async function main(ns) {
             chaosByCity,
             teamSize: ns.bladeburner.getTeamSize(),
             hpFraction,
-            stamina: { current: staminaCur, max: staminaMax, fraction: staminaFraction },
-            rates,
-            duty,
+            stamina: { current: staminaCur, max: staminaMax, fraction: staminaFraction, recovering: staminaRecovering, floor: STAMINA_FLOOR_FRACTION, resume: STAMINA_RESUME_FRACTION },
+            ...rateBlock,
             repForegone: repForegoneTotal,
             hospitalizations: hospitalizationsSeen,
-            checkpointA: uptimeMs >= CHECKPOINT_A_UPTIME_MS ? { met: cumulativeRankPerHeldSec >= CHECKPOINT_A_BAR, rankPerHeldSec: cumulativeRankPerHeldSec, bar: CHECKPOINT_A_BAR } : null,
-            checkpointB: uptimeMs >= CHECKPOINT_B_UPTIME_MS ? { met: cumulativeRankPerHeldSec >= CHECKPOINT_B_BAR, rankPerHeldSec: cumulativeRankPerHeldSec, bar: CHECKPOINT_B_BAR } : null,
           }),
           null,
           2,
         ),
         "w",
       );
+
+      // Phase 38's actual deliverable. bladeburner-state.json is rewritten every
+      // 10s, so a checkpoint verdict that only ever lived there would be a value
+      // nobody was watching at the moment it appeared; the log is append-only and
+      // survives restarts, so the verdict is recoverable after the fact.
+      if (rateBlock.checkpointA && !checkpointALogged) {
+        logEntries = appendBbLog(logEntries, { ...ts(), kind: "checkpoint-A", ...rateBlock.checkpointA, totals: { ...totals } });
+        checkpointALogged = true;
+      }
+      if (rateBlock.checkpointB && !checkpointBLogged) {
+        logEntries = appendBbLog(logEntries, { ...ts(), kind: "checkpoint-B", ...rateBlock.checkpointB, totals: { ...totals } });
+        checkpointBLogged = true;
+      }
+
       ns.write(BB_LOG_FILE, JSON.stringify(logEntries, null, 2), "w");
       lastStateWrite = nowMs;
 
       ns.clearLog();
       ns.print(`===== bladeburner @ ${new Date(nowMs).toLocaleTimeString()} =====`);
-      ns.print(`rank ${rankNow.toFixed(1)} | action ${chosenAction.name} (${windowKind}) | SP ${points}`);
-      ns.print(`rankPerHeldSec (cumulative) ${cumulativeRankPerHeldSec.toFixed(5)} | dutyCycle ${(duty.cumulative?.dutyCycle ?? 0).toFixed(2)}`);
+      ns.print(`rank ${rankNow.toFixed(1)} | action ${chosenAction.name} (${windowKind}${earnsRank ? "" : ", overhead"}) | SP ${points}`);
+      ns.print(`rankPerHeldSec (cumulative) ${rateBlock.rates.cumulative.rankPerHeldSec.toFixed(5)} | dutyCycle ${rateBlock.duty.cumulative.dutyCycle.toFixed(2)}`);
+      ns.print(`uptime ${(totals.uptimeSec / 3600).toFixed(2)}h (24h checkpoint at ${(CHECKPOINT_A_UPTIME_MS / 3600_000).toFixed(0)}h) | restarts ${totals.restarts}`);
+      ns.print(`stamina ${(staminaFraction * 100).toFixed(1)}%${staminaRecovering ? " RECOVERING" : ""} | hp ${(hpFraction * 100).toFixed(0)}%`);
     }
   }
 }

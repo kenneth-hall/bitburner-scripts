@@ -367,6 +367,19 @@ do, and what's broken?*
   after the state-write block (or capture `plan.phase !== previousPhase` into a local before the
   reassignment). Not fixed here — logged per CLAUDE.md's "dropped objections get logged" rule.
 
+- **🟡 Whether Bladeburner General actions consume stamina is UNMEASURED — the stamina guard is
+  conservative because of it.** The 2026-08-02 guard
+  (`updateStaminaRecovering` → `Hyperbolic Regeneration Chamber`, see the phase-38 spec's amendment
+  to decision 6) parks on HRC while stamina refills. If General actions are in fact free of stamina
+  cost — which `docs/bladeburner-reference.md` neither confirms nor denies for *any* action — then
+  recovery time could instead run the useful end of the overhead ladder (`Incite Violence` to
+  regenerate contract/op inventory, `Diplomacy`, `Recruitment`) and get the refill for free.
+  **Next action:** during the 24h smoke run, read `overheadSec` against `stamina.fraction` from
+  `bladeburner-state.json`; if stamina climbs at the same rate under `Recruitment`/`Diplomacy` ticks
+  as under HRC ticks, drop the `staminaRecovering` short-circuit in `pickOverheadAction` and let the
+  normal ladder run. Cheap to settle, pure throughput upside, no risk to the checkpoint either way.
+  **Do not settle it by reasoning from upstream Bitburner behaviour** — this is a 3.0.0+ fork.
+
 ## Ideas
 
 ### Game / progression

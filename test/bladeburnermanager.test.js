@@ -31,6 +31,20 @@ import {
   LOW_INVENTORY_COUNT_THRESHOLD,
   CHAOS_DIPLOMACY_THRESHOLD,
   TEAM_SIZE_TARGET,
+  pruneSamples,
+  emptyTotals,
+  accumulateTotals,
+  seedTotals,
+  ratesFromTotals,
+  dutyFromTotals,
+  RATE_WINDOWS_MS,
+  MAX_FINITE_WINDOW_MS,
+  SAMPLE_HARD_CAP,
+  CHECKPOINT_A_UPTIME_MS,
+  CHECKPOINT_A_BAR,
+  updateStaminaRecovering,
+  STAMINA_FLOOR_FRACTION,
+  STAMINA_RESUME_FRACTION,
 } from '../src/bladeburnermanager.js';
 
 // --- expectedRankPerSec ----------------------------------------------------
@@ -195,6 +209,62 @@ describe('pickOverheadAction', () => {
   it('defaults to HRC once every other condition is satisfied', () => {
     expect(pickOverheadAction(1, 0, TEAM_SIZE_TARGET, false)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
   });
+
+  it('stamina recovery parks on HRC, outranking inventory/chaos/team', () => {
+    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true, true)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
+  });
+
+  it('the HP guard still outranks stamina recovery (both land on HRC anyway)', () => {
+    expect(pickOverheadAction(0, 0, TEAM_SIZE_TARGET, false, true)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
+  });
+
+  it('omitting staminaRecovering is behaviour-identical to the pre-2026-08-02 ladder', () => {
+    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true)).toEqual(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true, false));
+  });
+});
+
+// --- updateStaminaRecovering (2026-08-02 stamina guard) -----------------------
+//
+// Live measurement behind these: `Stamina Penalty: 89.5%` at 5.2% stamina, the
+// in-game log reporting actions cancelled at stamina 0, and a NEGATIVE cumulative
+// rank rate (-1.90 rank over 198 held sec) while nothing reacted to any of it.
+
+describe('updateStaminaRecovering', () => {
+  it('trips at the floor', () => {
+    expect(updateStaminaRecovering(false, STAMINA_FLOOR_FRACTION - 0.01)).toBe(true);
+  });
+
+  it('does not trip exactly at the floor', () => {
+    expect(updateStaminaRecovering(false, STAMINA_FLOOR_FRACTION)).toBe(false);
+  });
+
+  it('releases at the resume threshold', () => {
+    expect(updateStaminaRecovering(true, STAMINA_RESUME_FRACTION)).toBe(false);
+  });
+
+  it('HOLDS in the hysteresis band rather than flapping back into the penalty', () => {
+    const mid = (STAMINA_FLOOR_FRACTION + STAMINA_RESUME_FRACTION) / 2;
+    expect(updateStaminaRecovering(true, mid)).toBe(true);
+    expect(updateStaminaRecovering(false, mid)).toBe(false);
+  });
+
+  it('the band is non-empty -- a single threshold would resume at the level that just failed', () => {
+    expect(STAMINA_RESUME_FRACTION).toBeGreaterThan(STAMINA_FLOOR_FRACTION);
+  });
+
+  it('a full drain-and-refill cycle trips once and releases once', () => {
+    let recovering = false;
+    const seen = [];
+    for (const fraction of [1.0, 0.7, 0.55, 0.49, 0.2, 0.05, 0.3, 0.6, 0.79, 0.8, 0.95]) {
+      recovering = updateStaminaRecovering(recovering, fraction);
+      seen.push(recovering);
+    }
+    expect(seen).toEqual([false, false, false, true, true, true, true, true, true, false, false]);
+  });
+
+  it('at the measured 5.2% live reading, it recovers', () => {
+    expect(updateStaminaRecovering(false, 4.371 / 83.555)).toBe(true);
+  });
 });
 
 // --- shouldRotateCity --------------------------------------------------------
@@ -353,6 +423,163 @@ describe('computeDutyCycle', () => {
   it('zero-uptime edge case reports dutyCycle 0, not NaN', () => {
     const out = computeDutyCycle([], windows, 1000);
     expect(out.cumulative).toEqual({ rankSec: 0, overheadSec: 0, unheldSec: 0, dutyCycle: 0 });
+  });
+});
+
+// --- pruneSamples / totals accumulator (2026-08-02 truncation bug) -----------
+//
+// The bug these cover: the sample buffer was trimmed to a fixed 10,000 entries
+// while every window is expressed in wall time. At ~1 tick/sec that capped the
+// buffer at ~2h47m, so "24h" and "cumulative" both silently meant "the last
+// 2h47m" -- and because checkpoint uptime was summed from that same buffer, the
+// 24h and 1-week checkpoints could never fire at all.
+
+describe('pruneSamples', () => {
+  it('drops samples older than the window and keeps the rest', () => {
+    const samples = [
+      { timestamp: 0 },
+      { timestamp: 5_000 },
+      { timestamp: 10_000 },
+    ];
+    expect(pruneSamples(samples, 10_000, 6_000)).toEqual([{ timestamp: 5_000 }, { timestamp: 10_000 }]);
+  });
+
+  it('keeps a sample exactly at the cutoff (matches computeRealizedRates >= cutoff)', () => {
+    expect(pruneSamples([{ timestamp: 4_000 }], 10_000, 6_000)).toEqual([{ timestamp: 4_000 }]);
+  });
+
+  it('returns the SAME array when nothing is old enough to drop (allocation-free common tick)', () => {
+    const samples = [{ timestamp: 9_000 }, { timestamp: 10_000 }];
+    expect(pruneSamples(samples, 10_000, 6_000)).toBe(samples);
+  });
+
+  it('empty input is safe', () => {
+    expect(pruneSamples([], 10_000)).toEqual([]);
+  });
+
+  it('the hard cap trims the OLDEST entries when the tick rate outruns the window', () => {
+    const samples = Array.from({ length: 10 }, (_, i) => ({ timestamp: 1_000 + i }));
+    const out = pruneSamples(samples, 1_010, 60_000, 4);
+    expect(out).toHaveLength(4);
+    expect(out[0].timestamp).toBe(1_006);
+  });
+
+  it('REGRESSION: a full 24h at 1 tick/sec survives pruning, so the widest window is not truncated', () => {
+    // The old fixed cap was 10_000 -- an eighth of this.
+    const ticks = 86_400;
+    const samples = Array.from({ length: ticks }, (_, i) => ({ timestamp: i * 1000 }));
+    const out = pruneSamples(samples, (ticks - 1) * 1000);
+    expect(out).toHaveLength(ticks);
+    expect(SAMPLE_HARD_CAP).toBeGreaterThan(MAX_FINITE_WINDOW_MS / 1000);
+  });
+
+  it('RATE_WINDOWS_MS must not contain an infinite window -- cumulative comes from totals', () => {
+    expect(Object.values(RATE_WINDOWS_MS).every(Number.isFinite)).toBe(true);
+    expect(MAX_FINITE_WINDOW_MS).toBe(86_400_000);
+  });
+});
+
+describe('emptyTotals / accumulateTotals', () => {
+  it('starts at zero on every field', () => {
+    expect(emptyTotals()).toEqual({ heldSec: 0, uptimeSec: 0, rankGained: 0, rankSec: 0, overheadSec: 0, unheldSec: 0, restarts: 0 });
+  });
+
+  it('a contested (rank-earning) tick credits heldSec, uptimeSec, rankGained and rankSec', () => {
+    const out = accumulateTotals(emptyTotals(), { heldSec: 5, uptimeSec: 5, rankDelta: 2, kind: 'contested' });
+    expect(out).toEqual({ heldSec: 5, uptimeSec: 5, rankGained: 2, rankSec: 5, overheadSec: 0, unheldSec: 0, restarts: 0 });
+  });
+
+  it('a free (zero-rank overhead) tick is still held time but is NOT rankSec', () => {
+    const out = accumulateTotals(emptyTotals(), { heldSec: 4, uptimeSec: 4, rankDelta: 0, kind: 'free' });
+    expect(out.heldSec).toBe(4);
+    expect(out.rankSec).toBe(0);
+    expect(out.overheadSec).toBe(4);
+  });
+
+  it('an unheld tick advances uptime only -- not heldSec (the rate denominator)', () => {
+    const out = accumulateTotals(emptyTotals(), { heldSec: 0, uptimeSec: 7, rankDelta: 0, kind: 'unheld' });
+    expect(out).toEqual({ heldSec: 0, uptimeSec: 7, rankGained: 0, rankSec: 0, overheadSec: 0, unheldSec: 7, restarts: 0 });
+  });
+
+  it('does not mutate its input', () => {
+    const before = emptyTotals();
+    accumulateTotals(before, { heldSec: 5, uptimeSec: 5, rankDelta: 2, kind: 'contested' });
+    expect(before).toEqual(emptyTotals());
+  });
+
+  it('missing fields are treated as zero, not NaN', () => {
+    const out = accumulateTotals(emptyTotals(), { timestamp: 1, kind: 'contested' });
+    expect(out).toEqual(emptyTotals());
+  });
+
+  it('a negative rankDelta (a failed action losing rank) reduces rankGained', () => {
+    const out = accumulateTotals(emptyTotals(), { heldSec: 3, uptimeSec: 3, rankDelta: -1.5, kind: 'contested' });
+    expect(out.rankGained).toBe(-1.5);
+  });
+
+  it('REGRESSION: totals reach the 24h checkpoint threshold where the capped buffer could not', () => {
+    let totals = emptyTotals();
+    for (let i = 0; i < 86_400; i++) totals = accumulateTotals(totals, { heldSec: 1, uptimeSec: 1, rankDelta: 0.05, kind: 'contested' });
+    expect(totals.uptimeSec * 1000).toBeGreaterThanOrEqual(CHECKPOINT_A_UPTIME_MS);
+    expect(ratesFromTotals(totals).rankPerHeldSec).toBeCloseTo(0.05, 10);
+    expect(ratesFromTotals(totals).rankPerHeldSec >= CHECKPOINT_A_BAR).toBe(true);
+  });
+});
+
+describe('seedTotals', () => {
+  it('null/missing state starts fresh with no restart counted', () => {
+    expect(seedTotals(null)).toEqual(emptyTotals());
+    expect(seedTotals({})).toEqual(emptyTotals());
+  });
+
+  it('restores every field and counts the restart', () => {
+    const prior = { heldSec: 100, uptimeSec: 120, rankGained: 5, rankSec: 90, overheadSec: 10, unheldSec: 20, restarts: 2 };
+    expect(seedTotals({ totals: prior })).toEqual({ ...prior, restarts: 3 });
+  });
+
+  it('a partial totals object fills the missing fields with zero rather than NaN', () => {
+    expect(seedTotals({ totals: { heldSec: 50 } })).toEqual({ ...emptyTotals(), heldSec: 50, restarts: 1 });
+  });
+
+  it('rejects non-finite and negative values instead of poisoning the measurement', () => {
+    const out = seedTotals({ totals: { heldSec: NaN, uptimeSec: -5, rankGained: 'nope', rankSec: Infinity } });
+    expect(out).toEqual({ ...emptyTotals(), restarts: 1 });
+  });
+
+  it('a non-object totals field degrades to fresh', () => {
+    expect(seedTotals({ totals: 'corrupt' })).toEqual(emptyTotals());
+  });
+
+  it('carrying totals across a restart preserves the accumulated rate', () => {
+    let totals = emptyTotals();
+    for (let i = 0; i < 10; i++) totals = accumulateTotals(totals, { heldSec: 1, uptimeSec: 1, rankDelta: 0.1, kind: 'contested' });
+    const resumed = seedTotals({ totals });
+    expect(ratesFromTotals(resumed).rankPerHeldSec).toBeCloseTo(0.1, 10);
+    expect(resumed.restarts).toBe(1);
+  });
+});
+
+describe('ratesFromTotals / dutyFromTotals', () => {
+  it('derives both rates from the totals', () => {
+    const totals = { heldSec: 100, uptimeSec: 200, rankGained: 10, rankSec: 80, overheadSec: 20, unheldSec: 100, restarts: 0 };
+    expect(ratesFromTotals(totals)).toEqual({ rankGained: 10, heldSec: 100, engineUptimeSec: 200, rankPerHeldSec: 0.1, rankPerWallSec: 0.05 });
+  });
+
+  it('splits duty and derives dutyCycle as the held fraction of uptime', () => {
+    const totals = { heldSec: 100, uptimeSec: 200, rankGained: 10, rankSec: 80, overheadSec: 20, unheldSec: 100, restarts: 0 };
+    expect(dutyFromTotals(totals)).toEqual({ rankSec: 80, overheadSec: 20, unheldSec: 100, dutyCycle: 0.5 });
+  });
+
+  it('zero totals report 0, never NaN/Infinity', () => {
+    expect(ratesFromTotals(emptyTotals())).toEqual({ rankGained: 0, heldSec: 0, engineUptimeSec: 0, rankPerHeldSec: 0, rankPerWallSec: 0 });
+    expect(dutyFromTotals(emptyTotals())).toEqual({ rankSec: 0, overheadSec: 0, unheldSec: 0, dutyCycle: 0 });
+  });
+
+  it('an all-overhead run reports full duty but zero rankSec -- the stall made visible', () => {
+    let totals = emptyTotals();
+    for (let i = 0; i < 100; i++) totals = accumulateTotals(totals, { heldSec: 1, uptimeSec: 1, rankDelta: 0, kind: 'free' });
+    expect(dutyFromTotals(totals)).toEqual({ rankSec: 0, overheadSec: 100, unheldSec: 0, dutyCycle: 1 });
+    expect(ratesFromTotals(totals).rankPerHeldSec).toBe(0);
   });
 });
 

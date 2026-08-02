@@ -539,10 +539,23 @@ mechanics.
   no HP loss on failure.
 - **❓ Still open — exact formulas** for success chance, rank gain, and chaos accumulation/decay
   rates. The levers and their directions are documented; the closed-form math is not.
-- **❓ Still open — stamina's precise coupling to success chance.** The panel exposes a
-  `Stamina Penalty:` percentage (read **0.0%** on 2026-07-31), so the effect is observable live even
-  though the formula isn't stated. Stamina was full throughout the 7/30 trial, so it was **not** the
-  cause of the low chances there.
+- **⚠️ PARTIALLY ANSWERED 2026-08-02 — stamina's coupling to success chance is severe, and the
+  formula is still unstated.** The panel exposes a `Stamina Penalty:` percentage, and two live reads
+  now bracket it: **`0.0%` at full stamina** (2026-07-31) and **`89.5%` at 4.371/83.555 = 5.2%**
+  (2026-08-02). Stamina was full throughout the 7/30 trial, so it was **not** the cause of the low
+  chances there — but under continuous fire it becomes the dominant term, not a footnote. Two further
+  behaviours confirmed live the same day, both load-bearing for any control loop:
+  - **The game cancels a running action at stamina 0** — the in-game log line is `Your Bladeburner
+    action was cancelled because your stamina hit 0`, and `getCurrentAction()` then returns **`null`**.
+    An engine that tracks only its own intent will sit idle indefinitely (Phase 38 did, for most of an
+    hour, while reporting 100% duty). **Poll `getCurrentAction()` for `null`; do not assume an action
+    you started is still running.**
+  - **Failed actions cost rank** (`Investigation failed! Lost 0.343 rank.` repeating), so a
+    stamina-starved engine goes **net negative** on rank, not merely slow. Measured: −0.00958
+    rank/held-sec cumulative.
+  - **❓ Still open:** the shape of the penalty curve between 5% and 100% (only two points known), and
+    whether any General action consumes stamina — `Hyperbolic Regeneration Chamber` is assumed safe
+    for recovery, the rest are unmeasured (`BACKLOG.md` has the cheap experiment).
 - **❓ Still open — whether `switchCity` interrupts the current action or costs anything.**
 
 ---

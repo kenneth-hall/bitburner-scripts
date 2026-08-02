@@ -337,6 +337,49 @@ In free windows the engine runs zero-rank overhead (`Recruitment`, `Diplomacy`,
 rank and skill points survive; effective combat is bought via `Reaper`/`Evasive System` instead).
 `Field Analysis` is rare, not the ~50 accidental reps of the 7/30 trial.
 
+**⚠️ AMENDED 2026-08-02 — "contested windows run rank-producing actions only" had no exit.** Two
+defects, both consequences of the under-detection this decision accepts as safe. Live duty data
+showed the free branch had been entered **zero times in 2h47m of uptime** — so "under-detected" is in
+practice "never detected", and anything reachable only from the free branch is dead code.
+
+1. **The contested branch could stall permanently.** `buildCandidates` filters on
+   `getActionCountRemaining < 1`; when contract/operation inventory runs dry it returns empty,
+   `pickRankAction` returns `null`, and the contested branch fell back to a hardcoded
+   `Hyperbolic Regeneration Chamber` — which pays no rank **and cannot regenerate inventory**. No
+   path back. `Incite Violence` was added on 2026-08-01 for exactly this, but only inside
+   `pickOverheadAction`, i.e. only in the branch never entered. **Fix:** both cases now route
+   through `pickOverheadAction`, so the ladder that regenerates inventory (and suppresses chaos, and
+   grows the team) is reachable from a contested window too. Not observed stalling — the guard is
+   for a multi-day unattended run, which is what checkpoint B is.
+2. **A stall would have reported as 100% productive duty.** The per-tick `kind` was tagged from the
+   *window*, so contested-fallback HRC counted as `rankSec`. `heldSec` (the rate denominator) was
+   never wrong — decision 8 deliberately includes overhead — but the split that exists to make that
+   overhead *visible* was. **Fix:** `kind` now follows the **chosen action** (rank-paying vs
+   zero-rank General), so `overheadSec` means what decision 8's diagnostic order-of-inspection
+   ("duty cycle" first, on a checkpoint miss) needs it to mean.
+3. **🔴 The engine idled while billing the time as rank-earning — the largest of the five.**
+   `startAction` auto-repeats, so the loop restarted an action only when *its own chosen action*
+   changed, on the reasoning that "there is no completion boundary this loop needs to detect." **The
+   game can cancel a running action**: the in-game log shows `Your Bladeburner action was cancelled
+   because your stamina hit 0` twice in one hour, and `getCurrentAction()` probed **`null`** while
+   `bladeburner-state.json` claimed `holdActive: true, dutyCycle: 1`. Intent hadn't changed, so the
+   guard stayed shut and the engine never restarted. **Fix:** ask the game. Deliberately an
+   `idle`/`null` check rather than an equality test against the live action — `getCurrentAction()`
+   returns plain strings whose `type` values are undocumented (reference gotcha 10), so a
+   never-matching comparison would call `startAction` every tick, reset action progress, and complete
+   nothing: strictly worse than the bug. `null`-when-idle *is* documented and was confirmed live.
+   **+1 GB (69 → 70), the cataloged cost of `getCurrentAction()`.**
+4. **🔴 No stamina guard existed.** Live panel: **`Stamina Penalty: 89.5%`** at 5.2% stamina,
+   against `0.0%` at full on 7/31, with `Investigation failed! Lost 0.343 rank.` repeating and a
+   **negative** cumulative rate (−0.00958 rank/held-sec). The 2026-08-01 instrumentation comment
+   called stamina *"visibility only … no action reacts to this yet"*, justified because the one prior
+   data point came from the stamina-full 7/30 trial — a justification that a continuous run
+   invalidates. **Fix:** `updateStaminaRecovering`, a hysteresis latch (trip < `STAMINA_FLOOR_FRACTION`
+   0.5, release ≥ `STAMINA_RESUME_FRACTION` 0.8) that suppresses rank actions and routes to HRC. Two
+   thresholds, not one: a single threshold resumes firing at exactly the level that just failed.
+   Whether the *other* General actions are stamina-free (and so could do useful work during recovery)
+   is unmeasured and logged in `BACKLOG.md`, not assumed.
+
 ### 7. Failure cost is priced, not hand-waved *(review S2)*
 
 `pickRankAction` must not rank on expected rank alone — the 7/30 trial's Raid grinding was
@@ -370,6 +413,32 @@ The bars are wall-clock; the naive measurement was per-held-second; those differ
 viable"*, not *"is it viable while also running the ratchet at 75% priority."* Both numbers are
 logged; the 7/30 baseline (0.0144) is restated as `rankPerHeldSec`, which is what it actually was
 (the trial held the slot continuously).
+
+**⚠️ AMENDED 2026-08-02 — the implementation measured a ring buffer, not the run.** The definitions
+above are unchanged and were never wrong; the code implementing them was. Found by reading live state
+during a routine game-state check, ~27h after the engine first started:
+
+- `bladeburnermanager.js` trimmed its per-tick sample array to a fixed **10,000 entries**, while
+  every window here is expressed in **wall time**. `nextUpdate()` resolves ~1×/sec, so the buffer
+  held **~2h47m** — making `"24h"` and `cumulative` both silently mean *"the last 2h47m"*.
+- **Worse, `uptimeMs` (the checkpoint trigger) was summed from that same buffer**, so it could never
+  exceed ~2h47m against checkpoint A's 24h or B's 1 week. **Both checkpoints were structurally
+  unreachable and would have stayed `null` forever** — the phase's entire deliverable, unobtainable
+  by construction. It had been running 27h and reported `checkpointA: null`, correctly per the code
+  and uselessly per the spec.
+- The reported rate was wrong in the *pessimistic* direction, which is the dangerous one here given
+  decision 9's "default if never revisited: non-viable": it read **0.00508 rank/held-sec** against
+  **0.0185** computed from absolute rank endpoints (106.3 on 7/30 → 1217.8 on 8/02 over 16.7h held).
+  That is the difference between "8.5× under the bar, abandon" and "2.3× under the bar, and better
+  than the 7/30 baseline it was supposed to beat."
+
+**Fix:** `cumulative` and the checkpoint uptime now come from a `totals` accumulator that is never
+pruned and is **persisted into `bladeburner-state.json` and re-seeded on startup** (`seedTotals`).
+Persistence is load-bearing, not a nicety — augfarmer's installs killed and relaunched this engine
+**6 times in its first 27h**, so an in-memory-only total would reset well inside a 24h window, let
+alone a 1-week one. `RATE_WINDOWS_MS` no longer contains an infinite window at all (a ring-buffered
+array cannot express one), and sample pruning is now by **timestamp** against the widest finite
+window, with a count cap kept only as a runaway backstop.
 
 ### 9. D8's stopping condition, re-derived *(blocker B6)*
 
