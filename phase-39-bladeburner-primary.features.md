@@ -172,6 +172,75 @@ wall-clock, true duty cycle, a stamina histogram, per-action attempt/success cou
 predicted vs realised** (the one field that would show the model drifting). Log to file per the
 observability convention; a dashboard panel already exists and can be re-pointed.
 
+### D10 — Money-split arbitration between regular augs and Bladeburner augs
+
+**Added 2026-08-02 — Kenneth flagged this as an unaddressed competition, and he was right.** Decision
+B calls the batcher a "funding engine" but never says *what the funding is spent on*, and the ratchet
+currently takes **everything**.
+
+The competition is now real in a way it wasn't before. Hacking augs used to be **terminal** (they
+were the win condition); under decision B they are **instrumental** — worth buying only insofar as
+they compound income. Bladeburner augs are the ones that buy success chance and stamina, at
+**$1.375b–$27.5b base** apiece.
+
+**Proposed rule, in priority order:**
+
+1. **Fleet + income-critical spend** — untouched. This is what generates everything else.
+2. **Bladeburner augs, once the rep gate for a tier is met** — because rep is the scarce, non-buyable
+   input (see D11's note on rep asymmetry); if rep is in hand and money isn't, the rep decays to
+   nothing on the next install. **Money is recoverable; a burned rep window is not.**
+3. **Hacking-mult augs / NeuroFlux** — with what's left, judged purely on income compounding, not on
+   progress toward the (abandoned) WD gate.
+
+**Rejected:** keeping the ratchet's current all-or-nothing claim. It optimises for a target we no
+longer hold.
+**Rejected:** a fixed percentage split. The rep gate is lumpy and time-boxed; a static split either
+starves it at the wrong moment or idles capital.
+
+⚠️ **Interaction with D8:** the rep window and the money split are the same decision seen twice — the
+window is *when* to stop installing, the split is *what to buy while stopped*. Spec them together.
+
+### D11 — Population and chaos sustainability; city rotation as the primary lever
+
+**Added 2026-08-02 — Kenneth flagged this and it is the sharpest gap in the phase.**
+
+🔑 **Grinding rank consumes the resource that enables grinding rank.** `Bounty Hunter`, `Retirement`,
+`Sting Operation`, `Raid`, `Stealth Retirement Operation` and `Assassination` all **decrease Synthoid
+population**; most **raise chaos**; and `Raid` outright **requires a community to exist** in the
+current city. `Incite Violence` regenerates contract/operation inventory but raises chaos in **all**
+cities. Chaos also rises spontaneously from world events, and population migrates between cities on
+its own.
+
+**We are currently fine by luck, not policy.** Sector-12 reads pop **847.7m**, **31** communities,
+chaos **0.000**, with ~2,000+ contracts and 598–1,508 operations remaining. ⚠️ **Stage B is exactly
+when consumption jumps** — operations consume more per action and are the whole point of the tier
+switch.
+
+**Proposed model:** treat per-city population/communities/chaos as a **depleting stock with
+regeneration**, not a static property. The engine tracks all three per city and rotates out of a city
+when any of: communities fall below the `Raid` threshold, chaos exceeds the Diplomacy-viable band, or
+inventory runs low — then returns after the stock recovers.
+
+**City rotation is the primary lever and it has never been tested** — every cycle since joining has
+run in one city. It was logged as the one untested lever on 2026-07-30 and never revisited. It
+plausibly addresses population depletion *and* chaos *and* inventory simultaneously, which is why it
+outranks the per-symptom responses already in the engine (`Incite Violence` for inventory, `Diplomacy`
+for chaos).
+
+⚠️ **Unknown that gates the design:** `switchCity` has **no documented cost, travel time, or
+interaction with the running action** (reference §6). Measure before building a rotation policy on
+top of it — if it interrupts the action or carries a cooldown, the policy shape changes.
+
+**Rejected:** staying in one city and absorbing depletion. That is today's implicit policy; it is
+untested at Stage B consumption rates and has no failure signal.
+
+**Note on the rep competition Kenneth also raised:** regular-faction rep and Bladeburner rep are
+**not** fungible and largely do not compete. Regular rep is **money-buyable** via the donation
+shortcut (150 favor → donate), already automated. Bladeburner rep is **actions-only** — no donation,
+no `workForFaction`. So regular rep costs *money* and Bladeburner rep costs *player-action time*.
+They would only collide if we returned to manual faction work, which we do not do. The part that
+genuinely bites is the install reset, which D8 owns.
+
 ---
 
 ## 4. Open questions — each with a default and a date
@@ -182,7 +251,7 @@ observability convention; a dashboard panel already exists and can be re-pointed
 | **Q2** | Rep-window trigger — what condition starts the freeze? | Enter when the aug tier is affordable at current income *and* rank ≥ Stage B crossover. Needs a number. | Before spec |
 | **Q3** | Is max action level EV-optimal, or lower? | Probe via `setActionLevel` sweep on Tracking first (zero rank downside). | During implementation |
 | **Q4** | Marginal success-chance value per team member, and the loss rate. | Recruit to 5, measure, extrapolate. | During implementation |
-| **Q5** | City rotation — never tested (every cycle has run in one city). Sector-12 currently reads chaos **0.000**, pop **847.7m**, **31** communities, which is good. | Stay in Sector-12; revisit if chaos rises or population migrates away. | On trigger |
+| **Q5** | **[Rewritten 2026-08-02 — was "stay in Sector-12, revisit on trigger", which treated rotation as a chaos response rather than the sustainability mechanism it is (D11).]** What is the rotation policy? Specifically: (a) what does `switchCity` actually cost — travel time, money, does it interrupt the running action? (b) what are the per-city floors for communities / chaos / inventory that trigger a rotation out? (c) how fast does population and inventory regenerate in an abandoned city? | **Measure `switchCity`'s cost first** — it gates the whole design. Then rotate on the first floor breached, starting with the `Raid` community requirement. Do **not** default to staying put; that is an untested policy at Stage B consumption rates. | (a) before spec · (b)+(c) during implementation |
 | **Q6** | Do General actions other than HRC consume stamina? | Assume they do; only HRC is trusted for recovery. | Cheap experiment |
 | **Q7** | Buy `The Blade's Simulacrum` to free the player-action slot? Rep 1.25k (met), **$1.029t**. | **No** — price is far beyond current income and the slot conflict is survivable. Revisit if income clears ~$10t. | On trigger |
 | **Q8** | What is the actual Stage A → Stage B crossover condition? | Switch when operation EV exceeds best-contract EV, computed live — not a hardcoded rank. | In spec |
