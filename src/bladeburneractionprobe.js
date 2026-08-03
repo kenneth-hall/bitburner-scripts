@@ -63,6 +63,22 @@ export async function main(ns) {
   // max HP is only 27.
   if (ns.args[0] === "stamina") return await staminaCostMode(ns);
 
+  // ---- 2026-08-02: arg-gated general-action stamina mode (Phase 39 Q6) --------
+  // `run bladeburneractionprobe.js general` answers: do General actions OTHER
+  // than Hyperbolic Regeneration Chamber cost stamina, or are they free
+  // (maintenance actions the engine can run without touching the duty budget)?
+  // Deliberately excludes Recruitment -- it has a real, permanent side effect
+  // (adds a team member) that D6 hasn't decided to trigger yet; testing it here
+  // would make an undecided decision as a probe side effect.
+  if (ns.args[0] === "general") return await generalStaminaMode(ns);
+
+  // ---- 2026-08-02: arg-gated level-sweep mode (Phase 39 Q3) --------------------
+  // `run bladeburneractionprobe.js levels` answers: is max action level EV-optimal
+  // on Tracking, or does the difficulty/reward tradeoff peak lower? ZERO rank/HP
+  // risk -- never calls startAction, only setActionLevel + read-back. Restores the
+  // original level and autolevel setting in a `finally`.
+  if (ns.args[0] === "levels") return await levelSweepMode(ns);
+
   const out = { ts: Date.now(), iso: new Date().toISOString(), note: "read-only action-yield sweep" };
   out.stage = "start";
   const emit = (label) => {
@@ -300,4 +316,175 @@ async function runStaminaWindows(ns, out, emit) {
   }
 
   ns.bladeburner.stopBladeburnerAction();
+}
+
+// ---- level-sweep mode (2026-08-02, Phase 39 Q3) ------------------------------
+
+const LEVEL_SWEEP_TARGET = { type: "Contracts", name: "Tracking" };
+
+async function levelSweepMode(ns) {
+  const t = LEVEL_SWEEP_TARGET;
+  const out = {
+    ts: Date.now(),
+    iso: new Date().toISOString(),
+    note: "READ-ONLY (no startAction): action-level EV sweep on Tracking (Q3)",
+    target: t,
+    levels: [],
+  };
+
+  const originalLevel = ns.bladeburner.getActionCurrentLevel(t.type, t.name);
+  const originalAutolevel = ns.bladeburner.getActionAutolevel(t.type, t.name);
+  const maxLevel = ns.bladeburner.getActionMaxLevel(t.type, t.name);
+  out.originalLevel = originalLevel;
+  out.originalAutolevel = originalAutolevel;
+  out.maxLevel = maxLevel;
+
+  try {
+    if (originalAutolevel) ns.bladeburner.setActionAutolevel(t.type, t.name, false);
+
+    for (let level = 1; level <= maxLevel; level++) {
+      ns.bladeburner.setActionLevel(t.type, t.name, level);
+      const confirmedLevel = ns.bladeburner.getActionCurrentLevel(t.type, t.name);
+      const successChance = ns.bladeburner.getActionEstimatedSuccessChance(t.type, t.name);
+      const actionTimeMs = ns.bladeburner.getActionTime(t.type, t.name);
+      const rankGain = ns.bladeburner.getActionRankGain(t.type, t.name, level);
+      const rankLoss = ns.bladeburner.getActionRankLoss(t.type, t.name, level);
+      const repGain = ns.bladeburner.getActionRepGain(t.type, t.name, level);
+      const [pMin, pMax] = successChance;
+      const pMid = (pMin + pMax) / 2;
+      const evPerAttempt = pMid * rankGain - (1 - pMid) * rankLoss;
+      const evPerSec = evPerAttempt / (actionTimeMs / 1000);
+      out.levels.push({
+        level, confirmedLevel, pMin, pMax, pMid, rankGain, rankLoss, repGain, actionTimeMs,
+        evPerAttempt, evPerSec,
+      });
+    }
+  } finally {
+    ns.bladeburner.setActionLevel(t.type, t.name, originalLevel);
+    if (originalAutolevel) ns.bladeburner.setActionAutolevel(t.type, t.name, true);
+    out.restoredLevel = ns.bladeburner.getActionCurrentLevel(t.type, t.name);
+    out.restoredAutolevel = ns.bladeburner.getActionAutolevel(t.type, t.name);
+  }
+
+  const byEvPerSec = [...out.levels].sort((a, b) => b.evPerSec - a.evPerSec);
+  const byEvPerAttempt = [...out.levels].sort((a, b) => b.evPerAttempt - a.evPerAttempt);
+  out.bestByEvPerSec = byEvPerSec[0];
+  out.bestByEvPerAttempt = byEvPerAttempt[0];
+
+  const file = "bladeburneractionprobe-" + out.ts + ".json";
+  ns.write(file, JSON.stringify(out, null, 2), "w");
+  ns.tprint(`levelsweep: swept levels 1..${maxLevel} on ${t.name} (was ${originalLevel}, autolevel=${originalAutolevel})`);
+  ns.tprint(`  best by EV/sec: level ${out.bestByEvPerSec.level} (${out.bestByEvPerSec.evPerSec.toFixed(4)} rank/s, p=${out.bestByEvPerSec.pMid.toFixed(3)})`);
+  ns.tprint(`  best by EV/attempt: level ${out.bestByEvPerAttempt.level} (${out.bestByEvPerAttempt.evPerAttempt.toFixed(4)} rank, p=${out.bestByEvPerAttempt.pMid.toFixed(3)})`);
+  ns.tprint(`  restored level=${out.restoredLevel} autolevel=${out.restoredAutolevel} -> ${file}`);
+}
+
+// ---- general-action stamina mode (2026-08-02, Phase 39 Q6) ------------------
+
+const GENERAL_TARGETS = ["Training", "Field Analysis", "Diplomacy", "Incite Violence"];
+const GENERAL_WINDOW_MS = 30_000;
+const GENERAL_TICK_MS = 5_000;
+
+async function generalStaminaMode(ns) {
+  const out = {
+    ts: Date.now(),
+    iso: new Date().toISOString(),
+    note: "MUTATING: does each non-HRC General action cost stamina beyond passive regen? (Q6)",
+    windowMs: GENERAL_WINDOW_MS,
+    runs: [],
+  };
+  const emit = (label) => {
+    out.stage = label;
+    try { ns.write("bladeburneractionprobe-" + out.ts + ".json", JSON.stringify(out, null, 2), "w"); } catch { /* breadcrumb only */ }
+  };
+
+  try {
+    await runGeneralWindows(ns, out, emit);
+  } finally {
+    try { ns.rm(BB_OFF_MARKER, "home"); } catch { /* already gone */ }
+    try { ns.rm(SLOT_HOLD_FILE, "home"); } catch { /* already gone */ }
+    out.pauseCleared = !ns.fileExists(BB_OFF_MARKER, "home");
+    emit("pause-cleared");
+  }
+
+  // Idle baseline gives the pure regen rate; each action's netDrainPerMin compared
+  // against it says whether the action costs anything ON TOP of just letting time pass.
+  const idle = out.runs.find((r) => r.name === "IDLE_BASELINE");
+  if (idle) {
+    for (const r of out.runs) {
+      if (r === idle) continue;
+      r.costsStaminaBeyondRegen = r.netDrainPerMin < idle.netDrainPerMin - 0.3; // small tolerance for sample noise
+      r.deltaFromIdlePerMin = idle.netDrainPerMin - r.netDrainPerMin;
+    }
+  }
+
+  out.stage = "complete";
+  const file = "bladeburneractionprobe-" + out.ts + ".json";
+  ns.write(file, JSON.stringify(out, null, 2), "w");
+  for (const r of out.runs) {
+    ns.tprint(`  ${r.name}: netDrainPerMin=${r.netDrainPerMin.toFixed(3)}` +
+      (r === idle ? "  (baseline)" : `  costsStamina=${r.costsStaminaBeyondRegen}  vsBaselineDelta=${r.deltaFromIdlePerMin?.toFixed(3)}`));
+  }
+  ns.tprint(`  pauseCleared=${out.pauseCleared} -> ${file}`);
+}
+
+async function runGeneralWindows(ns, out, emit) {
+  ns.write(BB_OFF_MARKER, "paused by bladeburneractionprobe.js general mode @ " + out.iso + "\n", "w");
+  emit("pause-requested");
+  holdSlot(ns);
+
+  let waited = 0;
+  while (waited < 30_000) {
+    await ns.sleep(2_000);
+    waited += 2_000;
+    holdSlot(ns);
+    const live = ns.bladeburner.getCurrentAction();
+    if (!live) break;
+  }
+  out.slotReleasedAfterMs = waited;
+  ns.bladeburner.stopBladeburnerAction();
+  emit("slot-acquired");
+
+  // targets[0] is a pure idle window (no action started) -- the regen baseline
+  // every other target is compared against.
+  const targets = [{ type: null, name: "IDLE_BASELINE" }, ...GENERAL_TARGETS.map((n) => ({ type: "General", name: n }))];
+
+  for (const target of targets) {
+    const [startStam] = ns.bladeburner.getStamina();
+    const t0 = Date.now();
+    holdSlot(ns);
+    const started = target.type ? ns.bladeburner.startAction(target.type, target.name) : null;
+
+    const samples = [];
+    let preempted = 0;
+    while (Date.now() - t0 < GENERAL_WINDOW_MS) {
+      await ns.sleep(GENERAL_TICK_MS);
+      holdSlot(ns);
+      const [c] = ns.bladeburner.getStamina();
+      const live = ns.bladeburner.getCurrentAction();
+      if (target.type && (!live || live.name !== target.name)) preempted++;
+      if (!target.type && live) preempted++; // idle window: anything running at all is contamination
+      samples.push({ atMs: Date.now() - t0, stamina: c, liveAction: live ? live.name : null });
+    }
+
+    const [endStam] = ns.bladeburner.getStamina();
+    const elapsedMin = (Date.now() - t0) / 60_000;
+    const drained = startStam - endStam;
+
+    out.runs.push({
+      ...target,
+      startStamina: startStam,
+      endStamina: endStam,
+      elapsedMin,
+      netDrained: drained,
+      netDrainPerMin: drained / elapsedMin,
+      startActionReturned: started,
+      preemptedSamples: preempted,
+      totalSamples: samples.length,
+      valid: preempted === 0,
+      samples,
+    });
+    emit("ran-" + target.name);
+    ns.bladeburner.stopBladeburnerAction();
+  }
 }

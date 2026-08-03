@@ -15,10 +15,19 @@
  * Requires augfarmer.js to be RUNNING and in its "grinding" phase for the observation to mean
  * anything -- the probe checks that up front and refuses if not.
  *
- * RAM ~9.1 GB. Writes slotconflictprobe-<epoch>.json + tprints the verdict.
+ * 2026-08-02 update (Phase 39): under D1's "own the slot continuously" policy,
+ * bladeburnermanager.js is running SOME action nearly always, so the old "abort if a Bladeburner
+ * action is already running" precondition never clears on its own anymore. Reuses
+ * bladeburneractionprobe.js's pause pattern -- write BB_OFF_MARKER, wait for the manager to
+ * release, run the original test, clear the marker in a `finally` so the manager always resumes
+ * even on an exception or a mid-run kill.
+ *
+ * RAM ~9.1 GB (+ the pause helpers' ns.read/ns.write/ns.bladeburner.getCurrentAction, already
+ * covered dot-notation calls). Writes slotconflictprobe-<epoch>.json + tprints the verdict.
  */
 
 const AUG_STATE = "augfarmer-state.json";
+const BB_OFF_MARKER = "bladeburner-off.txt";
 const OBSERVE_MS = 25_000; // augfarmer polls ~10s; this gives it 2+ passes to react
 const RECOVER_MS = 20_000; // and the same again to observe it resuming after we stop
 
@@ -35,6 +44,24 @@ export async function main(ns) {
     } catch (e) { return { phase: null, ageSec: null, note: "unparseable: " + String(e).slice(0, 80) }; }
   };
 
+  try {
+    await runProbe(ns, out, readAugPhase);
+  } finally {
+    try { ns.rm(BB_OFF_MARKER, "home"); } catch { /* already gone */ }
+    out.pauseCleared = !ns.fileExists(BB_OFF_MARKER, "home");
+  }
+}
+
+async function runProbe(ns, out, readAugPhase) {
+  // --- -1. pause the manager so it releases the slot, then wait for it to actually stop ---
+  ns.write(BB_OFF_MARKER, "paused by slotconflictprobe.js @ " + out.iso + "\n", "w");
+  let waited = 0;
+  while (waited < 30_000 && ns.bladeburner.getCurrentAction()) {
+    await ns.sleep(2_000);
+    waited += 2_000;
+  }
+  out.managerReleasedAfterMs = waited;
+
   // --- 0. preconditions ---
   out.before = {
     currentWork: ns.singularity.getCurrentWork(),
@@ -46,8 +73,8 @@ export async function main(ns) {
     "  augPhase=" + out.before.augfarmer.phase);
 
   if (out.before.bladeburnerAction) {
-    ns.tprint("slotconflict: ABORT -- a Bladeburner action is already running; result would be ambiguous.");
-    out.aborted = "bladeburner action already running";
+    ns.tprint("slotconflict: ABORT -- manager didn't release its action within 30s; result would be ambiguous.");
+    out.aborted = "bladeburner action still running after pause";
     ns.write("slotconflictprobe-" + out.ts + ".json", JSON.stringify(out, null, 2), "w");
     return;
   }

@@ -34,10 +34,15 @@ do, and what's broken?*
   slot), so it is *not* the live cause of the two evening failures despite being named a claimant
   here; `backdoorfactions.js` (confirmed running via `ps` at the same time) is the more likely
   actual contender right now. `backdoorwd.js` stays on this list as a real hazard if it ever does
-  fire. **Next action:** re-run `slotconflictprobe.js` (its verdict logic was fixed 2026-08-01 but
-  never re-validated since — one ~45s self-cleaning run would give a current, correct answer on
-  whether Bladeburner actions and player-work share a track) before extending the slot-hold
-  contract to cover the backdoor scripts or adding a global quiesce marker.
+  fire. **✅ Re-ran `slotconflictprobe.js` 2026-08-02 9pm** (adapted it to pause
+  `bladeburnermanager.js` first, since D1's continuous-duty policy meant the script's old
+  idle-wait precondition never cleared on its own) — **the conflict is real and confirmed**:
+  starting a Bladeburner action killed `augfarmer.js`'s in-progress `workForFaction`, and
+  `augfarmer.js` killed the Bladeburner action right back within the observe window
+  (`bbCancelledWork` and `augKilledBb` both `true`). This overturns the old buggy-verdict-logic
+  "NO CONFLICT" result that was the only prior data point. **Next action:** extend the slot-hold
+  contract so `augfarmer.js` respects `SLOT_HOLD_FILE` more tightly (the stamina probe's own hold
+  claim didn't prevent this), then cover the backdoor scripts, or add a global quiesce marker.
 - **🔴 STILL OPEN — `bladeburnermanager.js` telemetry reports zero progress while rank moves.**
   `logs/bladeburner-state.json` shows `rates.*.rankGained: 0` and `duty.*.dutyCycle: 1` across all
   windows while live rank went 1,217 → 1,221 and the engine was mostly idle. Both fields are
