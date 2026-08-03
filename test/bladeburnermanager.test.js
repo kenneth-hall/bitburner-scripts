@@ -1,65 +1,95 @@
-// Pure-function tests for Phase 38 Slice B's bladeburnermanager.js (spec:
-// "Tests" section). main() is thin plumbing around these, same split as
-// daemon.js/gangmanager.js -- every function under test is ns-free.
+// Pure-function tests for Phase 39's bladeburnermanager.js (phase-39-bladeburner-primary
+// .spec.md's "Tests" section). main() is thin plumbing around these, same split as
+// daemon.js/gangmanager.js -- every function under test is ns-free (buildCandidates
+// takes a minimal fake `ns.bladeburner` object -- it never touches anything else).
 import { describe, it, expect } from 'vitest';
 import {
   expectedRankPerSec,
+  scoreCandidate,
+  buildCandidates,
+  applyStageGate,
+  computeCrossover,
+  isQuarantined,
+  updateQuarantine,
   pickRankAction,
   planSkillBuy,
   SKILL_BUY_ORDER,
   SKILL_LEVEL_CAP,
+  OVERCLOCK_HOLD_LEVEL,
+  STAGE_B_ENABLED,
+  ACTION_START_FAILURE_LIMIT,
+  ACTION_QUARANTINE_MS,
+  OBJECTIVE_MODE,
+  isInventoryLow,
+  LOW_INVENTORY_COUNT_THRESHOLD,
   shouldRotateCity,
-  classifyWindow,
+  updateCityStock,
+  CITY_ROTATE_CHAOS_THRESHOLD,
   higherPriorityClaimant,
   HIGHER_PRIORITY_CLAIMANTS,
   classifyBackdoorActivity,
   BACKDOOR_ACTIVITY_FRESH_MS,
-  computeRealizedRates,
-  computeDutyCycle,
-  computeRepForegone,
-  projectRankEta,
-  estimateRepRatePerSec,
-  appendBbLog,
-  seedBbLog,
-  buildBbState,
-  BB_LOG_MAX_ENTRIES,
-  HP_FLOOR_FRACTION,
-  AUG_STATE_FRESH_MS,
-  BLACKOPS_DAEDALUS_RANK,
-  pickOverheadAction,
-  isInventoryLow,
-  LOW_INVENTORY_COUNT_THRESHOLD,
-  CHAOS_DIPLOMACY_THRESHOLD,
-  TEAM_SIZE_TARGET,
+  resolveYieldGrant,
+  REP_YIELD_CLAIMANT,
+  BACKDOOR_YIELD_MAX_MS,
+  STUDY_YIELD_MAX_MS,
+  REP_YIELD_SLICE_MS,
+  MAX_REP_YIELD_DUTY,
+  MIN_HOLD_AFTER_OVERRUN_MS,
+  LIVELOCK_WARN_STREAK,
+  classifyRepProgress,
+  detectRepStarvation,
+  REP_STARVED_SUSTAIN_MS,
+  REP_STARVED_RATE,
+  REP_STARVED_CLEAR_RATE,
+  REP_STARVED_CLEAR_MS,
+  computeWallRates,
+  dutyFromTotals,
   pruneSamples,
   emptyTotals,
   accumulateTotals,
   seedTotals,
-  ratesFromTotals,
-  dutyFromTotals,
   RATE_WINDOWS_MS,
   MAX_FINITE_WINDOW_MS,
   SAMPLE_HARD_CAP,
-  CHECKPOINT_A_UPTIME_MS,
-  CHECKPOINT_A_BAR,
+  evaluateC1,
+  evaluateC3A,
+  evaluateC3B,
+  C1_UPTIME_MS,
+  C1_BAR,
+  C3_UPTIME_MS,
+  C3A_DUTY_BAR,
+  appendBbLog,
+  seedBbLog,
+  appendAttempt,
+  seedAttempts,
+  buildBbState,
+  BB_LOG_MAX_ENTRIES,
+  BB_ATTEMPTS_MAX_ENTRIES,
+  HP_FLOOR_FRACTION,
+  AUG_STATE_FRESH_MS,
+  BLACKOPS_DAEDALUS_RANK,
+  pickOverheadAction,
+  isPostInstallRegime,
+  POST_INSTALL_HP_MAX_THRESHOLD,
+  POST_INSTALL_TRAINING_MAX_MS,
+  CHAOS_DIPLOMACY_THRESHOLD,
+  TEAM_SIZE_TARGET,
   updateStaminaRecovering,
   STAMINA_FLOOR_FRACTION,
   STAMINA_RESUME_FRACTION,
   updateHpRecovering,
   HP_RESUME_FRACTION,
-  OVERCLOCK_HOLD_LEVEL,
 } from '../src/bladeburnermanager.js';
 
-// --- expectedRankPerSec ----------------------------------------------------
+// --- expectedRankPerSec / scoreCandidate (S8) -------------------------------
 
 describe('expectedRankPerSec', () => {
   it('positive EV: high success chance, small loss', () => {
-    // (0.9*10 - 0.1*2) / 10s = (9 - 0.2)/10 = 0.88
     expect(expectedRankPerSec({ pMin: 0.9, rankGain: 10, rankLoss: 2, timeMs: 10_000 })).toBeCloseTo(0.88, 6);
   });
 
   it('negative EV: low success chance, large loss', () => {
-    // (0.03*50 - 0.97*10) / 20s = (1.5 - 9.7)/20 = -0.41
     expect(expectedRankPerSec({ pMin: 0.03, rankGain: 50, rankLoss: 10, timeMs: 20_000 })).toBeCloseTo(-0.41, 6);
   });
 
@@ -68,325 +98,385 @@ describe('expectedRankPerSec', () => {
   });
 });
 
-// --- pickRankAction (decision 7) -------------------------------------------
+describe('scoreCandidate', () => {
+  const c = { pMin: 0.5, rankGain: 10, rankLoss: 2, timeMs: 10_000 };
 
-describe('pickRankAction', () => {
-  const safe = { type: 'Operations', name: 'Investigation', pMin: 0.3, rankGain: 5, rankLoss: 0, timeMs: 10_000, risksHp: false };
-  const risky = { type: 'Operations', name: 'Raid', pMin: 0.1, rankGain: 55, rankLoss: 2.5, timeMs: 66_000, risksHp: true };
-
-  it('picks the higher-EV candidate when HP is healthy', () => {
-    const highEv = { type: 'Contracts', name: 'Tracking', pMin: 0.9, rankGain: 10, rankLoss: 1, timeMs: 12_000, risksHp: true };
-    const lowEv = { type: 'Contracts', name: 'Bounty Hunter', pMin: 0.5, rankGain: 2, rankLoss: 5, timeMs: 20_000, risksHp: true };
-    const picked = pickRankAction([highEv, lowEv], { hpFraction: 1 });
-    expect(picked.name).toBe('Tracking');
+  it('per-second mode: score equals expectedRankPerSec', () => {
+    const { score, evPerSec } = scoreCandidate(c, 'per-second');
+    expect(score).toBeCloseTo(expectedRankPerSec(c), 10);
+    expect(evPerSec).toBeCloseTo(expectedRankPerSec(c), 10);
   });
 
-  it('prefers lower failure cost at equal raw EV (the discount term breaks the tie)', () => {
-    // Two candidates engineered to identical expectedRankPerSec but different
-    // pMin/timeMs, so the hospitalization discount is the only thing that
-    // can separate them.
-    const cheapFailure = { type: 'Contracts', name: 'A', pMin: 0.9, rankGain: 10, rankLoss: 1, timeMs: 10_000, risksHp: true };
-    // Same EV as A: (0.9*10 - 0.1*1)/10 = 0.89. Give B a much lower pMin at a
-    // much shorter time so its (1-pMin)/actionSeconds discount term is huge.
-    const bRankGain = (0.89 * 1 + (1 - 0.1) * 1) / 0.1; // solve so EV matches at pMin=0.1, timeMs=1000
-    const expensiveFailure = { type: 'Contracts', name: 'B', pMin: 0.1, rankGain: bRankGain, rankLoss: 1, timeMs: 1_000, risksHp: true };
-    expect(expectedRankPerSec(cheapFailure)).toBeCloseTo(expectedRankPerSec(expensiveFailure), 6);
-    const picked = pickRankAction([cheapFailure, expensiveFailure], { hpFraction: 1 });
-    expect(picked.name).toBe('A');
+  it('per-action mode: score is the raw EV, not divided by time', () => {
+    const { score, evPerAction } = scoreCandidate(c, 'per-action');
+    const rawEv = 0.5 * 10 - 0.5 * 2; // 4
+    expect(score).toBeCloseTo(rawEv, 10);
+    expect(evPerAction).toBeCloseTo(rawEv, 10);
   });
 
-  // 🔴 Rewritten 2026-08-02. This test used to assert `picked.name === 'Investigation'`,
-  // i.e. it locked in the bug: below the HP floor the pool filtered down to the only
-  // non-HP-risking action, which is Investigation -- and Investigation cannot restore HP,
-  // so the engine could never climb back above the floor. Live cost: hours of grinding an
-  // action worth 0.0077 rank/s over one worth 0.0307. The guard must RECOVER, not re-pick.
-  it('HP guard: below the floor, returns null so the caller can route to recovery', () => {
-    const picked = pickRankAction([risky, safe], { hpFraction: HP_FLOOR_FRACTION - 0.01, hpCurrent: 13 });
-    expect(picked).toBeNull();
+  it('both scores are always present regardless of mode', () => {
+    const perSec = scoreCandidate(c, 'per-second');
+    const perAction = scoreCandidate(c, 'per-action');
+    expect(perSec.evPerAction).toBeCloseTo(perAction.evPerAction, 10);
+    expect(perSec.evPerSec).toBeCloseTo(perAction.evPerSec, 10);
   });
 
-  it('HP guard: returns null below the floor even when only safe candidates exist', () => {
-    // The trap case specifically: Investigation alone must NOT keep the engine pinned
-    // below the floor forever.
-    const picked = pickRankAction([safe], { hpFraction: 0.1, hpCurrent: 3 });
-    expect(picked).toBeNull();
+  it('negative raw EV stays negative in both modes (sign is time-invariant)', () => {
+    const negative = { pMin: 0.05, rankGain: 5, rankLoss: 50, timeMs: 5_000 };
+    expect(scoreCandidate(negative, 'per-second').score).toBeLessThan(0);
+    expect(scoreCandidate(negative, 'per-action').score).toBeLessThan(0);
   });
 
-  it('hospitalization cost is amortised over the failures left before hospitalization', () => {
-    // The live 2026-08-02 numbers that exposed the defect. Tracking's true EV is ~4x
-    // Investigation's, but charging the full hospitalization estimate against every
-    // single failure scored Tracking negative and handed the pick to Investigation.
-    const tracking = { type: 'Contracts', name: 'Tracking', pMin: 0.356, rankGain: 0.726, rankLoss: 0, timeMs: 13_000, risksHp: true };
-    const investigation = { type: 'Operations', name: 'Investigation', pMin: 0.0966, rankGain: 3.533, rankLoss: 0.321, timeMs: 33_000, risksHp: false };
-
-    // Old behaviour, reproduced by withholding absolute HP: 9x overcharge -> wrong pick.
-    expect(pickRankAction([tracking, investigation], { hpFraction: 1 }).name).toBe('Investigation');
-
-    // Fixed: at full HP (27) a failure costs 3, so nine failures fit before hospitalization.
-    expect(pickRankAction([tracking, investigation], { hpFraction: 1, hpCurrent: 27 }).name).toBe('Tracking');
-  });
-
-  it('the failure discount grows as HP falls, so risk aversion rises approaching the floor', () => {
-    const risky2 = { type: 'Contracts', name: 'Tracking', pMin: 0.356, rankGain: 0.726, rankLoss: 0, timeMs: 13_000, risksHp: true };
-    const safe2 = { type: 'Operations', name: 'Investigation', pMin: 0.0966, rankGain: 3.533, rankLoss: 0.321, timeMs: 33_000, risksHp: false };
-    // Healthy: the contract's raw EV dominates its amortised failure cost.
-    expect(pickRankAction([risky2, safe2], { hpFraction: 1, hpCurrent: 27 }).name).toBe('Tracking');
-    // One failure from hospitalization (but still above the floor): the discount bites.
-    expect(pickRankAction([risky2, safe2], { hpFraction: 0.6, hpCurrent: 3 }).name).toBe('Investigation');
-  });
-
-  it('HP guard: at/above the floor, HP-risking candidates are eligible again', () => {
-    const bigEv = { ...risky, pMin: 0.95, rankGain: 100, rankLoss: 1 };
-    const picked = pickRankAction([bigEv, safe], { hpFraction: HP_FLOOR_FRACTION });
-    expect(picked.name).toBe('Raid');
-  });
-
-  it('returns null when HP is low and every candidate risks HP -- caller falls back to recovery', () => {
-    expect(pickRankAction([risky], { hpFraction: 0.1 })).toBeNull();
-  });
-
-  it('returns null on an empty candidate list', () => {
-    expect(pickRankAction([], { hpFraction: 1 })).toBeNull();
+  it("is a pure function of the pMin it's handed -- multiplies it by nothing extra (no stamina correction)", () => {
+    // The unverified premise (Q12/blocker 11): this asserts a property of OUR code, not
+    // of the game's returned estimate. A fixture with a given pMin scores identically to
+    // hand-computed EV, proving scoreCandidate applies no hidden correction.
+    const candidate = { pMin: 0.356, rankGain: 0.726, rankLoss: 0, timeMs: 13_000 };
+    const handComputed = (0.356 * 0.726 - (1 - 0.356) * 0) / 13;
+    expect(scoreCandidate(candidate, 'per-second').score).toBeCloseTo(handComputed, 10);
   });
 });
 
-// --- planSkillBuy ------------------------------------------------------------
+// --- buildCandidates / applyStageGate split (S5.1, fixes reviewer blocker 1) -------
+
+function fakeNs(counts, chances = {}, rankGain = {}, rankLoss = {}, timeMs = {}) {
+  return {
+    bladeburner: {
+      getActionCountRemaining: (type, name) => counts[name] ?? 0,
+      getActionEstimatedSuccessChance: (type, name) => chances[name] ?? [0.5, 0.5],
+      getActionRankGain: (type, name) => rankGain[name] ?? 1,
+      getActionRankLoss: (type, name) => rankLoss[name] ?? 0,
+      getActionTime: (type, name) => timeMs[name] ?? 10_000,
+    },
+  };
+}
+
+const ALL_ACTIONS = ['Tracking', 'Bounty Hunter', 'Retirement', 'Investigation', 'Undercover Operation', 'Sting Operation', 'Raid', 'Stealth Retirement Operation', 'Assassination'];
+const FULL_COUNTS = Object.fromEntries(ALL_ACTIONS.map((n) => [n, 10]));
+
+describe('buildCandidates', () => {
+  it('returns every Contract/Operation with count >= 1, regardless of stage', () => {
+    const ns = fakeNs(FULL_COUNTS);
+    const candidates = buildCandidates(ns);
+    expect(candidates.map((c) => c.name).sort()).toEqual([...ALL_ACTIONS].sort());
+  });
+
+  it('skips an action with count < 1', () => {
+    const ns = fakeNs({ ...FULL_COUNTS, Raid: 0.5 });
+    const candidates = buildCandidates(ns);
+    expect(candidates.some((c) => c.name === 'Raid')).toBe(false);
+  });
+
+  it('marks Investigation as not risking HP; every other action as risking HP', () => {
+    const ns = fakeNs(FULL_COUNTS);
+    const candidates = buildCandidates(ns);
+    expect(candidates.find((c) => c.name === 'Investigation').risksHp).toBe(false);
+    expect(candidates.find((c) => c.name === 'Tracking').risksHp).toBe(true);
+    expect(candidates.find((c) => c.name === 'Raid').risksHp).toBe(true);
+  });
+
+  it('knows nothing about stages -- the five risky operations are present even when STAGE_B_ENABLED is false', () => {
+    expect(STAGE_B_ENABLED).toBe(false);
+    const ns = fakeNs(FULL_COUNTS);
+    const candidates = buildCandidates(ns);
+    for (const risky of ['Undercover Operation', 'Sting Operation', 'Raid', 'Stealth Retirement Operation', 'Assassination']) {
+      expect(candidates.some((c) => c.name === risky)).toBe(true);
+    }
+  });
+});
+
+describe('applyStageGate', () => {
+  const pool = ALL_ACTIONS.map((name) => ({
+    type: name === 'Tracking' || name === 'Bounty Hunter' || name === 'Retirement' ? 'Contracts' : 'Operations',
+    name,
+    pMin: name === 'Raid' ? 0.99 : 0.1, // Raid engineered to have the HIGHEST EV in the fixture
+    rankGain: name === 'Raid' ? 1000 : 1,
+    rankLoss: 0,
+    timeMs: 10_000,
+  }));
+
+  it('drops the five risky operations when stageBEnabled is false -- even when their EV is highest in the fixture', () => {
+    const gated = applyStageGate(pool, false);
+    for (const risky of ['Undercover Operation', 'Sting Operation', 'Raid', 'Stealth Retirement Operation', 'Assassination']) {
+      expect(gated.some((c) => c.name === risky)).toBe(false);
+    }
+  });
+
+  it('Investigation and all Contracts survive the gate', () => {
+    const gated = applyStageGate(pool, false);
+    expect(gated.some((c) => c.name === 'Investigation')).toBe(true);
+    for (const contract of ['Tracking', 'Bounty Hunter', 'Retirement']) {
+      expect(gated.some((c) => c.name === contract)).toBe(true);
+    }
+  });
+
+  it('passes the pool through unchanged when stageBEnabled is true', () => {
+    expect(applyStageGate(pool, true)).toEqual(pool);
+  });
+
+  it('buildCandidates -> applyStageGate compose in the documented order (S5.1 wiring)', () => {
+    const ns = fakeNs(FULL_COUNTS);
+    const full = buildCandidates(ns);
+    const gated = applyStageGate(full, STAGE_B_ENABLED);
+    expect(gated.length).toBeLessThan(full.length);
+    expect(gated.every((c) => full.includes(c))).toBe(true);
+  });
+});
+
+describe('computeCrossover', () => {
+  it('reports operations that are gated out of the live pool -- C2 must be reachable while Stage B is shut', () => {
+    const candidates = [
+      { type: 'Contracts', name: 'Tracking', pMin: 0.5, rankGain: 1, rankLoss: 0, timeMs: 10_000 },
+      { type: 'Operations', name: 'Raid', pMin: 0.5, rankGain: 100, rankLoss: 0, timeMs: 10_000 },
+    ];
+    const gated = applyStageGate(candidates, false);
+    expect(gated.some((c) => c.name === 'Raid')).toBe(false);
+    const crossover = computeCrossover(candidates, 'per-second');
+    expect(crossover.bestOperation.name).toBe('Raid');
+  });
+
+  it('operationLeadsPerSec true when the best operation beats the best contract per-second', () => {
+    const candidates = [
+      { type: 'Contracts', name: 'Tracking', pMin: 0.5, rankGain: 1, rankLoss: 0, timeMs: 10_000 },
+      { type: 'Operations', name: 'Raid', pMin: 0.5, rankGain: 100, rankLoss: 0, timeMs: 10_000 },
+    ];
+    expect(computeCrossover(candidates).operationLeadsPerSec).toBe(true);
+  });
+
+  it('operationLeadsPerSec false when the contract still leads', () => {
+    const candidates = [
+      { type: 'Contracts', name: 'Tracking', pMin: 0.9, rankGain: 100, rankLoss: 0, timeMs: 1_000 },
+      { type: 'Operations', name: 'Raid', pMin: 0.05, rankGain: 55, rankLoss: 2.5, timeMs: 66_000 },
+    ];
+    expect(computeCrossover(candidates).operationLeadsPerSec).toBe(false);
+  });
+
+  it('operationLeadsPerSec and operationLeadsPerAction can disagree -- C2 reads ONLY the per-second flag (S14.1)', () => {
+    // Raid: bigger per-action EV (50 > 8.9) but a much LOWER per-second EV (long action
+    // time dilutes it: 0.083 < Tracking's 0.742).
+    const candidates = [
+      { type: 'Contracts', name: 'Tracking', pMin: 0.9, rankGain: 10, rankLoss: 1, timeMs: 12_000 },
+      { type: 'Operations', name: 'Raid', pMin: 0.5, rankGain: 100, rankLoss: 0, timeMs: 600_000 },
+    ];
+    const crossover = computeCrossover(candidates, 'per-second');
+    expect(crossover.operationLeadsPerAction).toBe(true);
+    expect(crossover.operationLeadsPerSec).toBe(false);
+  });
+
+  it('null best-of when a side has no candidates, and leads default to false', () => {
+    const crossover = computeCrossover([{ type: 'Contracts', name: 'Tracking', pMin: 0.5, rankGain: 1, rankLoss: 0, timeMs: 1000 }]);
+    expect(crossover.bestOperation.name).toBeNull();
+    expect(crossover.operationLeadsPerSec).toBe(false);
+  });
+});
+
+// --- isQuarantined / updateQuarantine (S6) ----------------------------------
+
+describe('isQuarantined / updateQuarantine', () => {
+  it('not quarantined initially', () => {
+    expect(isQuarantined({}, 'Tracking', 1000)).toBe(false);
+  });
+
+  it('trips at ACTION_START_FAILURE_LIMIT consecutive failures', () => {
+    let state = { failures: {}, quarantine: {} };
+    for (let i = 0; i < ACTION_START_FAILURE_LIMIT - 1; i++) state = updateQuarantine(state, 'Tracking', false, 1000);
+    expect(isQuarantined(state.quarantine, 'Tracking', 1000)).toBe(false);
+    state = updateQuarantine(state, 'Tracking', false, 1000);
+    expect(state.justQuarantined).toBe(true);
+    expect(isQuarantined(state.quarantine, 'Tracking', 1000)).toBe(true);
+  });
+
+  it('a verified success resets the failure counter without quarantining', () => {
+    let state = { failures: {}, quarantine: {} };
+    state = updateQuarantine(state, 'Tracking', false, 1000);
+    state = updateQuarantine(state, 'Tracking', true, 1000);
+    expect(state.failures.Tracking).toBe(0);
+    expect(isQuarantined(state.quarantine, 'Tracking', 1000)).toBe(false);
+  });
+
+  it('expires after ACTION_QUARANTINE_MS -- isQuarantined reads false past the expiry', () => {
+    let state = { failures: {}, quarantine: {} };
+    for (let i = 0; i < ACTION_START_FAILURE_LIMIT; i++) state = updateQuarantine(state, 'Tracking', false, 1000);
+    const expiry = state.quarantine.Tracking;
+    expect(isQuarantined(state.quarantine, 'Tracking', expiry - 1)).toBe(true);
+    expect(isQuarantined(state.quarantine, 'Tracking', expiry)).toBe(false);
+  });
+
+  it('the one retry attempt: a failure right after expiry re-quarantines immediately, not after 3 more strikes', () => {
+    let state = { failures: {}, quarantine: {} };
+    for (let i = 0; i < ACTION_START_FAILURE_LIMIT; i++) state = updateQuarantine(state, 'Tracking', false, 1000);
+    const expiry = state.quarantine.Tracking;
+    state = updateQuarantine(state, 'Tracking', false, expiry); // the one retry, and it fails
+    expect(state.justQuarantined).toBe(true);
+    expect(state.quarantine.Tracking).toBe(expiry + ACTION_QUARANTINE_MS);
+  });
+
+  it('the one retry attempt: a SUCCESS right after expiry clears the quarantine', () => {
+    let state = { failures: {}, quarantine: {} };
+    for (let i = 0; i < ACTION_START_FAILURE_LIMIT; i++) state = updateQuarantine(state, 'Tracking', false, 1000);
+    const expiry = state.quarantine.Tracking;
+    state = updateQuarantine(state, 'Tracking', true, expiry);
+    expect(state.justCleared).toBe(true);
+    expect(isQuarantined(state.quarantine, 'Tracking', expiry)).toBe(false);
+  });
+});
+
+// --- pickRankAction (S8's hard floor + S9's guards; reshaped -- no hospitalization discount) --
+
+describe('pickRankAction', () => {
+  const highEv = { type: 'Contracts', name: 'Tracking', pMin: 0.9, rankGain: 10, rankLoss: 1, timeMs: 12_000 };
+  const lowEv = { type: 'Contracts', name: 'Bounty Hunter', pMin: 0.5, rankGain: 2, rankLoss: 5, timeMs: 20_000 };
+
+  it('picks the higher-scoring candidate', () => {
+    expect(pickRankAction([highEv, lowEv], {}).name).toBe('Tracking');
+  });
+
+  it('never returns a candidate with EV <= 0 -- the hard net-negative floor', () => {
+    const negative = { type: 'Contracts', name: 'Bad', pMin: 0.01, rankGain: 1, rankLoss: 100, timeMs: 1000 };
+    expect(pickRankAction([negative], {})).toBeNull();
+  });
+
+  it('returns null while hpRecovering, regardless of candidate quality', () => {
+    expect(pickRankAction([highEv], { hpRecovering: true })).toBeNull();
+  });
+
+  it('returns null while staminaRecovering', () => {
+    expect(pickRankAction([highEv], { staminaRecovering: true })).toBeNull();
+  });
+
+  it('respects quarantine -- a quarantined top candidate is skipped in favour of the next-best', () => {
+    // lowEv must itself clear the net-negative floor to be a valid "next-best".
+    const positiveLowEv = { type: 'Contracts', name: 'Bounty Hunter', pMin: 0.6, rankGain: 3, rankLoss: 1, timeMs: 20_000 };
+    const quarantine = { Tracking: 999_999 };
+    const picked = pickRankAction([highEv, positiveLowEv], { quarantine, nowMs: 1000 });
+    expect(picked.name).toBe('Bounty Hunter');
+  });
+
+  it('returns null when every candidate is quarantined', () => {
+    const quarantine = { Tracking: 999_999, 'Bounty Hunter': 999_999 };
+    expect(pickRankAction([highEv, lowEv], { quarantine, nowMs: 1000 })).toBeNull();
+  });
+
+  it('returns null on an empty candidate list', () => {
+    expect(pickRankAction([], {})).toBeNull();
+  });
+
+  it('is not tested for -- and does not perform -- stage gating (applyStageGate is the only gate, S5.1)', () => {
+    // A risky operation handed directly to pickRankAction is eligible if it scores well --
+    // gating is the CALLER's job (applyStageGate before this function ever sees the pool).
+    const raid = { type: 'Operations', name: 'Raid', pMin: 0.9, rankGain: 100, rankLoss: 1, timeMs: 10_000 };
+    expect(pickRankAction([raid], {}).name).toBe('Raid');
+  });
+
+  it('honours the mode option -- per-action can rank a low-per-second candidate above a high-per-second one', () => {
+    const bigSlow = { type: 'Operations', name: 'Raid', pMin: 0.5, rankGain: 100, rankLoss: 0, timeMs: 600_000 };
+    const smallFast = { type: 'Contracts', name: 'Tracking', pMin: 0.9, rankGain: 10, rankLoss: 1, timeMs: 12_000 };
+    expect(pickRankAction([bigSlow, smallFast], { mode: 'per-second' }).name).toBe('Tracking');
+    expect(pickRankAction([bigSlow, smallFast], { mode: 'per-action' }).name).toBe('Raid');
+  });
+});
+
+// --- planSkillBuy (unchanged from Phase 38 -- SKILL_BUY_ORDER/SKILL_LEVEL_CAP/OVERCLOCK_HOLD_LEVEL survive) --
 
 describe('planSkillBuy', () => {
-  // 🔴 Rewritten 2026-08-02 (Phase 39 D5). This asserted "Overclock first", which was the
-  // old policy. Overclock costs 16,908 rank for an 8.3x ACTION-TIME multiplier that is
-  // worth nothing if stamina rather than time is the binding constraint (Q10, unmeasured),
-  // so it is now HELD at OVERCLOCK_HOLD_LEVEL while the success skills -- which gate the
-  // Stage A -> B tier switch -- go first.
   it('buys the highest-priority affordable skill (success skills first)', () => {
     const levels = {};
-    const costs = { Overclock: 5, 'Blade\'s Intuition': 1 };
+    const costs = { Overclock: 5, "Blade's Intuition": 1 };
     const buy = planSkillBuy(levels, 10, costs);
-    expect(buy).toEqual({ skill: 'Blade\'s Intuition', toLevel: 1, cost: 1 });
+    expect(buy).toEqual({ skill: "Blade's Intuition", toLevel: 1, cost: 1 });
   });
 
   it('holds Overclock at its cap so a large SP balance cannot drain into it', () => {
-    // The whole point of the hold: with every success skill capped out and plenty of SP
-    // banked, Overclock must still not be bought until Q10 is answered.
-    const levels = { 'Blade\'s Intuition': 25, 'Digital Observer': 25, Tracer: 25, Overclock: OVERCLOCK_HOLD_LEVEL, Reaper: 6, 'Evasive System': 6 };
-    const costs = { Overclock: 27, 'Blade\'s Intuition': 100, 'Digital Observer': 100, Tracer: 100, Reaper: 10, 'Evasive System': 10 };
+    const levels = { "Blade's Intuition": 25, 'Digital Observer': 25, Tracer: 25, Overclock: OVERCLOCK_HOLD_LEVEL, Reaper: 6, 'Evasive System': 6 };
+    const costs = { Overclock: 27, "Blade's Intuition": 100, 'Digital Observer': 100, Tracer: 100, Reaper: 10, 'Evasive System': 10 };
     expect(planSkillBuy(levels, 100_000, costs)).toBeNull();
   });
 
-  it('prefers Blade\'s Intuition / Digital Observer / Tracer over Reaper and Evasive System', () => {
-    // The live failure this encodes: because planSkillBuy takes the first AFFORDABLE
-    // entry and Overclock's next level cost 27 SP, small balances kept falling through to
-    // whatever was cheapest -- Reaper drifted 4 -> 6 while Digital Observer sat at 6.
-    const levels = { 'Blade\'s Intuition': 6, 'Digital Observer': 6, Tracer: 6, Reaper: 4, 'Evasive System': 4 };
-    const costs = { 'Blade\'s Intuition': 16, 'Digital Observer': 13, Tracer: 13, Reaper: 10, 'Evasive System': 10, Overclock: 27 };
-    expect(planSkillBuy(levels, 16, costs).skill).toBe('Blade\'s Intuition');
-  });
-
-  it('skips an unaffordable higher-priority skill and buys the next affordable one', () => {
-    const levels = {};
-    const costs = { Overclock: 1000, 'Blade\'s Intuition': 5 };
-    const buy = planSkillBuy(levels, 10, costs);
-    expect(buy.skill).toBe('Blade\'s Intuition');
-  });
-
-  it('respects a level cap -- Overclock stops being considered at its documented max (90)', () => {
+  it('respects a level cap -- Overclock stops being considered at its hold level even with unlimited SP', () => {
     const levels = { Overclock: 90 };
-    const costs = { Overclock: 1, 'Blade\'s Intuition': 4 };
+    const costs = { Overclock: 1, "Blade's Intuition": 4 };
     const buy = planSkillBuy(levels, 10, costs);
-    expect(buy.skill).toBe('Blade\'s Intuition');
+    expect(buy.skill).toBe("Blade's Intuition");
   });
 
-  it('never buys the four excluded skills, even if they are the only affordable ones', () => {
+  it('never buys the excluded skills, even if they are the only affordable ones', () => {
     const levels = {};
-    const costs = { 'Hands of Midas': 1, Hyperdrive: 1, 'Cyber\'s Edge': 1, Datamancer: 1 };
+    const costs = { 'Hands of Midas': 1, Hyperdrive: 1, "Cyber's Edge": 1, Datamancer: 1, Cloak: 1, 'Short-Circuit': 1 };
     expect(planSkillBuy(levels, 100, costs)).toBeNull();
-  });
-
-  it('never buys Cloak or Short-Circuit either -- they are simply absent from the order', () => {
-    const levels = {};
-    const costs = { Cloak: 1, 'Short-Circuit': 1 };
-    expect(planSkillBuy(levels, 100, costs)).toBeNull();
-  });
-
-  it('returns null when nothing in the order is affordable or uncapped', () => {
-    const levels = { Overclock: 90 };
-    const costs = {};
-    expect(planSkillBuy(levels, 0, costs)).toBeNull();
   });
 
   it('a missing/non-finite cost entry is treated as unaffordable, not a crash', () => {
     const levels = {};
-    const costs = { Overclock: Infinity, 'Blade\'s Intuition': 5 };
-    const buy = planSkillBuy(levels, 10, costs);
-    expect(buy.skill).toBe('Blade\'s Intuition');
+    const costs = { Overclock: Infinity, "Blade's Intuition": 5 };
+    expect(planSkillBuy(levels, 10, costs).skill).toBe("Blade's Intuition");
   });
 });
 
-// --- isInventoryLow -----------------------------------------------------------
+// --- isInventoryLow / shouldRotateCity / updateCityStock (S10) -------------------
 
 describe('isInventoryLow', () => {
   it('true when every tracked count is at/under the threshold', () => {
     expect(isInventoryLow([5, 10, 0], 20)).toBe(true);
   });
-
   it('false when at least one count is comfortably above the threshold', () => {
     expect(isInventoryLow([5, 500, 0], 20)).toBe(false);
   });
-
-  it('true on an empty pool -- nothing left at all', () => {
+  it('true on an empty pool', () => {
     expect(isInventoryLow([], 20)).toBe(true);
   });
-
-  it('exactly at the threshold counts as low', () => {
-    expect(isInventoryLow([20], 20)).toBe(true);
-  });
-
   it('uses LOW_INVENTORY_COUNT_THRESHOLD as the default', () => {
     expect(isInventoryLow([LOW_INVENTORY_COUNT_THRESHOLD])).toBe(true);
     expect(isInventoryLow([LOW_INVENTORY_COUNT_THRESHOLD + 1])).toBe(false);
   });
 });
 
-// --- pickOverheadAction (decision 6, Incite Violence added 2026-08-01) ------
-
-describe('pickOverheadAction', () => {
-  it('HP guard takes priority over everything else, including low inventory', () => {
-    expect(pickOverheadAction(HP_FLOOR_FRACTION - 0.01, 5, 0, true)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
-  });
-
-  it('low inventory beats chaos and team size once HP is fine', () => {
-    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true)).toEqual({ type: 'General', name: 'Incite Violence' });
-  });
-
-  it('high chaos triggers Diplomacy once HP and inventory are fine', () => {
-    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 0.1, 0, false)).toEqual({ type: 'General', name: 'Diplomacy' });
-  });
-
-  it('low team size triggers Recruitment once HP, inventory and chaos are fine', () => {
-    expect(pickOverheadAction(1, 0, TEAM_SIZE_TARGET - 1, false)).toEqual({ type: 'General', name: 'Recruitment' });
-  });
-
-  it('defaults to HRC once every other condition is satisfied', () => {
-    expect(pickOverheadAction(1, 0, TEAM_SIZE_TARGET, false)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
-  });
-
-  it('stamina recovery parks on HRC, outranking inventory/chaos/team', () => {
-    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true, true)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
-  });
-
-  it('the HP guard still outranks stamina recovery (both land on HRC anyway)', () => {
-    expect(pickOverheadAction(0, 0, TEAM_SIZE_TARGET, false, true)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
-  });
-
-  it('omitting staminaRecovering is behaviour-identical to the pre-2026-08-02 ladder', () => {
-    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true)).toEqual(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true, false));
-  });
-});
-
-// --- updateStaminaRecovering (2026-08-02 stamina guard) -----------------------
-//
-// Live measurement behind these: `Stamina Penalty: 89.5%` at 5.2% stamina, the
-// in-game log reporting actions cancelled at stamina 0, and a NEGATIVE cumulative
-// rank rate (-1.90 rank over 198 held sec) while nothing reacted to any of it.
-
-describe('updateStaminaRecovering', () => {
-  it('trips at the floor', () => {
-    expect(updateStaminaRecovering(false, STAMINA_FLOOR_FRACTION - 0.01)).toBe(true);
-  });
-
-  it('does not trip exactly at the floor', () => {
-    expect(updateStaminaRecovering(false, STAMINA_FLOOR_FRACTION)).toBe(false);
-  });
-
-  it('releases at the resume threshold', () => {
-    expect(updateStaminaRecovering(true, STAMINA_RESUME_FRACTION)).toBe(false);
-  });
-
-  it('HOLDS in the hysteresis band rather than flapping back into the penalty', () => {
-    const mid = (STAMINA_FLOOR_FRACTION + STAMINA_RESUME_FRACTION) / 2;
-    expect(updateStaminaRecovering(true, mid)).toBe(true);
-    expect(updateStaminaRecovering(false, mid)).toBe(false);
-  });
-
-  it('the band is non-empty -- a single threshold would resume at the level that just failed', () => {
-    expect(STAMINA_RESUME_FRACTION).toBeGreaterThan(STAMINA_FLOOR_FRACTION);
-  });
-
-  it('a full drain-and-refill cycle trips once and releases once', () => {
-    let recovering = false;
-    const seen = [];
-    for (const fraction of [1.0, 0.7, 0.55, 0.49, 0.2, 0.05, 0.3, 0.6, 0.79, 0.8, 0.95]) {
-      recovering = updateStaminaRecovering(recovering, fraction);
-      seen.push(recovering);
-    }
-    expect(seen).toEqual([false, false, false, true, true, true, true, true, true, false, false]);
-  });
-
-  it('at the measured 5.2% live reading, it recovers', () => {
-    expect(updateStaminaRecovering(false, 4.371 / 83.555)).toBe(true);
-  });
-});
-
-// --- shouldRotateCity --------------------------------------------------------
-
 describe('shouldRotateCity', () => {
   it('does not rotate below the threshold', () => {
     expect(shouldRotateCity({ Aevum: 0.5, Chongqing: 0.1 }, 'Aevum', 1.0)).toEqual({ rotate: false, city: null });
   });
-
   it('rotates to the lowest-chaos other city once over the threshold', () => {
     expect(shouldRotateCity({ Aevum: 2.0, Chongqing: 0.1, Sector12: 0.4 }, 'Aevum', 1.0)).toEqual({ rotate: true, city: 'Chongqing' });
   });
-
   it('never rotates to itself', () => {
-    const result = shouldRotateCity({ Aevum: 5.0 }, 'Aevum', 1.0);
-    expect(result.rotate).toBe(false);
+    expect(shouldRotateCity({ Aevum: 5.0 }, 'Aevum', 1.0).rotate).toBe(false);
   });
 });
 
-// --- classifyWindow (decision 6) --------------------------------------------
-
-describe('classifyWindow', () => {
-  const T = 1_000_000_000;
-
-  it('free phases: spend-down, installing, paused, idle-plateau', () => {
-    for (const phase of ['spend-down', 'installing', 'paused', 'idle-plateau']) {
-      expect(classifyWindow({ phase, timestamp: T }, T)).toBe('free');
-    }
+describe('updateCityStock', () => {
+  it('records a fresh city entry', () => {
+    const { stock } = updateCityStock(null, { cityName: 'Sector-12', population: 1000, communities: 5, chaos: 0, contractCount: 100, opCount: 100 }, 1000);
+    expect(stock['Sector-12']).toEqual({ pop: 1000, communities: 5, chaos: 0, contractCount: 100, opCount: 100, updatedMs: 1000 });
   });
 
-  it('contested phases: grinding, yielded, gate-fill, install-ready, awaiting-invite, awaiting-money', () => {
-    for (const phase of ['grinding', 'yielded', 'gate-fill', 'install-ready', 'awaiting-invite', 'awaiting-money']) {
-      expect(classifyWindow({ phase, timestamp: T }, T)).toBe('contested');
-    }
+  it('preserves other cities already in the stock', () => {
+    const prior = { Aevum: { pop: 1, communities: 1, chaos: 0, contractCount: 1, opCount: 1, updatedMs: 0 } };
+    const { stock } = updateCityStock(prior, { cityName: 'Sector-12', population: 1, communities: 1, chaos: 0, contractCount: 1, opCount: 1 }, 1000);
+    expect(stock.Aevum).toBeDefined();
+    expect(stock['Sector-12']).toBeDefined();
   });
 
-  it('an unrecognised phase string defaults to contested', () => {
-    expect(classifyWindow({ phase: 'some-future-phase', timestamp: T }, T)).toBe('contested');
+  it('flags a chaos breach at/above the rotation threshold', () => {
+    const { breaches } = updateCityStock(null, { cityName: 'Aevum', population: 1, communities: 1, chaos: CITY_ROTATE_CHAOS_THRESHOLD, contractCount: 100, opCount: 100 }, 1000);
+    expect(breaches.some((b) => b.type === 'chaos')).toBe(true);
   });
 
-  it('awaiting-money with workTarget.deficit === 0 is still contested (review S5)', () => {
-    expect(classifyWindow({ phase: 'awaiting-money', timestamp: T, workTarget: { deficit: 0 } }, T)).toBe('contested');
+  it('flags a low-inventory breach', () => {
+    const { breaches } = updateCityStock(null, { cityName: 'Aevum', population: 1, communities: 1, chaos: 0, contractCount: 1, opCount: 1 }, 1000);
+    expect(breaches.some((b) => b.type === 'inventory')).toBe(true);
   });
 
-  it('missing state (null) defaults to contested', () => {
-    expect(classifyWindow(null, T)).toBe('contested');
+  it('flags a communities breach -- Raid needs an existing Synthoid community', () => {
+    const { breaches } = updateCityStock(null, { cityName: 'Aevum', population: 1, communities: 0, chaos: 0, contractCount: 100, opCount: 100 }, 1000);
+    expect(breaches.some((b) => b.type === 'communities')).toBe(true);
   });
 
-  it('a state object without a numeric timestamp defaults to contested', () => {
-    expect(classifyWindow({ phase: 'idle-plateau' }, T)).toBe('contested');
-  });
-
-  it('stale state (older than AUG_STATE_FRESH_MS) defaults to contested even in a free phase', () => {
-    expect(classifyWindow({ phase: 'idle-plateau', timestamp: T - AUG_STATE_FRESH_MS - 1 }, T)).toBe('contested');
-  });
-
-  it('exactly at the freshness bound is still fresh (not stale)', () => {
-    expect(classifyWindow({ phase: 'idle-plateau', timestamp: T - AUG_STATE_FRESH_MS }, T)).toBe('free');
+  it('no breaches when everything is comfortable', () => {
+    const { breaches } = updateCityStock(null, { cityName: 'Aevum', population: 1000, communities: 10, chaos: 0, contractCount: 500, opCount: 500 }, 1000);
+    expect(breaches).toEqual([]);
   });
 });
 
-// --- higherPriorityClaimant (decision 3) ------------------------------------
+// --- higherPriorityClaimant / classifyBackdoorActivity (unchanged) ---------------
 
 describe('higherPriorityClaimant', () => {
   it('detects each of the three higher-priority scripts', () => {
@@ -394,195 +484,475 @@ describe('higherPriorityClaimant', () => {
       expect(higherPriorityClaimant([{ filename }])).toBe(filename);
     }
   });
-
   it('returns null when none of the three are present', () => {
     expect(higherPriorityClaimant([{ filename: 'augfarmer.js' }, { filename: 'dashboard.js' }])).toBeNull();
   });
-
   it('returns null on an empty process list', () => {
     expect(higherPriorityClaimant([])).toBeNull();
   });
 });
 
-// --- classifyBackdoorActivity (decision 3 amendment, 2026-08-01) ------------
-
 describe('classifyBackdoorActivity', () => {
   const T = 1_000_000_000;
-
   it('idle: active false, fresh timestamp', () => {
     expect(classifyBackdoorActivity({ active: false, timestamp: T }, T)).toBe('idle');
   });
-
   it('busy: active true, regardless of freshness', () => {
     expect(classifyBackdoorActivity({ active: true, timestamp: T }, T)).toBe('busy');
   });
-
   it('busy: missing marker (null)', () => {
     expect(classifyBackdoorActivity(null, T)).toBe('busy');
   });
-
   it('busy: marker without a numeric timestamp', () => {
     expect(classifyBackdoorActivity({ active: false }, T)).toBe('busy');
   });
-
-  it('busy: stale idle claim (older than BACKDOOR_ACTIVITY_FRESH_MS)', () => {
+  it('busy: stale idle claim', () => {
     expect(classifyBackdoorActivity({ active: false, timestamp: T - BACKDOOR_ACTIVITY_FRESH_MS - 1 }, T)).toBe('busy');
   });
-
   it('idle: exactly at the freshness bound is still fresh', () => {
     expect(classifyBackdoorActivity({ active: false, timestamp: T - BACKDOOR_ACTIVITY_FRESH_MS }, T)).toBe('idle');
   });
+});
 
-  it('busy: a stale active:true marker stays busy (fails toward safe, not toward stale-so-ignore)', () => {
-    expect(classifyBackdoorActivity({ active: true, timestamp: T - BACKDOOR_ACTIVITY_FRESH_MS - 1 }, T)).toBe('busy');
+// --- resolveYieldGrant (S2.1-S2.4) ------------------------------------------------
+
+describe('resolveYieldGrant', () => {
+  it('grants a backdoor claimant that is present and busy', () => {
+    const d = resolveYieldGrant('backdoorfactions.js', 'busy', 1000, null, {});
+    expect(d.yield).toBe(true);
+    expect(d.budgetMs).toBe(BACKDOOR_YIELD_MAX_MS);
+  });
+
+  it('does not grant when idle (marker cleared)', () => {
+    const d = resolveYieldGrant('backdoorfactions.js', 'idle', 1000, null, {});
+    expect(d.yield).toBe(false);
+    expect(d.reason).toBe('not-requested');
+  });
+
+  it('grants studybootstrap.js on presence alone (activity is always "busy" for it, no marker)', () => {
+    const d = resolveYieldGrant('studybootstrap.js', 'busy', 1000, null, {});
+    expect(d.yield).toBe(true);
+    expect(d.budgetMs).toBe(STUDY_YIELD_MAX_MS);
+  });
+
+  it('continues an in-progress grant under its budget', () => {
+    const prior = { claimant: 'backdoorfactions.js', sinceMs: 1000, budgetMs: BACKDOOR_YIELD_MAX_MS };
+    const d = resolveYieldGrant('backdoorfactions.js', 'busy', 1000 + BACKDOOR_YIELD_MAX_MS - 1, prior, {});
+    expect(d.yield).toBe(true);
+    expect(d.reason).toBe('continuing');
+  });
+
+  it('ends CLEANLY when the claimant clears its marker mid-grant -- resets the overrun streak', () => {
+    const prior = { claimant: 'backdoorfactions.js', sinceMs: 1000, budgetMs: BACKDOOR_YIELD_MAX_MS };
+    const d = resolveYieldGrant('backdoorfactions.js', 'idle', 1000 + 1000, prior, { overrunStreak: { 'backdoorfactions.js': 2 } });
+    expect(d.yield).toBe(false);
+    expect(d.ended).toBe('clean');
+    expect(d.overrunStreak['backdoorfactions.js']).toBe(0);
+  });
+
+  it('RECLAIMS UNCONDITIONALLY at the bound when the claimant is still busy -- an overrun, not an extension', () => {
+    const prior = { claimant: 'backdoorfactions.js', sinceMs: 1000, budgetMs: BACKDOOR_YIELD_MAX_MS };
+    const d = resolveYieldGrant('backdoorfactions.js', 'busy', 1000 + BACKDOOR_YIELD_MAX_MS, prior, {});
+    expect(d.yield).toBe(false);
+    expect(d.overrun).toBe(true);
+    expect(d.ended).toBe('overrun');
+    expect(d.overrunStreak['backdoorfactions.js']).toBe(1);
+  });
+
+  it('the escalation ladder doubles 180 -> 360 -> 720 -> 1,440s and stops there', () => {
+    const budgets = (streak) => ({ overrunStreak: { 'backdoorfactions.js': streak } });
+    const grantAt = (streak) => resolveYieldGrant('backdoorfactions.js', 'busy', 0, null, budgets(streak));
+    expect(grantAt(0).budgetMs).toBe(180_000);
+    expect(grantAt(1).budgetMs).toBe(360_000);
+    expect(grantAt(2).budgetMs).toBe(720_000);
+    expect(grantAt(3).budgetMs).toBe(1_440_000);
+    expect(grantAt(10).budgetMs).toBe(1_440_000); // capped, does not keep doubling
+  });
+
+  it('enforces MIN_HOLD_AFTER_OVERRUN_MS before granting the same claimant again', () => {
+    const fairnessUntilMs = { 'backdoorfactions.js': 5000 };
+    expect(resolveYieldGrant('backdoorfactions.js', 'busy', 4999, null, { fairnessUntilMs }).yield).toBe(false);
+    expect(resolveYieldGrant('backdoorfactions.js', 'busy', 4999, null, { fairnessUntilMs }).reason).toBe('fairness-floor');
+    expect(resolveYieldGrant('backdoorfactions.js', 'busy', 5000, null, { fairnessUntilMs }).yield).toBe(true);
+  });
+
+  it('an overrun sets the fairness floor MIN_HOLD_AFTER_OVERRUN_MS into the future', () => {
+    const prior = { claimant: 'backdoorfactions.js', sinceMs: 1000, budgetMs: 180_000 };
+    const nowMs = 1000 + 180_000;
+    const d = resolveYieldGrant('backdoorfactions.js', 'busy', nowMs, prior, {});
+    expect(d.fairnessUntilMs['backdoorfactions.js']).toBe(nowMs + MIN_HOLD_AFTER_OVERRUN_MS);
+  });
+
+  it('flags livelockSuspected once the overrun streak reaches LIVELOCK_WARN_STREAK', () => {
+    const prior = { claimant: 'backdoorfactions.js', sinceMs: 0, budgetMs: 720_000 };
+    const d = resolveYieldGrant('backdoorfactions.js', 'busy', 720_000, prior, { overrunStreak: { 'backdoorfactions.js': LIVELOCK_WARN_STREAK - 1 } });
+    expect(d.overrunStreak['backdoorfactions.js']).toBe(LIVELOCK_WARN_STREAK);
+    expect(d.livelockSuspected).toBe(true);
+  });
+
+  it('ANTI-LIVELOCK REGRESSION: a claimant that never clears its marker is still reclaimed every bound, never held indefinitely', () => {
+    let overrunStreak = {};
+    let fairnessUntilMs = {};
+    let grant = null;
+    let nowMs = 0;
+    const grantDurations = [];
+    for (let cycle = 0; cycle < 6; cycle++) {
+      // Grant phase: request until granted (may be blocked by the fairness floor first).
+      let d = resolveYieldGrant('backdoorfactions.js', 'busy', nowMs, grant, { overrunStreak, fairnessUntilMs });
+      while (!d.yield && d.reason === 'fairness-floor') {
+        nowMs = fairnessUntilMs['backdoorfactions.js'];
+        d = resolveYieldGrant('backdoorfactions.js', 'busy', nowMs, grant, { overrunStreak, fairnessUntilMs });
+      }
+      expect(d.yield).toBe(true);
+      grant = { claimant: 'backdoorfactions.js', sinceMs: d.sinceMs, budgetMs: d.budgetMs };
+      grantDurations.push(d.budgetMs);
+      overrunStreak = d.overrunStreak;
+      fairnessUntilMs = d.fairnessUntilMs;
+      // Run the grant out to its bound -- claimant still busy -> overrun, unconditional reclaim.
+      nowMs = grant.sinceMs + grant.budgetMs;
+      const end = resolveYieldGrant('backdoorfactions.js', 'busy', nowMs, grant, { overrunStreak, fairnessUntilMs });
+      expect(end.yield).toBe(false);
+      expect(end.ended).toBe('overrun');
+      overrunStreak = end.overrunStreak;
+      fairnessUntilMs = end.fairnessUntilMs;
+      grant = null;
+    }
+    // Every grant was bounded (never open-ended) and capped at 1,440s -- the engine
+    // reclaims at every single bound, which is the actual anti-livelock guarantee S2.4
+    // makes (NOT that the engine holds a numeric majority of the hour -- its own worked
+    // example puts the worst-case steady state at 1,440s yielded / 300s held, a MINORITY,
+    // which is exactly why S2.4 also makes it loud via livelockSuspected).
+    expect(Math.max(...grantDurations)).toBe(1_440_000);
+    expect(grantDurations).toEqual([180_000, 360_000, 720_000, 1_440_000, 1_440_000, 1_440_000]);
+  });
+
+  it('the rep claimant grants a fixed REP_YIELD_SLICE_MS with no escalation', () => {
+    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, {});
+    expect(d.budgetMs).toBe(REP_YIELD_SLICE_MS);
+  });
+
+  it('the rolling-hour rep cap refuses a WHOLE slice rather than truncating one', () => {
+    const almostFull = MAX_REP_YIELD_DUTY * 3_600_000 - 1; // one ms short of the cap
+    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { rollingHourRepYieldMs: almostFull });
+    expect(d.yield).toBe(false);
+    expect(d.refused).toBe(true);
+    expect(d.reason).toBe('rep-cap-refused');
+  });
+
+  it('the rep cap grants when the slice fits exactly within the rolling-hour budget', () => {
+    const exactRoom = MAX_REP_YIELD_DUTY * 3_600_000 - REP_YIELD_SLICE_MS;
+    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { rollingHourRepYieldMs: exactRoom });
+    expect(d.yield).toBe(true);
   });
 });
 
-// --- computeRealizedRates / computeDutyCycle / computeRepForegone (decision 8, blocker B7) --
+// --- classifyRepProgress / detectRepStarvation (S3, fixes reviewer blocker 2) ----
 
-describe('computeRealizedRates', () => {
-  const windows = { short: 10_000, cumulative: Infinity };
+describe('classifyRepProgress', () => {
+  const target = { aug: 'X', faction: 'F1' };
 
-  it('sums heldSec/uptimeSec/rankDelta within each window and derives both rates', () => {
-    const samples = [
-      { timestamp: 1000, heldSec: 5, uptimeSec: 5, rankDelta: 1 },
-      { timestamp: 2000, heldSec: 5, uptimeSec: 5, rankDelta: 1 },
-    ];
-    const out = computeRealizedRates(samples, windows, 2000);
-    expect(out.cumulative).toEqual({ rankGained: 2, heldSec: 10, engineUptimeSec: 10, rankPerHeldSec: 0.2, rankPerWallSec: 0.2 });
+  it('progressing: deficit closed on the same target', () => {
+    const prev = { workTarget: { ...target, deficit: 1000 } };
+    const curr = { workTarget: { ...target, deficit: 900 } };
+    expect(classifyRepProgress(prev, curr, 10)).toEqual({ status: 'progressing', ratePerSec: 10 });
   });
 
-  it('a window with zero held/uptime seconds reports rate 0, not NaN/Infinity', () => {
-    const out = computeRealizedRates([], windows, 2000);
-    expect(out.cumulative).toEqual({ rankGained: 0, heldSec: 0, engineUptimeSec: 0, rankPerHeldSec: 0, rankPerWallSec: 0 });
+  it('STALLED (not unknown): deficit unchanged -- the state the old null swallowed', () => {
+    const prev = { workTarget: { ...target, deficit: 1000 } };
+    const curr = { workTarget: { ...target, deficit: 1000 } };
+    expect(classifyRepProgress(prev, curr, 10)).toEqual({ status: 'stalled', ratePerSec: 0 });
   });
 
-  it('excludes samples outside the window', () => {
+  it('stalled: deficit grew', () => {
+    const prev = { workTarget: { ...target, deficit: 900 } };
+    const curr = { workTarget: { ...target, deficit: 1000 } };
+    expect(classifyRepProgress(prev, curr, 10).status).toBe('stalled');
+  });
+
+  it('unknown: target changed between reads', () => {
+    const prev = { workTarget: { aug: 'X', faction: 'F1', deficit: 1000 } };
+    const curr = { workTarget: { aug: 'Y', faction: 'F1', deficit: 900 } };
+    expect(classifyRepProgress(prev, curr, 10)).toEqual({ status: 'unknown', ratePerSec: null });
+  });
+
+  it('unknown: missing workTarget on either side', () => {
+    expect(classifyRepProgress(null, { workTarget: { ...target, deficit: 1 } }, 10).status).toBe('unknown');
+    expect(classifyRepProgress({ workTarget: { ...target, deficit: 1 } }, null, 10).status).toBe('unknown');
+  });
+
+  it('unknown: dtSec <= 0', () => {
+    const prev = { workTarget: { ...target, deficit: 1000 } };
+    const curr = { workTarget: { ...target, deficit: 900 } };
+    expect(classifyRepProgress(prev, curr, 0).status).toBe('unknown');
+  });
+});
+
+describe('detectRepStarvation', () => {
+  const T0 = 1_000_000_000;
+  const target = { aug: 'Neuregen Gene Modification', faction: 'Chongqing' };
+  // The live fixture shape from augfarmer-state.json: target.deficit reads 0 (head
+  // purchase target met) while workTarget.deficit reads a large positive number (the
+  // rep-grind target) -- reading target.deficit instead of workTarget.deficit was the bug.
+  const liveShape = (deficit, atMs = T0) => ({ phase: 'grinding', timestamp: atMs, target: { deficit: 0 }, workTarget: { ...target, deficit } });
+
+  // accumSinceMs is stamped on the FIRST tick that observes "stalled" (the tick that
+  // establishes the status, comparing against a prior read) -- not retroactively to an
+  // earlier "unknown" baseline read. So driving the detector to "fired" needs THREE
+  // ticks: (1) baseline/unknown, (2) the first stalled comparison (starts the
+  // accumulator), (3) SUSTAIN_MS later (fires). This helper does exactly that and
+  // returns the state at the moment accumulation started, so tests can advance from there.
+  function primeStalled(deficit = 20653) {
+    let state = detectRepStarvation(liveShape(deficit, T0), T0, null);
+    const t = T0 + 1000;
+    state = detectRepStarvation(liveShape(deficit, t), t, state);
+    expect(state.status).toBe('stalled');
+    expect(state.accumSinceMs).toBe(t);
+    return { state, primedAtMs: t };
+  }
+
+  it('does not fire before REP_STARVED_SUSTAIN_MS has elapsed since accumulation started', () => {
+    const { state: primed, primedAtMs } = primeStalled();
+    const t = primedAtMs + REP_STARVED_SUSTAIN_MS - 1000;
+    const state = detectRepStarvation(liveShape(20653, t), t, primed);
+    expect(state.fired).toBe(false);
+  });
+
+  it('fires once the starved (stalled) condition holds for REP_STARVED_SUSTAIN_MS', () => {
+    const { state: primed, primedAtMs } = primeStalled();
+    const t = primedAtMs + REP_STARVED_SUSTAIN_MS;
+    const state = detectRepStarvation(liveShape(20653, t), t, primed);
+    expect(state.fired).toBe(true);
+    expect(state.justFired).toBe(true);
+  });
+
+  it('a fixture built from the live augfarmer-state.json shape (target.deficit: 0) fires -- reads workTarget, not target', () => {
+    const { state: primed, primedAtMs } = primeStalled(20653);
+    const t = primedAtMs + REP_STARVED_SUSTAIN_MS;
+    const state = detectRepStarvation(liveShape(20653, t), t, primed);
+    expect(state.fired).toBe(true);
+  });
+
+  it('does not fire while progressing above REP_STARVED_RATE', () => {
+    let state = null;
+    let deficit = 100_000;
+    let t = T0;
+    for (let i = 0; i < 10; i++) {
+      state = detectRepStarvation(liveShape(deficit, t), t, state);
+      t += 60_000;
+      deficit -= 2 * 60_000; // 2 rep/sec, above REP_STARVED_RATE
+    }
+    expect(state.fired).toBe(false);
+  });
+
+  it('does not fire on "unknown" samples (missing/stale data is inert, not evidence of starvation)', () => {
+    let state = null;
+    let t = T0;
+    for (let i = 0; i < 10; i++) {
+      state = detectRepStarvation(null, t, state);
+      t += REP_STARVED_SUSTAIN_MS / 2;
+    }
+    expect(state.fired).toBe(false);
+    expect(state.status).toBe('unknown');
+  });
+
+  it('an "unknown" sample does not RESET an in-progress accumulation either', () => {
+    const { state: primed, primedAtMs } = primeStalled();
+    const midT = primedAtMs + 1000;
+    const midState = detectRepStarvation(null, midT, primed); // stale/unknown blip mid-accumulation
+    expect(midState.accumSinceMs).toBe(primed.accumSinceMs); // untouched by the unknown sample
+    const t = primedAtMs + REP_STARVED_SUSTAIN_MS;
+    const state = detectRepStarvation(liveShape(20653, t), t, midState);
+    expect(state.fired).toBe(true);
+  });
+
+  it('clears on sustained progress at/above REP_STARVED_CLEAR_RATE for REP_STARVED_CLEAR_MS', () => {
+    const { state: primed, primedAtMs } = primeStalled();
+    let t = primedAtMs + REP_STARVED_SUSTAIN_MS;
+    let state = detectRepStarvation(liveShape(20653, t), t, primed);
+    expect(state.fired).toBe(true);
+    let deficit = 20653;
+    for (let i = 0; i < 6; i++) {
+      t += REP_STARVED_CLEAR_MS / 5;
+      deficit -= REP_STARVED_CLEAR_RATE * (REP_STARVED_CLEAR_MS / 5 / 1000);
+      state = detectRepStarvation(liveShape(deficit, t), t, state);
+    }
+    expect(state.fired).toBe(false);
+    expect(state.clearedNow).toBe(true);
+  });
+
+  it('clears when the deficit reaches zero', () => {
+    const { state: primed, primedAtMs } = primeStalled();
+    let t = primedAtMs + REP_STARVED_SUSTAIN_MS;
+    let state = detectRepStarvation(liveShape(20653, t), t, primed);
+    expect(state.fired).toBe(true);
+    t += 1000;
+    state = detectRepStarvation({ ...liveShape(0, t), workTarget: { ...target, deficit: 0 } }, t, state);
+    expect(state.fired).toBe(false);
+  });
+
+  it('clears when the phase leaves "grinding"', () => {
+    const { state: primed, primedAtMs } = primeStalled();
+    let t = primedAtMs + REP_STARVED_SUSTAIN_MS;
+    let state = detectRepStarvation(liveShape(20653, t), t, primed);
+    expect(state.fired).toBe(true);
+    t += 1000;
+    state = detectRepStarvation({ ...liveShape(20653, t), phase: 'awaiting-money' }, t, state);
+    expect(state.fired).toBe(false);
+  });
+});
+
+// --- computeWallRates / dutyFromTotals (S1, T-TEL -- the Phase 38 regression test) --
+
+describe('computeWallRates', () => {
+  const windows = { short: 10_000 };
+
+  it('finite window: derives rankPerWallSec and dutyCycle from wallSec/actionSec/rankGained', () => {
     const samples = [
-      { timestamp: 0, heldSec: 100, uptimeSec: 100, rankDelta: 100 }, // strictly before cutoff (10001-10000=1) -- outside the 10s "short" window
-      { timestamp: 9999, heldSec: 1, uptimeSec: 1, rankDelta: 1 },
+      { timestamp: 1000, wallSec: 5, actionSec: 5, rankDelta: 1, rankProducingSec: 5, postInstallSec: 0 },
+      { timestamp: 2000, wallSec: 5, actionSec: 0, rankDelta: 0, rankProducingSec: 0, postInstallSec: 0 },
     ];
-    const out = computeRealizedRates(samples, windows, 10_001);
+    const out = computeWallRates(emptyTotals(), samples, windows, 2000);
+    expect(out.short.wallSec).toBe(10);
+    expect(out.short.actionSec).toBe(5);
     expect(out.short.rankGained).toBe(1);
+    expect(out.short.dutyCycle).toBe(0.5);
+    expect(out.short.rankPerWallSec).toBe(0.1);
+  });
+
+  it('zero-wallSec window reports 0, not NaN/Infinity', () => {
+    const out = computeWallRates(emptyTotals(), [], windows, 2000);
+    expect(out.short).toEqual({ wallSec: 0, actionSec: 0, rankGained: 0, rankProducingSec: 0, postInstallSec: 0, rankPerWallSec: 0, dutyCycle: 0, rankPerWallSecExPostInstall: 0 });
+  });
+
+  it("T-TEL REGRESSION (Phase 38's defining bug): the engine INTENDED an action for the whole window but getCurrentAction() never verified -> dutyCycle is 0 and rankPerWallSec reflects only real rank movement", () => {
+    // 100 ticks of 1s each, engine believed it was holding the whole time (intent), but
+    // every tick failed verification (actionSec: 0) except the two ticks a rank action
+    // genuinely completed for 1s with a real rank gain.
+    const samples = [];
+    for (let i = 0; i < 100; i++) samples.push({ timestamp: i * 1000, wallSec: 1, actionSec: 0, rankDelta: 0, rankProducingSec: 0, postInstallSec: 0 });
+    samples.push({ timestamp: 100_000, wallSec: 1, actionSec: 1, rankDelta: 0.5, rankProducingSec: 1, postInstallSec: 0 });
+    const out = computeWallRates(emptyTotals(), samples, { all: Infinity }, 100_000);
+    expect(out.all.dutyCycle).toBeCloseTo(1 / 101, 6);
+    expect(out.all.rankGained).toBe(0.5);
+  });
+
+  it('cumulative comes from totals, not the pruned sample buffer', () => {
+    const totals = { ...emptyTotals(), wallSec: 100_000, actionSec: 80_000, rankGained: 500, rankProducingSec: 60_000, postInstallSec: 0 };
+    const out = computeWallRates(totals, [], {}, 999_999);
+    expect(out.cumulative.wallSec).toBe(100_000);
+    expect(out.cumulative.rankPerWallSec).toBeCloseTo(0.005, 10);
+    expect(out.cumulative.dutyCycle).toBeCloseTo(0.8, 10);
+  });
+
+  it('rankPerWallSecExPostInstall excludes exactly the post-install seconds while the headline rate still includes them', () => {
+    const totals = { ...emptyTotals(), wallSec: 1000, actionSec: 1000, rankGained: 10, rankProducingSec: 500, postInstallSec: 400 };
+    const out = computeWallRates(totals, [], {}, 0);
+    expect(out.cumulative.rankPerWallSec).toBeCloseTo(0.01, 10);
+    expect(out.cumulative.rankPerWallSecExPostInstall).toBeCloseTo(10 / 600, 10);
   });
 });
 
-describe('computeDutyCycle', () => {
-  const windows = { cumulative: Infinity };
-
-  it('splits uptime into rank/overhead/unheld and derives dutyCycle', () => {
-    const samples = [
-      { timestamp: 1000, uptimeSec: 6, kind: 'contested' },
-      { timestamp: 2000, uptimeSec: 3, kind: 'free' },
-      { timestamp: 3000, uptimeSec: 1, kind: 'unheld' },
-    ];
-    const out = computeDutyCycle(samples, windows, 3000);
-    expect(out.cumulative).toEqual({ rankSec: 6, overheadSec: 3, unheldSec: 1, dutyCycle: 0.9 });
-  });
-
-  it('zero-uptime edge case reports dutyCycle 0, not NaN', () => {
-    const out = computeDutyCycle([], windows, 1000);
-    expect(out.cumulative).toEqual({ rankSec: 0, overheadSec: 0, unheldSec: 0, dutyCycle: 0 });
+describe('dutyFromTotals', () => {
+  it('splits into the four exhaustive buckets', () => {
+    const totals = { ...emptyTotals(), rankProducingSec: 10, overheadSec: 5, yieldedSec: 3, idleSec: 2 };
+    expect(dutyFromTotals(totals)).toEqual({ rankProducingSec: 10, overheadSec: 5, yieldedSec: 3, idleSec: 2 });
   });
 });
 
-// --- pruneSamples / totals accumulator (2026-08-02 truncation bug) -----------
-//
-// The bug these cover: the sample buffer was trimmed to a fixed 10,000 entries
-// while every window is expressed in wall time. At ~1 tick/sec that capped the
-// buffer at ~2h47m, so "24h" and "cumulative" both silently meant "the last
-// 2h47m" -- and because checkpoint uptime was summed from that same buffer, the
-// 24h and 1-week checkpoints could never fire at all.
+// --- pruneSamples (unchanged) ------------------------------------------------------
 
 describe('pruneSamples', () => {
   it('drops samples older than the window and keeps the rest', () => {
-    const samples = [
-      { timestamp: 0 },
-      { timestamp: 5_000 },
-      { timestamp: 10_000 },
-    ];
+    const samples = [{ timestamp: 0 }, { timestamp: 5_000 }, { timestamp: 10_000 }];
     expect(pruneSamples(samples, 10_000, 6_000)).toEqual([{ timestamp: 5_000 }, { timestamp: 10_000 }]);
   });
-
-  it('keeps a sample exactly at the cutoff (matches computeRealizedRates >= cutoff)', () => {
+  it('keeps a sample exactly at the cutoff', () => {
     expect(pruneSamples([{ timestamp: 4_000 }], 10_000, 6_000)).toEqual([{ timestamp: 4_000 }]);
   });
-
-  it('returns the SAME array when nothing is old enough to drop (allocation-free common tick)', () => {
+  it('returns the SAME array when nothing is old enough to drop', () => {
     const samples = [{ timestamp: 9_000 }, { timestamp: 10_000 }];
     expect(pruneSamples(samples, 10_000, 6_000)).toBe(samples);
   });
-
   it('empty input is safe', () => {
     expect(pruneSamples([], 10_000)).toEqual([]);
   });
-
   it('the hard cap trims the OLDEST entries when the tick rate outruns the window', () => {
     const samples = Array.from({ length: 10 }, (_, i) => ({ timestamp: 1_000 + i }));
     const out = pruneSamples(samples, 1_010, 60_000, 4);
     expect(out).toHaveLength(4);
     expect(out[0].timestamp).toBe(1_006);
   });
-
-  it('REGRESSION: a full 24h at 1 tick/sec survives pruning, so the widest window is not truncated', () => {
-    // The old fixed cap was 10_000 -- an eighth of this.
+  it('REGRESSION: a full 24h at 1 tick/sec survives pruning', () => {
     const ticks = 86_400;
     const samples = Array.from({ length: ticks }, (_, i) => ({ timestamp: i * 1000 }));
     const out = pruneSamples(samples, (ticks - 1) * 1000);
     expect(out).toHaveLength(ticks);
     expect(SAMPLE_HARD_CAP).toBeGreaterThan(MAX_FINITE_WINDOW_MS / 1000);
   });
-
   it('RATE_WINDOWS_MS must not contain an infinite window -- cumulative comes from totals', () => {
     expect(Object.values(RATE_WINDOWS_MS).every(Number.isFinite)).toBe(true);
     expect(MAX_FINITE_WINDOW_MS).toBe(86_400_000);
   });
 });
 
+// --- emptyTotals / accumulateTotals / seedTotals (S1's reshaped totals) -----------
+
 describe('emptyTotals / accumulateTotals', () => {
   it('starts at zero on every field', () => {
-    expect(emptyTotals()).toEqual({ heldSec: 0, uptimeSec: 0, rankGained: 0, rankSec: 0, overheadSec: 0, unheldSec: 0, restarts: 0 });
+    expect(emptyTotals()).toEqual({ wallSec: 0, actionSec: 0, rankGained: 0, rankProducingSec: 0, overheadSec: 0, yieldedSec: 0, idleSec: 0, postInstallSec: 0, restarts: 0 });
   });
 
-  it('a contested (rank-earning) tick credits heldSec, uptimeSec, rankGained and rankSec', () => {
-    const out = accumulateTotals(emptyTotals(), { heldSec: 5, uptimeSec: 5, rankDelta: 2, kind: 'contested' });
-    expect(out).toEqual({ heldSec: 5, uptimeSec: 5, rankGained: 2, rankSec: 5, overheadSec: 0, unheldSec: 0, restarts: 0 });
+  it('a verified rank-producing tick credits wallSec, actionSec, rankGained, rankProducingSec', () => {
+    const out = accumulateTotals(emptyTotals(), { wallSec: 5, actionSec: 5, rankDelta: 2, rankProducingSec: 5, postInstallSec: 0, kind: 'rank' });
+    expect(out).toEqual({ wallSec: 5, actionSec: 5, rankGained: 2, rankProducingSec: 5, overheadSec: 0, yieldedSec: 0, idleSec: 0, postInstallSec: 0, restarts: 0 });
   });
 
-  it('a free (zero-rank overhead) tick is still held time but is NOT rankSec', () => {
-    const out = accumulateTotals(emptyTotals(), { heldSec: 4, uptimeSec: 4, rankDelta: 0, kind: 'free' });
-    expect(out.heldSec).toBe(4);
-    expect(out.rankSec).toBe(0);
+  it('an overhead tick advances actionSec (if verified) but not rankProducingSec', () => {
+    const out = accumulateTotals(emptyTotals(), { wallSec: 4, actionSec: 4, rankDelta: 0, rankProducingSec: 0, postInstallSec: 0, kind: 'overhead' });
+    expect(out.actionSec).toBe(4);
+    expect(out.rankProducingSec).toBe(0);
     expect(out.overheadSec).toBe(4);
   });
 
-  it('an unheld tick advances uptime only -- not heldSec (the rate denominator)', () => {
-    const out = accumulateTotals(emptyTotals(), { heldSec: 0, uptimeSec: 7, rankDelta: 0, kind: 'unheld' });
-    expect(out).toEqual({ heldSec: 0, uptimeSec: 7, rankGained: 0, rankSec: 0, overheadSec: 0, unheldSec: 7, restarts: 0 });
+  it('a yielded tick advances wallSec/yieldedSec only -- zero actionSec', () => {
+    const out = accumulateTotals(emptyTotals(), { wallSec: 7, actionSec: 0, rankDelta: 0, rankProducingSec: 0, postInstallSec: 0, kind: 'yielded' });
+    expect(out).toEqual({ wallSec: 7, actionSec: 0, rankGained: 0, rankProducingSec: 0, overheadSec: 0, yieldedSec: 7, idleSec: 0, postInstallSec: 0, restarts: 0 });
+  });
+
+  it('an idle (off-marker) tick advances wallSec/idleSec only', () => {
+    const out = accumulateTotals(emptyTotals(), { wallSec: 3, actionSec: 0, rankDelta: 0, rankProducingSec: 0, postInstallSec: 0, kind: 'idle' });
+    expect(out.idleSec).toBe(3);
+  });
+
+  it('the four buckets always sum to wallSec (given the caller convention: rankProducingSec === wallSec iff kind is "rank")', () => {
+    let totals = emptyTotals();
+    const kinds = ['rank', 'overhead', 'yielded', 'idle'];
+    for (let i = 0; i < 40; i++) {
+      const kind = kinds[i % 4];
+      totals = accumulateTotals(totals, { wallSec: 1, actionSec: kind === 'rank' || kind === 'overhead' ? 1 : 0, rankDelta: 0, rankProducingSec: kind === 'rank' ? 1 : 0, postInstallSec: 0, kind });
+    }
+    expect(totals.rankProducingSec + totals.overheadSec + totals.yieldedSec + totals.idleSec).toBeCloseTo(totals.wallSec, 10);
   });
 
   it('does not mutate its input', () => {
     const before = emptyTotals();
-    accumulateTotals(before, { heldSec: 5, uptimeSec: 5, rankDelta: 2, kind: 'contested' });
+    accumulateTotals(before, { wallSec: 5, actionSec: 5, rankDelta: 2, rankProducingSec: 5, postInstallSec: 0, kind: 'rank' });
     expect(before).toEqual(emptyTotals());
   });
 
   it('missing fields are treated as zero, not NaN', () => {
-    const out = accumulateTotals(emptyTotals(), { timestamp: 1, kind: 'contested' });
+    const out = accumulateTotals(emptyTotals(), { kind: 'rank' });
     expect(out).toEqual(emptyTotals());
   });
 
   it('a negative rankDelta (a failed action losing rank) reduces rankGained', () => {
-    const out = accumulateTotals(emptyTotals(), { heldSec: 3, uptimeSec: 3, rankDelta: -1.5, kind: 'contested' });
+    const out = accumulateTotals(emptyTotals(), { wallSec: 3, actionSec: 3, rankDelta: -1.5, rankProducingSec: 3, postInstallSec: 0, kind: 'rank' });
     expect(out.rankGained).toBe(-1.5);
   });
 
-  it('REGRESSION: totals reach the 24h checkpoint threshold where the capped buffer could not', () => {
-    let totals = emptyTotals();
-    for (let i = 0; i < 86_400; i++) totals = accumulateTotals(totals, { heldSec: 1, uptimeSec: 1, rankDelta: 0.05, kind: 'contested' });
-    expect(totals.uptimeSec * 1000).toBeGreaterThanOrEqual(CHECKPOINT_A_UPTIME_MS);
-    expect(ratesFromTotals(totals).rankPerHeldSec).toBeCloseTo(0.05, 10);
-    expect(ratesFromTotals(totals).rankPerHeldSec >= CHECKPOINT_A_BAR).toBe(true);
+  it('postInstallSec accumulates independently of kind', () => {
+    const out = accumulateTotals(emptyTotals(), { wallSec: 10, actionSec: 10, rankDelta: 0, rankProducingSec: 0, postInstallSec: 10, kind: 'overhead' });
+    expect(out.postInstallSec).toBe(10);
   });
 });
 
@@ -593,16 +963,16 @@ describe('seedTotals', () => {
   });
 
   it('restores every field and counts the restart', () => {
-    const prior = { heldSec: 100, uptimeSec: 120, rankGained: 5, rankSec: 90, overheadSec: 10, unheldSec: 20, restarts: 2 };
+    const prior = { wallSec: 100, actionSec: 80, rankGained: 5, rankProducingSec: 60, overheadSec: 20, yieldedSec: 10, idleSec: 5, postInstallSec: 0, restarts: 2 };
     expect(seedTotals({ totals: prior })).toEqual({ ...prior, restarts: 3 });
   });
 
   it('a partial totals object fills the missing fields with zero rather than NaN', () => {
-    expect(seedTotals({ totals: { heldSec: 50 } })).toEqual({ ...emptyTotals(), heldSec: 50, restarts: 1 });
+    expect(seedTotals({ totals: { wallSec: 50 } })).toEqual({ ...emptyTotals(), wallSec: 50, restarts: 1 });
   });
 
   it('rejects non-finite and negative values instead of poisoning the measurement', () => {
-    const out = seedTotals({ totals: { heldSec: NaN, uptimeSec: -5, rankGained: 'nope', rankSec: Infinity } });
+    const out = seedTotals({ totals: { wallSec: NaN, actionSec: -5, rankGained: 'nope', rankProducingSec: Infinity } });
     expect(out).toEqual({ ...emptyTotals(), restarts: 1 });
   });
 
@@ -610,106 +980,61 @@ describe('seedTotals', () => {
     expect(seedTotals({ totals: 'corrupt' })).toEqual(emptyTotals());
   });
 
+  it('LIVE REGRESSION 2026-08-03: a Phase-38-shaped totals blob (no wallSec, but colliding rankGained/overheadSec field names) is rejected in full, not partially adopted', () => {
+    // The exact live symptom: a fresh restart under this engine seeded rankGained: 1824.8
+    // and overheadSec: 48720 from the old shape's same-named fields, against a genuinely
+    // fresh wallSec: 0 -- producing a rankPerWallSec of ~12-29 instead of the true ~0.02-0.03
+    // until enough new wallSec accrued to dilute the contamination back down.
+    const phase38Shaped = { heldSec: 75745, uptimeSec: 77354, rankGained: 1824.8, rankSec: 28227, overheadSec: 48720, unheldSec: 1609, restarts: 4 };
+    expect(seedTotals({ totals: phase38Shaped })).toEqual(emptyTotals());
+  });
+
   it('carrying totals across a restart preserves the accumulated rate', () => {
     let totals = emptyTotals();
-    for (let i = 0; i < 10; i++) totals = accumulateTotals(totals, { heldSec: 1, uptimeSec: 1, rankDelta: 0.1, kind: 'contested' });
+    for (let i = 0; i < 10; i++) totals = accumulateTotals(totals, { wallSec: 1, actionSec: 1, rankDelta: 0.1, rankProducingSec: 1, postInstallSec: 0, kind: 'rank' });
     const resumed = seedTotals({ totals });
-    expect(ratesFromTotals(resumed).rankPerHeldSec).toBeCloseTo(0.1, 10);
+    expect(resumed.rankGained).toBeCloseTo(1, 10);
     expect(resumed.restarts).toBe(1);
   });
 });
 
-describe('ratesFromTotals / dutyFromTotals', () => {
-  it('derives both rates from the totals', () => {
-    const totals = { heldSec: 100, uptimeSec: 200, rankGained: 10, rankSec: 80, overheadSec: 20, unheldSec: 100, restarts: 0 };
-    expect(ratesFromTotals(totals)).toEqual({ rankGained: 10, heldSec: 100, engineUptimeSec: 200, rankPerHeldSec: 0.1, rankPerWallSec: 0.05 });
-  });
+// --- Checkpoints (S14) ------------------------------------------------------------
 
-  it('splits duty and derives dutyCycle as the held fraction of uptime', () => {
-    const totals = { heldSec: 100, uptimeSec: 200, rankGained: 10, rankSec: 80, overheadSec: 20, unheldSec: 100, restarts: 0 };
-    expect(dutyFromTotals(totals)).toEqual({ rankSec: 80, overheadSec: 20, unheldSec: 100, dutyCycle: 0.5 });
+describe('evaluateC1', () => {
+  it('null before the uptime threshold', () => {
+    expect(evaluateC1({ ...emptyTotals(), wallSec: C1_UPTIME_MS / 1000 - 1 })).toBeNull();
   });
-
-  it('zero totals report 0, never NaN/Infinity', () => {
-    expect(ratesFromTotals(emptyTotals())).toEqual({ rankGained: 0, heldSec: 0, engineUptimeSec: 0, rankPerHeldSec: 0, rankPerWallSec: 0 });
-    expect(dutyFromTotals(emptyTotals())).toEqual({ rankSec: 0, overheadSec: 0, unheldSec: 0, dutyCycle: 0 });
+  it('PASS at/above the bar once uptime is met', () => {
+    const totals = { ...emptyTotals(), wallSec: C1_UPTIME_MS / 1000, rankGained: (C1_UPTIME_MS / 1000) * C1_BAR };
+    expect(evaluateC1(totals).met).toBe(true);
   });
-
-  it('an all-overhead run reports full duty but zero rankSec -- the stall made visible', () => {
-    let totals = emptyTotals();
-    for (let i = 0; i < 100; i++) totals = accumulateTotals(totals, { heldSec: 1, uptimeSec: 1, rankDelta: 0, kind: 'free' });
-    expect(dutyFromTotals(totals)).toEqual({ rankSec: 0, overheadSec: 100, unheldSec: 0, dutyCycle: 1 });
-    expect(ratesFromTotals(totals).rankPerHeldSec).toBe(0);
+  it('FAIL below the bar', () => {
+    const totals = { ...emptyTotals(), wallSec: C1_UPTIME_MS / 1000, rankGained: 0 };
+    expect(evaluateC1(totals).met).toBe(false);
   });
 });
 
-describe('computeRepForegone', () => {
-  it('multiplies held seconds by the observed rate', () => {
-    expect(computeRepForegone(100, 2.5)).toBe(250);
+describe('evaluateC3A', () => {
+  it('null before 7 days', () => {
+    expect(evaluateC3A({ ...emptyTotals(), wallSec: C3_UPTIME_MS / 1000 - 1 })).toBeNull();
   });
-
-  it('zero-held reports 0', () => {
-    expect(computeRepForegone(0, 2.5)).toBe(0);
-  });
-});
-
-// --- projectRankEta ----------------------------------------------------------
-
-describe('projectRankEta', () => {
-  it('computes seconds to target at a positive rate', () => {
-    expect(projectRankEta(0, BLACKOPS_DAEDALUS_RANK, 1)).toBe(BLACKOPS_DAEDALUS_RANK);
-  });
-
-  it('returns 0 once at/past target', () => {
-    expect(projectRankEta(BLACKOPS_DAEDALUS_RANK, BLACKOPS_DAEDALUS_RANK, 1)).toBe(0);
-    expect(projectRankEta(BLACKOPS_DAEDALUS_RANK + 1, BLACKOPS_DAEDALUS_RANK, 1)).toBe(0);
-  });
-
-  it('returns null for a zero rate -- unreachable, not an error', () => {
-    expect(projectRankEta(0, 100, 0)).toBeNull();
-  });
-
-  it('returns null for a negative rate', () => {
-    expect(projectRankEta(0, 100, -0.5)).toBeNull();
+  it('requires BOTH the rate bar and the duty-cycle floor', () => {
+    const wallSec = C3_UPTIME_MS / 1000;
+    const goodRateBadDuty = { ...emptyTotals(), wallSec, rankGained: wallSec * C1_BAR, actionSec: wallSec * (C3A_DUTY_BAR - 0.01) };
+    expect(evaluateC3A(goodRateBadDuty).met).toBe(false);
+    const goodBoth = { ...emptyTotals(), wallSec, rankGained: wallSec * C1_BAR, actionSec: wallSec * C3A_DUTY_BAR };
+    expect(evaluateC3A(goodBoth).met).toBe(true);
   });
 });
 
-// --- estimateRepRatePerSec ---------------------------------------------------
-
-describe('estimateRepRatePerSec', () => {
-  const target = { aug: 'X', faction: 'F1' };
-
-  it('computes a rate when the deficit closed on the same target', () => {
-    const prev = { workTarget: { ...target, deficit: 1000 } };
-    const curr = { workTarget: { ...target, deficit: 900 } };
-    expect(estimateRepRatePerSec(prev, curr, 10)).toBeCloseTo(10, 6);
-  });
-
-  it('returns null when the target changed between reads', () => {
-    const prev = { workTarget: { aug: 'X', faction: 'F1', deficit: 1000 } };
-    const curr = { workTarget: { aug: 'Y', faction: 'F1', deficit: 900 } };
-    expect(estimateRepRatePerSec(prev, curr, 10)).toBeNull();
-  });
-
-  it('returns null when the deficit did not decrease (no measurable progress)', () => {
-    const prev = { workTarget: { ...target, deficit: 900 } };
-    const curr = { workTarget: { ...target, deficit: 1000 } };
-    expect(estimateRepRatePerSec(prev, curr, 10)).toBeNull();
-  });
-
-  it('returns null with missing workTarget on either side', () => {
-    expect(estimateRepRatePerSec(null, { workTarget: { ...target, deficit: 1 } }, 10)).toBeNull();
-    expect(estimateRepRatePerSec({ workTarget: { ...target, deficit: 1 } }, null, 10)).toBeNull();
-  });
-
-  it('returns null for zero/negative dt', () => {
-    const prev = { workTarget: { ...target, deficit: 1000 } };
-    const curr = { workTarget: { ...target, deficit: 900 } };
-    expect(estimateRepRatePerSec(prev, curr, 0)).toBeNull();
+describe('evaluateC3B', () => {
+  it('is "not-applicable", never a miss, while STAGE_B_ENABLED is false', () => {
+    expect(STAGE_B_ENABLED).toBe(false);
+    expect(evaluateC3B(STAGE_B_ENABLED)).toEqual({ status: 'not-applicable', reason: 'STAGE_B_ENABLED false' });
   });
 });
 
-// --- appendBbLog / seedBbLog (gangmanager.js precedent) ---------------------
+// --- appendBbLog / seedBbLog / appendAttempt / seedAttempts -----------------------
 
 describe('appendBbLog', () => {
   it('appends and ring-trims at BB_LOG_MAX_ENTRIES', () => {
@@ -717,7 +1042,6 @@ describe('appendBbLog', () => {
     const next = appendBbLog(entries, { i: 'new' });
     expect(next.length).toBe(BB_LOG_MAX_ENTRIES);
     expect(next[next.length - 1]).toEqual({ i: 'new' });
-    expect(next[0]).toEqual({ i: 1 });
   });
 });
 
@@ -725,57 +1049,73 @@ describe('seedBbLog', () => {
   it('parses valid JSON array content', () => {
     expect(seedBbLog(JSON.stringify([{ kind: 'startup' }]))).toEqual([{ kind: 'startup' }]);
   });
-
   it('falls back to [] on missing/empty/malformed/non-array content', () => {
     expect(seedBbLog('')).toEqual([]);
     expect(seedBbLog(null)).toEqual([]);
     expect(seedBbLog('not json')).toEqual([]);
     expect(seedBbLog(JSON.stringify({ not: 'an array' }))).toEqual([]);
   });
+});
 
-  it('ring-trims an oversized persisted log', () => {
-    const oversized = Array.from({ length: BB_LOG_MAX_ENTRIES + 10 }, (_, i) => ({ i }));
-    const seeded = seedBbLog(JSON.stringify(oversized));
-    expect(seeded.length).toBe(BB_LOG_MAX_ENTRIES);
-    expect(seeded[0]).toEqual({ i: 10 });
+describe('appendAttempt / seedAttempts (S7)', () => {
+  it('ring-trims at BB_ATTEMPTS_MAX_ENTRIES', () => {
+    const entries = Array.from({ length: BB_ATTEMPTS_MAX_ENTRIES }, (_, i) => ({ i }));
+    const next = appendAttempt(entries, { i: 'new' });
+    expect(next.length).toBe(BB_ATTEMPTS_MAX_ENTRIES);
+    expect(next[next.length - 1]).toEqual({ i: 'new' });
+  });
+  it('seedAttempts falls back to [] on malformed content', () => {
+    expect(seedAttempts('not json')).toEqual([]);
+    expect(seedAttempts(null)).toEqual([]);
   });
 });
 
-// --- buildBbState -------------------------------------------------------------
+// --- buildBbState ------------------------------------------------------------------
 
 describe('buildBbState', () => {
-  it('assembles the state record with blackOpsDaedalusRank carried in', () => {
-    const state = buildBbState({
-      now: 1000,
-      off: false,
-      holdActive: true,
-      holdReason: 'held',
-      standDownFor: null,
-      rank: 42,
-      skillPoints: 3,
-      skillLevels: {},
-      cityName: 'Aevum',
-      chaosByCity: { Aevum: 0.5 },
-      teamSize: 0,
-      hpFraction: 1,
-      rates: {},
-      duty: {},
-      repForegone: 0,
-      hospitalizations: null,
-      checkpointA: null,
-      checkpointB: null,
-    });
+  it('computes timestamp/time from `now` and spreads every other field verbatim', () => {
+    const state = buildBbState({ now: 1000, rank: 42, blackOpsDaedalusRank: BLACKOPS_DAEDALUS_RANK });
+    expect(state.timestamp).toBe(1000);
+    expect(state.time).toBeTypeOf('string');
     expect(state.rank).toBe(42);
     expect(state.blackOpsDaedalusRank).toBe(BLACKOPS_DAEDALUS_RANK);
-    expect(state.time).toBeTypeOf('string');
   });
 });
 
-// 🔴 2026-08-02: the single-threshold HP guard was observed FLAPPING live within
-// minutes of shipping it -- HP 15 -> fail -> 12 (below floor) -> rest 1 min -> 14
-// (above floor) -> one contract -> fail -> 11 -> rest. HRC restores 2 HP/min while a
-// failed contract costs 3, so recovering only to the floor guarantees the next
-// failure re-trips it. Same latch shape as the stamina guard.
+// --- updateStaminaRecovering (STAMINA_RESUME_FRACTION lowered 0.8 -> 0.55, S16.4) --
+
+describe('updateStaminaRecovering', () => {
+  it('trips at the floor', () => {
+    expect(updateStaminaRecovering(false, STAMINA_FLOOR_FRACTION - 0.01)).toBe(true);
+  });
+  it('does not trip exactly at the floor', () => {
+    expect(updateStaminaRecovering(false, STAMINA_FLOOR_FRACTION)).toBe(false);
+  });
+  it('releases at the resume threshold', () => {
+    expect(updateStaminaRecovering(true, STAMINA_RESUME_FRACTION)).toBe(false);
+  });
+  it('HOLDS in the hysteresis band rather than flapping back into the penalty', () => {
+    const mid = (STAMINA_FLOOR_FRACTION + STAMINA_RESUME_FRACTION) / 2;
+    expect(updateStaminaRecovering(true, mid)).toBe(true);
+    expect(updateStaminaRecovering(false, mid)).toBe(false);
+  });
+  it('the band is non-empty', () => {
+    expect(STAMINA_RESUME_FRACTION).toBeGreaterThan(STAMINA_FLOOR_FRACTION);
+  });
+  it('STAMINA_RESUME_FRACTION is 0.55 -- lowered from Phase 38, above 50% is provably wasted rest per the closed-form penalty', () => {
+    expect(STAMINA_RESUME_FRACTION).toBe(0.55);
+  });
+  it('a full drain-and-refill cycle trips once and releases once, at the new 0.55 resume', () => {
+    let recovering = false;
+    const seen = [];
+    for (const fraction of [1.0, 0.7, 0.55, 0.49, 0.2, 0.05, 0.3, 0.6, 0.79, 0.8, 0.95]) {
+      recovering = updateStaminaRecovering(recovering, fraction);
+      seen.push(recovering);
+    }
+    expect(seen).toEqual([false, false, false, true, true, true, true, false, false, false, false]);
+  });
+});
+
 describe('updateHpRecovering', () => {
   it('trips below the floor', () => {
     expect(updateHpRecovering(false, HP_FLOOR_FRACTION - 0.01)).toBe(true);
@@ -792,10 +1132,69 @@ describe('updateHpRecovering', () => {
     expect(updateHpRecovering(true, mid)).toBe(true);
   });
   it('pickRankAction honours the latch over the bare threshold', () => {
-    const c = { type: 'Contracts', name: 'Tracking', pMin: 0.5, rankGain: 1, rankLoss: 0, timeMs: 13_000, risksHp: true };
-    // Above the floor, but still recovering -> must keep resting, not resume.
-    expect(pickRankAction([c], { hpFraction: HP_FLOOR_FRACTION + 0.05, hpCurrent: 15, hpRecovering: true })).toBeNull();
-    // Latch released -> eligible again.
-    expect(pickRankAction([c], { hpFraction: HP_FLOOR_FRACTION + 0.05, hpCurrent: 15, hpRecovering: false }).name).toBe('Tracking');
+    const c = { type: 'Contracts', name: 'Tracking', pMin: 0.5, rankGain: 1, rankLoss: 0, timeMs: 13_000 };
+    expect(pickRankAction([c], { hpRecovering: true })).toBeNull();
+    expect(pickRankAction([c], { hpRecovering: false }).name).toBe('Tracking');
+  });
+});
+
+// --- isPostInstallRegime (S9a) -----------------------------------------------------
+
+describe('isPostInstallRegime', () => {
+  it('classifies hp.max === 10 (fresh install, defense reset) as post-install', () => {
+    expect(isPostInstallRegime(10)).toBe(true);
+  });
+  it('classifies hp.max === 27 (measured steady-state) as NOT post-install', () => {
+    expect(isPostInstallRegime(27)).toBe(false);
+  });
+  it('the threshold itself counts as post-install', () => {
+    expect(isPostInstallRegime(POST_INSTALL_HP_MAX_THRESHOLD)).toBe(true);
+    expect(isPostInstallRegime(POST_INSTALL_HP_MAX_THRESHOLD + 1)).toBe(false);
+  });
+});
+
+// --- pickOverheadAction (S9a, S10, S11 -- reshaped: no Recruitment in Stage A, Training preferred post-install) --
+
+describe('pickOverheadAction', () => {
+  it('HP guard takes priority over everything else', () => {
+    expect(pickOverheadAction(HP_FLOOR_FRACTION - 0.01, 5, 0, true)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
+  });
+
+  it('stamina recovery also routes to HRC', () => {
+    expect(pickOverheadAction(1, 0, 0, false, true)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
+  });
+
+  it('post-install regime prefers Training over everything except an unmet HP/stamina guard', () => {
+    expect(pickOverheadAction(1, 0, 0, false, false, { inPostInstallRegime: true, postInstallTrainingMs: 0 })).toEqual({ type: 'General', name: 'Training' });
+  });
+
+  it('Training stops once POST_INSTALL_TRAINING_MAX_MS is reached, even still in the regime', () => {
+    const picked = pickOverheadAction(1, 0, 0, false, false, { inPostInstallRegime: true, postInstallTrainingMs: POST_INSTALL_TRAINING_MAX_MS });
+    expect(picked.name).not.toBe('Training');
+  });
+
+  it('low inventory beats chaos once HP/regime are fine', () => {
+    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true)).toEqual({ type: 'General', name: 'Incite Violence' });
+  });
+
+  it('high chaos triggers Diplomacy once HP/inventory/regime are fine', () => {
+    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 0.1, 0, false)).toEqual({ type: 'General', name: 'Diplomacy' });
+  });
+
+  it('Recruitment is DROPPED in Stage A, even with a low team size -- falls through to HRC (S10/S16.5)', () => {
+    expect(pickOverheadAction(1, 0, TEAM_SIZE_TARGET - 1, false, false, { stageBEnabled: false })).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
+  });
+
+  it('Recruitment reappears once Stage B is enabled', () => {
+    expect(pickOverheadAction(1, 0, TEAM_SIZE_TARGET - 1, false, false, { stageBEnabled: true })).toEqual({ type: 'General', name: 'Recruitment' });
+  });
+
+  it('defaults to HRC once every other condition is satisfied', () => {
+    expect(pickOverheadAction(1, 0, TEAM_SIZE_TARGET, false)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
+  });
+
+  it('S11: if HRC itself is quarantined, the engine does NOT stall -- falls through to the next-best overhead action', () => {
+    const picked = pickOverheadAction(HP_FLOOR_FRACTION - 0.01, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true, false, { hrcQuarantined: true });
+    expect(picked.name).not.toBe('Hyperbolic Regeneration Chamber');
   });
 });

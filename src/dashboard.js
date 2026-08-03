@@ -589,22 +589,31 @@ function fmtBbRate(n) {
   return n.toFixed(4);
 }
 
-/** Phase 38 -- "pending" (uptime hasn't crossed the checkpoint's threshold yet), else PASS/FAIL against its bar. */
+/** Phase 38 -- "pending"/"n/a" until a checkpoint is gradeable, else PASS/FAIL against its bar. A C3-B recorded {status:"not-applicable"} (S14.3) reads "--", never FAIL -- a miss here would be a false negative in the node-level fallback conversation. */
 function fmtCheckpoint(cp) {
   if (!cp) return "--";
+  if (cp.status === "not-applicable") return "--";
   return cp.met ? "PASS" : "FAIL";
 }
 
 /**
- * Phase 38 -- one line, by design (see DASHBOARD_H's 2026-08-01 comment: the
- * window is at its measured screen-height ceiling). Leads with WHY the
- * engine isn't gaining rank (off / stood-down-for-claimant / held) -- the
- * common state so far is stood down, and that's expected, not an alarm --
- * then the checkpoint verdict itself, which is the whole reason Phase 38
- * exists. Duty cycle / hospitalizations / rep-foregone stay in
- * bladeburner-state.json and the log, not here (CLAUDE.md: "use dashboard
- * or logs").
+ * Phase 39 -- one line, by design (see DASHBOARD_H's 2026-08-01 comment: the
+ * window is at its measured screen-height ceiling; this is maintenance of an
+ * already-approved panel, not new dashboard space). `<gates>` folds in the two
+ * structural safety gates (S4 Overclock hold, S5 Stage-B gate) plus a marker
+ * when C2 has fired while Stage B is still shut -- the phase's real
+ * deliverable (S14.2) -- rather than adding a dedicated term. Duty-cycle
+ * breakdown / hospitalizations / rep-foregone / yield ledger stay in
+ * bladeburner-state.json and the log (CLAUDE.md: "use dashboard or logs").
  */
+function fmtBbGates(state) {
+  const parts = [];
+  if (state.stageBEnabled === false) parts.push(state.checkpointC2 ? "B!" : "B-");
+  const ocLevel = state.skillLevels?.Overclock;
+  if (typeof ocLevel === "number" && typeof state.overclockHeldAt === "number" && ocLevel >= state.overclockHeldAt) parts.push("OC-");
+  return parts.length ? `[${parts.join("")}]` : "";
+}
+
 export function bladeburnerPanel(state, now) {
   const title = "BLADEBURNER";
   if (state === null) return [`-- ${title} --`, "no data yet"];
@@ -615,12 +624,15 @@ export function bladeburnerPanel(state, now) {
 
   let modePart;
   if (state.off) modePart = "OFF";
-  else if (state.standDownFor) modePart = `STOOD DOWN (${state.standDownFor})`;
+  else if (state.yieldedTo) modePart = `yield(${state.yieldedTo.claimant})`;
   else modePart = state.holdActive ? "held" : (state.holdReason ?? "?");
 
   const cumulative = (state.rates ?? {}).cumulative ?? {};
+  const stage = state.stage ?? "A";
+  const gates = fmtBbGates(state);
+  const dutyPct = Number.isFinite(cumulative.dutyCycle) ? cumulative.dutyCycle * 100 : undefined;
   lines.push(
-    `${modePart} | rank ${fmtNum(state.rank)} ${fmtBbRate(cumulative.rankPerHeldSec)}/hs | 24h:${fmtCheckpoint(state.checkpointA)} 7d:${fmtCheckpoint(state.checkpointB)}`
+    `${stage}${gates} ${modePart} | rank ${fmtNum(state.rank)} ${fmtBbRate(cumulative.rankPerWallSec)}/ws duty ${fmtPct(dutyPct)} | C1:${fmtCheckpoint(state.checkpointC1)} C3:${fmtCheckpoint(state.checkpointC3)}`
   );
 
   return lines;

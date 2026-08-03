@@ -103,6 +103,18 @@ read it wrong. Three things justify taking it anyway:
 operation crossover (§5 C2) is not reached within **~2 weeks**, revert to batcher-primary. Default is
 revert, not extend. Logged so a bad call leaves an artifact rather than a memory.
 
+**Phase 39 (`phase-39-bladeburner-primary.spec.md`) is the engine that implements this** — telemetry
+rebuilt from wall-clock (S1), bounded slot yields (S2), the two structural safety gates (S4 Overclock
+held, S5 Stage B gated shut), and `computeCrossover` computing C2's evidence continuously **even
+while Stage B stays gated shut** (S5.1) — the phase's real deliverable is reachable without ever
+risking HP on an unmeasured operation. ⚠️ **What happens when C2 fires is a node-level branch, spelled
+out in the spec's S14.2, not a Bladeburner-engine detail:** C2 firing does **not** open the gate by
+itself. The required next step is (1) request a fresh go-ahead for the Q11 HP-cost measurement — C2
+firing is the trigger to *ask*, with evidence in hand, per the standing "one round of live testing,
+then ask again" limit — then (2) if the go-ahead is declined, or Q11 comes back unmeasurable again,
+**the gate stays shut and this same ~2-week tripwire applies**: revert to batcher-primary. Only a
+recorded Q11 answer opens a path past this.
+
 ### The strongest objection — and it is not resolved, only scheduled
 
 **The install↔rep deadlock.** Bladeburner faction rep resets on every install and can *only* be
@@ -111,11 +123,24 @@ earned by Bladeburner actions (no donation, no `workForFaction`). The success-ch
 the ~30% duty stamina currently allows**. The ratchet installs roughly daily. These are directly
 incompatible.
 
-**Decision taken 2026-08-02: "rep window, then one install."** The ratchet installs freely until a
-trigger fires, then **freezes** while Bladeburner grinds the rep tier uninterrupted; buy the whole
-tier in one purchase; install once; resume. **Phase 39 owns specifying that trigger** — it is an open
-question with a default, not a solved problem. Cost if wrong: a frozen ratchet is a stalled mult
-climb, which is also a stalled income curve.
+**[SUPERSEDED 2026-08-03 by Phase 39 S4a — kept for the trail, not the conclusion] Decision taken
+2026-08-02: "rep window, then one install."** The ratchet installs freely until a trigger fires, then
+**freezes** while Bladeburner grinds the rep tier uninterrupted; buy the whole tier in one purchase;
+install once; resume. Phase 39 was to own specifying that trigger.
+
+**🔴 Phase 39 did NOT build this — it dissolved the question instead (S4a, "no aug chase, no install
+freeze").** Skills beat the entire Bladeburner aug tree by **~2× on effect** (Blade's Intuition +
+Digital Observer to L25 = ×2.47 total success multiplier for 3,915 rank) at a fraction of the
+install-freeze cost, and in a currency (skill points, banked rank) installs don't reset — unlike
+faction rep, which resets on every install and is exactly what the frozen-window plan was protecting.
+So: **the engine publishes no `repWindowActive` flag, no install-freeze signal, and no money claim.**
+`augfarmer.js`/`installer.js` are not modified to honour any Bladeburner freeze, and the engine does
+not target or reason about Bladeburner faction rep beyond logging it as an observation. The
+install↔rep deadlock below is therefore **accepted, not solved** — the aug tier stays a standing,
+unfunded objective, revisited only if income ever makes it trivially affordable *and* a natural
+no-install stretch appears (a manual call, not engine behaviour). Cost if this default is wrong: the
+Bladeburner aug tier (12.5k–62.5k rep, meaningful success-chance multipliers) never gets bought in
+this run.
 
 **Second constraint: one player-action slot.** Bladeburner actions block gym/crime/faction work.
 `The Blade's Simulacrum` removes exactly this (rep 1.25k — already met; **$150b base / $1.029t at

@@ -281,6 +281,14 @@ current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract
   black ops incur *"heavy HP and rank losses."* **`Investigation` is the exception — no HP loss on
   failure.** The panel tracks `Num Times Hospitalized` and `Money Lost From Hospitalizations`
   (read 22 / **$229.5m** on 2026-07-31 — hospitalization is a real, uncounted cost of grinding).
+  ⚠️ **No `ns.bladeburner.*` getter exposes either counter** — confirmed by exhaustive read of §6's
+  API surface. `bladeburnermanager.js` (Phase 39, S9) therefore *infers* a hospitalization from a
+  single-tick transition where `hp.current` jumps to `hp.max` from a prior sample below max, while
+  the engine's own chosen action on the prior tick was **not** `Hyperbolic Regeneration Chamber`
+  (which restores ~2 HP/min — too slow to produce a full-heal jump in ~1s). This inferred count
+  (`hospitalizationsInferred`) is **explicitly second-class**: the panel's own counter, read over
+  CDP, is the authoritative figure, and a mismatch between the two retires the inference as
+  untrustworthy rather than averaging the two.
 - **BlackOps, verbatim:** *"Black Ops success significantly affected by combat stats. Many Ops
   benefit from Hacking skill. Unaffected by Charisma."*
 - **`Raid` has a precondition:** *"there must be an existing Synthoid community in your current city
@@ -392,7 +400,14 @@ the whole tier, not the money.
 - The **skill cost curve** in closed form (`getSkillUpgradeCost` gives point values; the growth law
   isn't stated).
 - **Stamina**'s precise coupling to success chance (the panel shows a `Stamina Penalty:` percentage,
-  so the effect is at least *observable* live).
+  so the effect is at least *observable* live). ⚠️ Two panel reads (2026-08-02, rank ~1,221 session,
+  §11's changelog entry) fit a **closed form**, `min(1, fraction/0.5)` — zero penalty at/above 50%
+  stamina, a linear cliff below it. **This is fit from panel reads, not confirmed against
+  `getActionEstimatedSuccessChance`'s return value** — whether that API call already bakes the
+  penalty in or reports a pre-penalty number is unverified (Phase 39 Q12, §6's row above). The
+  *consequence* is solid either way: resting stamina back up past 50% is provably wasted wall-clock,
+  which is why `bladeburnermanager.js`'s `STAMINA_RESUME_FRACTION` moved from Phase 38's 0.8 down to
+  **0.55** (Phase 39 S16.4) — every second spent recovering above the 50% floor buys nothing.
 
 **Revised design conclusion — the gang comparison was drawn wrongly.** The old text argued that,
 unlike gangs (where `GangTaskStats` + `ns.formulas.gang.*` exposed every yield), Bladeburner was
@@ -441,7 +456,7 @@ the cheap calls.
 | `getCurrentAction(): BladeburnerCurAction \| null` | 1 | `null` when idle. ⚠️ Returns `{name: string, type: string}` as **plain strings**, not the branded types the other methods demand. |
 | `getActionCurrentTime(): number` | 4 | **Milliseconds** already spent on the current action. Undefined behavior when idle. |
 | `getActionTime(type, name): number` | 4 | **Milliseconds** to complete. No documented error case. |
-| `getActionEstimatedSuccessChance(type, name, sleeveNumber?): [number, number]` | 4 | `[MIN, MAX]` chance, **in 0–1 not percent** (docs shout: "return 0.8, NOT 80"). Why it's a range is undocumented. |
+| `getActionEstimatedSuccessChance(type, name, sleeveNumber?): [number, number]` | 4 | `[MIN, MAX]` chance, **in 0–1 not percent** (docs shout: "return 0.8, NOT 80"). Why it's a range is undocumented. ⚠️ **Unknown whether this is pre- or post- the stamina penalty** (Phase 39 Q12, raised by the phase-39-bladeburner-primary.spec.md cold review) — this row is silent on stamina and §5's closed-form penalty note is derived from *panel* readings, never connected to this API's return value. Settled offline from `bladeburnermanager.js`'s attempt ledger (`bladeburner-attempts.json`): regress logged `predicted.pMin` against `context.staminaFraction` for a fixed action/level. No live probe needed. |
 | `getActionCountRemaining(type, name): number` | 4 | **Float** for Contracts/Operations (UI rounds down) → gate on `>= 1`, not `> 0`. `Infinity` for General. `1` for uncompleted BlackOps **"regardless of whether the player has the required rank"** — so count is *not* a proxy for attemptable. |
 | `getActionSuccesses(type, name): number` | 4 | Success count. No error case documented. |
 | `getActionRankGain(type, name, level?): number` | 4 | **Average** rank gain on success; actual varies. `level` defaults to the action's current level. |
@@ -559,6 +574,19 @@ grind, not just the Stanek loss.
     table). `getCurrentAction()` stays non-`null` across reps, so a control loop must detect
     completion via `getActionCurrentTime()` wrapping, not via waiting for `null`. Same shape as
     `ns.singularity.commitCrime`.
+14. **`startAction`'s boolean return does NOT mean the action is running — confirmed live, cause
+    unknown.** `startAction("Contracts","Tracking")` and `startAction("Operations","Raid")` have both
+    returned `true` while `getCurrentAction()` read `null` for the entire observation window and zero
+    successes accrued (60 consecutive samples in one run). `startAction("Operations","Investigation")`
+    does **not** show this — ran clean for a full 100s in the same session, with the slot fully
+    quiesced. One unconfirmed lead: Investigation is the only action with no HP loss on failure. Not a
+    clean Contracts-vs-Operations split (Tracking is a Contract, Raid an Operation, both affected).
+    **Always verify with `getCurrentAction()` on the next tick, never trust the boolean** — this is
+    the whole reason `bladeburnermanager.js`'s S6 verification step exists (Phase 39). §8/BACKLOG.md
+    carry the live debugging trail; `bladeburner-attempts.json` (S7) is the standing diagnostic
+    instrument going forward — the difference between Investigation (works) and Tracking/Raid
+    (no-op) is either in that ledger's per-attempt context fields or is not in the API at all, and
+    that's now a log-read question, not a live-probe one.
 
 ---
 

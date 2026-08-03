@@ -602,7 +602,7 @@ describe('augPanel', () => {
   });
 });
 
-// --- bladeburnerPanel (Phase 38) ----------------------------------------------
+// --- bladeburnerPanel (Phase 39) ----------------------------------------------
 
 describe('bladeburnerPanel', () => {
   const held = {
@@ -610,40 +610,66 @@ describe('bladeburnerPanel', () => {
     off: false,
     holdActive: true,
     holdReason: 'held',
-    standDownFor: null,
+    yieldedTo: null,
     rank: 1234.5,
-    rates: { cumulative: { rankPerHeldSec: 0.0512 } },
-    checkpointA: null,
-    checkpointB: null,
+    stage: 'A',
+    stageBEnabled: false,
+    overclockHeldAt: 17,
+    skillLevels: { Overclock: 17 },
+    rates: { cumulative: { rankPerWallSec: 0.0512, dutyCycle: 0.42 } },
+    checkpointC1: null,
+    checkpointC2: null,
+    checkpointC3: null,
   };
 
   it('leads with OFF when the off-marker is set', () => {
     const lines = bladeburnerPanel({ ...held, off: true }, NOW);
-    expect(lines[1].startsWith('OFF')).toBe(true);
+    expect(lines[1].includes('OFF')).toBe(true);
   });
 
-  it('leads with the stand-down claimant, not "held", when standDownFor is set', () => {
-    const lines = bladeburnerPanel({ ...held, standDownFor: 'backdoorfactions.js' }, NOW);
-    expect(lines[1].startsWith('STOOD DOWN (backdoorfactions.js)')).toBe(true);
+  it('shows the yield claimant, not "held", when a grant is active', () => {
+    const lines = bladeburnerPanel({ ...held, yieldedTo: { claimant: 'backdoorfactions.js', sinceMs: NOW, budgetMs: 180_000 } }, NOW);
+    expect(lines[1]).toContain('yield(backdoorfactions.js)');
   });
 
-  it('shows "held" and the rate to 4 decimal places when actively running', () => {
+  it('shows "held" and the rate to 4 decimal places, plus duty %, when actively running', () => {
     const lines = bladeburnerPanel(held, NOW);
     expect(lines[1]).toContain('held');
-    expect(lines[1]).toContain('0.0512/hs');
+    expect(lines[1]).toContain('0.0512/ws');
+    expect(lines[1]).toContain('duty 42.0%');
   });
 
   it('renders "--" for a checkpoint not yet reached (uptime under its threshold)', () => {
     const lines = bladeburnerPanel(held, NOW);
-    expect(lines[1]).toContain('24h:--');
-    expect(lines[1]).toContain('7d:--');
+    expect(lines[1]).toContain('C1:--');
+    expect(lines[1]).toContain('C3:--');
   });
 
   it('renders PASS/FAIL once a checkpoint has a verdict', () => {
-    const passed = bladeburnerPanel({ ...held, checkpointA: { met: true, rankPerHeldSec: 0.06, bar: 0.043 } }, NOW);
-    expect(passed[1]).toContain('24h:PASS');
-    const failed = bladeburnerPanel({ ...held, checkpointB: { met: false, rankPerHeldSec: 0.02, bar: 0.1543 } }, NOW);
-    expect(failed[1]).toContain('7d:FAIL');
+    const passed = bladeburnerPanel({ ...held, checkpointC1: { met: true, rankPerWallSec: 0.01, bar: 0.007 } }, NOW);
+    expect(passed[1]).toContain('C1:PASS');
+    const failed = bladeburnerPanel({ ...held, checkpointC3: { met: false, rankPerWallSec: 0.005, bar: 0.007 } }, NOW);
+    expect(failed[1]).toContain('C3:FAIL');
+  });
+
+  it('C3-B recorded not-applicable while Stage B is gated shut renders "--", never FAIL', () => {
+    const lines = bladeburnerPanel({ ...held, checkpointC3: { status: 'not-applicable', reason: 'STAGE_B_ENABLED false' } }, NOW);
+    expect(lines[1]).toContain('C3:--');
+  });
+
+  it('shows the Stage-B-gated marker while stageBEnabled is false', () => {
+    const lines = bladeburnerPanel(held, NOW);
+    expect(lines[1]).toContain('[B-');
+  });
+
+  it('a fired C2 while the gate is shut is visible via the gate marker, not a new term', () => {
+    const lines = bladeburnerPanel({ ...held, checkpointC2: { operationLeadsPerSec: true, firstLeadPerSecAtMs: NOW } }, NOW);
+    expect(lines[1]).toContain('B!');
+  });
+
+  it('shows the Overclock-held marker once the current level reaches the hold', () => {
+    const lines = bladeburnerPanel(held, NOW);
+    expect(lines[1]).toContain('OC-');
   });
 
   it('is exactly 2 lines (title + one content line) -- the fixed row budget has no slack for more', () => {

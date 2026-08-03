@@ -6,6 +6,54 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-03
+
+- **Phase 39 (Bladeburner-primary engine) implemented and live-validated — `npm test` green (1246
+  tests), R1 measured (with a caveat) and V1 passed live; V3/V4 (C1/C2 checkpoints) still pending
+  their real-time thresholds.** `src/bladeburnermanager.js` substantially rebuilt per
+  [`phase-39-bladeburner-primary.spec.md`](../../phase-39-bladeburner-primary.spec.md): telemetry
+  derived only from `getRank()`/verified `getCurrentAction()` time, never engine intent (S1 — the
+  rule that would have caught every Phase 38 telemetry bug); the engine now HOLDS the player-action
+  slot continuously and grants bounded, budgeted, escalating yields instead of Phase 38's
+  unconditional stand-down (S2); a rep-starvation detector arbitrates `augfarmer.js`'s faction-rep
+  work under a 15%-of-hour duty cap (S3); two structural, two-key safety gates with no runtime lift
+  path — Overclock held at level 17 (Q10 unresolved) and Stage B (the five risky Operations) excluded
+  from the candidate pool entirely, not just deprioritised (Q11 unresolved) — while `computeCrossover`
+  scores the full ungated pool every cycle so C2 (the real go/no-go) is reachable without risking HP
+  (S5.1); every `startAction` call is verified against `getCurrentAction()` the next tick and
+  quarantined after 3 consecutive failures, surviving the game's own undiagnosed no-op bug rather than
+  assuming it away (S6); a new per-attempt diagnostic ledger, `bladeburner-attempts.json`, makes the
+  Q10/Q11 diagnosis a log read instead of a live probe (S7); a post-install regime (collapsed max
+  HP/stamina right after an install) is detected and accounted for without excluding it from the
+  checkpoints (S9a). `dashboard.js`'s `BLADEBURNER` panel re-pointed at the new fields (no new rows);
+  `vite.config.ts` gained one filter entry. Full done-vs-left record, the reviewer-blocker-fix index,
+  and the carried-forward open questions (Q10/Q11/Q12 + five more) are in the spec itself.
+  **Three real bugs found and fixed during the live restart, not caught by `npm test`** (all three
+  are in the non-pure main loop, which unit tests don't exercise): (1) a schema-migration bug —
+  `seedTotals` partially adopted a Phase-38-shaped `totals` blob because `rankGained`/`overheadSec`
+  happened to share field names across the two shapes, producing a `rankPerWallSec` of ~12–29
+  instead of ~0.02–0.03 until enough new `wallSec` diluted it; fixed by gating adoption on the
+  presence of the new-schema-only `wallSec` key, rejecting the whole blob otherwise (regression test
+  added). (2) `getActionSuccesses` throws for General-type actions ("not levelable") — was called
+  unconditionally in the attempt-ledger bookkeeping; guarded to Contracts/Operations only. (3) the
+  `crossover` and city-breach `warn` log entries were being appended **every tick** (~1/sec),
+  flooding the 2000-entry ring within minutes and evicting every other event kind; changed to
+  edge-triggered (log on a state change) plus a 5-minute heartbeat for `crossover`.
+  **R1 (RAM) measured 90.00 GB — outside the spec's stated 65–85 GB band, but fully explained**: 5
+  new legitimate `ns.bladeburner`/city calls required by S7's ledger (`getActionCurrentLevel`,
+  `getActionAutolevel`, `getActionSuccesses`) and S10's city stock (`getCityEstimatedPopulation`,
+  `getCityCommunities`) add exactly 20 GB to Phase 38's 70 GB baseline — not an identifier-hygiene
+  bug. Home has 162 GB free; accepted as correct rather than cutting the ledger/city-stock fields to
+  force-fit the original estimate. `daemon.js`/`augfarmer.js` confirmed flat.
+  **V1 (independent panel cross-check) passed**: rank, stamina (exact to 3 decimals), city, Synthoid
+  population, communities, and skill points all matched the in-game panel exactly at the same
+  moment. **One expected mismatch, per S9's own anticipated fallback**: the hospitalization
+  *inference* read 0 against the panel's 158 — the inference rule is now known not to fire in
+  practice (see `BACKLOG.md`); the panel remains the sole authoritative source, exactly as S9
+  designed for this outcome.
+  **Next:** C1 (24h) and C2 (whenever the crossover trips) are close-out deliverables, not merge
+  blockers — the engine is live and accumulating real wall-clock time toward both.
+
 ## 2026-08-02
 
 - **Phase 38 (Bladeburner engine) CLOSED — shipped, but superseded before it delivered its verdict.**

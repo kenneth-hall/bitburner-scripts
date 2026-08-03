@@ -1,14 +1,10 @@
-// Codified acceptance criteria (phase-38-bladeburner-engine.spec.md, blocker
-// B7 -- "T2 verify:log ... asserting bladeburner-state.json exists once the
-// engine has run, carries the decision-8 fields, and that
-// rankPerHeldSec/rankPerWallSec are finite and non-negative"). Run via
-// `npm run verify:log`, not `npm test` (vitest.verify.config.ts). Skip-if-
-// missing, matching verify-gang.test.js's convention -- Slice B hasn't run
-// live yet on a fresh checkout, and that's not a failure.
+// Codified acceptance criteria (phase-39-bladeburner-primary.spec.md, T2 + acceptance
+// criteria T2/V-series). Run via `npm run verify:log`, not `npm test`
+// (vitest.verify.config.ts). Skip-if-missing, matching verify-gang.test.js's convention.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BB_LOG_MAX_ENTRIES, BLACKOPS_DAEDALUS_RANK } from '../src/bladeburnermanager.js';
+import { BB_LOG_MAX_ENTRIES, BB_ATTEMPTS_MAX_ENTRIES, BLACKOPS_DAEDALUS_RANK } from '../src/bladeburnermanager.js';
 
 const LOG_DIR = process.env.BLADEBURNER_LOG_DIR ?? path.join(process.cwd(), 'logs');
 
@@ -29,8 +25,8 @@ function skip(filename) {
 
 const RATE_WINDOW_LABELS = ['1h', '24h', 'cumulative'];
 
-describe('bladeburner-state.json (Phase 38 Slice B, blocker B7)', () => {
-  it('parses, carries the decision-8 fields, and rankPerHeldSec/rankPerWallSec are finite and non-negative in every window', () => {
+describe('bladeburner-state.json (Phase 39)', () => {
+  it('parses, carries the S13 fields, and rankPerWallSec/dutyCycle are finite and sane in every window', () => {
     const { exists, data } = readJson('bladeburner-state.json');
     if (!exists) return skip('bladeburner-state.json');
 
@@ -40,8 +36,7 @@ describe('bladeburner-state.json (Phase 38 Slice B, blocker B7)', () => {
     expect(Number.isFinite(data.timestamp)).toBe(true);
 
     if (data.off) {
-      // Off-marker snapshots (WI2's idle-in-loop path) carry no rate data --
-      // that's the expected shape, not a hole to fill in.
+      // Off-marker snapshots carry no rate data -- that's the expected shape.
       return;
     }
 
@@ -49,29 +44,50 @@ describe('bladeburner-state.json (Phase 38 Slice B, blocker B7)', () => {
     expect(data.rank).toBeGreaterThanOrEqual(0);
     expect(data.rates).toBeTypeOf('object');
     expect(data.duty).toBeTypeOf('object');
+    expect(['A', 'B']).toContain(data.stage);
+    expect(typeof data.stageBEnabled).toBe('boolean');
 
     for (const label of RATE_WINDOW_LABELS) {
       const rate = data.rates?.[label];
       if (!rate) continue; // a window with no samples yet is legitimately absent, not a failure
-      expect(Number.isFinite(rate.rankPerHeldSec)).toBe(true);
-      expect(rate.rankPerHeldSec).toBeGreaterThanOrEqual(0);
       expect(Number.isFinite(rate.rankPerWallSec)).toBe(true);
       expect(rate.rankPerWallSec).toBeGreaterThanOrEqual(0);
+      expect(Number.isFinite(rate.dutyCycle)).toBe(true);
+      expect(rate.dutyCycle).toBeGreaterThanOrEqual(0);
+      expect(rate.dutyCycle).toBeLessThanOrEqual(1);
+    }
 
-      const duty = data.duty?.[label];
-      if (duty) {
-        expect(Number.isFinite(duty.dutyCycle)).toBe(true);
-        expect(duty.dutyCycle).toBeGreaterThanOrEqual(0);
-        expect(duty.dutyCycle).toBeLessThanOrEqual(1);
-      }
+    // S13's duty block -- the four exhaustive wall-time buckets.
+    if (data.duty && Number.isFinite(data.duty.rankProducingSec)) {
+      expect(data.duty.rankProducingSec).toBeGreaterThanOrEqual(0);
+      expect(data.duty.overheadSec).toBeGreaterThanOrEqual(0);
+      expect(data.duty.yieldedSec).toBeGreaterThanOrEqual(0);
+      expect(data.duty.idleSec).toBeGreaterThanOrEqual(0);
     }
 
     expect(Number.isFinite(data.repForegone)).toBe(true);
     expect(data.repForegone).toBeGreaterThanOrEqual(0);
   });
+
+  it('🔴 QUALIFIED broken-telemetry assertion (fixes reviewer blocker 10): a full hour with half of it verified on a rank-producing action must show SOME rank movement -- Tracking carries no rank loss on failure, so zero movement across that much verified time is diagnostic of the Phase 38 startAction-lied-about-duty bug, not a state this spec designs for', () => {
+    const { exists, data } = readJson('bladeburner-state.json');
+    if (!exists) return skip('bladeburner-state.json');
+    const cumulative = data.rates?.cumulative;
+    if (!cumulative) return skip('bladeburner-state.json (no cumulative rate block yet)');
+
+    const wallSec = cumulative.wallSec ?? data.totals?.wallSec;
+    const rankProducingSec = cumulative.rankProducingSec ?? data.totals?.rankProducingSec;
+    const rankGained = cumulative.rankGained ?? data.totals?.rankGained;
+    if (!Number.isFinite(wallSec) || !Number.isFinite(rankProducingSec) || !Number.isFinite(rankGained)) {
+      return skip('bladeburner-state.json (cumulative totals not populated yet)');
+    }
+
+    const broken = wallSec >= 3600 && rankProducingSec >= 1800 && rankGained === 0;
+    expect(broken).toBe(false);
+  });
 });
 
-describe('bladeburner-log.json (Phase 38 Slice B)', () => {
+describe('bladeburner-log.json (Phase 39)', () => {
   it('parses as a ring-capped array of known-kind event records', () => {
     const { exists, data } = readJson('bladeburner-log.json');
     if (!exists) return skip('bladeburner-log.json');
@@ -79,7 +95,18 @@ describe('bladeburner-log.json (Phase 38 Slice B)', () => {
     expect(Array.isArray(data)).toBe(true);
     expect(data.length).toBeLessThanOrEqual(BB_LOG_MAX_ENTRIES);
 
-    const knownKinds = new Set(['startup', 'off-marker-on', 'off-marker-off', 'stand-down', 'stand-down-clear', 'skill-buy']);
+    // S12's complete set -- Phase 38's retired `stand-down`/`stand-down-clear` stay in
+    // the union so a not-yet-aged-out Phase 38 tail still parses.
+    const knownKinds = new Set([
+      'startup', 'off-marker-on', 'off-marker-off', 'skill-buy', 'stand-down', 'stand-down-clear',
+      'yield-grant', 'yield-reclaim', 'yield-overrun', 'yield-refused',
+      'quarantine-set', 'quarantine-clear',
+      'crossover',
+      'rep-starvation-set', 'rep-starvation-clear',
+      'regime-enter', 'regime-exit',
+      'checkpoint-C1', 'checkpoint-C2', 'checkpoint-C3',
+      'warn',
+    ]);
     for (const record of data) {
       expect(record).toMatchObject({ timestamp: expect.any(Number), time: expect.any(String), kind: expect.any(String) });
       expect(knownKinds.has(record.kind)).toBe(true);
@@ -99,6 +126,32 @@ describe('bladeburner-log.json (Phase 38 Slice B)', () => {
     for (const record of buys) {
       expect(record.cost).toBeGreaterThan(0);
       expect(typeof record.skill).toBe('string');
+    }
+  });
+});
+
+describe('bladeburner-attempts.json (Phase 39, S7)', () => {
+  it('parses as a ring-capped array; every start/start-failure record carries verified and both predicted scores', () => {
+    const { exists, data } = readJson('bladeburner-attempts.json');
+    if (!exists) return skip('bladeburner-attempts.json');
+
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeLessThanOrEqual(BB_ATTEMPTS_MAX_ENTRIES);
+
+    const startRecords = data.filter((r) => r.kind === 'start' || r.kind === 'start-failure');
+    if (startRecords.length === 0) {
+      console.log('\n(skipped: no start/start-failure attempts logged yet)');
+      expect(true).toBe(true);
+      return;
+    }
+    for (const record of startRecords) {
+      expect(typeof record.verified).toBe('boolean');
+      // General overhead actions carry no `predicted` (no candidate scored) -- only
+      // rank-candidate attempts are required to carry both scores.
+      if (record.predicted) {
+        expect(Number.isFinite(record.predicted.evPerSec)).toBe(true);
+        expect(Number.isFinite(record.predicted.evPerAction)).toBe(true);
+      }
     }
   });
 });

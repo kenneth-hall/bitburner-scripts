@@ -57,25 +57,27 @@ do, and what's broken?*
   new bug entry below. This entry is closed as far as `backdoorfactions.js`'s own gap goes;
   `backdoorwd.js`'s hazard-guard and the global-quiesce-marker items are still open, low priority
   (it's currently a no-op under decision B).
-- **🔴 NEW 2026-08-02 9:40pm — `startAction` silently no-ops for at least Tracking and Raid, cause
-  unknown.** Even with the player-action slot fully quiesced (the bug above fixed, `augfarmer.js`
-  already correct, `backdoorwd.js` inactive), `ns.bladeburner.startAction("Contracts","Tracking")`
-  and `ns.bladeburner.startAction("Operations","Raid")` both return `true` while
-  `getCurrentAction()` reads `null` for the entire observation window and zero successes accrue —
-  the action never actually starts. **Investigation (also an Operation) does not show this** — ran
-  cleanly for a full 100-second stretch in the same test session. Not a clean contracts-vs-operations
-  split. One unconfirmed lead: Investigation is the only action documented with zero HP loss on
-  failure; Tracking and Raid both have real stakes. Blocks Phase 39's Q10 (stamina cost) and Q11 (HP
-  cost per failed operation) — both attempted 2026-08-02 9:30-9:40pm and came back inconclusive
-  because of this, not the slot-contention bug. **Next action:** needs fresh diagnosis (what
-  actually differs between Investigation and Tracking/Raid at the API level) before another live
-  attempt — not chased further tonight per the "one round of live testing, then ask again" limit.
-- **🔴 STILL OPEN — `bladeburnermanager.js` telemetry reports zero progress while rank moves.**
-  `logs/bladeburner-state.json` shows `rates.*.rankGained: 0` and `duty.*.dutyCycle: 1` across all
-  windows while live rank went 1,217 → 1,221 and the engine was mostly idle. Both fields are
-  therefore unusable, and **any viability verdict computed from them is invalid** — this is what made
-  Phase 38's checkpoints meaningless. **Next action:** Phase 39 D9 (rebuild against wall-clock, not
-  held-sec).
+- **🔴 STILL OPEN, ROOT CAUSE UNDIAGNOSED — `startAction` silently no-ops for at least Tracking and
+  Raid.** `ns.bladeburner.startAction("Contracts","Tracking")` and
+  `ns.bladeburner.startAction("Operations","Raid")` can both return `true` while
+  `getCurrentAction()` reads `null` for the whole observation window and zero successes accrue —
+  the action never actually starts. **Investigation (also an Operation) does not show this.** One
+  unconfirmed lead: Investigation is the only action documented with zero HP loss on failure.
+  Blocks Phase 39's Q10 (stamina cost) and Q11 (HP cost per failed operation). **✅ Phase 39 (S6/S7)
+  ships a survival strategy, not a fix**: the engine now verifies every `startAction` call against
+  `getCurrentAction()` on the next tick, quarantines an action after 3 consecutive verification
+  failures, and logs every attempt (predicted EV, verified outcome, full context) to the new
+  `bladeburner-attempts.json` ledger. **Next action:** the diagnosis is now a *log read*, not a live
+  experiment — check whether the ledger's context fields (stamina/HP/city/level/autolevel) correlate
+  with which attempts fail once enough samples accumulate.
+- **✅ SHIPPED 2026-08-03 (Phase 39 WI1/S1) — `bladeburnermanager.js` telemetry rebuilt from
+  wall-clock.** The old `rankPerHeldSec`/`dutyCycle` fields were derived from the engine's own
+  intent (`heldSec` = "we called `startAction`") rather than from verified `getCurrentAction()` time,
+  so a run where the game silently cancelled/never-started the action still read `dutyCycle: 1`. New
+  fields (`rankPerWallSec`, `dutyCycle = actionSec/wallSec`, `rankProducingSec`) are derived only
+  from `getRank()` deltas and verified action time — see the spec's S1 for the "no field may be
+  derived from the engine's own intent" rule and `test/bladeburnermanager.test.js`'s `T-TEL`
+  regression test.
 - **🟡 UNDIAGNOSED, observed not confirmed — HP dipped to 12/28 (43%) during ordinary Tracking
   grinding 2026-08-02 ~8:40pm**, below `bladeburnermanager.js`'s own `HP_FLOOR_FRACTION` (0.5). The
   guard IS wired into the main loop (`pickOverheadAction`/`updateHpRecovering`, checked every
@@ -83,6 +85,19 @@ do, and what's broken?*
   rather than a real bug — not verified live either way this session. **Next action:** if HP dips
   below the floor again, check whether it's poll-cadence lag (expected, bounded) or the guard
   failing to trigger at all (a real bug) before assuming either.
+- **🟡 NEW 2026-08-03 (Phase 39 live validation, L2) — the hospitalization-inference rule (S9)
+  never fires; the panel is the only working source.** Live cross-check: `bladeburner-state.json`
+  read `hospitalizationsInferred: 0` while the in-game panel read `Num Times Hospitalized: 158` at
+  the same moment, everything else (rank, stamina, city, population, communities, skill points)
+  matching exactly. The inference rule assumes a hospitalization heals HP to exactly `max` in one
+  tick — that assumption is apparently wrong (or the transition happens between polls in a way this
+  engine's ~1s cadence never samples). **Not a blocker** — the spec's own S9/L2 anticipated this
+  exact outcome ("a mismatch there does NOT stop the phase — it retires the inferred field as
+  untrustworthy and makes the panel the sole source"), and Q9's resolution path already assumes
+  bracketed CDP panel reads, not the inferred count. **Next action:** if the inferred count is ever
+  worth fixing, needs a live session bracketing a known hospitalization event (watch the panel
+  counter tick while sampling `getPlayer().hp` every tick) to see what actually happens to HP at
+  that moment — not attempted yet, low priority since the panel already works.
 - **🟡 [PARTIALLY SHIPPED 2026-07-29] Phase 36 (`phase-36-install-cadence.spec.md`, twice
   cold-reviewed) has 4 work items; F-B and F-A have landed, the buy-set filter has not.** BN6.1
   entry surfaced this as stranded — features + spec sat in the repo root, never in
