@@ -361,6 +361,44 @@ claimant got, and how much rep the ratchet forwent. Without it this fuse burns i
 
 ---
 
+## 4a. Plain-terms read + recommendation on each open item (2026-08-02, ~9:30pm)
+
+Kenneth asked for a plain-language pass over the still-open items with a recommendation attached
+to each, not just a status. Recorded verbatim in substance so a future session doesn't re-derive
+it. Priority order agreed: **Q10 and Q11 first** (just unblocked by the `backdoorfactions.js` fix
+above, cheap to attempt now); **Q9** independent, testable anytime; **Q4/Q5/Q7/Q8** stay parked,
+no urgency.
+
+- **Q4 (team recruiting).** Teams only help Operations/Black Ops; contracts (Stage A) don't use
+  them. **Recommendation: skip — test later when Stage B actually starts.**
+- **Q5 (city rotation).** Grinding drains a city's population and raises chaos over time;
+  switching cities resets that, but `switchCity`'s cost (time/money/does it interrupt the action)
+  is unmeasured. **Recommendation: leave it alone — no pressure yet, plenty of room in the current
+  city.**
+- **Q7 (Blade's Simulacrum, $1.029t).** Would permanently end the Bladeburner/faction-work slot
+  fight. **Recommendation: not yet — current money (~$262m) isn't remotely close; revisit only when
+  income makes it a real decision.**
+- **Q8 (Stage A→B crossover rule).** When exactly to stop grinding contracts and start operations.
+  **Recommendation: compute it live (compare EVs each cycle), don't hardcode a rank number — a
+  spec-time decision, not urgent now.**
+- **Q9 (rest vs. pay-to-heal).** Resting is free but slow; hospitalization is an instant full heal
+  for ~$10.4m. **Recommendation: worth testing "pay" — income (~$107M every 8 min) makes $10.4m
+  cheap, and the arithmetic already favors ~3× the duty cycle.**
+- **Q10 (Overclock's whole case: is stamina spent per action or per second?).** Blocked for six
+  straight attempts by `backdoorfactions.js` silently hijacking the slot mid-test; now fixed.
+  **Recommendation: re-run the measurement now that it's unblocked — don't spend rank on Overclock
+  until it comes back clean.**
+- **Q11 (HP cost per failed operation).** Unknown before any Stage B tier-switch; unblocked by the
+  same fix, but carries real HP risk (unlike Q10, which risks nothing). **Recommendation: test now,
+  but carefully — hard HP floor, bounded window, abort-and-restore on any warning sign.**
+
+⚠️ **Kenneth's instruction, 2026-08-02 ~9:30pm: this is the last round of live testing to run
+without asking again.** Two tests approved for this pass — the Q10 re-run and a new, carefully
+bounded Q11 probe. Any further live experiments after these two need a fresh go-ahead, not a
+standing grant.
+
+---
+
 ## 5. Checkpoints
 
 Bars are stated against **wall-clock** rank/s, not held-sec — Phase 38's held-sec framing let a
