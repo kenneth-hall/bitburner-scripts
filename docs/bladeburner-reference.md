@@ -671,6 +671,35 @@ mechanics.
   - **Failed actions cost rank** (`Investigation failed! Lost 0.343 rank.` repeating), so a
     stamina-starved engine goes **net negative** on rank, not merely slow. Measured: −0.00958
     rank/held-sec cumulative.
+  - **🔑 ✅ ANSWERED 2026-08-02 — STAMINA IS SPENT PER ACTION, NOT PER SECOND.** Measured live via
+    `bladeburneractionprobe.js stamina`, which pauses `bladeburnermanager.js` through the off-marker
+    and runs two actions of very different duration back to back:
+
+    | Action | Duration | Stamina / **minute** | Stamina / **attempt** |
+    |---|---|---|---|
+    | Tracking | 14s | 3.295 | **0.769** |
+    | Investigation | 34s | 1.422 | **0.806** |
+    | *ratio* | 2.43× | 2.32× | **0.95×** |
+
+    Per-attempt cost is **flat (~0.77–0.81) across a 2.4× duration difference**, while per-minute
+    cost tracks actions-per-minute almost exactly. **This is the single most consequential mechanic
+    finding in the node**, and it has two large implications:
+
+    1. **`Overclock` does NOT raise the sustainable rank rate.** Making actions 8.3× faster makes
+       them consume stamina 8.3× faster; sustainable actions-per-minute is set by
+       `staminaRegen / staminaPerAction`, which Overclock does not touch. It still helps in
+       stamina-rich bursts, but it is **not** the 8.3× multiplier every earlier projection in this
+       repo (and `bn6-playbook.md` §1.0's lever table) treated it as. **16,908 rank saved.**
+    2. **⚠️ The right objective function is rank per ACTION, not rank per second.** Re-ranking the
+       live action table on that basis inverts the order — **`Raid` (0.807 rank/action) beats
+       `Tracking` (0.398) by 2× *at its current 5.3% success chance***, purely because it pays
+       80.5 rank per success against 0.73. An engine optimising rank/second — which is what
+       `bladeburnermanager.js` does today — systematically prefers fast cheap actions and will
+       never find this.
+
+    ⚠️ **Not yet a licence to switch to Raid**: HP is a second consumable, failed *operations* cost
+    HP *and* rank (both already priced into the 0.807), and **HP cost per failed operation is
+    unmeasured**. Sustainable rate is governed by whichever of stamina or HP binds first.
   - **❓ Still open:** whether any General action consumes stamina — `Hyperbolic Regeneration
     Chamber` is assumed safe for recovery, the rest are unmeasured (`BACKLOG.md` has the cheap
     experiment). *(The curve-shape question that used to sit here is closed — see the formula

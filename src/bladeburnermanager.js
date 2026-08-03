@@ -152,8 +152,42 @@ export const HIGHER_PRIORITY_CLAIMANTS = ["backdoorwd.js", "backdoorfactions.js"
 // -> Reaper/Evasive System. Never Hands of Midas/Hyperdrive/Cyber's Edge/
 // Datamancer -- and Cloak/Short-Circuit are excluded too, simply by never
 // appearing in this order (planSkillBuy only ever considers listed skills).
-export const SKILL_BUY_ORDER = ["Overclock", "Blade's Intuition", "Digital Observer", "Tracer", "Reaper", "Evasive System"];
-export const SKILL_LEVEL_CAP = { Overclock: 90 }; // documented max -- beyond it, no more throughput
+// 🔴 REORDERED 2026-08-02 (Phase 39 D5), after measuring the real cost curve with the
+// extended bladeburnerskillprobe.js. Two things were wrong with the old order
+// `["Overclock", "Blade's Intuition", ...]` + `{Overclock: 90}`:
+//
+//  1. **Overclock was first, and it is the one skill we cannot yet justify.** It costs
+//     5,636 SP / 16,908 rank for an 8.3x ACTION-TIME multiplier -- which is worth nothing
+//     if stamina, not time, is the binding constraint. That is Phase 39 Q10 and it is
+//     unmeasured, so Overclock is HELD at its current level until answered. (Held via the
+//     cap, not by removing it from the order, so re-enabling is a one-line change.)
+//  2. **The practical effect was diffuse drip-buying.** Because planSkillBuy takes the
+//     first AFFORDABLE entry, and Overclock's next level costs 27 SP, small balances kept
+//     falling through to whatever was cheapest -- live evidence 2026-08-02: Reaper went
+//     4 -> 6 and Evasive System 4 -> 5 while the two skills that actually gate the Stage
+//     A -> B tier switch sat at 6 and 6. 407 SP had been spent this way for a x1.18 total
+//     success multiplier.
+//
+// Measured payoff for the new order: Blade's Intuition + Digital Observer both to L25 =
+// 1,305 SP / 3,915 rank, taking operation success from x1.42 to x3.50. Tracer is included
+// at the same tier because it lifts CONTRACTS, which is what Stage A actually runs.
+// Caps are a deliberate checkpoint, not a ceiling -- when all three reach 25, SP starts
+// accumulating unspent, which is the signal to re-evaluate against fresh numbers.
+//
+// ⚠️ Known minor imperfection: planFirstEligible fills sequentially (BI to 25, then DO,
+// then Tracer) rather than round-robin. Since the skills' effects multiply, a balanced
+// climb would dominate slightly at every intermediate point; the ENDPOINT is identical,
+// so this is not worth extra machinery today. Logged rather than silently accepted.
+export const SKILL_BUY_ORDER = ["Blade's Intuition", "Digital Observer", "Tracer", "Overclock", "Reaper", "Evasive System"];
+export const OVERCLOCK_HOLD_LEVEL = 17; // Phase 39 Q10 -- raise to 90 once stamina cost is proven per-SECOND
+export const SKILL_LEVEL_CAP = {
+  "Blade's Intuition": 25,
+  "Digital Observer": 25,
+  Tracer: 25,
+  Overclock: OVERCLOCK_HOLD_LEVEL,
+  Reaper: 6,
+  "Evasive System": 6,
+};
 
 // Free-window overhead actions (decision 6) and their policy knobs. Not a
 // spec-mandated formula -- a defensible, logged default: keep HP topped

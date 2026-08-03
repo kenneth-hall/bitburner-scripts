@@ -55,10 +55,12 @@ export async function main(ns) {
   // drain per MINUTE. Equal drain/min => per-second. Drain/min scaling with 1/duration
   // => per-action.
   //
-  // ⚠️ MUTATING (startAction/stopBladeburnerAction). Kill bladeburnermanager.js first
-  // or the two will fight over the action slot. Restores nothing on its own -- the
-  // caller restarts the manager. Short windows deliberately: Tracking failures cost
-  // 3 HP each and max HP is only 27.
+  // ⚠️ MUTATING (startAction/stopBladeburnerAction), but SELF-MANAGING: it pauses
+  // bladeburnermanager.js via the off-marker for the duration and clears it in a
+  // `finally`, so no manual kill/restart is needed and a crash cannot leave the engine
+  // idle. See runStaminaWindows for why the marker is written from in-game rather than
+  // synced from src/. Short windows deliberately: Tracking failures cost 3 HP each and
+  // max HP is only 27.
   if (ns.args[0] === "stamina") return await staminaCostMode(ns);
 
   const out = { ts: Date.now(), iso: new Date().toISOString(), note: "read-only action-yield sweep" };
@@ -122,6 +124,9 @@ export async function main(ns) {
 
 // ---- stamina-cost mode (2026-08-02, Phase 39) --------------------------------
 
+const BB_OFF_MARKER = "bladeburner-off.txt";
+const SLOT_HOLD_FILE = "bladeburner-slot-hold.json";
+
 const STAMINA_SAMPLES = [
   { type: "Contracts", name: "Tracking", note: "short action (13s base)" },
   { type: "Operations", name: "Investigation", note: "long action (33s base), and the only one with NO HP loss on failure" },
@@ -144,6 +149,77 @@ async function staminaCostMode(ns) {
 
   out.startRank = ns.bladeburner.getRank();
   emit("start");
+
+  try {
+    await runStaminaWindows(ns, out, emit);
+  } finally {
+    // ALWAYS clear the pause, including on an exception or a mid-run kill. Leaving
+    // this file behind would idle the Bladeburner engine indefinitely, which on an
+    // unattended run is far worse than losing the measurement.
+    try { ns.rm(BB_OFF_MARKER, "home"); } catch { /* already gone */ }
+    out.pauseCleared = !ns.fileExists(BB_OFF_MARKER, "home");
+    emit("pause-cleared");
+  }
+
+  out.endRank = ns.bladeburner.getRank();
+  out.rankDelta = out.endRank - out.startRank;
+
+  // The verdict. If drain/min is roughly equal across two actions of very different
+  // duration, cost is per-second and Overclock multiplies throughput for free. If
+  // drain/min scales with actions/min instead, cost is per-action and Overclock buys
+  // nothing sustained.
+  if (out.runs.length === 2) {
+    const [a, b] = out.runs;
+    out.verdict = {
+      drainPerMinRatio: a.netDrainPerMin / b.netDrainPerMin,
+      drainPerAttemptRatio: a.netDrainPerAttempt / b.netDrainPerAttempt,
+      actionTimeRatio: b.actionTimeMs / a.actionTimeMs,
+      reading: "drainPerMinRatio near 1 => PER-SECOND (Overclock is a real multiplier). drainPerAttemptRatio near 1 => PER-ACTION (Overclock does not raise the stamina-limited ceiling).",
+    };
+  }
+
+  out.stage = "complete";
+  const file = "bladeburneractionprobe-" + out.ts + ".json";
+  ns.write(file, JSON.stringify(out, null, 2), "w");
+  for (const r of out.runs) {
+    ns.tprint(`  ${r.name}: ${r.actionTimeMs / 1000}s | drain ${r.netDrainPerMin.toFixed(2)}/min | ${r.netDrainPerAttempt.toFixed(2)}/attempt (${r.estimatedAttempts.toFixed(1)} attempts)`);
+  }
+  if (out.verdict) ns.tprint(`  ratios -> perMin ${out.verdict.drainPerMinRatio.toFixed(2)} | perAttempt ${out.verdict.drainPerAttemptRatio.toFixed(2)} | actionTime ${out.verdict.actionTimeRatio.toFixed(2)}`);
+  ns.tprint(`  pauseCleared=${out.pauseCleared} rankDelta ${out.rankDelta.toFixed(2)} -> ${file}`);
+}
+
+/**
+ * The measurement proper. Split out so staminaCostMode's `finally` can guarantee the
+ * pause marker is cleared no matter how this exits.
+ *
+ * 🔑 2026-08-02 -- how the pause works, and why this route rather than the obvious one.
+ * The probe needs EXCLUSIVE use of the single player-action slot, but daemon.js's
+ * supervisor relaunches bladeburnermanager.js within ~60s of any kill, and the two then
+ * fight over the slot (this killed the first attempt outright -- it died at stage
+ * "start" with no data). bladeburnermanager.js already honours an off-marker file that
+ * makes it stop its action, release the slot hold, and idle IN-LOOP -- so the supervisor
+ * stays satisfied and nothing gets relaunched.
+ *
+ * The trap: creating that marker from the repo (src/bladeburner-off.txt) hits the known
+ * viteburner new-file upload bug -- brand-new src/ files never sync, silently. The fix is
+ * to write it from INSIDE the game with ns.write, where no sync is involved at all.
+ */
+async function runStaminaWindows(ns, out, emit) {
+  ns.write(BB_OFF_MARKER, "paused by bladeburneractionprobe.js stamina mode @ " + out.iso + "\n", "w");
+  emit("pause-requested");
+
+  // Wait for the manager to actually let go, rather than assuming it has. It polls on
+  // ns.bladeburner.nextUpdate() (~1s) so this is quick, but assuming would reintroduce
+  // exactly the contention this exists to avoid.
+  let waited = 0;
+  while (waited < 30_000) {
+    await ns.sleep(2_000);
+    waited += 2_000;
+    if (!ns.fileExists(SLOT_HOLD_FILE, "home")) break;
+  }
+  out.slotReleasedAfterMs = waited;
+  ns.bladeburner.stopBladeburnerAction();
+  emit("slot-acquired");
 
   for (const target of STAMINA_SAMPLES) {
     const actionTimeMs = ns.bladeburner.getActionTime(target.type, target.name);
@@ -197,29 +273,4 @@ async function staminaCostMode(ns) {
   }
 
   ns.bladeburner.stopBladeburnerAction();
-  out.endRank = ns.bladeburner.getRank();
-  out.rankDelta = out.endRank - out.startRank;
-
-  // The verdict. If drain/min is roughly equal across two actions of very different
-  // duration, cost is per-second and Overclock multiplies throughput for free. If
-  // drain/min scales with actions/min instead, cost is per-action and Overclock buys
-  // nothing sustained.
-  if (out.runs.length === 2) {
-    const [a, b] = out.runs;
-    out.verdict = {
-      drainPerMinRatio: a.netDrainPerMin / b.netDrainPerMin,
-      drainPerAttemptRatio: a.netDrainPerAttempt / b.netDrainPerAttempt,
-      actionTimeRatio: b.actionTimeMs / a.actionTimeMs,
-      reading: "drainPerMinRatio near 1 => PER-SECOND (Overclock is a real multiplier). drainPerAttemptRatio near 1 => PER-ACTION (Overclock does not raise the stamina-limited ceiling).",
-    };
-  }
-
-  out.stage = "complete";
-  const file = "bladeburneractionprobe-" + out.ts + ".json";
-  ns.write(file, JSON.stringify(out, null, 2), "w");
-  for (const r of out.runs) {
-    ns.tprint(`  ${r.name}: ${r.actionTimeMs / 1000}s | drain ${r.netDrainPerMin.toFixed(2)}/min | ${r.netDrainPerAttempt.toFixed(2)}/attempt (${r.estimatedAttempts.toFixed(1)} attempts)`);
-  }
-  if (out.verdict) ns.tprint(`  ratios -> perMin ${out.verdict.drainPerMinRatio.toFixed(2)} | perAttempt ${out.verdict.drainPerAttemptRatio.toFixed(2)} | actionTime ${out.verdict.actionTimeRatio.toFixed(2)}`);
-  ns.tprint("  rankDelta " + out.rankDelta.toFixed(2) + " -> " + file);
 }

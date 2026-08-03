@@ -47,6 +47,7 @@ import {
   STAMINA_RESUME_FRACTION,
   updateHpRecovering,
   HP_RESUME_FRACTION,
+  OVERCLOCK_HOLD_LEVEL,
 } from '../src/bladeburnermanager.js';
 
 // --- expectedRankPerSec ----------------------------------------------------
@@ -152,11 +153,33 @@ describe('pickRankAction', () => {
 // --- planSkillBuy ------------------------------------------------------------
 
 describe('planSkillBuy', () => {
-  it('buys the highest-priority affordable skill (Overclock first)', () => {
+  // 🔴 Rewritten 2026-08-02 (Phase 39 D5). This asserted "Overclock first", which was the
+  // old policy. Overclock costs 16,908 rank for an 8.3x ACTION-TIME multiplier that is
+  // worth nothing if stamina rather than time is the binding constraint (Q10, unmeasured),
+  // so it is now HELD at OVERCLOCK_HOLD_LEVEL while the success skills -- which gate the
+  // Stage A -> B tier switch -- go first.
+  it('buys the highest-priority affordable skill (success skills first)', () => {
     const levels = {};
     const costs = { Overclock: 5, 'Blade\'s Intuition': 1 };
     const buy = planSkillBuy(levels, 10, costs);
-    expect(buy).toEqual({ skill: 'Overclock', toLevel: 1, cost: 5 });
+    expect(buy).toEqual({ skill: 'Blade\'s Intuition', toLevel: 1, cost: 1 });
+  });
+
+  it('holds Overclock at its cap so a large SP balance cannot drain into it', () => {
+    // The whole point of the hold: with every success skill capped out and plenty of SP
+    // banked, Overclock must still not be bought until Q10 is answered.
+    const levels = { 'Blade\'s Intuition': 25, 'Digital Observer': 25, Tracer: 25, Overclock: OVERCLOCK_HOLD_LEVEL, Reaper: 6, 'Evasive System': 6 };
+    const costs = { Overclock: 27, 'Blade\'s Intuition': 100, 'Digital Observer': 100, Tracer: 100, Reaper: 10, 'Evasive System': 10 };
+    expect(planSkillBuy(levels, 100_000, costs)).toBeNull();
+  });
+
+  it('prefers Blade\'s Intuition / Digital Observer / Tracer over Reaper and Evasive System', () => {
+    // The live failure this encodes: because planSkillBuy takes the first AFFORDABLE
+    // entry and Overclock's next level cost 27 SP, small balances kept falling through to
+    // whatever was cheapest -- Reaper drifted 4 -> 6 while Digital Observer sat at 6.
+    const levels = { 'Blade\'s Intuition': 6, 'Digital Observer': 6, Tracer: 6, Reaper: 4, 'Evasive System': 4 };
+    const costs = { 'Blade\'s Intuition': 16, 'Digital Observer': 13, Tracer: 13, Reaper: 10, 'Evasive System': 10, Overclock: 27 };
+    expect(planSkillBuy(levels, 16, costs).skill).toBe('Blade\'s Intuition');
   });
 
   it('skips an unaffordable higher-priority skill and buys the next affordable one', () => {
