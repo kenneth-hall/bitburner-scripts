@@ -36,13 +36,22 @@ do, and what's broken?*
   actual contender right now. `backdoorwd.js` stays on this list as a real hazard if it ever does
   fire. **✅ Re-ran `slotconflictprobe.js` 2026-08-02 9pm** (adapted it to pause
   `bladeburnermanager.js` first, since D1's continuous-duty policy meant the script's old
-  idle-wait precondition never cleared on its own) — **the conflict is real and confirmed**:
-  starting a Bladeburner action killed `augfarmer.js`'s in-progress `workForFaction`, and
-  `augfarmer.js` killed the Bladeburner action right back within the observe window
+  idle-wait precondition never cleared on its own) — **the conflict MECHANISM is real and
+  confirmed**: starting a Bladeburner action killed `augfarmer.js`'s in-progress `workForFaction`,
+  and `augfarmer.js` killed the Bladeburner action right back within the observe window
   (`bbCancelledWork` and `augKilledBb` both `true`). This overturns the old buggy-verdict-logic
-  "NO CONFLICT" result that was the only prior data point. **Next action:** extend the slot-hold
-  contract so `augfarmer.js` respects `SLOT_HOLD_FILE` more tightly (the stamina probe's own hold
-  claim didn't prevent this), then cover the backdoor scripts, or add a global quiesce marker.
+  "NO CONFLICT" result that was the only prior data point.
+  **⚠️ Correction 2026-08-02 9:15pm — the "Next action" this entry previously carried (fix
+  `augfarmer.js`) was wrong and has been removed.** That run's probe never claimed
+  `SLOT_HOLD_FILE`, so `augfarmer.js` correctly saw an unclaimed slot and took it — reading its
+  actual source (lines 1886, 1935) confirms both work-decision branches already check
+  `slotHold.holdActive` and suppress work when set. The real gap, matching this entry's *original*
+  framing before that wrong correction: **`backdoorfactions.js` never reads `SLOT_HOLD_FILE` at
+  all** (confirmed by grep — only writes its own one-way `ACTIVITY_FILE`), and it was confirmed
+  running via `ps` during the actual failed Q10 attempts. **Next action:** make
+  `backdoorfactions.js` check `SLOT_HOLD_FILE` before its walk+`installBackdoor` block, mirroring
+  the check `augfarmer.js` already has, then cover `backdoorwd.js` the same way as a hazard
+  guard, or add a global quiesce marker.
 - **🔴 STILL OPEN — `bladeburnermanager.js` telemetry reports zero progress while rank moves.**
   `logs/bladeburner-state.json` shows `rates.*.rankGained: 0` and `duty.*.dutyCycle: 1` across all
   windows while live rank went 1,217 → 1,221 and the engine was mostly idle. Both fields are

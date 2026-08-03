@@ -52,6 +52,18 @@ const STATUS_FILE = "backdoor-status.json";
 // amendment, 2026-08-01) -- own copy of the filename, not imported, same
 // import-bleed reasoning as the two scripts' other cross-referenced constants.
 const ACTIVITY_FILE = "backdoorfactions-activity.json";
+// Phase 39 D1 (2026-08-02): the reverse direction of the same marker
+// augfarmer.js already honours (its resolveSlotHold, same field shape and
+// tolerances) -- own copy, not imported, for the same import-bleed reason as
+// every other cross-referenced constant in this file. Confirmed live
+// 2026-08-02 that without this check, this script's walk+installBackdoor
+// block silently kills an in-flight Bladeburner action (slotconflictprobe.js,
+// logs/slotconflictprobe-1785722017377.json) -- it has no closing window
+// (classifyTarget re-derives "ready" fresh every poll), so a bounded yield
+// costs at most one POLL_MS, never a missed opportunity.
+const SLOT_HOLD_FILE = "bladeburner-slot-hold.json";
+const SLOT_HOLD_MAX_AGE_MS = 30_000;
+const SLOT_HOLD_FUTURE_TOLERANCE_MS = 5_000;
 
 /**
  * Pure. classifyTarget's phase-06 contract: backdoorInstalled wins
@@ -64,6 +76,36 @@ export function classifyTarget({ backdoorInstalled, factionJoined, hackingLevel,
   if (factionJoined === true) return "done-joined";
   if (Number.isFinite(requiredLevel) && hackingLevel >= requiredLevel && rooted) return "ready";
   return "waiting";
+}
+
+/**
+ * Pure (Phase 39 D1). Same fail-open contract as augfarmer.js's
+ * resolveSlotHold: every malformed/absent/stale/future-dated marker resolves
+ * to holdActive: false, so a crashed or never-run Bladeburner engine costs
+ * this script at most nothing -- it just proceeds as it always has.
+ * @param {string|null|undefined} raw
+ * @param {number} nowMs
+ */
+export function resolveBladeburnerHold(raw, nowMs, maxAgeMs = SLOT_HOLD_MAX_AGE_MS, futureToleranceMs = SLOT_HOLD_FUTURE_TOLERANCE_MS) {
+  if (!raw) return { holdActive: false, holdReason: "no-marker" };
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { holdActive: false, holdReason: "unparseable" };
+  }
+
+  const ts = parsed?.ts;
+  if (typeof ts !== "number" || !Number.isFinite(ts)) {
+    return { holdActive: false, holdReason: "no-timestamp" };
+  }
+
+  const holdAgeMs = nowMs - ts;
+  if (holdAgeMs > maxAgeMs) return { holdActive: false, holdReason: "stale" };
+  if (ts - nowMs > futureToleranceMs) return { holdActive: false, holdReason: "future-timestamp" };
+
+  return { holdActive: true, holdReason: "held", holderName: typeof parsed.holder === "string" ? parsed.holder : null };
 }
 
 /**
@@ -211,7 +253,14 @@ export async function main(ns) {
     }
 
     const ready = rows.filter((r) => r.classification === "ready");
-    if (ready.length > 0) {
+    const bladeburnerHold = resolveBladeburnerHold(ns.read(SLOT_HOLD_FILE), Date.now());
+    if (ready.length > 0 && bladeburnerHold.holdActive) {
+      // Phase 39 D1: bounded yield, not unconditional stand-down -- retry
+      // next poll (at most POLL_MS later). classifyTarget re-derives "ready"
+      // fresh every poll, so nothing is lost by waiting one cycle.
+      tprintTs(ns, `YIELD: Bladeburner holds the slot (${bladeburnerHold.holderName ?? "unknown"}) -- ${ready.length} ready target(s) wait one poll`);
+      writeActivity(ns, false);
+    } else if (ready.length > 0) {
       // active:true brackets the whole block, not just installBackdoor() --
       // deliberately a little wider than the strict minimum (walkTo
       // navigation is probably not slot-contending) in exchange for staying

@@ -1,7 +1,7 @@
 // Unit tests for src/backdoorfactions.js (Phase 22). Fake-ns style, no
 // mocking framework -- per house convention (see test/common.test.js).
 import { describe, it, expect } from 'vitest';
-import { classifyTarget, walkTo } from '../src/backdoorfactions.js';
+import { classifyTarget, walkTo, resolveBladeburnerHold } from '../src/backdoorfactions.js';
 
 describe('classifyTarget', () => {
   it('backdoorInstalled wins over everything else', () => {
@@ -104,5 +104,53 @@ describe('walkTo', () => {
     const ns = makeWalkNs({ home: ['a'], a: ['home'], island: ['isolated'], isolated: ['island'] }, 'home');
     expect(walkTo(ns, 'island')).toBe(false);
     expect(ns.connectCalls).toEqual([]);
+  });
+});
+
+// Phase 39 D1: the reverse direction of augfarmer.js's resolveSlotHold --
+// same fail-open contract, own copy (import-bleed reasoning), mirrors
+// augfarmer.test.js's resolveSlotHold coverage.
+describe('resolveBladeburnerHold — Phase 39 D1 (reverse-direction marker contract)', () => {
+  const T = 1_000_000;
+
+  it('fails open on no marker', () => {
+    expect(resolveBladeburnerHold(null, T).holdActive).toBe(false);
+    expect(resolveBladeburnerHold('', T).holdActive).toBe(false);
+  });
+
+  it('fails open on unparseable JSON', () => {
+    expect(resolveBladeburnerHold('not json', T)).toEqual({ holdActive: false, holdReason: 'unparseable' });
+  });
+
+  it('fails open on a missing/non-numeric timestamp', () => {
+    expect(resolveBladeburnerHold(JSON.stringify({ holder: 'bladeburnermanager' }), T).holdActive).toBe(false);
+    expect(resolveBladeburnerHold(JSON.stringify({ ts: 'now' }), T).holdActive).toBe(false);
+  });
+
+  it('holds active for a fresh marker', () => {
+    const r = resolveBladeburnerHold(JSON.stringify({ ts: T - 1000, holder: 'bladeburnermanager' }), T);
+    expect(r).toEqual({ holdActive: true, holdReason: 'held', holderName: 'bladeburnermanager' });
+  });
+
+  it('fails open on a stale marker (older than maxAgeMs)', () => {
+    const r = resolveBladeburnerHold(JSON.stringify({ ts: T - 30_001, holder: 'bladeburnermanager' }), T);
+    expect(r.holdActive).toBe(false);
+    expect(r.holdReason).toBe('stale');
+  });
+
+  it('fails open on a future-dated marker beyond tolerance', () => {
+    const r = resolveBladeburnerHold(JSON.stringify({ ts: T + 5_001 }), T);
+    expect(r.holdActive).toBe(false);
+    expect(r.holdReason).toBe('future-timestamp');
+  });
+
+  it('holderName is null when the field is missing or non-string', () => {
+    const r = resolveBladeburnerHold(JSON.stringify({ ts: T - 1000 }), T);
+    expect(r.holderName).toBe(null);
+  });
+
+  it('respects injected maxAgeMs/futureToleranceMs', () => {
+    expect(resolveBladeburnerHold(JSON.stringify({ ts: T - 100 }), T, 50).holdActive).toBe(false);
+    expect(resolveBladeburnerHold(JSON.stringify({ ts: T + 100 }), T, 30_000, 50).holdActive).toBe(false);
   });
 });
