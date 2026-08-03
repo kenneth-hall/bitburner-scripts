@@ -22,23 +22,20 @@ do, and what's broken?*
 
 ## Bugs
 
-- **🔴 `bladeburnermanager.js` does not enforce its own stamina floor.** `logs/bladeburner-state.json`
-  reports `stamina.floor: 0.5`, yet the in-game event log shows `Your Bladeburner action was
-  cancelled because your stamina hit 0` three times in one hour (2026-08-02, 09:13 / 09:55 / 10:08).
-  Because the game returns `getCurrentAction() → null` on that cancel, the engine then idles.
-  Compounding: the closed-form penalty is `min(1, fraction/0.5)`, so everything below 50% stamina runs
-  at up to a 90% success penalty. **Next action:** folded into Phase 39 D2 — fix there rather than
-  patching Phase 38, per `phase-39-bladeburner-primary.features.md`.
-- **🔴 `bladeburnermanager.js` telemetry reports zero progress while rank moves.**
+- **🟡 Four-way player-action-slot contention has no arbiter.** `bladeburnermanager.js`,
+  `augfarmer.js` (faction work), `backdoorfactions.js` and `backdoorwd.js` (`installBackdoor`) all
+  claim the single player-action slot. Only the bladeburner<->augfarmer pair cooperates (via
+  `bladeburner-slot-hold.json`); the two backdoor scripts are outside that contract entirely.
+  Consequence: any probe or feature needing exclusive slot access must quiesce all four, and there
+  is no way to do that today. Blocked four attempts at one measurement on 2026-08-02, and blocks
+  Phase 39's Q5 (city rotation), Q10 (stamina cost) and Q11 (operation HP cost). **Next action:**
+  extend the slot-hold contract to cover the backdoor scripts, or add a global quiesce marker.
+- **🔴 STILL OPEN — `bladeburnermanager.js` telemetry reports zero progress while rank moves.**
   `logs/bladeburner-state.json` shows `rates.*.rankGained: 0` and `duty.*.dutyCycle: 1` across all
   windows while live rank went 1,217 → 1,221 and the engine was mostly idle. Both fields are
   therefore unusable, and **any viability verdict computed from them is invalid** — this is what made
   Phase 38's checkpoints meaningless. **Next action:** Phase 39 D9 (rebuild against wall-clock, not
   held-sec).
-- **🟡 `bladeburnermanager.js` selects by rank-per-success, not expected value.** It ran
-  `Investigation` (EV **0.0077** rank/s) over `Tracking` (EV **0.0307** rank/s) for extended stretches,
-  and two actions in the catalog are currently **net-negative** on rank. **Next action:** Phase 39 D3.
-
 - **🟡 [PARTIALLY SHIPPED 2026-07-29] Phase 36 (`phase-36-install-cadence.spec.md`, twice
   cold-reviewed) has 4 work items; F-B and F-A have landed, the buy-set filter has not.** BN6.1
   entry surfaced this as stranded — features + spec sat in the repo root, never in

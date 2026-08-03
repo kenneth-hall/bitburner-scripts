@@ -6,6 +6,41 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-02
+
+- **Phase 38 (Bladeburner engine) CLOSED — shipped, but superseded before it delivered its verdict.**
+  All four work items shipped and the engine runs unattended; the phase's actual deliverable was a
+  *decision* ("is the back-half Bladeburner premise real?") and **neither checkpoint ever fired**.
+  Three compounding causes: it spent its first days stood down by design; its measurements were
+  invalid (stamina floor unenforced, hospitalization cost charged per-failure rather than
+  per-hospitalization — a ~9× overcharge that made it grind the 4×-worse action for hours, and an HP
+  "guard" that was really a trap); and ⚠️ **its telemetry reported `rankGained: 0` / `dutyCycle: 1`
+  while rank visibly moved**, so a checkpoint would have rendered a confident verdict on the *bug*.
+  🔑 Durable lesson: **an engine that measures itself must be validated against an independent source
+  before its numbers are trusted** — every defect was invisible in its own state file and obvious in
+  the in-game panel. Full done-vs-left record + carried-forward items:
+  [`phase-38-bladeburner-engine.spec.md`](phase-38-bladeburner-engine.spec.md) close-out.
+- **BN6 win path FLIPPED again — Bladeburner-primary, batcher as its economy** (Kenneth's call).
+  Supported by measurement rather than argument: BN6 penalises hacking four ways (`HackExpGain` 0.25,
+  `HackingLevelMultiplier` 0.35, `ServerMaxMoney` 0.20, `CloudServerSoftcap` 2.0) and Bladeburner
+  **zero** ways, with no combat-exp penalty at all. Stated honestly as the *slower expected* path
+  chosen for engine value ahead of BN7 and the hacking-walled back half, with a 2-week tripwire.
+  Phase 39 (`phase-39-bladeburner-primary.features.md`) is the Stage-1 successor.
+- **Bladeburner mechanics: three findings that change how the engine must be built.** (1) The
+  **stamina penalty solved in closed form** — `successMultiplier = min(1, (stamina/max)/0.5)`, three
+  live points fitting exactly ⇒ zero benefit above 50% stamina, linear cliff below. (2) The **skill
+  cost curve measured** — Blade's Intuition + Digital Observer both to L25 = **3,915 rank** for
+  **×3.50** operation success, which **beats the entire Bladeburner aug tree** (×1.28 for ~$250b plus
+  62.5k faction rep that resets on every install) ⇒ the install↔rep deadlock dissolved, no install
+  freeze needed. (3) **Four scripts contend for the single player-action slot**
+  (`bladeburnermanager`, `augfarmer`, `backdoorfactions`, `backdoorwd`), each producing an identical
+  "zero drain" symptom from a different cause; and **`startAction` returning `true` does not mean the
+  action is running** (`true` returned while `getCurrentAction()` read `null` across 60 samples).
+  A per-action-vs-per-second stamina claim was briefly published and then **withdrawn as
+  contaminated** — recorded in `docs/bladeburner-reference.md` §8 so it is not re-derived as evidence.
+
+---
+
 ## 2026-07-30
 
 - **BN6 win path FLIPPED from Bladeburner black-ops to hacking** — the 2026-07-29 decision's own

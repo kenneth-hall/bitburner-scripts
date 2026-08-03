@@ -671,3 +671,81 @@ Slice A is live-green** (decision 10).
 6. **`augfarmer-state.json`'s dead `plan.phase !== previousPhase` write-gate term** (BACKLOG) is why
    free windows are under-detected (decision 6). Fixing it is out of scope here but would directly
    improve this engine's throughput — worth pairing with whatever phase finally addresses it.
+
+---
+
+## Close-out (2026-08-02) — SHIPPED, but superseded before it delivered its verdict
+
+**Status: closed, not completed.** Every work item shipped and the engine runs unattended. The
+phase's actual **deliverable was a decision** — *"is the counter-map's back-half Bladeburner premise
+real?"* — and **that deliverable was never produced.** Neither checkpoint fired. Closing it now
+rather than leaving it stranded (the Phase 36 pattern this repo has already been bitten by once).
+
+### What shipped
+
+| WI | Status |
+|---|---|
+| WI1 — `augfarmer.js` cooperative slot hold (Slice A) | ✅ shipped, live-green |
+| WI2 — `src/bladeburnermanager.js` (Slice B) | ✅ shipped |
+| WI3 — instrumentation (`bladeburner-state.json`/`-log.json`) | ✅ shipped, ⚠️ **partly untrustworthy** — see below |
+| WI4 — supervisor gating in `daemon.js` | ✅ shipped |
+| Dashboard `BLADEBURNER` panel | ✅ shipped 2026-08-01 (open question 3) |
+| T1 `npm test` / T2 `verify:log` | ✅ green (1,188 tests at close) |
+| V1/V2/V3 (hold, staleness recovery, stand-down) | ✅ live-validated |
+| **V4 — checkpoint A (24h)** | ❌ **never fired** |
+| **V5 — checkpoint B (1 week) — the close-out deliverable** | ❌ **never fired** |
+
+### Why the checkpoints never fired, and why that is the phase's real lesson
+
+Three compounding causes, all found on 2026-08-02 by reading the live game rather than the logs:
+
+1. **The engine spent its first days stood down.** Decision 3's unconditional stand-down for
+   `backdoorwd.js`/`backdoorfactions.js`/`studybootstrap.js` meant that as of 2026-08-01 it had
+   **zero data** — working as designed, but it consumed the measurement window.
+2. **The measurements it did produce were invalid.** Five defects (fixed in `2404474`) plus three
+   more found later: the stamina floor was not enforced (`floor: 0.5` in state while the game logged
+   `stamina hit 0` three times an hour); the hospitalization discount was charged **per failure**
+   rather than per hospitalization (a ~9× overcharge that scored `Tracking` at −0.0316 against
+   `Investigation`'s +0.0016, so the engine ground the **4× worse** action for hours); and the HP
+   floor was a **trap** rather than a guard — below it the pool filtered to `Investigation`, which
+   can never restore HP, so nothing could climb back out.
+3. **⚠️ The telemetry reported success while doing nothing.** `rates.*.rankGained: 0` and
+   `duty.*.dutyCycle: 1` were emitted while live rank visibly moved. **A checkpoint computed from
+   those fields would have rendered a confident verdict on the mechanic that was really a verdict on
+   the bug** — the exact failure mode decision 9 existed to prevent.
+
+🔑 **Generalised lesson, and it is the durable output of this phase:** *an engine that measures
+itself must be validated against an independent source before its numbers are trusted.* Every defect
+above was invisible in `bladeburner-state.json` and obvious in the in-game Bladeburner panel. The
+phase built careful checkpoint machinery on top of an instrument nobody had calibrated.
+
+### Superseded by
+
+**Phase 39** (`phase-39-bladeburner-primary.features.md`), after Kenneth flipped BN6 to
+Bladeburner-primary on 2026-08-02. Phase 39 supersedes this phase's **architecture** — an
+opportunistic slack-time grinder that stands down for everything is the inverse of what a primary
+win path needs — while reusing its telemetry plumbing. Phase 38's D9 rebuild requirement is carried
+forward as Phase 39 D9.
+
+### Open items carried forward (nothing is dropped here)
+
+| Item | Carried to |
+|---|---|
+| `switchCity` cost/interruption unmeasured (open question 1) | Phase 39 **Q5** — now load-bearing, since city rotation is the population-sustainability lever (D11) |
+| Telemetry rebuild — wall-clock rates, real duty cycle, EV predicted vs realised | Phase 39 **D9** |
+| Stand-down policy inversion under primary | Phase 39 **D1** |
+| Should the engine refuse to release a slice (open question 2) | Still open; unchanged default (augfarmer always wins) |
+| **NEW — four-way player-action-slot contention** | `docs/bladeburner-reference.md` §8 + `CLAUDE.md`. `bladeburnermanager.js`, `augfarmer.js`, `backdoorfactions.js`, `backdoorwd.js` all claim the single slot; each produced an identical "zero drain" symptom from a different cause, and defeated four attempts at one measurement. |
+| **NEW — `startAction` returning `true` does not mean the action runs** | `docs/bladeburner-reference.md` §7/§8. Confirmed live: `true` returned while `getCurrentAction()` read `null` across 60 samples. |
+| **NEW — stamina per action vs per second** | Phase 39 **Q10**, unresolved after four attempts |
+| **NEW — HP cost per failed operation** | Phase 39 **Q11**, gates any tier switch to Raid |
+
+### Final live state at close
+
+Rank **1,445** (from 0 at join on 2026-07-30). Sustained **~0.0063 rank/wall-s** over a 9.5h clean
+window — ⚠️ **below** even Phase 39's corrected C1 bar of 0.007, and far below this phase's
+checkpoint A bar of 0.043 rank/held-sec. **On the numbers Phase 38 was built to produce, the answer
+it would have given is "not viable" — but that verdict is NOT recorded as this phase's finding**,
+because the engine that produced it was mis-tuned in three separate ways and the objective function
+it optimised (rank/second) is itself now in question (Phase 39 D3-OPEN). **Re-measure under Phase 39
+before treating any rate from this phase as evidence.**

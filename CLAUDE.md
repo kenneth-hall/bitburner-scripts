@@ -49,13 +49,28 @@ on request — hold to them even when the moment is uncomfortable.
   - **Batcher's new job: funding engine only** (decided 2026-08-02). The WD-gate hacking climb is
     **dropped as a goal** — optimise for $/s to pay for Bladeburner augs and fleet. Do not re-derive
     the M≈28–37 / 35-aug Daedalus plan as if it were still the target.
-  - **Phase 39 (`phase-39-*.features.md`) is the active phase — Stage 1 brainstorm.** It supersedes
-    Phase 38's *architecture* (an opportunistic slack-time grinder that stands down for other
-    scripts — the inverse of what primary needs) while reusing its telemetry plumbing. ⚠️ **Phase
-    38's measurements are not trustworthy**: its stamina floor is not enforced (state says
-    `floor: 0.5`, event log shows `stamina hit 0` three times in an hour) and its telemetry reports
-    `rankGained: 0`/`dutyCycle: 1` while rank visibly moved. **Anything measured by that engine is
-    measuring the bug.**
+  - **✅ Phase 38 CLOSED 2026-08-02 — shipped, but superseded before it delivered its verdict.** All
+    four work items shipped; the deliverable was a *decision* and **neither checkpoint ever fired**.
+    Docs graduated to `docs/phases/`, CHANGELOG entry written, all open items carried forward
+    explicitly — full done-vs-left record in that spec's **Close-out** section. 🔑 **Its durable
+    lesson, worth more than the phase:** *an engine that measures itself must be validated against an
+    independent source before its numbers are trusted.* Every defect was invisible in
+    `bladeburner-state.json` and obvious in the in-game panel. ⚠️ **Do not treat any rank rate
+    produced by Phase 38 as evidence** — the engine was mis-tuned three separate ways and the
+    objective function it optimised (rank/second) is itself now in question.
+  - **Phase 39 (`phase-39-bladeburner-primary.features.md`) is the active phase — Stage 1 brainstorm,
+    and it has NO spec yet.** ⚠️ Several implementation commits already landed on `src/` under
+    explicit one-off authorisation (bug fixes, probes, skill-order change). **That is a stage-boundary
+    drift, not a precedent** — decide whether Phase 39 gets a real Stage-2 spec before more code.
+  - **🔴 LANDMINE — FOUR scripts contend for the single player-action slot.**
+    `bladeburnermanager.js`, `augfarmer.js` (faction work), `backdoorfactions.js` and
+    `backdoorwd.js` (`installBackdoor`) all claim it. Any probe or feature needing the slot must
+    quiesce **all four**, not just the obvious one. This defeated four attempts at a single
+    measurement on 2026-08-02, and each claimant produced an **identical** symptom from a **different**
+    cause — which is exactly why it took four tries. ⚠️ Related API trap: **`startAction` returning
+    `true` does NOT mean the action is running** (confirmed live: `true` returned while
+    `getCurrentAction()` read `null` across 60 samples). Verify with `getCurrentAction()`, never the
+    boolean. Full table of claimants and failure modes: `docs/bladeburner-reference.md` §8.
   - **Current standing 2026-08-02:** rank **1,221** / 400,000 · skill points **0** (407 earned, all
     spent across 12 skills) · **Overclock 17/90** (×0.83 action time; ceiling ×0.10 = **8.3×
     throughput**) · team size **0** · all four `bladeburner_*` aug mults **1.00** · 81
