@@ -157,6 +157,7 @@ async function staminaCostMode(ns) {
     // this file behind would idle the Bladeburner engine indefinitely, which on an
     // unattended run is far worse than losing the measurement.
     try { ns.rm(BB_OFF_MARKER, "home"); } catch { /* already gone */ }
+    try { ns.rm(SLOT_HOLD_FILE, "home"); } catch { /* already gone */ }
     out.pauseCleared = !ns.fileExists(BB_OFF_MARKER, "home");
     emit("pause-cleared");
   }
@@ -204,18 +205,33 @@ async function staminaCostMode(ns) {
  * viteburner new-file upload bug -- brand-new src/ files never sync, silently. The fix is
  * to write it from INSIDE the game with ns.write, where no sync is involved at all.
  */
+/** Claim the player-action slot as ourselves, so augfarmer.js keeps its hands off it. */
+function holdSlot(ns) {
+  ns.write(SLOT_HOLD_FILE, JSON.stringify({ ts: Date.now(), holder: "bladeburneractionprobe" }), "w");
+}
+
 async function runStaminaWindows(ns, out, emit) {
   ns.write(BB_OFF_MARKER, "paused by bladeburneractionprobe.js stamina mode @ " + out.iso + "\n", "w");
   emit("pause-requested");
 
-  // Wait for the manager to actually let go, rather than assuming it has. It polls on
-  // ns.bladeburner.nextUpdate() (~1s) so this is quick, but assuming would reintroduce
-  // exactly the contention this exists to avoid.
+  // 🔴 2026-08-02, third attempt -- the SECOND failure mode, and it is the opposite of the
+  // first. Pausing bladeburnermanager.js makes it RELEASE the slot-hold marker, and
+  // augfarmer.js watches for exactly that: the live log reads "slot hold released -- rep
+  // work resuming" the instant the probe starts. augfarmer then begins faction work, which
+  // occupies the single player-action slot, so the probe's startAction never takes effect.
+  // Symptom was identical to the first bug -- zero drain, start === end -- but the cause is
+  // a DIFFERENT script, which is why fixing the manager alone did not help. So: pause the
+  // manager AND immediately claim the slot ourselves, refreshing inside
+  // SLOT_HOLD_MAX_AGE_MS (30s) for the entire run.
+  holdSlot(ns);
+
   let waited = 0;
   while (waited < 30_000) {
     await ns.sleep(2_000);
     waited += 2_000;
-    if (!ns.fileExists(SLOT_HOLD_FILE, "home")) break;
+    holdSlot(ns);
+    const live = ns.bladeburner.getCurrentAction();
+    if (!live || !live.name || live.name === "Hyperbolic Regeneration Chamber") break;
   }
   out.slotReleasedAfterMs = waited;
   ns.bladeburner.stopBladeburnerAction();
@@ -237,13 +253,20 @@ async function runStaminaWindows(ns, out, emit) {
     const [startStam, maxStam] = ns.bladeburner.getStamina();
     const startSucc = ns.bladeburner.getActionSuccesses(target.type, target.name);
     const t0 = Date.now();
-    ns.bladeburner.startAction(target.type, target.name);
+    holdSlot(ns);
+    const started = ns.bladeburner.startAction(target.type, target.name);
 
     const samples = [];
+    let preempted = 0;
     while (Date.now() - t0 < STAMINA_WINDOW_MS) {
       await ns.sleep(STAMINA_TICK_MS);
+      holdSlot(ns); // keep the claim fresh inside SLOT_HOLD_MAX_AGE_MS
       const [c] = ns.bladeburner.getStamina();
-      samples.push({ atMs: Date.now() - t0, stamina: c });
+      // Record whether OUR action is still the live one. Two runs were silently invalid
+      // because something else held the slot and nothing ever checked.
+      const live = ns.bladeburner.getCurrentAction();
+      if (!live || live.name !== target.name) preempted++;
+      samples.push({ atMs: Date.now() - t0, stamina: c, liveAction: live ? live.name : null });
     }
 
     const [endStam] = ns.bladeburner.getStamina();
@@ -267,6 +290,10 @@ async function runStaminaWindows(ns, out, emit) {
       estimatedAttempts: attempts,
       netDrainPerAttempt: drained / attempts,
       successesDuringWindow: endSucc - startSucc,
+      startActionReturned: started,
+      preemptedSamples: preempted,
+      totalSamples: samples.length,
+      valid: started === true && preempted === 0 && startStam !== endStam,
       samples,
     });
     emit("ran-" + target.name);

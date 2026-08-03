@@ -671,35 +671,38 @@ mechanics.
   - **Failed actions cost rank** (`Investigation failed! Lost 0.343 rank.` repeating), so a
     stamina-starved engine goes **net negative** on rank, not merely slow. Measured: −0.00958
     rank/held-sec cumulative.
-  - **🔑 ✅ ANSWERED 2026-08-02 — STAMINA IS SPENT PER ACTION, NOT PER SECOND.** Measured live via
-    `bladeburneractionprobe.js stamina`, which pauses `bladeburnermanager.js` through the off-marker
-    and runs two actions of very different duration back to back:
+  - **❌ UNRESOLVED — is stamina spent per ACTION or per SECOND?** ⚠️ **An earlier version of this
+    entry claimed "✅ ANSWERED — PER ACTION" with a numbers table. That claim was WITHDRAWN the same
+    day: the only run that produced numbers was contaminated by action-slot contention, and three
+    subsequent attempts to reproduce it cleanly all failed.** The withdrawn figures (Tracking 14s →
+    0.769/attempt, Investigation 34s → 0.806/attempt) are recorded here only so nobody re-derives
+    them and mistakes them for evidence.
 
-    | Action | Duration | Stamina / **minute** | Stamina / **attempt** |
-    |---|---|---|---|
-    | Tracking | 14s | 3.295 | **0.769** |
-    | Investigation | 34s | 1.422 | **0.806** |
-    | *ratio* | 2.43× | 2.32× | **0.95×** |
+    **Why it matters:** per-second ⇒ `Overclock`'s 8.3× speedup is a real 8.3× on sustainable rank
+    rate. Per-action ⇒ faster actions burn stamina proportionally faster,
+    `staminaRegen / staminaPerAction` is unchanged, and Overclock's 16,908 rank buys nothing
+    sustained. It would also change the correct objective function from rank/second to rank/action,
+    which reorders the entire action table.
 
-    Per-attempt cost is **flat (~0.77–0.81) across a 2.4× duration difference**, while per-minute
-    cost tracks actions-per-minute almost exactly. **This is the single most consequential mechanic
-    finding in the node**, and it has two large implications:
+    **🔑 The real lesson, and it generalises beyond this measurement: FOUR different scripts contend
+    for the single player-action slot**, and each one produced an *identical* symptom — zero stamina
+    drain, `start === end` — from a different cause:
 
-    1. **`Overclock` does NOT raise the sustainable rank rate.** Making actions 8.3× faster makes
-       them consume stamina 8.3× faster; sustainable actions-per-minute is set by
-       `staminaRegen / staminaPerAction`, which Overclock does not touch. It still helps in
-       stamina-rich bursts, but it is **not** the 8.3× multiplier every earlier projection in this
-       repo (and `bn6-playbook.md` §1.0's lever table) treated it as. **16,908 rank saved.**
-    2. **⚠️ The right objective function is rank per ACTION, not rank per second.** Re-ranking the
-       live action table on that basis inverts the order — **`Raid` (0.807 rank/action) beats
-       `Tracking` (0.398) by 2× *at its current 5.3% success chance***, purely because it pays
-       80.5 rank per success against 0.73. An engine optimising rank/second — which is what
-       `bladeburnermanager.js` does today — systematically prefers fast cheap actions and will
-       never find this.
+    | # | Claimant | How it broke the measurement |
+    |---|---|---|
+    | 1 | `bladeburnermanager.js` | Its off-marker branch called `stopBladeburnerAction()` **every ~1s tick**, so "paused" meant "cancel whatever is running, forever". *(Fixed — it now stops once on entry.)* |
+    | 2 | `augfarmer.js` | Pausing the manager makes it **release** the slot-hold marker; augfarmer watches for that and starts faction work within seconds (`slot hold released -- rep work resuming`). *(Fixed — the probe now claims the slot itself and refreshes inside `SLOT_HOLD_MAX_AGE_MS`.)* |
+    | 3–4 | `backdoorfactions.js` / `backdoorwd.js` | `installBackdoor` occupies the player slot too. Both were resident during the third attempt: `startAction` returned **`true`** while `getCurrentAction()` read **`null`** on all 60 samples. *(Not fixed.)* |
 
-    ⚠️ **Not yet a licence to switch to Raid**: HP is a second consumable, failed *operations* cost
-    HP *and* rank (both already priced into the 0.807), and **HP cost per failed operation is
-    unmeasured**. Sustainable rate is governed by whichever of stamina or HP binds first.
+    ⚠️ **`startAction` returning `true` does NOT mean the action is running.** Confirmed live: it
+    returned `true` in a window where `getCurrentAction()` was `null` throughout and zero actions
+    completed. **Always verify with `getCurrentAction()`, never trust the boolean.** This belongs
+    alongside §7's gotchas.
+
+    **To retry:** quiesce *all four* claimants, not just the manager. `bladeburneractionprobe.js
+    stamina` now records `valid` / `startActionReturned` / `preemptedSamples` per window, so a
+    contaminated run fails loudly instead of silently producing plausible numbers. **Low priority** —
+    it only gates Overclock, which is ~16,908 rank away.
   - **❓ Still open:** whether any General action consumes stamina — `Hyperbolic Regeneration
     Chamber` is assumed safe for recovery, the rest are unmeasured (`BACKLOG.md` has the cheap
     experiment). *(The curve-shape question that used to sit here is closed — see the formula

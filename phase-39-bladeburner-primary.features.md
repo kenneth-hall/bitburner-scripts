@@ -111,46 +111,33 @@ Direct consequence of the closed-form penalty `successMultiplier = min(1, fracti
 and runs the entire descent at up to 90% success penalty.
 **Rejected:** rest to full. There is provably zero benefit above 50%.
 
-### D3 — 🔴 CORRECTED 2026-08-02: rank per ACTION, not rank per second
+### D3 — Choose actions by expected value, with a hard net-negative floor
 
-**The original decision said "choose by expected rank/sec". Q10's measurement shows that is the
-wrong objective function**, and the engine is currently mis-optimising because of it.
+Recompute each cycle: `EV = p·rankGain − (1−p)·rankLoss`, with `p` adjusted by the current stamina
+multiplier. **Never start an action with EV ≤ 0** — two are net-negative right now (Stealth
+Retirement, Assassination). Phase 38 ranked by rank-per-success, which is wrong in its own way, and
+ran Investigation over Tracking for extended stretches.
 
-**Stamina is spent per ACTION, not per second** (Tracking 14s → 0.769/attempt; Investigation 34s →
-0.806/attempt — flat across a 2.4× duration difference). Sustainable throughput is therefore
-`staminaRegen / staminaPerAction` — **actions per minute, independent of how long each takes**. So
-the resource an action consumes is *one action*, and the correct score is:
+### ❓ D3-OPEN — is the denominator TIME or ACTIONS? (unresolved, was briefly claimed as settled)
 
-```
-EV_perAction = p·rankGain − (1−p)·rankLoss        ← NOT divided by actionTime
-```
+⚠️ **An earlier version of this section confidently "CORRECTED" D3 to score rank-per-ACTION, on the
+strength of a stamina measurement that turned out to be contaminated. That correction is WITHDRAWN**
+— see Q10. The question is genuinely open and it matters a lot:
 
-⚠️ **This inverts the ranking.** Re-scored on live numbers:
+- **If stamina is spent per SECOND** → score `EV / actionTime` (rank/sec). Current behaviour.
+  Tracking (0.0306) leads; Raid is 5th.
+- **If stamina is spent per ACTION** → score `EV` undivided, because the resource an action consumes
+  is *one action* and sustainable throughput is `staminaRegen / staminaPerAction`, independent of
+  duration. That **inverts the ranking**: Raid 0.807 vs Tracking 0.398 — Raid would be 2× better
+  *at its current 5.3% success chance*, and the Stage A→B "crossover" would be behind us, not ahead.
 
-| Action | rank/sec (old metric) | **rank/action (correct)** |
-|---|---|---|
-| **Raid** | 0.0126 (5th) | **0.807 (1st)** |
-| Tracking | 0.0306 (1st) | 0.398 (2nd) |
-| Undercover Operation | 0.0100 | 0.340 |
-| Bounty Hunter | 0.0187 | 0.318 |
-| Retirement | 0.0184 | 0.257 |
-| Investigation | 0.0076 | 0.252 |
-| Sting Operation | 0.0016 | 0.071 |
-| Stealth Retirement | −0.0077 | −0.513 |
-| Assassination | −0.0211 | −2.109 |
+🔑 **This is the highest-leverage open question in the phase** — bigger than Overclock, which was
+merely the reason it got asked. It decides what the engine optimises for, and the two answers point
+at opposite actions. **Do not let the rank/action table above be quoted as a finding**; it is the
+consequence of an unverified premise.
 
-🔑 **Raid already beats Tracking by 2× on the metric that matters — at its current 5.3% success
-chance.** The Stage A→B "crossover" may therefore be *behind* us rather than ahead; what looked like
-a tier switch waiting on skill investment may just be an artefact of scoring by the wrong unit.
-
-⚠️ **This is NOT yet a licence to switch the engine to Raid.** HP is a second consumable and
-**HP cost per failed operation is unmeasured** — failed operations cost HP *and* rank. Sustainable
-rate is set by whichever of stamina or HP binds first, and for Tracking, HP already binds harder
-than stamina (~4.1 HP/min consumed against 2 HP/min regen). **Measure operation HP cost before
-switching.** Recorded as Q11.
-
-**Still correct from the original:** never start an action with EV ≤ 0 (two are net-negative right
-now), and Phase 38's rank-per-success ranking is wrong in a third, distinct way.
+⚠️ Even if per-action proves out, switching to Raid needs Q11 first: HP is a second consumable and
+HP cost per failed *operation* is unmeasured.
 
 ### D4 — Take manual control of action level; stop trusting autolevel
 
@@ -189,12 +176,11 @@ L50 → ~28%, L75 → ~49%. That is the Stage A→B crossover, and it is **~4,00
 starting immediately at L10 → L25.** Tracer is included because it lifts *contracts*, which is what
 Stage A actually runs — the same 3,915-rank rung takes Tracking from 54.9% toward its ceiling.
 
-🔴 **Overclock: Q10 ANSWERED 2026-08-02 — DO NOT BUY IT.** Stamina is spent **per action**, so
-making actions 8.3× faster burns stamina 8.3× faster and leaves sustainable actions-per-minute
-(`staminaRegen / staminaPerAction`) unchanged. Overclock is **not** the 8.3× multiplier every prior
-projection in this repo treated it as. **16,908 rank saved**, and the `SKILL_LEVEL_CAP` hold at
-level 17 is now a considered decision rather than a pending one. (It still helps in stamina-rich
-bursts, so it is held, not removed from the buy order.)
+⚠️ **Overclock is HELD at level 17 pending Q10, which is UNRESOLVED.** An earlier version of this
+section said "Q10 ANSWERED — DO NOT BUY IT"; that was based on a contaminated measurement and is
+**withdrawn**. The hold stands either way — spending 16,908 rank on a multiplier whose value is
+unknown is not defensible — but the reason is *"we don't know yet"*, not *"we measured it and it's
+worthless"*. `OVERCLOCK_HOLD_LEVEL` in `bladeburnermanager.js` carries the same caveat.
 
 **Rejected:** today's diffuse spread across all 12 skills (49 levels, 407 SP). It bought ×1.18 total
 success and ×0.83 action time — neither near a threshold that changes anything.
@@ -363,7 +349,7 @@ claimant got, and how much rep the ratchet forwent. Without it this fuse burns i
 |---|---|---|---|
 | **Q1** | ✅ **ANSWERED 2026-08-02.** Overclock 17→90 = **5,636 SP / 16,908 rank**. BI+DO to L25 = **1,305 SP / 3,915 rank** (×3.50 op success); to L50 = **15,945 rank** (×7.50). Full ladder in D5. The earlier ~45,000-rank extrapolation was ~4× too pessimistic. | — | Done |
 | **Q2** | ~~Rep-window trigger~~ 🔴 **CLOSED 2026-08-02 — question dissolved, see D5a.** Skills beat the entire Bladeburner aug tree ×2.47 vs ×1.28, cost 3,915 rank vs ~$250b + 28 days of resettable rep, and persist across installs. There is no reason to freeze installs, so there is no trigger to design. | **No freeze. Ratchet installs freely.** | Closed |
-| **Q10** | ✅ **ANSWERED 2026-08-02 — stamina is spent PER ACTION.** Tracking (14s) 0.769/attempt vs Investigation (34s) 0.806/attempt — flat across a 2.4× duration gap. **Overclock does not raise the sustainable rate; do not buy it** (16,908 rank saved). Bigger consequence: the correct objective is rank/action, not rank/sec — see the corrected D3. | — | Done |
+| **Q10** | ❌ **UNRESOLVED after four attempts — was briefly and wrongly marked ANSWERED.** Is stamina spent per action or per second? The one run that produced numbers was contaminated by slot contention; three clean-retry attempts all failed. **Root cause: FOUR scripts contend for the single player-action slot** — `bladeburnermanager.js` (stopped the action every ~1s while "paused"; fixed), `augfarmer.js` (grabs the slot the instant the manager releases it; fixed via the probe claiming the slot itself), and `backdoorfactions.js`/`backdoorwd.js` (`installBackdoor` takes the slot; **not** fixed). ⚠️ Also learned: **`startAction` returned `true` while `getCurrentAction()` read `null` for all 60 samples** — the boolean is not proof the action runs. | **Overclock stays held.** Retry only after quiescing all four claimants; the probe now emits `valid`/`startActionReturned`/`preemptedSamples` so a bad run fails loudly. **Low priority** — gates only Overclock, ~16,908 rank away. | Deferred |
 | **Q11** | 🔴 **NEW — HP cost per failed OPERATION.** D3 now ranks Raid first on rank/action, but operations cost HP *and* rank on failure and the HP figure is unmeasured. Contracts are known (3 HP; max HP 27 ⇒ 9 failures hospitalise). For Tracking, HP already binds harder than stamina (~4.1 HP/min consumed vs 2 HP/min regen), so this could easily dominate. | **Do not switch the engine to Raid until measured.** Extend the same self-pausing probe: run Raid for a fixed window, record HP deltas per failure. | Before any tier switch |
 | **Q3** | Is max action level EV-optimal, or lower? | Probe via `setActionLevel` sweep on Tracking first (zero rank downside). | During implementation |
 | **Q4** | Marginal success-chance value per team member, and the loss rate. | Recruit to 5, measure, extrapolate. | During implementation |

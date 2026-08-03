@@ -816,6 +816,7 @@ export async function main(ns) {
   let lastStateWrite = 0;
   let staminaRecovering = false; // hysteresis latch between STAMINA_FLOOR_FRACTION and STAMINA_RESUME_FRACTION
   let hpRecovering = false; // same latch shape for HP -- see HP_RESUME_FRACTION
+  let wasOffLastTick = false; // off-marker edge latch: stop the action ONCE on entry, then truly idle
 
   /** One place that records a tick, so the finite-window buffer and the since-startup
    *  totals can never drift apart (they did, silently, when each push site trimmed
@@ -863,12 +864,29 @@ export async function main(ns) {
     }
     previousOffMarker = offMarker;
 
+    if (!offMarker) wasOffLastTick = false;
+
     if (offMarker) {
-      try {
-        ns.bladeburner.stopBladeburnerAction();
-      } catch {
-        /* idle */
+      // 🔴 2026-08-02: this used to call stopBladeburnerAction() on EVERY tick while the
+      // marker was present. The loop ticks on nextUpdate() (~1s), so "off" did not mean
+      // "idle" -- it meant "cancel whatever is running, once a second, forever". That is
+      // fine when nothing else wants the slot, and actively destructive when something
+      // does: `bladeburneractionprobe.js stamina` pauses this engine precisely so it can
+      // run its own actions, and got its action cancelled ~150 times per window. Symptom
+      // was a perfectly clean-looking run with ZERO stamina drain and start === end,
+      // because no action ever survived to completion.
+      //
+      // Stop ONCE on the transition into off, then genuinely idle. Also strictly better
+      // behaviour on its own terms -- re-stopping an already-stopped engine every second
+      // was pure noise.
+      if (!wasOffLastTick) {
+        try {
+          ns.bladeburner.stopBladeburnerAction();
+        } catch {
+          /* already idle */
+        }
       }
+      wasOffLastTick = true;
       releaseSlotHold(ns);
       holdActive = false;
       currentAction = null;
