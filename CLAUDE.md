@@ -71,10 +71,13 @@ on request — hold to them even when the moment is uncomfortable.
     `true` does NOT mean the action is running** (confirmed live: `true` returned while
     `getCurrentAction()` read `null` across 60 samples). Verify with `getCurrentAction()`, never the
     boolean. Full table of claimants and failure modes: `docs/bladeburner-reference.md` §8.
-  - **Current standing 2026-08-02:** rank **1,221** / 400,000 · skill points **0** (407 earned, all
-    spent across 12 skills) · **Overclock 17/90** (×0.83 action time; ceiling ×0.10 = **8.3×
-    throughput**) · team size **0** · all four `bladeburner_*` aug mults **1.00** · 81
-    hospitalisations / **$837m** lost against max HP **27**. Best measured action (Tracking,
+  - **Current standing 2026-08-02 (re-checked live, 8:33pm):** rank **~1,459** / 400,000 (was 1,221
+    earlier the same day — climbing on Stage A contracts) · skill points **6** banked (407 earned
+    total, most spent across 12 skills before D5's success-skills-first policy) · **Overclock
+    17/90** (×0.83 action time; ceiling ×0.10 = **8.3× throughput**) · team size **0** · all four
+    `bladeburner_*` aug mults **1.00** · 81 hospitalisations / **$837m** lost against max HP **27**
+    (hospitalisation count stale — `bladeburner-state.json`'s field reads `null`, part of the known
+    broken-telemetry bug, D9). Best measured action (Tracking,
     0.0307 rank/s) projects **150 days at 100% duty**. The conservative multiplier stack is
     **~50×** before switching to high-payout operations. **The ceiling is real; none of it is
     demonstrated yet — that is the bet, and it should be stated as a bet.**

@@ -27,9 +27,17 @@ do, and what's broken?*
   claim the single player-action slot. Only the bladeburner<->augfarmer pair cooperates (via
   `bladeburner-slot-hold.json`); the two backdoor scripts are outside that contract entirely.
   Consequence: any probe or feature needing exclusive slot access must quiesce all four, and there
-  is no way to do that today. Blocked four attempts at one measurement on 2026-08-02, and blocks
-  Phase 39's Q5 (city rotation), Q10 (stamina cost) and Q11 (operation HP cost). **Next action:**
-  extend the slot-hold contract to cover the backdoor scripts, or add a global quiesce marker.
+  is no way to do that today. Blocked six attempts at one measurement (four on 2026-08-02 daytime,
+  two more the same evening ~8pm — Phase 39's Q10), and blocks Q5 (city rotation) and Q11 (operation
+  HP cost) too. **Correction 2026-08-02 8:28pm:** live-checked `backdoorwd.js` — it's currently a
+  no-op (WD doesn't exist yet under decision B, idle-polls with `active:false`, never touches the
+  slot), so it is *not* the live cause of the two evening failures despite being named a claimant
+  here; `backdoorfactions.js` (confirmed running via `ps` at the same time) is the more likely
+  actual contender right now. `backdoorwd.js` stays on this list as a real hazard if it ever does
+  fire. **Next action:** re-run `slotconflictprobe.js` (its verdict logic was fixed 2026-08-01 but
+  never re-validated since — one ~45s self-cleaning run would give a current, correct answer on
+  whether Bladeburner actions and player-work share a track) before extending the slot-hold
+  contract to cover the backdoor scripts or adding a global quiesce marker.
 - **🔴 STILL OPEN — `bladeburnermanager.js` telemetry reports zero progress while rank moves.**
   `logs/bladeburner-state.json` shows `rates.*.rankGained: 0` and `duty.*.dutyCycle: 1` across all
   windows while live rank went 1,217 → 1,221 and the engine was mostly idle. Both fields are
