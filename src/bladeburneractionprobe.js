@@ -79,6 +79,15 @@ export async function main(ns) {
   // original level and autolevel setting in a `finally`.
   if (ns.args[0] === "levels") return await levelSweepMode(ns);
 
+  // ---- 2026-08-02: arg-gated Raid HP-cost mode (Phase 39 Q11) ------------------
+  // `run bladeburneractionprobe.js raid` answers: how much HP does a failed
+  // OPERATION cost, vs. the known 3 HP/failure for contracts? REAL HP RISK,
+  // unlike every other mode in this file -- guarded by a precondition (refuses
+  // to start below 85% HP), a hard abort floor (stops immediately at 50% HP,
+  // matching bladeburnermanager.js's own HP_FLOOR_FRACTION), and a bounded
+  // window (~3 attempts at Raid's current 63s action time, not an open loop).
+  if (ns.args[0] === "raid") return await raidHpCostMode(ns);
+
   const out = { ts: Date.now(), iso: new Date().toISOString(), note: "read-only action-yield sweep" };
   out.stage = "start";
   const emit = (label) => {
@@ -377,6 +386,123 @@ async function levelSweepMode(ns) {
   ns.tprint(`  best by EV/sec: level ${out.bestByEvPerSec.level} (${out.bestByEvPerSec.evPerSec.toFixed(4)} rank/s, p=${out.bestByEvPerSec.pMid.toFixed(3)})`);
   ns.tprint(`  best by EV/attempt: level ${out.bestByEvPerAttempt.level} (${out.bestByEvPerAttempt.evPerAttempt.toFixed(4)} rank, p=${out.bestByEvPerAttempt.pMid.toFixed(3)})`);
   ns.tprint(`  restored level=${out.restoredLevel} autolevel=${out.restoredAutolevel} -> ${file}`);
+}
+
+// ---- Raid HP-cost mode (2026-08-02, Phase 39 Q11) ----------------------------
+
+const RAID_TARGET = { type: "Operations", name: "Raid" };
+const RAID_WINDOW_MS = 200_000; // ~3 attempts at Raid's current 63s action time
+const RAID_TICK_MS = 5_000;
+const RAID_HP_PRECONDITION_FRACTION = 0.85; // refuse to start below this
+const RAID_HP_ABORT_FRACTION = 0.5; // matches bladeburnermanager.js's HP_FLOOR_FRACTION
+
+function readHpFraction(ns) {
+  const hp = ns.getPlayer().hp;
+  return hp.max > 0 ? hp.current / hp.max : 1;
+}
+
+async function raidHpCostMode(ns) {
+  const out = {
+    ts: Date.now(),
+    iso: new Date().toISOString(),
+    note: "MUTATING, REAL HP RISK: HP cost per failed Raid (Q11)",
+    windowMs: RAID_WINDOW_MS,
+    hpAbortFraction: RAID_HP_ABORT_FRACTION,
+  };
+  const emit = (label) => {
+    out.stage = label;
+    try { ns.write("bladeburneractionprobe-" + out.ts + ".json", JSON.stringify(out, null, 2), "w"); } catch { /* breadcrumb only */ }
+  };
+  emit("start");
+
+  out.startHpFraction = readHpFraction(ns);
+  if (out.startHpFraction < RAID_HP_PRECONDITION_FRACTION) {
+    out.aborted = "HP below precondition (" + (out.startHpFraction * 100).toFixed(1) + "% < " +
+      (RAID_HP_PRECONDITION_FRACTION * 100) + "%) -- refusing to start";
+    ns.write("bladeburneractionprobe-" + out.ts + ".json", JSON.stringify(out, null, 2), "w");
+    ns.tprint("raidHpCost: ABORT (precondition) -- " + out.aborted);
+    return;
+  }
+
+  try {
+    await runRaidWindow(ns, out, emit);
+  } finally {
+    try { ns.rm(BB_OFF_MARKER, "home"); } catch { /* already gone */ }
+    try { ns.rm(SLOT_HOLD_FILE, "home"); } catch { /* already gone */ }
+    out.pauseCleared = !ns.fileExists(BB_OFF_MARKER, "home");
+    out.endHpFraction = readHpFraction(ns);
+    emit("pause-cleared");
+  }
+
+  const file = "bladeburneractionprobe-" + out.ts + ".json";
+  ns.write(file, JSON.stringify(out, null, 2), "w");
+  ns.tprint(`raidHpCost: ${out.aborted ? "ABORTED (" + out.aborted + ")" : "complete"}` +
+    ` startHp=${(out.startHpFraction * 100).toFixed(1)}% endHp=${(out.endHpFraction * 100).toFixed(1)}%` +
+    (out.hpCostPerFailure != null ? ` hpCostPerFailure=${out.hpCostPerFailure.toFixed(2)} (${out.failures} failures)` : ""));
+  ns.tprint(`  pauseCleared=${out.pauseCleared} -> ${file}`);
+}
+
+async function runRaidWindow(ns, out, emit) {
+  const t = RAID_TARGET;
+
+  ns.write(BB_OFF_MARKER, "paused by bladeburneractionprobe.js raid mode @ " + out.iso + "\n", "w");
+  emit("pause-requested");
+  holdSlot(ns);
+
+  let waited = 0;
+  while (waited < 30_000) {
+    await ns.sleep(2_000);
+    waited += 2_000;
+    holdSlot(ns);
+    if (!ns.bladeburner.getCurrentAction()) break;
+  }
+  out.slotReleasedAfterMs = waited;
+  ns.bladeburner.stopBladeburnerAction();
+  emit("slot-acquired");
+
+  const startSucc = ns.bladeburner.getActionSuccesses(t.type, t.name);
+  const t0 = Date.now();
+  holdSlot(ns);
+  out.startActionReturned = ns.bladeburner.startAction(t.type, t.name);
+
+  const samples = [];
+  let lastHpFraction = out.startHpFraction;
+  let aborted = false;
+  while (Date.now() - t0 < RAID_WINDOW_MS) {
+    await ns.sleep(RAID_TICK_MS);
+    holdSlot(ns);
+    const hpFraction = readHpFraction(ns);
+    const live = ns.bladeburner.getCurrentAction();
+    samples.push({ atMs: Date.now() - t0, hpFraction, liveAction: live ? live.name : null });
+    lastHpFraction = hpFraction;
+
+    if (hpFraction < RAID_HP_ABORT_FRACTION) {
+      aborted = true;
+      out.aborted = "HP dropped below abort floor (" + (hpFraction * 100).toFixed(1) + "% < " +
+        (RAID_HP_ABORT_FRACTION * 100) + "%) mid-run -- stopping immediately";
+      ns.tprint("raidHpCost: HARD ABORT -- " + out.aborted);
+      break;
+    }
+  }
+  ns.bladeburner.stopBladeburnerAction();
+  emit("ran");
+
+  const endSucc = ns.bladeburner.getActionSuccesses(t.type, t.name);
+  const successesDuring = endSucc - startSucc;
+  const elapsedMs = Date.now() - t0;
+  const estimatedAttempts = elapsedMs / ns.bladeburner.getActionTime(t.type, t.name);
+  const estimatedFailures = Math.max(0, Math.round(estimatedAttempts - successesDuring));
+
+  out.samples = samples;
+  out.successesDuring = successesDuring;
+  out.estimatedAttempts = estimatedAttempts;
+  out.failures = estimatedFailures;
+  out.hpLost = out.startHpFraction - lastHpFraction; // fraction, not HP points -- max HP read separately below
+  const maxHp = ns.getPlayer().hp.max;
+  out.maxHp = maxHp;
+  out.hpPointsLost = out.hpLost * maxHp;
+  if (estimatedFailures > 0) out.hpCostPerFailure = out.hpPointsLost / estimatedFailures;
+  out.aborted = aborted ? out.aborted : undefined;
 }
 
 // ---- general-action stamina mode (2026-08-02, Phase 39 Q6) ------------------

@@ -52,12 +52,37 @@ do, and what's broken?*
   `backdoorfactions.js` check `SLOT_HOLD_FILE` before its walk+`installBackdoor` block, mirroring
   the check `augfarmer.js` already has, then cover `backdoorwd.js` the same way as a hazard
   guard, or add a global quiesce marker.
+  **✅ SHIPPED 2026-08-02 9:15pm** (`resolveBladeburnerHold`, 8 new tests, live-restarted, confirmed
+  running under a fresh PID). **Re-verified 9:30pm: the fix works but is not sufficient** — see the
+  new bug entry below. This entry is closed as far as `backdoorfactions.js`'s own gap goes;
+  `backdoorwd.js`'s hazard-guard and the global-quiesce-marker items are still open, low priority
+  (it's currently a no-op under decision B).
+- **🔴 NEW 2026-08-02 9:40pm — `startAction` silently no-ops for at least Tracking and Raid, cause
+  unknown.** Even with the player-action slot fully quiesced (the bug above fixed, `augfarmer.js`
+  already correct, `backdoorwd.js` inactive), `ns.bladeburner.startAction("Contracts","Tracking")`
+  and `ns.bladeburner.startAction("Operations","Raid")` both return `true` while
+  `getCurrentAction()` reads `null` for the entire observation window and zero successes accrue —
+  the action never actually starts. **Investigation (also an Operation) does not show this** — ran
+  cleanly for a full 100-second stretch in the same test session. Not a clean contracts-vs-operations
+  split. One unconfirmed lead: Investigation is the only action documented with zero HP loss on
+  failure; Tracking and Raid both have real stakes. Blocks Phase 39's Q10 (stamina cost) and Q11 (HP
+  cost per failed operation) — both attempted 2026-08-02 9:30-9:40pm and came back inconclusive
+  because of this, not the slot-contention bug. **Next action:** needs fresh diagnosis (what
+  actually differs between Investigation and Tracking/Raid at the API level) before another live
+  attempt — not chased further tonight per the "one round of live testing, then ask again" limit.
 - **🔴 STILL OPEN — `bladeburnermanager.js` telemetry reports zero progress while rank moves.**
   `logs/bladeburner-state.json` shows `rates.*.rankGained: 0` and `duty.*.dutyCycle: 1` across all
   windows while live rank went 1,217 → 1,221 and the engine was mostly idle. Both fields are
   therefore unusable, and **any viability verdict computed from them is invalid** — this is what made
   Phase 38's checkpoints meaningless. **Next action:** Phase 39 D9 (rebuild against wall-clock, not
   held-sec).
+- **🟡 UNDIAGNOSED, observed not confirmed — HP dipped to 12/28 (43%) during ordinary Tracking
+  grinding 2026-08-02 ~8:40pm**, below `bladeburnermanager.js`'s own `HP_FLOOR_FRACTION` (0.5). The
+  guard IS wired into the main loop (`pickOverheadAction`/`updateHpRecovering`, checked every
+  `BB_POLL_MS`=10s), so this may just be normal lag between a burst of failures and the next poll
+  rather than a real bug — not verified live either way this session. **Next action:** if HP dips
+  below the floor again, check whether it's poll-cadence lag (expected, bounded) or the guard
+  failing to trigger at all (a real bug) before assuming either.
 - **🟡 [PARTIALLY SHIPPED 2026-07-29] Phase 36 (`phase-36-install-cadence.spec.md`, twice
   cold-reviewed) has 4 work items; F-B and F-A have landed, the buy-set filter has not.** BN6.1
   entry surfaced this as stranded — features + spec sat in the repo root, never in
