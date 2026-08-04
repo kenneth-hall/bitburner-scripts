@@ -502,9 +502,45 @@ Skill cost is scaled by `BitNodeMultipliers.BladeburnerSkillCost`.
 
 All 4 GB, all case-sensitive, all return **`-1` on an invalid city**:
 `getCity(): CityName` (the Bladeburner-internal city, distinct from the player's travel location) ·
-`switchCity(city): boolean` (nothing documented about cost, travel time, or whether it interrupts
-the current action) · `getCityChaos(city)` · `getCityEstimatedPopulation(city)` (explicitly an
+`switchCity(city): boolean` · `getCityChaos(city)` · `getCityEstimatedPopulation(city)` (explicitly an
 *estimate*) · `getCityCommunities(city)` (also an estimate).
+
+🔑 **`switchCity` MEASURED 2026-08-03 — this closes Q5(a), open since 2026-07-30.** Run via
+`src/switchbbcity.js` (Sector-12 → Volhaven), which records both sides of the call:
+
+| Question | Answer |
+|---|---|
+| Money cost | **$0** |
+| Rank cost | **0** |
+| Travel time | **None** — completes inside one `nextUpdate()` tick |
+| Interrupts the running action? | **YES** — `getCurrentAction()` changed across the call |
+| Return value | `true` on success |
+
+So the only cost is the interrupted action, which a control loop restarts on its next tick. **City
+rotation is therefore essentially free**, and the old "cost/travel/interruption are all undocumented
+and unmeasured" caveat that gated `CITY_ROTATION_ENABLED` no longer applies to (a) — what remains
+open is the *policy* (when to move, anti-thrash hysteresis), not the mechanic.
+
+🔴 **And the per-city spread is enormous — city choice dominates every other chaos lever.** All six
+sampled in one read (free: `getCityChaos`/`getCityEstimatedPopulation`/`getCityCommunities` are
+already charged, so the extra five cities cost no RAM):
+
+| City | Chaos | Est. population | Communities |
+|---|---|---|---|
+| **Sector-12** | **177.5** | 620.7m | 21 |
+| Chongqing | 60.2 | 1465.4m | 149 |
+| Aevum | 16.9 | 569.1m | 49 |
+| New Tokyo | 16.0 | 1085.2m | 16 |
+| Ishima | 3.5 | 1132.7m | 40 |
+| **Volhaven** | **3.4** | 1170.6m | 75 |
+
+⚠️ **The engine had been grinding in Sector-12, which was the worst city on *every* axis at once** —
+and nobody knew, because it only ever sampled its own city. Volhaven strictly dominates it: **52×
+less chaos, 1.9× the population, 3.6× the communities**, with no trade-off to weigh.
+🧮 **Measured payoff of the move: Tracking's EV/sec went 0.0084 → 0.0854, a 10.2× improvement** — and
+4.0× better than the 0.0211 baseline recorded earlier the same day at chaos 69. **One `switchCity`
+beat ~15 hours of duty-capped `Diplomacy`, for free.** Sample all six cities before assuming the
+current one is worth suppressing chaos in.
 
 ### Team
 

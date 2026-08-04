@@ -126,6 +126,7 @@ describe('bladeburner-log.json (Phase 39)', () => {
       'quarantine-set', 'quarantine-clear',
       'crossover',
       'rep-starvation-set', 'rep-starvation-clear',
+      'diplomacy-effect',
       'regime-enter', 'regime-exit',
       'checkpoint-C1', 'checkpoint-C2', 'checkpoint-C3',
       'warn',

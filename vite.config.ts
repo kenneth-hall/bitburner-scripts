@@ -97,6 +97,7 @@ export default defineConfig({
         if (file === 'bladeburner-state.json') return 'logs/bladeburner-state.json'; // Phase 38 Slice B -- bladeburnermanager.js overwrite-in-place snapshot
         if (file === 'bladeburner-log.json') return 'logs/bladeburner-log.json'; // Phase 39 -- bladeburnermanager.js ring-capped event log (startup/off-marker/yield-grant/yield-reclaim/quarantine/crossover/checkpoint/warn/skill-buy)
         if (file === 'bladeburner-attempts.json') return 'logs/bladeburner-attempts.json'; // Phase 39 (S7) -- bladeburnermanager.js per-attempt diagnostic ledger (startAction call + verification outcome, predicted vs realised EV)
+        if (/^switchbbcity-\d+\.json$/.test(file)) return `logs/${file}`; // src/switchbbcity.js -- one-off Bladeburner city move + the Q5 switchCity cost measurement, one file per run
         if (file === 'gang-rate-log.json') return 'logs/gang-rate-log.json'; // Phase 30 survivor -- gangratelog.js durable respect-rate/ascension-mult series (ring-capped, 5min samples)
         if (file === 'goal-state.json') return 'logs/goal-state.json'; // Phase 32 -- goallog.js overwrite-in-place snapshot, dashboard.js's GOAL panel source
         if (file === 'goal-log.json') return 'logs/goal-log.json'; // Phase 32 -- goallog.js ring-capped cumulative series (gangCum/hackingCum/mHacking, 60s samples)

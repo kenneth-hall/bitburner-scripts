@@ -85,19 +85,24 @@ do, and what's broken?*
   rather than a real bug — not verified live either way this session. **Next action:** if HP dips
   below the floor again, check whether it's poll-cadence lag (expected, bounded) or the guard
   failing to trigger at all (a real bug) before assuming either.
-- **🔴 NEW 2026-08-03 — chaos climbs unbounded because the overhead ladder never lets `Diplomacy`
-  run, and it is measurably eating success chance.** Measured over one 10.6h window: Sector-12 chaos
-  **69.1 → 177.7**, and Tracking's EV/sec **collapsed 0.0211 → 0.0084 (2.5×)** over exactly the same
-  span. Structural cause: `pickOverheadAction` ranks the HP/stamina guard (`Hyperbolic Regeneration
-  Chamber`) *above* `Diplomacy`, and HP is the binding constraint in Stage A (the engine rests ~65%
-  of wall time), so the chaos branch is effectively unreachable — `CHAOS_DIPLOMACY_THRESHOLD` is 1.0
-  and chaos sat at 178 without `Diplomacy` ever getting a turn. ⚠️ **Do not fix by demoting the HP
-  guard** — hospitalisation costs ~$10.4m plus full downtime, and that guard exists because Phase 38's
-  HP floor was a trap. **Recommended fix, but it is a spec-level call, not a hot patch:** chaos
-  suppression should compete with the *rank action* (i.e. spend Tracking time on Diplomacy when chaos
-  is eating more EV than the contract earns), not sit below the *recovery* action — that changes the
-  objective function, so it belongs in a phase decision. **Next action:** decide the above; until
-  then chaos keeps compounding against every success roll.
+- **✅ FIXED 2026-08-03 — chaos was climbing unbounded because `Diplomacy` was unreachable; the real
+  win turned out to be moving city.** Two causes, both fixed. (1) `pickOverheadAction` is only called
+  when `pickRankAction` returns null (i.e. while recovering), and the call site passed
+  `hpRecovering ? 0 : hpFraction` — forcing the HP branch and making the chaos branch **dead code**.
+  Now passes the real `hpFraction` plus the latch separately, so chaos suppression can run inside the
+  HP hysteresis band (above the hard floor, where it is safe) while the hard floor itself is never
+  traded away. Bounded by `MAX_DIPLOMACY_DUTY` (20%/hour), target-seeking on `CHAOS_TARGET` (50) so
+  it stops on its own, and **self-measuring** (`diplomacy-effect` log records the per-run chaos delta
+  — the number the policy was missing). (2) 🔑 **The bigger finding: we were in the worst city on
+  every axis.** Sampling all six cities (free — those getters were already charged) showed Sector-12
+  at chaos 177.5 / pop 620.7m / 21 communities versus **Volhaven at 3.4 / 1170.6m / 75** — strictly
+  dominant, no trade-off. A one-off `src/switchbbcity.js` moved the division: **Tracking's EV/sec
+  went 0.0084 → 0.0854 (10.2×), for $0 and 0 rank.** ⚠️ **Still open, deliberately:** the engine does
+  **not** rotate autonomously — `CITY_ROTATION_ENABLED` stays `false`, because an automatic rotation
+  *policy* (when to move, anti-thrash hysteresis, and whether to prefer Chongqing's 2.4× population
+  over Volhaven's lower chaos once chaos is controlled) is a spec-level decision. The mechanic is now
+  measured and cheap, so that decision can be made on evidence — see `docs/bladeburner-reference.md`
+  §6's switchCity table.
 - **🟡 NEW 2026-08-03 — `cli.mjs restart <companion>` races the daemon's supervisor and can leave TWO
   instances running.** Observed live: `restart bladeburnermanager.js` killed it, `daemon.js`'s
   supervisor logged `bladeburnermanager.js not running -- relaunching (attempt 1, missing 0s)` and

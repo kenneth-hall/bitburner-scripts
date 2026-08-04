@@ -142,10 +142,43 @@ export const OVERHEAD_STALL_WARN_MS = 45 * 60_000;
 
 // S10 -- overhead ladder / city / team knobs.
 export const CHAOS_DIPLOMACY_THRESHOLD = 1.0;
+// 🔴 Chaos policy, added 2026-08-03 after measuring that chaos was compounding unchecked
+// and materially eating EV: Sector-12 climbed **69.1 -> 177.7 in 10.6h** and Tracking's
+// EV/sec collapsed **0.0211 -> 0.0084 (2.5x)** over exactly that span. `Diplomacy` was
+// structurally unreachable -- `pickOverheadAction` is only called when `pickRankAction`
+// returns null (i.e. while recovering), and the call site passed `hpRecovering ? 0 :
+// hpFraction`, which forced the HP branch and returned HRC before the chaos branch could
+// ever be evaluated. So the chaos lever existed and had never once fired.
+//
+// ⚠️ This policy is a BOUNDED BET, not a solved problem, and the prior evidence cuts
+// against it: the 2026-07-30 trial (docs/bn6-playbook.md) measured Diplomacy's bump as
+// **2-3x smaller than the decay it was fighting**. That was at chaos ~0.3 versus 178 now,
+// a completely different regime, so it is not decisive -- but it is a real reason not to
+// bet the run on this. Hence: target-seeking (stops on its own once chaos is controlled),
+// hard duty ceiling (cannot eat the run if it turns out to be too weak), and
+// SELF-MEASURING (every run logs its chaos delta, so the per-run effectiveness this policy
+// is missing gets answered from data instead of guessed -- the S7 pattern).
+//
+// Diplomacy is 60,000 ms and HRC is 60,000 ms (measured, bladeburneractionprobe), so one
+// Diplomacy costs exactly one HRC cycle = ~2 HP of forgone recovery. It is only ever taken
+// from recovery time that is currently 100% idle healing -- never from the rank action.
+export const CHAOS_TARGET = 50;
+export const MAX_DIPLOMACY_DUTY = 0.2;
+// Read-only, and FREE on RAM: getCityChaos is already charged, so sampling all six cities
+// costs nothing extra. This is the data Q5 (city rotation) needs -- rotating to a clean
+// city may well beat grinding Diplomacy, and until now we only ever sampled our own city.
+export const ALL_CITIES = ["Aevum", "Chongqing", "Sector-12", "New Tokyo", "Ishima", "Volhaven"];
 export const TEAM_SIZE_TARGET = 6; // only consulted while STAGE_B_ENABLED
 export const LOW_INVENTORY_COUNT_THRESHOLD = 20;
 export const CITY_ROTATE_CHAOS_THRESHOLD = 2.0;
-export const CITY_ROTATION_ENABLED = false; // switchCity's cost/interruption is unmeasured (Q5) -- instrumented, never called for effect
+// Still false, but the REASON changed on 2026-08-03. switchCity is no longer unmeasured:
+// it costs $0, 0 rank, no travel time, and only interrupts the running action (measured
+// via src/switchbbcity.js, recorded in docs/bladeburner-reference.md §6). What remains
+// open is the POLICY, not the mechanic -- when to move, anti-thrash hysteresis, and
+// whether a higher-population city beats a lower-chaos one once chaos is controlled.
+// That is a spec-level decision, so the engine still never rotates on its own; moves are
+// made manually with switchbbcity.js.
+export const CITY_ROTATION_ENABLED = false;
 const RAID_MIN_COMMUNITIES = 1; // "there must be an existing Synthoid community" (reference §5) -- exact threshold undocumented, 1 is the literal reading
 
 export const BLACKOPS_DAEDALUS_RANK = 400_000;
@@ -438,13 +471,27 @@ export function isPostInstallRegime(hpMax) {
  * @param {{hrcQuarantined?:boolean, stageBEnabled?:boolean, inPostInstallRegime?:boolean, postInstallTrainingMs?:number}} [opts]
  */
 export function pickOverheadAction(hpFraction, cityChaos, teamSize, lowInventory, staminaRecovering = false, opts = {}) {
-  const { hrcQuarantined = false, stageBEnabled = false, inPostInstallRegime = false, postInstallTrainingMs = 0 } = opts;
+  const { hrcQuarantined = false, stageBEnabled = false, inPostInstallRegime = false, postInstallTrainingMs = 0, hpRecovering = false, diplomacyBudgetMs = 0 } = opts;
   const hrc = { type: "General", name: "Hyperbolic Regeneration Chamber" };
-  const needsHrc = hpFraction < HP_FLOOR_FRACTION || staminaRecovering;
-  if (needsHrc && !hrcQuarantined) return hrc;
+  // 🔴 The HARD floor -- genuine danger. Never traded away for anything. Note this is the
+  // real `hpFraction` now: the caller used to pass `hpRecovering ? 0 : hpFraction`, which
+  // collapsed "building a buffer inside the hysteresis band" into "HP is zero" and made
+  // every branch below unreachable during recovery. That is why Diplomacy never ran.
+  if (hpFraction < HP_FLOOR_FRACTION && !hrcQuarantined) return hrc;
+  // Stamina gates success chance directly, and Diplomacy itself costs ~0.2 stamina/use
+  // (Q6), so stamina recovery is never interrupted either.
+  if (staminaRecovering && !hrcQuarantined) return hrc;
   if (inPostInstallRegime && postInstallTrainingMs < POST_INSTALL_TRAINING_MAX_MS) return { type: "General", name: "Training" };
   if (lowInventory) return { type: "General", name: "Incite Violence" };
-  if (cityChaos !== undefined && cityChaos > CHAOS_DIPLOMACY_THRESHOLD) return { type: "General", name: "Diplomacy" };
+  // Chaos suppression. Safe here by construction: we are at/above the hard HP floor and
+  // not stamina-recovering. Target-seeking, so it stops on its own once chaos is back
+  // under CHAOS_TARGET, and budget-capped so it cannot eat the run if it proves too weak.
+  if (cityChaos !== undefined && cityChaos > CHAOS_TARGET && diplomacyBudgetMs > 0) return { type: "General", name: "Diplomacy" };
+  // Still inside the HP hysteresis band (above the floor, below the resume mark) -> keep
+  // healing. Below the chaos branch deliberately: chaos compounds against every future
+  // roll, HP only gates the next one, and this time was previously 100% idle healing.
+  if (hpRecovering) return hrc;
+  if (cityChaos !== undefined && cityChaos > CHAOS_DIPLOMACY_THRESHOLD && diplomacyBudgetMs > 0) return { type: "General", name: "Diplomacy" };
   if (stageBEnabled && teamSize < TEAM_SIZE_TARGET) return { type: "General", name: "Recruitment" };
   return hrc;
 }
@@ -987,6 +1034,10 @@ export async function main(ns) {
   let lastRankProducingMs = Date.now(); // baseline for detectOverheadStall
   let overheadStallWarned = false;
   let overheadStall = { stalled: false, sinceMs: null, reason: "no-baseline" };
+  let diplomacyEvents = []; // {startMs, durationMs} -- rolling-hour ledger for MAX_DIPLOMACY_DUTY
+  let diplomacyEffect = emptyDiplomacyEffect(); // the per-run chaos delta this policy is missing
+  let diplomacyRunStart = null; // {atMs, chaosBefore} while a Diplomacy action is in flight
+  let chaosByCity = {}; // all six cities -- free on RAM, and the data Q5 (rotation) needs
   let recoveryActionQuarantinedFlag = false;
   let livelockSuspected = null;
 
@@ -1391,11 +1442,17 @@ export async function main(ns) {
       const chaos = ns.bladeburner.getCityChaos(cityName);
       const teamSize = ns.bladeburner.getTeamSize();
       const lowInventory = isInventoryLow(getInventoryCounts(ns));
-      chosenAction = pickOverheadAction(hpRecovering ? 0 : hpFraction, chaos, teamSize, lowInventory, staminaRecovering, {
+      // 🔴 Passes the REAL hpFraction plus the latch as a separate flag. The old
+      // `hpRecovering ? 0 : hpFraction` destroyed the distinction between "genuinely in
+      // danger" and "above the floor, building a buffer", which forced the HP branch and
+      // made the chaos branch dead code. See pickOverheadAction's doc comment.
+      chosenAction = pickOverheadAction(hpFraction, chaos, teamSize, lowInventory, staminaRecovering, {
         hrcQuarantined: isQuarantined(quarantineState.quarantine, "Hyperbolic Regeneration Chamber", nowMs),
         stageBEnabled: STAGE_B_ENABLED,
         inPostInstallRegime: inPostInstall,
         postInstallTrainingMs,
+        hpRecovering,
+        diplomacyBudgetMs: diplomacyBudgetRemainingMs(diplomacyEvents, nowMs),
       });
     }
 
@@ -1440,6 +1497,42 @@ export async function main(ns) {
           : null,
         context: { rank: rankNow, staminaCurrent: staminaCur, staminaMax, staminaFraction, hpFraction, cityName: ns.bladeburner.getCity(), cityChaos: null, countRemaining: null, skillLevelsHash: null, teamSize: null },
       };
+      // Open a Diplomacy measurement window. This is the whole reason the policy is
+      // defensible without knowing Diplomacy's strength up front: it answers that
+      // question from its own operation, per S7, rather than assuming it.
+      if (chosenAction.name === "Diplomacy") {
+        const atCity = ns.bladeburner.getCity();
+        diplomacyRunStart = { atMs: nowMs, cityName: atCity, chaosBefore: ns.bladeburner.getCityChaos(atCity) };
+        diplomacyEvents = [...diplomacyEvents.filter((e) => e.startMs > nowMs - 3_600_000), { startMs: nowMs, durationMs: 60_000 }];
+      }
+    }
+
+    // Settle a Diplomacy measurement once the run is over (we moved on to something else).
+    if (diplomacyRunStart && intendedAction?.name !== "Diplomacy") {
+      const settleCity = ns.bladeburner.getCity();
+      const chaosAfter = ns.bladeburner.getCityChaos(settleCity);
+      // 🔴 DISCARD the sample if the city changed mid-window. Chaos is per-city, so a move
+      // makes the before/after delta a comparison between two different cities' chaos --
+      // not an effect of Diplomacy. Caught immediately in the live run that introduced
+      // this: a single sample recorded "174.15 chaos removed", which was entirely the
+      // Sector-12 (177.5) -> Volhaven (3.4) move. Left in, it would have told the next
+      // session Diplomacy is ~50x stronger than it is.
+      const sameCity = settleCity === diplomacyRunStart.cityName;
+      if (sameCity) diplomacyEffect = accumulateDiplomacyEffect(diplomacyEffect, diplomacyRunStart.chaosBefore, chaosAfter);
+      logEntries = appendBbLog(logEntries, {
+        ...ts(),
+        kind: "diplomacy-effect",
+        cityName: diplomacyRunStart.cityName,
+        discarded: !sameCity,
+        discardReason: sameCity ? null : `city changed ${diplomacyRunStart.cityName} -> ${settleCity}`,
+        chaosBefore: diplomacyRunStart.chaosBefore,
+        chaosAfter,
+        removed: sameCity ? diplomacyRunStart.chaosBefore - chaosAfter : null,
+        elapsedMs: nowMs - diplomacyRunStart.atMs,
+        meanRemovedPerRun: diplomacyEffect.meanRemovedPerRun,
+        runs: diplomacyEffect.runs,
+      });
+      diplomacyRunStart = null;
     }
 
     // Refresh the marker independently of action progress (a long action must not let
@@ -1473,6 +1566,18 @@ export async function main(ns) {
     const opCount = OPERATIONS.reduce((sum, n) => sum + ns.bladeburner.getActionCountRemaining("Operations", n), 0);
     const cityUpdate = updateCityStock(cityStock, { cityName, population, communities, chaos, contractCount, opCount }, nowMs);
     cityStock = cityUpdate.stock;
+    // All six cities, FREE on RAM (getCityChaos/getCityEstimatedPopulation/
+    // getCityCommunities are already charged for our own city, so the extra five cost
+    // nothing), and this is the complete dataset Q5 needs. Until now the engine only ever
+    // sampled its OWN city, which is exactly why nobody knew Sector-12 sat at 50x the
+    // chaos of Volhaven. ⚠️ Chaos alone must NOT decide a rotation -- population drives
+    // success chance and communities gate Raid -- which is why all three are sampled.
+    chaosByCity = Object.fromEntries(
+      ALL_CITIES.map((c) => [
+        c,
+        { chaos: ns.bladeburner.getCityChaos(c), pop: ns.bladeburner.getCityEstimatedPopulation(c), communities: ns.bladeburner.getCityCommunities(c) },
+      ]),
+    );
     // Edge-triggered (log only on the transition INTO a breach) -- confirmed live
     // 2026-08-03: Sector-12's chaos sits ~69 (way above the rotation threshold) during
     // ordinary grinding, and logging it every tick has the exact same ring-flooding
@@ -1551,6 +1656,14 @@ export async function main(ns) {
             startFailures: quarantineState.failures,
             overheadStall, // watchdog for the 10.5h HRC park -- see OVERHEAD_STALL_WARN_MS
             intendedAction, // what we last called startAction with (intent, NOT evidence -- S1)
+            chaosByCity, // all six cities -- Q5's rotation evidence, free on RAM
+            diplomacy: {
+              budgetRemainingMs: diplomacyBudgetRemainingMs(diplomacyEvents, nowMs),
+              runsThisHour: diplomacyEvents.filter((e) => e.startMs > nowMs - 3_600_000).length,
+              target: CHAOS_TARGET,
+              maxDuty: MAX_DIPLOMACY_DUTY,
+              effect: diplomacyEffect, // meanRemovedPerRun is the number that settles whether this policy is worth keeping
+            },
             repStarvation: { fired: repStarvationState.fired, sinceMs: repStarvationState.accumSinceMs, status: repStarvationState.status, observedRepRate: repStarvationState.ratePerSec },
             yieldLedger: { rollingHourRepYieldMs: rollingHourRepYieldMs(repYieldEvents, nowMs), overrunStreak },
             livelockSuspected,
@@ -1587,4 +1700,40 @@ export async function main(ns) {
 /** Non-pure-adjacent (no ns) helper: rolling-hour sum of rep-yield event durations, kept out of resolveYieldGrant's signature so that function stays a plain reducer over caller-supplied state. */
 function rollingHourRepYieldMs(events, nowMs) {
   return events.filter((e) => e.startMs > nowMs - 3_600_000).reduce((sum, e) => sum + e.durationMs, 0);
+}
+
+/**
+ * Pure. Milliseconds of Diplomacy still affordable inside the rolling hour, per
+ * `MAX_DIPLOMACY_DUTY`. Same shape as the rep-yield ledger (S2.3). Returns 0 when the
+ * ceiling is reached, which is what makes `pickOverheadAction`'s chaos branch fall
+ * through to healing instead of grinding a lever that may be too weak to help.
+ * @param {{startMs:number, durationMs:number}[]} events
+ */
+export function diplomacyBudgetRemainingMs(events, nowMs, maxDuty = MAX_DIPLOMACY_DUTY) {
+  const spent = events.filter((e) => e.startMs > nowMs - 3_600_000).reduce((sum, e) => sum + e.durationMs, 0);
+  return Math.max(0, maxDuty * 3_600_000 - spent);
+}
+
+/**
+ * Pure. Folds one completed Diplomacy run's observed chaos delta into a running estimate
+ * — the number this whole policy is missing and cannot be designed correctly without.
+ * `chaosBefore - chaosAfter` is chaos REMOVED, so positive means it worked. Kept as a
+ * small ring so the estimate tracks the current regime rather than the whole run.
+ * @param {{runs:number, totalRemoved:number, samples:number[]}} prior
+ */
+export function accumulateDiplomacyEffect(prior, chaosBefore, chaosAfter, maxSamples = 20) {
+  const removed = chaosBefore - chaosAfter;
+  if (!Number.isFinite(removed)) return prior;
+  const samples = [...prior.samples, removed].slice(-maxSamples);
+  return {
+    runs: prior.runs + 1,
+    totalRemoved: prior.totalRemoved + removed,
+    samples,
+    meanRemovedPerRun: samples.reduce((a, b) => a + b, 0) / samples.length,
+  };
+}
+
+/** Pure. A fresh Diplomacy-effect accumulator. */
+export function emptyDiplomacyEffect() {
+  return { runs: 0, totalRemoved: 0, samples: [], meanRemovedPerRun: null };
 }

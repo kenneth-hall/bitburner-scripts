@@ -8,6 +8,36 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-08-03
 
+- **🔑 Chaos fix — and the answer turned out not to be Diplomacy at all: we were grinding in the
+  worst city in the game.** The reported symptom was chaos compounding unchecked (Sector-12 69 → 178
+  in 10.6h, Tracking's EV/sec collapsing 2.5× over the same span) with `Diplomacy` never running.
+  **Two causes, both fixed.** (1) *Diplomacy was structurally dead code*: `pickOverheadAction` is
+  only reached when `pickRankAction` returns null (while recovering), and the call site passed
+  `hpRecovering ? 0 : hpFraction`, forcing the HP branch before the chaos branch could evaluate. Now
+  passes the real `hpFraction` plus the latch separately, so suppression runs inside the HP
+  hysteresis band — where it is provably safe — while the hard HP floor and stamina recovery are
+  never traded away. Bounded (`MAX_DIPLOMACY_DUTY` 20%/hour), target-seeking (`CHAOS_TARGET` 50, so
+  it stops on its own), and self-measuring. That last part was deliberate: the 2026-07-30 trial had
+  measured Diplomacy as **2–3× too weak** to outpace the decay it fought, so rather than bet on it,
+  the engine now logs each run's chaos delta and answers its own open question.
+  (2) 🔑 **Sampling all six cities — free, since those getters were already charged for our own city
+  — revealed Sector-12 was the worst on _every_ axis simultaneously**: chaos 177.5 (next worst 60.2),
+  population 620.7m, 21 communities, versus **Volhaven's 3.4 / 1170.6m / 75**. No trade-off to weigh.
+  The engine had never known this because it only ever sampled its own city. A new one-off
+  `src/switchbbcity.js` moved the division and **measured the move**, closing **Q5(a), open since
+  2026-07-30**: `switchCity` costs **$0, 0 rank, no travel time** (completes in one tick) and its
+  only cost is interrupting the running action. 🧮 **Payoff: Tracking's EV/sec 0.0084 → 0.0854
+  (10.2×), also 4.0× better than the morning's 0.0211 baseline. One free call beat ~15 hours of
+  duty-capped Diplomacy.**
+  ⚠️ **Deliberately NOT done: autonomous rotation.** `CITY_ROTATION_ENABLED` stays `false` — the
+  *mechanic* is now measured and cheap, but the *policy* (when to move, anti-thrash hysteresis,
+  whether Chongqing's 2.4× population beats Volhaven's lower chaos once chaos is controlled) is a
+  spec-level decision and is left for one.
+  Also caught and fixed a false-attribution bug in the new measurement itself: the first live sample
+  recorded "174 chaos removed by one Diplomacy run", which was entirely the city move — chaos is
+  per-city, so a cross-city delta is meaningless. Samples spanning a city change are now discarded
+  and logged as such; left in, it would have told the next session Diplomacy is ~50× stronger than
+  it is.
 - **🔴 Phase 39 follow-up: fixed a 10.5-hour zero-rank park found on the first real unattended run.**
   The engine ran 10.5h at a healthy-looking **100% duty cycle and gained exactly zero rank** —
   `rankProducingSec: 0`, three `startAction` calls in the whole window. Cause was a one-line logic

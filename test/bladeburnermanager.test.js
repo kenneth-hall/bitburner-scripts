@@ -78,6 +78,11 @@ import {
   POST_INSTALL_HP_MAX_THRESHOLD,
   POST_INSTALL_TRAINING_MAX_MS,
   CHAOS_DIPLOMACY_THRESHOLD,
+  CHAOS_TARGET,
+  MAX_DIPLOMACY_DUTY,
+  diplomacyBudgetRemainingMs,
+  accumulateDiplomacyEffect,
+  emptyDiplomacyEffect,
   TEAM_SIZE_TARGET,
   updateStaminaRecovering,
   STAMINA_FLOOR_FRACTION,
@@ -1142,6 +1147,80 @@ describe('updateHpRecovering', () => {
   });
 });
 
+// --- Diplomacy budget + effect measurement (2026-08-03) ---------------------------
+
+describe('diplomacyBudgetRemainingMs', () => {
+  const NOW = 10_000_000;
+
+  it('a fresh hour has the full ceiling available', () => {
+    expect(diplomacyBudgetRemainingMs([], NOW)).toBe(MAX_DIPLOMACY_DUTY * 3_600_000);
+  });
+
+  it('spends down as runs accumulate, and floors at 0 rather than going negative', () => {
+    const ceiling = MAX_DIPLOMACY_DUTY * 3_600_000;
+    const oneRun = [{ startMs: NOW - 1000, durationMs: 60_000 }];
+    expect(diplomacyBudgetRemainingMs(oneRun, NOW)).toBe(ceiling - 60_000);
+    const manyRuns = Array.from({ length: 100 }, (_, i) => ({ startMs: NOW - i * 1000, durationMs: 60_000 }));
+    expect(diplomacyBudgetRemainingMs(manyRuns, NOW)).toBe(0);
+  });
+
+  it('runs older than the rolling hour stop counting', () => {
+    const old = [{ startMs: NOW - 3_600_001, durationMs: 60_000 }];
+    expect(diplomacyBudgetRemainingMs(old, NOW)).toBe(MAX_DIPLOMACY_DUTY * 3_600_000);
+  });
+
+  it('the ceiling bounds Diplomacy to at most MAX_DIPLOMACY_DUTY of any hour', () => {
+    const ceiling = MAX_DIPLOMACY_DUTY * 3_600_000;
+    expect(ceiling / 3_600_000).toBeCloseTo(MAX_DIPLOMACY_DUTY, 10);
+    expect(ceiling / 60_000).toBe(12); // at most 12 sixty-second runs per hour
+  });
+});
+
+describe('accumulateDiplomacyEffect', () => {
+  it('records chaos REMOVED (before - after), so positive means it worked', () => {
+    const out = accumulateDiplomacyEffect(emptyDiplomacyEffect(), 100, 95);
+    expect(out.runs).toBe(1);
+    expect(out.totalRemoved).toBe(5);
+    expect(out.meanRemovedPerRun).toBe(5);
+  });
+
+  it('a run where chaos ROSE anyway records negative -- the honest reading, not clamped to 0', () => {
+    const out = accumulateDiplomacyEffect(emptyDiplomacyEffect(), 100, 105);
+    expect(out.meanRemovedPerRun).toBe(-5);
+  });
+
+  it('averages across runs', () => {
+    let e = emptyDiplomacyEffect();
+    e = accumulateDiplomacyEffect(e, 100, 90); // 10
+    e = accumulateDiplomacyEffect(e, 90, 88); // 2
+    expect(e.runs).toBe(2);
+    expect(e.meanRemovedPerRun).toBe(6);
+  });
+
+  it('keeps a bounded sample ring so the estimate tracks the current regime', () => {
+    let e = emptyDiplomacyEffect();
+    for (let i = 0; i < 50; i++) e = accumulateDiplomacyEffect(e, 100, 99, 20);
+    expect(e.samples.length).toBe(20);
+    expect(e.runs).toBe(50); // the lifetime count is still exact
+  });
+
+  it('a non-finite reading is ignored rather than poisoning the estimate', () => {
+    const e = accumulateDiplomacyEffect(emptyDiplomacyEffect(), NaN, 5);
+    expect(e.runs).toBe(0);
+  });
+
+  it('🔴 the real live contamination: a cross-city delta must never be fed in as a Diplomacy effect', () => {
+    // Caught live 2026-08-03: one sample recorded 174.15 "removed", which was entirely the
+    // Sector-12 (177.5) -> Volhaven (3.4) move. The caller is responsible for discarding a
+    // sample whose city changed mid-window; this documents WHY that guard exists by showing
+    // what the number looks like if it does not.
+    const contaminated = accumulateDiplomacyEffect(emptyDiplomacyEffect(), 177.53, 3.39);
+    expect(contaminated.meanRemovedPerRun).toBeCloseTo(174.14, 1);
+    // ...which is ~50x any plausible single-run effect, i.e. obviously a city move.
+    expect(contaminated.meanRemovedPerRun).toBeGreaterThan(100);
+  });
+});
+
 // --- detectOverheadStall (the 2026-08-03 watchdog) --------------------------------
 
 describe('detectOverheadStall', () => {
@@ -1220,8 +1299,16 @@ describe('pickOverheadAction', () => {
     expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true)).toEqual({ type: 'General', name: 'Incite Violence' });
   });
 
-  it('high chaos triggers Diplomacy once HP/inventory/regime are fine', () => {
-    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 0.1, 0, false)).toEqual({ type: 'General', name: 'Diplomacy' });
+  // ⚠️ ACKNOWLEDGED BEHAVIOUR CHANGE 2026-08-03 (spec T1 requires these be named, not
+  // silently edited): Diplomacy is now BUDGET-GATED, so this fixture must supply a
+  // budget. The default is 0 -- deliberately fail-safe, so a caller that forgets the
+  // ledger gets "no Diplomacy" rather than an unbounded chaos grind.
+  it('high chaos triggers Diplomacy once HP/inventory/regime are fine AND the budget has room', () => {
+    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 0.1, 0, false, false, { diplomacyBudgetMs: 60_000 })).toEqual({ type: 'General', name: 'Diplomacy' });
+  });
+
+  it('and with no budget supplied it falls through to HRC rather than grinding chaos unbounded', () => {
+    expect(pickOverheadAction(1, CHAOS_DIPLOMACY_THRESHOLD + 0.1, 0, false)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
   });
 
   it('Recruitment is DROPPED in Stage A, even with a low team size -- falls through to HRC (S10/S16.5)', () => {
@@ -1234,6 +1321,49 @@ describe('pickOverheadAction', () => {
 
   it('defaults to HRC once every other condition is satisfied', () => {
     expect(pickOverheadAction(1, 0, TEAM_SIZE_TARGET, false)).toEqual({ type: 'General', name: 'Hyperbolic Regeneration Chamber' });
+  });
+
+  // --- chaos / Diplomacy policy (2026-08-03) ---
+  //
+  // 🔴 The bug: pickOverheadAction is only reached when pickRankAction returns null (i.e.
+  // while recovering), and the call site passed `hpRecovering ? 0 : hpFraction` -- which
+  // forced the HP branch and returned HRC before the chaos branch could ever run. So
+  // Diplomacy was dead code, chaos compounded unchecked (Sector-12 69 -> 178 in 10.6h),
+  // and Tracking's EV/sec collapsed 2.5x over the same window.
+
+  it('🔴 THE REGRESSION: inside the HP hysteresis band with high chaos, runs Diplomacy instead of idling in HRC', () => {
+    const picked = pickOverheadAction(0.6, CHAOS_TARGET + 100, 0, false, false, { hpRecovering: true, diplomacyBudgetMs: 60_000 });
+    expect(picked.name).toBe('Diplomacy');
+  });
+
+  it('🔴 THE REGRESSION, at the real measured numbers (HP 0.759 mid-band, chaos 177.7)', () => {
+    const picked = pickOverheadAction(0.759, 177.7, 0, false, false, { hpRecovering: true, diplomacyBudgetMs: 60_000 });
+    expect(picked.name).toBe('Diplomacy');
+  });
+
+  it('the HARD HP floor is never traded for chaos -- genuine danger still heals', () => {
+    const picked = pickOverheadAction(HP_FLOOR_FRACTION - 0.01, 999, 0, false, false, { hpRecovering: true, diplomacyBudgetMs: 60_000 });
+    expect(picked.name).toBe('Hyperbolic Regeneration Chamber');
+  });
+
+  it('stamina recovery is never interrupted for chaos (stamina gates success directly)', () => {
+    const picked = pickOverheadAction(1, 999, 0, false, true, { diplomacyBudgetMs: 60_000 });
+    expect(picked.name).toBe('Hyperbolic Regeneration Chamber');
+  });
+
+  it('SELF-LIMITING: once chaos is back under target, it stops on its own and resumes healing', () => {
+    const picked = pickOverheadAction(0.6, CHAOS_TARGET - 1, 0, false, false, { hpRecovering: true, diplomacyBudgetMs: 60_000 });
+    expect(picked.name).toBe('Hyperbolic Regeneration Chamber');
+  });
+
+  it('BUDGET-CAPPED: with the rolling-hour ceiling spent, it falls through to healing even at extreme chaos', () => {
+    const picked = pickOverheadAction(0.6, 999, 0, false, false, { hpRecovering: true, diplomacyBudgetMs: 0 });
+    expect(picked.name).toBe('Hyperbolic Regeneration Chamber');
+  });
+
+  it('the post-install regime still takes priority -- Training buys back its own exit condition', () => {
+    const picked = pickOverheadAction(0.6, 999, 0, false, false, { hpRecovering: true, diplomacyBudgetMs: 60_000, inPostInstallRegime: true, postInstallTrainingMs: 0 });
+    expect(picked.name).toBe('Training');
   });
 
   it('S11: if HRC itself is quarantined, the engine does NOT stall -- falls through to the next-best overhead action', () => {
