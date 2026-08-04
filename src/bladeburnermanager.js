@@ -121,7 +121,14 @@ export const LIVELOCK_WARN_STREAK = 3;
 
 // S3 -- rep-starvation detector constants. All five are DECLARED PROVISIONAL (S16.9) and
 // logged into every event so they're re-derivable from data, not asserted as measured.
-export const REP_STARVED_SUSTAIN_MS = 30 * 60_000;
+// 🔴 30 min -> 5 min, 2026-08-04. 30 was a spec default explicitly declared provisional
+// (S16.9, "a defensible default, not a measurement"), and it demonstrably never completed:
+// zero rep-starvation events across days of real starvation. A long confirmation window
+// buys little here -- the starved condition already requires phase grinding, a positive
+// deficit, AND no measurable rep progress, and the yield it gates is bounded (15% duty,
+// 3-min slices) and deficit-gated to targets worth funding. Five minutes is ample
+// confirmation without being unreachable.
+export const REP_STARVED_SUSTAIN_MS = 5 * 60_000;
 export const REP_STARVED_RATE = 0.5;
 export const REP_STARVED_CLEAR_RATE = 1.0;
 export const REP_STARVED_CLEAR_MS = 5 * 60_000;
@@ -760,9 +767,24 @@ export function detectRepStarvation(augState, nowMs, priorState) {
   const noProgress = status === "stalled" || (status === "progressing" && ratePerSec < REP_STARVED_RATE);
   const starvedNow = grinding && noProgress;
 
+  // 🔴 FIXED 2026-08-04. This used to be `starvedNow ? (accumSinceMs ?? nowMs) : null`,
+  // which HARD-RESET the accumulator whenever augfarmer's phase was momentarily anything
+  // other than "grinding". augfarmer cycles through awaiting-money / yielded / gate-fill /
+  // install-ready / paused constantly, so any blip erased all accumulated evidence -- and
+  // with a 30-minute window the detector could essentially never complete one. Live proof:
+  // ZERO rep-starvation events ever logged, across days of genuine 503x rep starvation.
+  //
+  // The fix separates two things the old line conflated. Only EVIDENCE THAT REP IS MOVING
+  // (or the deficit being met) is grounds to erase accumulated starvation. A momentary
+  // non-grinding phase is INERT -- exactly how `status === "unknown"` is already treated,
+  // and for the same reason: absence of evidence is not evidence of health.
+  const measurableProgress = status === "progressing" && ratePerSec >= REP_STARVED_RATE;
+  const deficitMet = augState != null && (augState.workTarget == null || (typeof deficit === "number" && deficit <= 0));
   let accumSinceMs = prior.accumSinceMs ?? null;
-  if (status !== "unknown") {
-    accumSinceMs = starvedNow ? (accumSinceMs ?? nowMs) : null;
+  if (measurableProgress || deficitMet) {
+    accumSinceMs = null;
+  } else if (starvedNow) {
+    accumSinceMs = accumSinceMs ?? nowMs;
   }
 
   const wasFired = prior.fired ?? false;
@@ -775,7 +797,7 @@ export function detectRepStarvation(augState, nowMs, priorState) {
     clearAccumSinceMs = clearingNow ? (clearAccumSinceMs ?? nowMs) : null;
   }
 
-  const deficitGone = augState != null && (augState.workTarget == null || (typeof deficit === "number" && deficit <= 0));
+  const deficitGone = deficitMet;
   const notGrinding = augState != null && phase !== "grinding";
   let clearedNow = false;
   if (fired && ((clearingNow && clearAccumSinceMs !== null && nowMs - clearAccumSinceMs >= REP_STARVED_CLEAR_MS) || deficitGone || notGrinding)) {

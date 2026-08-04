@@ -15,6 +15,7 @@ import {
   SCORE_W_SPEED,
   ALLOWLIST_SCORE,
   MIN_TOTAL_GAIN,
+  RATE_MIN_SAMPLES,
   GRIND_HORIZON_MS,
   PASSIVE_REP_FACTIONS,
   TRIGGER_SUSTAIN_MS,
@@ -1196,8 +1197,11 @@ describe('evalTrigger', () => {
     };
   }
 
+  // ACKNOWLEDGED FIXTURE CHANGE 2026-08-04: 1.05 was picked as "comfortably below the 1.1
+  // floor". MIN_TOTAL_GAIN is now 1.05, so the fixture moves below the new floor -- the
+  // assertion's intent (a sub-floor gain must not arm) is unchanged.
   it('the gain floor blocks arming even at idle-plateau (early-cycle degenerate-loop guard)', () => {
-    expect(evalTrigger(baseInputs({ queuedGain: 1.05 }), null).armed).toBe(false);
+    expect(evalTrigger(baseInputs({ queuedGain: 1.02 }), null).armed).toBe(false);
   });
 
   it('arms at idle-plateau once the gain floor is cleared', () => {
@@ -1206,6 +1210,48 @@ describe('evalTrigger', () => {
     // Phase 31: not stalled (default) -- pins this as a gainArmed/phaseArmed
     // arm, not accidentally masked by stallArmed.
     expect(t.reasons.stallArmed).toBe(false);
+  });
+
+  // 🔴 2026-08-04: a CONFIDENT ZERO rep rate is an INFINITE grind horizon -- the strongest
+  // reason to install rather than keep grinding -- but the old `rate > 0 && samples >= MIN`
+  // guard sent it down the no-rate-sample branch, so it was the one case guaranteed never
+  // to arm. Live consequence: Bladeburner holds the slot ~99% of the time and the yield is
+  // deficit-gated, so an expensive rep target sits at rate 0 permanently and the ratchet
+  // grinds at something unreachable, installing only via the 24h stall timer.
+  it('a confident ZERO rep rate arms the grind phase (infinite horizon), instead of reading as no-data', () => {
+    const t = evalTrigger(baseInputs({
+      phase: 'grinding',
+      targetFaction: 'Chongqing',
+      deficit: 31222,
+      repRates: { Chongqing: 0 },
+      rateSamples: { Chongqing: RATE_MIN_SAMPLES },
+    }), null);
+    expect(t.reasons.phaseArmed).toBe(true);
+    expect(t.armed).toBe(true);
+  });
+
+  it('but an unsampled rate still blocks -- absence of measurement is not a zero', () => {
+    const t = evalTrigger(baseInputs({
+      phase: 'grinding',
+      targetFaction: 'Chongqing',
+      deficit: 31222,
+      repRates: { Chongqing: 0 },
+      rateSamples: { Chongqing: RATE_MIN_SAMPLES - 1 },
+    }), null);
+    expect(t.reasons.phaseArmed).toBe(false);
+    expect(t.blockers.gainPhase).toBe('no-rate-sample');
+  });
+
+  it('a healthy rate that finishes inside the horizon still blocks arming (unchanged)', () => {
+    const t = evalTrigger(baseInputs({
+      phase: 'grinding',
+      targetFaction: 'Chongqing',
+      deficit: 100,
+      repRates: { Chongqing: 10 },
+      rateSamples: { Chongqing: RATE_MIN_SAMPLES },
+    }), null);
+    expect(t.reasons.phaseArmed).toBe(false);
+    expect(t.blockers.gainPhase).toBe('horizon-under-bound');
   });
 
   it('queuedCount 0 blocks arming even with a huge projected gain', () => {
@@ -1275,7 +1321,7 @@ describe('evalTrigger', () => {
     });
 
     it('still respects every gain-side block (the plateau read widens phaseArmed only)', () => {
-      expect(evalTrigger(baseInputs({ ...noOwedGrind, queuedGain: 1.05 }), null).armed).toBe(false);
+      expect(evalTrigger(baseInputs({ ...noOwedGrind, queuedGain: 1.02 }), null).armed).toBe(false); // sub-floor: MIN_TOTAL_GAIN is 1.05 as of 2026-08-04
       expect(evalTrigger(baseInputs({ ...noOwedGrind, queuedCount: 0, queuedGain: 5 }), null).armed).toBe(false);
       expect(evalTrigger(baseInputs({ ...noOwedGrind, paused: true }), null).armed).toBe(false);
       expect(evalTrigger(baseInputs({ ...noOwedGrind, endgameHold: true }), null).armed).toBe(false);

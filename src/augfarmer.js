@@ -127,7 +127,23 @@ export const SCORE_W_REP = 0.5;
 export const SCORE_W_MONEY = 0.15;
 export const SCORE_W_SPEED = 0.15;
 export const ALLOWLIST_SCORE = 0.25;
-export const MIN_TOTAL_GAIN = 1.1;
+// 🔴 1.1 -> 1.05, 2026-08-04 (Kenneth's call). 1.1 needs ~10 NFG levels of gain
+// (1.01^10), and NFG's price escalates x2.164 per purchase WITHIN a cycle (measured live:
+// $4.70m -> $10.17m) while an install resets that escalation (measured: $19.07m -> $4.70m
+// across the 4:21 AM install, 4.1x cheaper). So waiting for 10 levels means buying the
+// exponentially expensive rungs, when the same money spread over more cycles buys far
+// more levels -- $528m buys 5 levels in one cycle versus ~16 one-per-cycle.
+//
+// Sized against the measured cost of an install rather than guessed: the post-install
+// regime costs ~47 min of cratered duty (combat stats reset to 1, so maxHp = 10 +
+// defense/10 collapses to 10 and the engine rests). At 1.05 the trigger fires roughly
+// every few hours instead of relying on the 24h stall timer -- versus ~1.02, which would
+// fire every few minutes of income and let that 47-minute trough dominate everything.
+//
+// ⚠️ Under Bladeburner-primary an install is NOT free: rank and skill points survive it,
+// but COMBAT STATS DO NOT, and combat stats are what drive maxHp/max-stamina and therefore
+// duty cycle. Re-tune only against measured postInstallSec/wallSec, not intuition.
+export const MIN_TOTAL_GAIN = 1.05;
 // ⚠️ STOPGAP 2026-07-28 (Phase 36) -- was 8h. The 8h bound assumes waiting for
 // a short rep grind is cheap. It is not once the cycle's price ladder is deep:
 // live at 613x escalation (1.9^10 queued buys) with $38.7t idle and the fleet
@@ -1126,10 +1142,28 @@ export function decideInstall(ctx) {
       } else {
         const rate = repRates[targetFaction];
         const samples = rateSamples[targetFaction] ?? 0;
-        if (rate > 0 && samples >= RATE_MIN_SAMPLES) {
-          horizonMs = deficit / rate;
-          phaseArmed = horizonMs > GRIND_HORIZON_MS;
-          if (!phaseArmed) phaseBlocker = "horizon-under-bound";
+        if (samples >= RATE_MIN_SAMPLES) {
+          // 🔴 FIXED 2026-08-04. The guard used to be `rate > 0 && samples >= MIN`, which
+          // sent a CONFIDENT ZERO rate down the "no-rate-sample" branch and blocked arming
+          // -- conflating "measured zero" with "no measurement", the same bug class as the
+          // rep-starvation detector's original null handling. A zero rep rate is an
+          // INFINITE horizon, i.e. the strongest possible reason to stop grinding and
+          // install; it was the one case guaranteed never to arm.
+          //
+          // This matters now because Bladeburner holds the player-action slot ~99% of the
+          // time and bladeburnermanager's yield is deliberately deficit-gated, so an
+          // expensive rep target legitimately sits at rate 0 forever. Without this the
+          // ratchet grinds toward something unreachable and only ever installs via the 24h
+          // stall timer. `rateSamples` increments every poll regardless of movement, so the
+          // zero is genuinely confident by the time it is used.
+          if (rate > 0) {
+            horizonMs = deficit / rate;
+            phaseArmed = horizonMs > GRIND_HORIZON_MS;
+            if (!phaseArmed) phaseBlocker = "horizon-under-bound";
+          } else {
+            horizonMs = Infinity;
+            phaseArmed = true;
+          }
         } else {
           phaseBlocker = "no-rate-sample";
         }

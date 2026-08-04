@@ -853,6 +853,32 @@ describe('detectRepStarvation', () => {
     expect(state.fired).toBe(true);
   });
 
+  it('🔴 THE REGRESSION: a momentary non-grinding phase must NOT erase accumulated starvation', () => {
+    // Why the detector never once fired in days of real 503x starvation: augfarmer cycles
+    // through awaiting-money / yielded / gate-fill / install-ready constantly, and the old
+    // rule hard-reset the accumulator on any phase that was not exactly "grinding".
+    const { state: primed, primedAtMs } = primeStalled();
+    const blipAt = primedAtMs + 60_000;
+    const blip = detectRepStarvation({ ...liveShape(20653, blipAt), phase: 'awaiting-money' }, blipAt, primed);
+    expect(blip.accumSinceMs).toBe(primed.accumSinceMs); // evidence preserved, not erased
+    // and it still reaches the fire threshold on schedule
+    const t = primedAtMs + REP_STARVED_SUSTAIN_MS;
+    const fired = detectRepStarvation(liveShape(20653, t), t, blip);
+    expect(fired.fired).toBe(true);
+  });
+
+  it('but REAL rep progress does still reset the accumulator (the guard must not become unconditional)', () => {
+    const { state: primed, primedAtMs } = primeStalled();
+    // deficit closing fast => measurable progress => not starved
+    const t = primedAtMs + 60_000;
+    const moving = detectRepStarvation(liveShape(20653 - 60 * 2, t), t, primed); // 2 rep/s
+    expect(moving.accumSinceMs).toBeNull();
+  });
+
+  it('the sustain window is short enough to actually complete in practice', () => {
+    expect(REP_STARVED_SUSTAIN_MS).toBeLessThanOrEqual(10 * 60_000);
+  });
+
   it('clears on sustained progress at/above REP_STARVED_CLEAR_RATE for REP_STARVED_CLEAR_MS', () => {
     const { state: primed, primedAtMs } = primeStalled();
     let t = primedAtMs + REP_STARVED_SUSTAIN_MS;
