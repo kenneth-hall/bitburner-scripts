@@ -151,6 +151,12 @@ export async function main(ns) {
 
 const BB_OFF_MARKER = "bladeburner-off.txt";
 const SLOT_HOLD_FILE = "bladeburner-slot-hold.json";
+// augfarmer.js's PAUSE_FILE. Duplicated per the import-bleed rule, in sync by convention.
+// Added 2026-08-03: without pausing augfarmer, Q11 attempt 1 was preempted --
+// bladeburnermanager's off-marker path RELEASES the slot hold, augfarmer's next poll saw
+// an unclaimed slot, started workForFaction, and killed the running Raid at ~45s of a 63s
+// action. Zero attempts completed, so "0.00 HP per failure" meant "nothing ever finished".
+const AUG_PAUSE_FILE = "augfarmer-pause.txt";
 
 const STAMINA_SAMPLES = [
   { type: "Contracts", name: "Tracking", note: "short action (13s base)" },
@@ -183,6 +189,8 @@ async function staminaCostMode(ns) {
     // unattended run is far worse than losing the measurement.
     try { ns.rm(BB_OFF_MARKER, "home"); } catch { /* already gone */ }
     try { ns.rm(SLOT_HOLD_FILE, "home"); } catch { /* already gone */ }
+    try { ns.rm(AUG_PAUSE_FILE, "home"); } catch { /* already gone */ }
+    out.augPauseCleared = !ns.fileExists(AUG_PAUSE_FILE, "home");
     out.pauseCleared = !ns.fileExists(BB_OFF_MARKER, "home");
     emit("pause-cleared");
   }
@@ -429,6 +437,8 @@ async function raidHpCostMode(ns) {
   } finally {
     try { ns.rm(BB_OFF_MARKER, "home"); } catch { /* already gone */ }
     try { ns.rm(SLOT_HOLD_FILE, "home"); } catch { /* already gone */ }
+    try { ns.rm(AUG_PAUSE_FILE, "home"); } catch { /* already gone */ }
+    out.augPauseCleared = !ns.fileExists(AUG_PAUSE_FILE, "home");
     out.pauseCleared = !ns.fileExists(BB_OFF_MARKER, "home");
     out.endHpFraction = readHpFraction(ns);
     emit("pause-cleared");
@@ -446,6 +456,7 @@ async function runRaidWindow(ns, out, emit) {
   const t = RAID_TARGET;
 
   ns.write(BB_OFF_MARKER, "paused by bladeburneractionprobe.js raid mode @ " + out.iso + "\n", "w");
+  ns.write(AUG_PAUSE_FILE, "paused by bladeburneractionprobe.js raid mode @ " + out.iso + "\n", "w");
   emit("pause-requested");
   holdSlot(ns);
 
@@ -473,8 +484,21 @@ async function runRaidWindow(ns, out, emit) {
     holdSlot(ns);
     const hpFraction = readHpFraction(ns);
     const live = ns.bladeburner.getCurrentAction();
-    samples.push({ atMs: Date.now() - t0, hpFraction, liveAction: live ? live.name : null });
+    // rank is sampled because it makes failure detection EXACT: a failed Raid loses
+    // rankLoss (4.43 measured), and rank is otherwise monotonic under Raid, so a rank
+    // DROP pinpoints a failure and the HP delta across it is the per-failure cost.
+    // The old estimate (elapsed/actionTime - successes) could not distinguish "1 failure
+    // costing 0 HP" from "0 failures", which is exactly how attempt 2 came back ambiguous.
+    samples.push({ atMs: Date.now() - t0, hpFraction, hp: ns.getPlayer().hp.current, rank: ns.bladeburner.getRank(), liveAction: live ? live.name : null });
     lastHpFraction = hpFraction;
+
+    // Re-start on an idle read. Raid takes ~63s, so a single preemption used to end the
+    // whole 200s window with zero completed attempts (attempt 1). Safe here because this
+    // probe owns the slot for the duration of its window.
+    if (!live) {
+      out.restarts = (out.restarts ?? 0) + 1;
+      ns.bladeburner.startAction(t.type, t.name);
+    }
 
     if (hpFraction < RAID_HP_ABORT_FRACTION) {
       aborted = true;
@@ -614,3 +638,4 @@ async function runGeneralWindows(ns, out, emit) {
     ns.bladeburner.stopBladeburnerAction();
   }
 }
+
