@@ -91,7 +91,28 @@ export const STUDY_YIELD_MAX_MS = 300_000;
 //
 // Restore a positive value ONLY alongside retargeting `scoreAug` at combat/bladeburner
 // mults (option (b), not taken) -- otherwise it re-buys hacking exp with win-path time.
-export const MAX_REP_YIELD_DUTY = 0;
+export const MAX_REP_YIELD_DUTY = 0.15;
+// 🔴 REVISED 2026-08-04 -- the 0 above was wrong, and an install proved it in 8 hours.
+// Cutting the yield to 0 rested on "NFG's rep requirement is already met (deficit 0)".
+// That was true when measured and did NOT survive an install: **installs reset faction
+// rep**, so the 4:21 AM install left the ratchet needing 2,374 rep for a $4.7m NeuroFlux
+// Governor it could otherwise afford instantly, with no way to earn it. Frozen ratchet.
+//
+// But a flat percentage was never the right shape either, because the two ends of a cycle
+// differ completely in what the rep BUYS:
+//
+//   post-install  NeuroFlux Governor    2,374 rep (~34 min)  +1% ALL mults incl. combat
+//                                                            -> max HP / stamina -> DUTY -> rank
+//   later         Neuregen Gene Mod.   20,653 rep (~5 h)     hacking_exp 1.4, 1.0 on every
+//                                                            combat and bladeburner_* mult
+//
+// So the gate is on the SIZE OF THE DEFICIT, which cleanly separates them: cheap targets
+// (NFG's ladder) get funded, expensive ones (the hacking augs at 20k-112k rep) are refused.
+// It is a heuristic, not a proof -- a cheap-but-useless aug can slip through (Chongqing's
+// Nuoptimal Nootropic Injector sits at exactly 5,000 rep and buys charisma/company_rep) --
+// but it costs one burst, and the expensive worthless ones are what actually mattered.
+// The yield is self-limiting regardless: detectRepStarvation clears once the deficit closes.
+export const REP_YIELD_MAX_DEFICIT = 5_000;
 export const REP_YIELD_SLICE_MS = 180_000;
 // S2.4 -- anti-livelock escalation: 180 -> 360 -> 720 -> 1,440s, then flat. Reset on a clean grant.
 export const YIELD_ESCALATION_MAX_DOUBLINGS = 3;
@@ -701,6 +722,22 @@ function estimateRepRatePerSec(prevAugState, currAugState, dtSec) {
 }
 
 /**
+ * Pure. Is a rep yield WORTH the win-path time it costs? Gated on the size of the rep
+ * deficit rather than a flat duty percentage, because cheap deficits are NeuroFlux
+ * Governor (+1% to all mults including combat -> duty cycle -> rank) while expensive ones
+ * are the hacking augs, which are worth zero toward rank 400,000. See
+ * `REP_YIELD_MAX_DEFICIT` for the measured numbers behind the split.
+ * @param {{workTarget?:{deficit?:number}}|null} augState
+ */
+export function repYieldWorthwhile(augState, maxDeficit = REP_YIELD_MAX_DEFICIT) {
+  const deficit = augState?.workTarget?.deficit;
+  if (typeof deficit !== "number" || !Number.isFinite(deficit)) return { worthwhile: false, deficit: null, reason: "no-deficit" };
+  if (deficit <= 0) return { worthwhile: false, deficit, reason: "already-met" };
+  if (deficit > maxDeficit) return { worthwhile: false, deficit, reason: "deficit-too-expensive" };
+  return { worthwhile: true, deficit, reason: "cheap-enough" };
+}
+
+/**
  * Pure (S3, fixes reviewer blocker 2). Reads `workTarget.*` (NOT `target.*` -- the head
  * purchase target reads `deficit: 0` exactly when the ratchet is grinding normally, which
  * is the bug that made the old detector unreachable). `priorState` carries the
@@ -1116,6 +1153,7 @@ export async function main(ns) {
   let lastRankProducingMs = Date.now(); // baseline for detectOverheadStall
   let overheadStallWarned = false;
   let overheadStall = { stalled: false, sinceMs: null, reason: "no-baseline" };
+  let repYieldWorth = { worthwhile: false, deficit: null, reason: "no-read" };
   let diplomacyEvents = []; // {startMs, durationMs} -- rolling-hour ledger for MAX_DIPLOMACY_DUTY
   let diplomacyEffect = emptyDiplomacyEffect(); // the per-run chaos delta this policy is missing
   let diplomacyRunStart = null; // {atMs, chaosBefore} while a Diplomacy action is in flight
@@ -1248,12 +1286,16 @@ export async function main(ns) {
     repStarvationState = detectRepStarvation(augState, nowMs, repStarvationState);
     if (repStarvationState.justFired) logEntries = appendBbLog(logEntries, { ...ts(), kind: "rep-starvation-set", status: repStarvationState.status, ratePerSec: repStarvationState.ratePerSec });
     if (repStarvationState.clearedNow) logEntries = appendBbLog(logEntries, { ...ts(), kind: "rep-starvation-clear" });
-    // The detector keeps RUNNING at MAX_REP_YIELD_DUTY = 0 -- its status is real telemetry
-    // (it is how we see the ratchet is rep-starved at all) -- but it stops REQUESTING the
-    // slot. Without this guard a permanently-fired detector would ask, be refused, and log
-    // `yield-refused` on every ~1s tick, flooding the 2000-entry ring exactly the way the
-    // unthrottled crossover log did earlier today.
-    if (!requestedClaimant && repStarvationState.fired && MAX_REP_YIELD_DUTY > 0) {
+    // The detector always RUNS -- its status is real telemetry, and it is how we see the
+    // ratchet is rep-starved at all -- but it only REQUESTS the slot when the yield is
+    // worth the win-path time (deficit-gated) and the duty cap is non-zero. Without that
+    // guard a permanently-fired detector would ask, be refused, and log `yield-refused`
+    // every ~1s tick, flooding the 2000-entry ring the way the crossover log once did.
+    // Deficit-gated: only ask for the slot when the rep actually buys something that
+    // moves rank (see REP_YIELD_MAX_DEFICIT). Also keeps the refusal path quiet -- a
+    // permanently-fired detector must not spam yield-refused every tick.
+    repYieldWorth = repYieldWorthwhile(augState);
+    if (!requestedClaimant && repStarvationState.fired && MAX_REP_YIELD_DUTY > 0 && repYieldWorth.worthwhile) {
       requestedClaimant = REP_YIELD_CLAIMANT;
       requestedActivity = "busy";
     }
@@ -1356,7 +1398,7 @@ export async function main(ns) {
             allActionsQuarantined: allActionsQuarantinedFlag,
             recoveryActionQuarantined: recoveryActionQuarantinedFlag,
             startFailures: quarantineState.failures,
-            repStarvation: { fired: repStarvationState.fired, sinceMs: repStarvationState.accumSinceMs, status: repStarvationState.status, observedRepRate: repStarvationState.ratePerSec },
+            repStarvation: { fired: repStarvationState.fired, sinceMs: repStarvationState.accumSinceMs, status: repStarvationState.status, observedRepRate: repStarvationState.ratePerSec, worth: repYieldWorth },
             yieldLedger: { rollingHourRepYieldMs: rollingHourRepYieldMs(repYieldEvents, nowMs), overrunStreak },
             livelockSuspected,
             repForegone: 0,
@@ -1755,7 +1797,7 @@ export async function main(ns) {
               maxDuty: MAX_DIPLOMACY_DUTY,
               effect: diplomacyEffect, // meanRemovedPerRun is the number that settles whether this policy is worth keeping
             },
-            repStarvation: { fired: repStarvationState.fired, sinceMs: repStarvationState.accumSinceMs, status: repStarvationState.status, observedRepRate: repStarvationState.ratePerSec },
+            repStarvation: { fired: repStarvationState.fired, sinceMs: repStarvationState.accumSinceMs, status: repStarvationState.status, observedRepRate: repStarvationState.ratePerSec, worth: repYieldWorth },
             yieldLedger: { rollingHourRepYieldMs: rollingHourRepYieldMs(repYieldEvents, nowMs), overrunStreak },
             livelockSuspected,
             repForegone: 0,

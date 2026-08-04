@@ -40,6 +40,8 @@ import {
   classifyRepProgress,
   detectRepStarvation,
   seedRepStarvation,
+  repYieldWorthwhile,
+  REP_YIELD_MAX_DEFICIT,
   REP_STARVED_SUSTAIN_MS,
   REP_STARVED_RATE,
   REP_STARVED_CLEAR_RATE,
@@ -657,11 +659,10 @@ describe('resolveYieldGrant', () => {
   // hacking_exp 1.4 with 1.0 on EVERY combat stat and EVERY bladeburner_* mult -- worth
   // exactly zero toward rank 400,000. So the yield was buying nothing.
 
-  it('🔴 THE DECISION: rep yield is capped at zero, so no rep slice is ever granted', () => {
-    expect(MAX_REP_YIELD_DUTY).toBe(0);
+  it('the rep yield is restored to a non-zero cap, gated by deficit rather than cut outright', () => {
+    expect(MAX_REP_YIELD_DUTY).toBeGreaterThan(0);
     const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { rollingHourRepYieldMs: 0 });
-    expect(d.yield).toBe(false);
-    expect(d.refused).toBe(true);
+    expect(d.yield).toBe(true);
   });
 
   it('the backdoor/study claimants are UNAFFECTED -- only the rep yield was zeroed', () => {
@@ -692,6 +693,44 @@ describe('resolveYieldGrant', () => {
     const exactRoom = 0.15 * 3_600_000 - REP_YIELD_SLICE_MS;
     const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { rollingHourRepYieldMs: exactRoom, maxRepYieldDuty: 0.15 });
     expect(d.yield).toBe(true);
+  });
+});
+
+// --- repYieldWorthwhile (2026-08-04) ----------------------------------------------
+//
+// Replaces the flat 0%/15% split. An install on 2026-08-04 disproved the premise behind
+// cutting the yield to 0 ("NFG's rep requirement is already met") -- installs RESET faction
+// rep, leaving the ratchet needing 2,374 rep for a $4.7m NFG with no way to earn it. But a
+// flat percentage was wrong too, because the two ends of a cycle buy different things.
+
+describe('repYieldWorthwhile', () => {
+  it('🔴 funds the post-install NeuroFlux Governor (the live 2,374 deficit that froze the ratchet)', () => {
+    const r = repYieldWorthwhile({ workTarget: { deficit: 2374 } });
+    expect(r.worthwhile).toBe(true);
+    expect(r.reason).toBe('cheap-enough');
+  });
+
+  it('🔴 REFUSES the expensive hacking aug (the live 20,653 deficit for hacking_exp 1.4, worth zero rank)', () => {
+    const r = repYieldWorthwhile({ workTarget: { deficit: 20653 } });
+    expect(r.worthwhile).toBe(false);
+    expect(r.reason).toBe('deficit-too-expensive');
+  });
+
+  it('does not ask for the slot when the requirement is already met', () => {
+    expect(repYieldWorthwhile({ workTarget: { deficit: 0 } }).worthwhile).toBe(false);
+    expect(repYieldWorthwhile({ workTarget: { deficit: -5 } }).reason).toBe('already-met');
+  });
+
+  it('missing / malformed state is inert, not a crash and not an implicit yes', () => {
+    expect(repYieldWorthwhile(null).worthwhile).toBe(false);
+    expect(repYieldWorthwhile({}).worthwhile).toBe(false);
+    expect(repYieldWorthwhile({ workTarget: {} }).reason).toBe('no-deficit');
+    expect(repYieldWorthwhile({ workTarget: { deficit: NaN } }).worthwhile).toBe(false);
+  });
+
+  it('the threshold sits between the two live cases, which is the whole point', () => {
+    expect(REP_YIELD_MAX_DEFICIT).toBeGreaterThan(2374);   // NFG funded
+    expect(REP_YIELD_MAX_DEFICIT).toBeLessThan(20653);     // hacking aug refused
   });
 });
 
