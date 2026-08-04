@@ -85,6 +85,34 @@ do, and what's broken?*
   rather than a real bug — not verified live either way this session. **Next action:** if HP dips
   below the floor again, check whether it's poll-cadence lag (expected, bounded) or the guard
   failing to trigger at all (a real bug) before assuming either.
+- **🔴 NEW 2026-08-03 — chaos climbs unbounded because the overhead ladder never lets `Diplomacy`
+  run, and it is measurably eating success chance.** Measured over one 10.6h window: Sector-12 chaos
+  **69.1 → 177.7**, and Tracking's EV/sec **collapsed 0.0211 → 0.0084 (2.5×)** over exactly the same
+  span. Structural cause: `pickOverheadAction` ranks the HP/stamina guard (`Hyperbolic Regeneration
+  Chamber`) *above* `Diplomacy`, and HP is the binding constraint in Stage A (the engine rests ~65%
+  of wall time), so the chaos branch is effectively unreachable — `CHAOS_DIPLOMACY_THRESHOLD` is 1.0
+  and chaos sat at 178 without `Diplomacy` ever getting a turn. ⚠️ **Do not fix by demoting the HP
+  guard** — hospitalisation costs ~$10.4m plus full downtime, and that guard exists because Phase 38's
+  HP floor was a trap. **Recommended fix, but it is a spec-level call, not a hot patch:** chaos
+  suppression should compete with the *rank action* (i.e. spend Tracking time on Diplomacy when chaos
+  is eating more EV than the contract earns), not sit below the *recovery* action — that changes the
+  objective function, so it belongs in a phase decision. **Next action:** decide the above; until
+  then chaos keeps compounding against every success roll.
+- **🟡 NEW 2026-08-03 — `cli.mjs restart <companion>` races the daemon's supervisor and can leave TWO
+  instances running.** Observed live: `restart bladeburnermanager.js` killed it, `daemon.js`'s
+  supervisor logged `bladeburnermanager.js not running -- relaunching (attempt 1, missing 0s)` and
+  started one, then `restart`'s own `run` started a second — two engines fighting over the single
+  player-action slot, both writing `bladeburner-state.json`. Confirmed by `ps` (PIDs 3383302 +
+  3383347) and resolved by `kill <pid>`. **Next action:** either have `cli.mjs restart` re-check `ps`
+  after its `run` and kill duplicates, or have it skip the `run` entirely for supervised companions
+  and let the supervisor do the relaunch. Until then, **`ps` after every companion restart.**
+- **🟡 NEW 2026-08-03 — two pre-existing `npm run verify:log` failures, unrelated to Phase 39.**
+  (a) `verify-ratchet.test.js`: `ratchet-decisions.json` has records with `mode: null`, but the
+  assertion requires `'observe'|'auto'`. (b) `verify-transactions.test.js`: a record fails the
+  type/source field check and the always-positive-amount check. Neither touches
+  `bladeburnermanager.js`; found while running the suite for Phase 39's T2. **Next action:** decide
+  whether the logs are wrong (a real writer bug in `augfarmer.js`/`translog.js`) or the assertions
+  are stale, then fix the correct side.
 - **🟡 NEW 2026-08-03 (Phase 39 live validation, L2) — the hospitalization-inference rule (S9)
   never fires; the panel is the only working source.** Live cross-check: `bladeburner-state.json`
   read `hospitalizationsInferred: 0` while the in-game panel read `Num Times Hospitalized: 158` at

@@ -8,6 +8,35 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-08-03
 
+- **🔴 Phase 39 follow-up: fixed a 10.5-hour zero-rank park found on the first real unattended run.**
+  The engine ran 10.5h at a healthy-looking **100% duty cycle and gained exactly zero rank** —
+  `rankProducingSec: 0`, three `startAction` calls in the whole window. Cause was a one-line logic
+  error in the (loop-inline, therefore untested) start rule:
+  `isIdleRead && (changed || !isGeneral || debounceElapsed)` AND-ed observed idleness over every
+  other reason to act. But `startAction` auto-repeats and `getCurrentAction()` stays **non-null
+  across reps** (reference gotcha 13), so once any action was running the engine could never switch
+  to a different one — the `changed` term was computed and permanently gated shut. The HP floor
+  tripped, the ladder correctly picked `Hyperbolic Regeneration Chamber`, and the engine sat in it
+  long after HP hit full. **Fixed by extracting the rule to a pure, tested `shouldStartAction`**
+  (the spec's own ground rules say behaviour must live in exported pure functions — this bug is
+  exactly why) and inverting its priority: the only reason *not* to start is that the game is already
+  running precisely the action we want. 10 new tests including a liveness property; **verified the
+  tests genuinely catch it by re-injecting the old rule (3 failed) before restoring the fix.**
+  Live-confirmed after deploy: rank 3052.788 → 3054.347, `rankProducingSec` 0 → 19, and the ladder
+  performing a Tracking→HRC transition that was structurally impossible before.
+  **Also added the watchdog whose absence let this hide for 10.5 hours:** `detectOverheadStall` +
+  an `overheadStall` state field + a `verify:log` assertion for "hours of wall time, zero
+  rank-producing seconds". The existing broken-telemetry assertion could never have caught this — it
+  requires `rankProducingSec >= 1800` and this failure mode has it at **0**. Both are qualified
+  against the three states that legitimately produce zero rank time (all-quarantined, post-install
+  `Training`, long yields). The new assertion was verified to **fail against the real contaminated
+  state file** before that state was reset. The 10.5h of bug data was discarded rather than left to
+  contaminate C1 at 24h — averaging a bug window into the phase's deliverable is the Phase 38 mistake.
+  ⚠️ Two further problems found and logged to `BACKLOG.md`, not fixed here: **chaos climbs unbounded**
+  (69 → 178 in 10.6h, with Tracking's EV/sec collapsing 2.5× over the same span) because the overhead
+  ladder ranks the HP guard above `Diplomacy` and HP is the binding constraint — the fix is a
+  spec-level objective-function change, not a hot patch; and **`cli.mjs restart` races `daemon.js`'s
+  supervisor** and left two engine instances fighting over the single action slot.
 - **Phase 39 (Bladeburner-primary engine) implemented and live-validated — `npm test` green (1246
   tests), R1 measured (with a caveat) and V1 passed live; V3/V4 (C1/C2 checkpoints) still pending
   their real-time thresholds.** `src/bladeburnermanager.js` substantially rebuilt per

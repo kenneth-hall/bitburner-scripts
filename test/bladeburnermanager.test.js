@@ -70,6 +70,10 @@ import {
   AUG_STATE_FRESH_MS,
   BLACKOPS_DAEDALUS_RANK,
   pickOverheadAction,
+  shouldStartAction,
+  detectOverheadStall,
+  OVERHEAD_STALL_WARN_MS,
+  GENERAL_ACTION_RECHECK_MS,
   isPostInstallRegime,
   POST_INSTALL_HP_MAX_THRESHOLD,
   POST_INSTALL_TRAINING_MAX_MS,
@@ -1138,6 +1142,45 @@ describe('updateHpRecovering', () => {
   });
 });
 
+// --- detectOverheadStall (the 2026-08-03 watchdog) --------------------------------
+
+describe('detectOverheadStall', () => {
+  const NOW = 10_000_000;
+  const base = { nowMs: NOW, allActionsQuarantined: false, inPostInstallRegime: false };
+
+  it('fires once rank-producing time has been absent longer than the budget', () => {
+    const d = detectOverheadStall({ ...base, lastRankProducingMs: NOW - OVERHEAD_STALL_WARN_MS });
+    expect(d.stalled).toBe(true);
+    expect(d.reason).toBe('no-rank-producing-time');
+  });
+
+  it('does not fire inside the budget', () => {
+    expect(detectOverheadStall({ ...base, lastRankProducingMs: NOW - OVERHEAD_STALL_WARN_MS + 1 }).stalled).toBe(false);
+  });
+
+  it('REGRESSION: the live 10.5h park would have fired this watchdog', () => {
+    const tenPointFiveHours = 10.5 * 3600 * 1000;
+    expect(detectOverheadStall({ ...base, lastRankProducingMs: NOW - tenPointFiveHours }).stalled).toBe(true);
+  });
+
+  it('stays quiet while every action is quarantined -- already flagged separately, not a second alarm', () => {
+    const d = detectOverheadStall({ ...base, lastRankProducingMs: NOW - 99 * 3600_000, allActionsQuarantined: true });
+    expect(d.stalled).toBe(false);
+    expect(d.reason).toBe('all-quarantined');
+  });
+
+  it('stays quiet in the post-install Training regime -- zero rank time is the design there (S9a)', () => {
+    const d = detectOverheadStall({ ...base, lastRankProducingMs: NOW - 99 * 3600_000, inPostInstallRegime: true });
+    expect(d.stalled).toBe(false);
+    expect(d.reason).toBe('post-install-regime');
+  });
+
+  it('needs a baseline -- a missing/non-finite last-rank timestamp is not evidence of a stall', () => {
+    expect(detectOverheadStall({ ...base, lastRankProducingMs: null }).stalled).toBe(false);
+    expect(detectOverheadStall({ ...base, lastRankProducingMs: undefined }).reason).toBe('no-baseline');
+  });
+});
+
 // --- isPostInstallRegime (S9a) -----------------------------------------------------
 
 describe('isPostInstallRegime', () => {
@@ -1196,5 +1239,89 @@ describe('pickOverheadAction', () => {
   it('S11: if HRC itself is quarantined, the engine does NOT stall -- falls through to the next-best overhead action', () => {
     const picked = pickOverheadAction(HP_FLOOR_FRACTION - 0.01, CHAOS_DIPLOMACY_THRESHOLD + 1, 0, true, false, { hrcQuarantined: true });
     expect(picked.name).not.toBe('Hyperbolic Regeneration Chamber');
+  });
+});
+
+// --- shouldStartAction (S6/S11) --------------------------------------------------
+//
+// 🔴 These exist because of a 10.5-HOUR LIVE FAILURE on 2026-08-03. The rule was inline
+// in the main loop -- and therefore untested -- and read
+// `isIdleRead && (changed || !isGeneral || debounceElapsed)`, AND-ing observed idleness
+// over every other reason to act. Since startAction auto-repeats and getCurrentAction()
+// stays non-null across reps (reference gotcha 13), the engine could never switch away
+// from a running action: it picked HRC when the HP floor tripped, then sat in it for
+// 10.5 hours at 100% duty and ZERO rank, long after HP hit full. 3 attempts in 10.5h.
+
+describe('shouldStartAction', () => {
+  const tracking = { type: 'Contracts', name: 'Tracking' };
+  const hrc = { type: 'General', name: 'Hyperbolic Regeneration Chamber' };
+  const NOW = 10_000_000;
+
+  it('🔴 THE REGRESSION: switches away from a RUNNING action when the ladder wants a different one', () => {
+    // The exact live state: HRC running and repeating (getCurrentAction non-null forever),
+    // HP recovered, ladder now wants Tracking. The old rule returned false here, forever.
+    const d = shouldStartAction({ chosenAction: tracking, intendedAction: hrc, liveActionName: 'Hyperbolic Regeneration Chamber', nowMs: NOW, lastGeneralRecheckMs: NOW });
+    expect(d.start).toBe(true);
+    expect(d.reason).toBe('switch');
+  });
+
+  it('🔴 THE REGRESSION, generalised: a non-null live action NEVER blocks a switch, at any debounce state', () => {
+    for (const lastRecheck of [0, NOW, NOW - 1, NOW - 999_999]) {
+      expect(shouldStartAction({ chosenAction: tracking, intendedAction: hrc, liveActionName: 'Hyperbolic Regeneration Chamber', nowMs: NOW, lastGeneralRecheckMs: lastRecheck }).start).toBe(true);
+    }
+  });
+
+  it('does NOT restart the action already running (a repeat startAction resets progress, S6)', () => {
+    const d = shouldStartAction({ chosenAction: tracking, intendedAction: tracking, liveActionName: 'Tracking', nowMs: NOW, lastGeneralRecheckMs: 0 });
+    expect(d.start).toBe(false);
+    expect(d.reason).toBe('running-desired');
+  });
+
+  it('does not restart a running GENERAL action we still want either', () => {
+    const d = shouldStartAction({ chosenAction: hrc, intendedAction: hrc, liveActionName: 'Hyperbolic Regeneration Chamber', nowMs: NOW, lastGeneralRecheckMs: 0 });
+    expect(d.start).toBe(false);
+  });
+
+  it('starts when idle with nothing intended yet (cold start)', () => {
+    const d = shouldStartAction({ chosenAction: tracking, intendedAction: null, liveActionName: null, nowMs: NOW });
+    expect(d.start).toBe(true);
+    expect(d.reason).toBe('switch-idle');
+  });
+
+  it('S6: an idle read on the action we intended is a start FAILURE -> retry, which is what feeds the quarantine counter', () => {
+    // The startAction no-op bug: intended Tracking, startAction returned true, but the
+    // game reads idle. Retrying is what produces consecutive failures -> quarantine.
+    const d = shouldStartAction({ chosenAction: tracking, intendedAction: tracking, liveActionName: null, nowMs: NOW });
+    expect(d.start).toBe(true);
+    expect(d.reason).toBe('restart-idle');
+  });
+
+  it('S11: an idle GENERAL action is re-triggered, but only past the debounce floor', () => {
+    const within = shouldStartAction({ chosenAction: hrc, intendedAction: hrc, liveActionName: null, nowMs: NOW, lastGeneralRecheckMs: NOW - 1 });
+    expect(within.start).toBe(false);
+    expect(within.reason).toBe('debounced');
+    const past = shouldStartAction({ chosenAction: hrc, intendedAction: hrc, liveActionName: null, nowMs: NOW, lastGeneralRecheckMs: NOW - GENERAL_ACTION_RECHECK_MS });
+    expect(past.start).toBe(true);
+    expect(past.reason).toBe('restart-idle');
+  });
+
+  it('the debounce never blocks a CHANGE of general action -- only a re-trigger of the same one', () => {
+    const d = shouldStartAction({ chosenAction: { type: 'General', name: 'Training' }, intendedAction: hrc, liveActionName: null, nowMs: NOW, lastGeneralRecheckMs: NOW });
+    expect(d.start).toBe(true);
+    expect(d.reason).toBe('switch-idle');
+  });
+
+  it('LIVENESS PROPERTY: from any (running, wanted) pair, the engine either runs what it wants or acts to change that', () => {
+    // The property the old rule violated. No state may leave the engine running action X
+    // while wanting Y and doing nothing about it.
+    const names = ['Tracking', 'Hyperbolic Regeneration Chamber', 'Training', null];
+    for (const live of names) {
+      for (const want of [tracking, hrc, { type: 'General', name: 'Training' }]) {
+        const d = shouldStartAction({ chosenAction: want, intendedAction: { type: 'General', name: 'Hyperbolic Regeneration Chamber' }, liveActionName: live, nowMs: NOW, lastGeneralRecheckMs: 0 });
+        const runningWhatWeWant = live === want.name;
+        if (!runningWhatWeWant) expect(d.start).toBe(true); // must be acting, never parked
+        else expect(d.start).toBe(false); // must not restart and reset progress
+      }
+    }
   });
 });

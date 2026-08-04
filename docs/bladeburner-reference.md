@@ -268,6 +268,18 @@ current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract
 - ⚠️ **Chaos also rises on its own, from world events.** The panel's event log shows unprompted
   `Tensions between Synthoids and humans lead to riots in <city>! Chaos increased` — so chaos is not
   purely self-inflicted, and a steady state requires active suppression, not just restraint.
+  - 🧮 **Quantified 2026-08-03, and the drift is large: ~10 chaos/hour with the engine running NO
+    contracts or operations at all.** Sector-12 went **69.1 → 177.7 over 10.6 hours** during which
+    `bladeburnermanager.js` was parked in `Hyperbolic Regeneration Chamber` the entire time (an
+    engine bug — see that day's CHANGELOG entry — which made the window an accidental but clean
+    natural experiment: chaos drift with the player contributing nothing). **The cost is measured,
+    not theoretical: Tracking's EV/sec fell 0.0211 → 0.0084 (2.5×) over exactly that span.**
+    ⚠️ Two caveats on this number: it is a **single** window with no mid-points sampled (only the two
+    endpoints), and chaos was roughly *flat* during the preceding hour of actual Tracking, which is
+    the opposite of what "contracts raise chaos" predicts — so treat the ~10/hour as an order of
+    magnitude, and do not infer a mechanism from it. **The design implication is solid regardless:
+    an engine that never runs `Diplomacy` will bleed success chance indefinitely, no matter how
+    restrained its action choice is.**
 - **Population migrates between cities continuously** (`Intelligence indicates that a large number
   of Synthoids migrated from X…`), so per-city desirability drifts on its own.
 - **`Incite Violence` regenerates inventory** — *"generate additional contracts and operations"* —

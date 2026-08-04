@@ -85,6 +85,29 @@ describe('bladeburner-state.json (Phase 39)', () => {
     const broken = wallSec >= 3600 && rankProducingSec >= 1800 && rankGained === 0;
     expect(broken).toBe(false);
   });
+
+  it('🔴 OVERHEAD-STALL assertion (added 2026-08-03 after a 10.5h live park): hours of wall time with ZERO rank-producing seconds is a stalled engine -- the assertion above cannot catch this, because it requires rankProducingSec >= 1800 and this failure mode has it at 0', () => {
+    const { exists, data } = readJson('bladeburner-state.json');
+    if (!exists) return skip('bladeburner-state.json');
+    if (data.off) return; // off-marker runs legitimately do nothing
+    const cumulative = data.rates?.cumulative;
+    if (!cumulative) return skip('bladeburner-state.json (no cumulative rate block yet)');
+
+    const wallSec = cumulative.wallSec ?? data.totals?.wallSec;
+    const rankProducingSec = cumulative.rankProducingSec ?? data.totals?.rankProducingSec;
+    const yieldedSec = data.duty?.yieldedSec ?? 0;
+    if (!Number.isFinite(wallSec) || !Number.isFinite(rankProducingSec)) {
+      return skip('bladeburner-state.json (cumulative totals not populated yet)');
+    }
+
+    // Qualified against the three states that legitimately produce zero rank time
+    // (blocker-10's lesson applied to this field): everything quarantined, the
+    // post-install Training regime, and long yields to a higher-priority claimant.
+    const heldWallSec = wallSec - yieldedSec;
+    const exempt = data.allActionsQuarantined === true || data.regime === 'post-install';
+    const stalled = heldWallSec >= 2 * 3600 && rankProducingSec === 0 && !exempt;
+    expect(stalled).toBe(false);
+  });
 });
 
 describe('bladeburner-log.json (Phase 39)', () => {

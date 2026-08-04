@@ -132,6 +132,13 @@ export const REGIME_DOMINATED_THRESHOLD = 0.35;
 // kind (yield-grant, quarantine-set, checkpoints...) almost immediately. Edge-triggered
 // (a lead flag flips) plus a heartbeat, not every tick.
 export const CROSSOVER_LOG_INTERVAL_MS = 5 * 60_000;
+// 🔴 Added 2026-08-03 after the 10.5-hour HRC park (see shouldStartAction). That failure
+// was invisible for 10.5 hours because nothing shouted: the engine reported a perfectly
+// healthy-looking 100% duty cycle while `rankProducingSec` sat at 0. The existing
+// broken-telemetry assertion keys on `rankProducingSec >= 1800` and so -- correctly --
+// could never catch a run where that field is ZERO. This closes that gap from the other
+// side: wall time accumulating with NO rank-producing time at all.
+export const OVERHEAD_STALL_WARN_MS = 45 * 60_000;
 
 // S10 -- overhead ladder / city / team knobs.
 export const CHAOS_DIPLOMACY_THRESHOLD = 1.0;
@@ -440,6 +447,67 @@ export function pickOverheadAction(hpFraction, cityChaos, teamSize, lowInventory
   if (cityChaos !== undefined && cityChaos > CHAOS_DIPLOMACY_THRESHOLD) return { type: "General", name: "Diplomacy" };
   if (stageBEnabled && teamSize < TEAM_SIZE_TARGET) return { type: "General", name: "Recruitment" };
   return hrc;
+}
+
+/**
+ * Pure (S6/S11). Decides whether to call `startAction` this tick.
+ *
+ * 🔴 EXTRACTED FROM THE LOOP 2026-08-03 AFTER A 10.5-HOUR LIVE FAILURE. The inline
+ * version read `isIdleRead && (changed || !isGeneral || debounceElapsed)` -- i.e. it
+ * AND-ed observed-idleness over every other reason to act. But reference gotcha 13 says
+ * `startAction` auto-repeats and `getCurrentAction()` stays **non-null across reps**, so
+ * once ANY action was running the engine could never start a different one: the `changed`
+ * term was computed and then permanently gated shut. Live cost: the HP floor tripped at 08:33, the
+ * ladder correctly picked `Hyperbolic Regeneration Chamber`, HRC started and kept
+ * repeating -- and the engine sat in it for **10.5 hours at 100% duty and zero rank**,
+ * long after HP had recovered to full. Exactly 3 `startAction` attempts in that window.
+ * This was loop-inline and therefore untested, which is the whole reason the spec's
+ * ground rules say behaviour must live in exported pure functions.
+ *
+ * The corrected rule inverts the priority: the ONLY reason **not** to start is that the
+ * game is already running exactly the action we want (restarting it would reset its
+ * progress -- S6). Anything else running is a reason to switch, immediately.
+ *
+ * @param {{type:string,name:string}} chosenAction what the ladder wants to run now
+ * @param {{type:string,name:string}|null} intendedAction what we last called startAction with
+ * @param {string|null} liveActionName `getCurrentAction()?.name` -- the GAME's truth, not our intent
+ * @returns {{start:boolean, reason:string}}
+ */
+export function shouldStartAction({ chosenAction, intendedAction, liveActionName, nowMs, lastGeneralRecheckMs = 0, generalRecheckMs = GENERAL_ACTION_RECHECK_MS }) {
+  // Already running precisely what we want -> never restart (S6: a repeat startAction
+  // resets action progress and completes nothing).
+  if (liveActionName && liveActionName === chosenAction.name) return { start: false, reason: "running-desired" };
+  // Running something else -> switch NOW, regardless of idleness. This is the line whose
+  // absence caused the 10.5-hour park.
+  if (liveActionName) return { start: true, reason: "switch" };
+  // Idle from here down.
+  const changed = !intendedAction || intendedAction.type !== chosenAction.type || intendedAction.name !== chosenAction.name;
+  if (changed) return { start: true, reason: "switch-idle" };
+  // Same action, observed idle. General actions can fire once and stop (S11), so
+  // re-trigger them -- but debounce, so one lagging/transient null read right after a
+  // start cannot thrash the action.
+  if (chosenAction.type === "General" && nowMs - lastGeneralRecheckMs < generalRecheckMs) return { start: false, reason: "debounced" };
+  return { start: true, reason: "restart-idle" };
+}
+
+/**
+ * Pure. Detects the failure mode that hid for 10.5 hours on 2026-08-03: the engine is
+ * alive, holding the slot, reporting a healthy duty cycle -- and running nothing that
+ * pays rank. Deliberately qualified rather than a bare `rankProducingSec === 0`, because
+ * this spec designs for three states that legitimately produce zero rank time
+ * (blocker-10's lesson applied to a new field): every action quarantined (already flagged
+ * by `allActionsQuarantined`), the post-install `Training` regime (S9a, capped at 30 min),
+ * and a long yield to a higher-priority claimant (that time lands in `yieldedSec`, not
+ * `overheadSec`).
+ * @returns {{stalled:boolean, sinceMs:number|null, reason:string}}
+ */
+export function detectOverheadStall({ nowMs, lastRankProducingMs, allActionsQuarantined, inPostInstallRegime, warnAfterMs = OVERHEAD_STALL_WARN_MS }) {
+  if (allActionsQuarantined) return { stalled: false, sinceMs: lastRankProducingMs, reason: "all-quarantined" };
+  if (inPostInstallRegime) return { stalled: false, sinceMs: lastRankProducingMs, reason: "post-install-regime" };
+  if (!Number.isFinite(lastRankProducingMs)) return { stalled: false, sinceMs: null, reason: "no-baseline" };
+  const elapsed = nowMs - lastRankProducingMs;
+  if (elapsed < warnAfterMs) return { stalled: false, sinceMs: lastRankProducingMs, reason: "within-budget" };
+  return { stalled: true, sinceMs: lastRankProducingMs, reason: "no-rank-producing-time" };
 }
 
 // ---- S2/S3 -- slot ownership, bounded yields, rep-starvation detector --------------
@@ -916,6 +984,9 @@ export async function main(ns) {
   let previousHp = null; // {current, max} -- S9's inference signal
   let previousActionWasHrc = false;
   let allActionsQuarantinedFlag = false;
+  let lastRankProducingMs = Date.now(); // baseline for detectOverheadStall
+  let overheadStallWarned = false;
+  let overheadStall = { stalled: false, sinceMs: null, reason: "no-baseline" };
   let recoveryActionQuarantinedFlag = false;
   let livelockSuspected = null;
 
@@ -1230,7 +1301,6 @@ export async function main(ns) {
 
     const liveAction = ns.bladeburner.getCurrentAction();
     const verified = !!(liveAction && liveAction.name && intendedAction && liveAction.name === intendedAction.name);
-    const isIdleRead = !liveAction || !liveAction.name;
 
     // Finalize the pending attempt (the action we started LAST tick) now that we know
     // whether it verified.
@@ -1272,6 +1342,18 @@ export async function main(ns) {
     const postInstallSecTick = inPostInstall ? wallSec : 0;
     if (inPostInstall && verified && intendedAction?.name === "Training") postInstallTrainingMs += wallSec * 1000;
     previousActionWasHrc = verified && intendedAction?.name === "Hyperbolic Regeneration Chamber";
+
+    // Overhead-stall watchdog -- the thing that was missing when the engine parked in HRC
+    // for 10.5 hours while reporting 100% duty (see OVERHEAD_STALL_WARN_MS).
+    if (rankProducingSecTick > 0) {
+      lastRankProducingMs = nowMs;
+      overheadStallWarned = false;
+    }
+    overheadStall = detectOverheadStall({ nowMs, lastRankProducingMs, allActionsQuarantined: allActionsQuarantinedFlag, inPostInstallRegime: inPostInstall });
+    if (overheadStall.stalled && !overheadStallWarned) {
+      logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "overhead-stall", sinceMs: overheadStall.sinceMs, elapsedMs: nowMs - overheadStall.sinceMs, intendedAction });
+      overheadStallWarned = true;
+    }
 
     // ---- Candidate selection: buildCandidates (ungated) -> applyStageGate (the ONLY
     // gate) -> pickRankAction. computeCrossover ALSO consumes the ungated pool -- C2's
@@ -1321,16 +1403,20 @@ export async function main(ns) {
     // observed-idle GENERAL action. Contracts/Operations retry every tick on failure
     // (they run for many seconds/minutes -- an unverified tick after start is a real
     // signal, not a normal completion boundary). --------------------------------------
-    const changed = !intendedAction || intendedAction.type !== chosenAction.type || intendedAction.name !== chosenAction.name;
     const isGeneral = chosenAction.type === "General";
     if (chosenAction.name !== lastGeneralActionName) {
       lastGeneralActionName = chosenAction.name;
       lastGeneralRecheckMs = 0; // a real switch is never debounced
     }
-    const debounceElapsed = nowMs - lastGeneralRecheckMs >= GENERAL_ACTION_RECHECK_MS;
-    const shouldStart = isIdleRead && (changed || !isGeneral || debounceElapsed);
+    const startDecision = shouldStartAction({
+      chosenAction,
+      intendedAction,
+      liveActionName: liveAction?.name ?? null,
+      nowMs,
+      lastGeneralRecheckMs,
+    });
 
-    if (shouldStart) {
+    if (startDecision.start) {
       writeSlotHold(ns);
       lastMarkerWriteMs = nowMs;
       if (isGeneral) lastGeneralRecheckMs = nowMs;
@@ -1463,6 +1549,8 @@ export async function main(ns) {
             allActionsQuarantined: allActionsQuarantinedFlag,
             recoveryActionQuarantined: recoveryActionQuarantinedFlag,
             startFailures: quarantineState.failures,
+            overheadStall, // watchdog for the 10.5h HRC park -- see OVERHEAD_STALL_WARN_MS
+            intendedAction, // what we last called startAction with (intent, NOT evidence -- S1)
             repStarvation: { fired: repStarvationState.fired, sinceMs: repStarvationState.accumSinceMs, status: repStarvationState.status, observedRepRate: repStarvationState.ratePerSec },
             yieldLedger: { rollingHourRepYieldMs: rollingHourRepYieldMs(repYieldEvents, nowMs), overrunStreak },
             livelockSuspected,
