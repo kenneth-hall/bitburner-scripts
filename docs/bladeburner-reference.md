@@ -303,6 +303,24 @@ current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract
   untrustworthy rather than averaging the two.
 - **BlackOps, verbatim:** *"Black Ops success significantly affected by combat stats. Many Ops
   benefit from Hacking skill. Unaffected by Charisma."*
+- 🔴 **`Raid` CONSUMES the city, and a drained city stalls EVERYTHING — measured 2026-08-03, and
+  this is the single most important Stage-B constraint found so far.** Two 200-second Raid windows
+  (~6 attempts, 4 confirmed successes) took **Volhaven from 1,170.6m Synthoid population and 75
+  communities to 0 population and 71 communities.** At zero population the success chance of **every
+  action collapses to 0 — contracts included**: `Tracking` scored *exactly* 0.0, every operation went
+  negative, `pickRankAction` returned `null` on every tick, and the engine sat in overhead with rank
+  flat until the city was changed. Moving to Ishima restored Tracking to 0.0879 instantly.
+  - 🧮 **The arithmetic that matters for the win path:** ~6 Raids drained one city. Six cities ⇒
+    roughly **36 Raids** before all are exhausted, at 97.44 rank/success ≈ **3,500 rank — 0.9% of the
+    400,000 gate.** So **Raid cannot clear the node by itself**; it is a *consumable*, not an engine,
+    unless population regenerates meaningfully (the panel does log Synthoids *migrating between*
+    cities, so some recovery is plausible — **unmeasured**, and worth watching whether Volhaven's 0
+    recovers).
+  - ⚠️ **Implication for Stage B:** opening it as a continuous Raid grind would drain the current
+    city in minutes and then stall the whole engine, contracts and all. Any Stage-B policy needs a
+    **population floor** plus city rotation, not just an HP guard. `bladeburnermanager.js`'s
+    `updateCityStock` now raises a `population-drained` breach below `MIN_CITY_POPULATION` (1m) so
+    this failure mode is detected rather than rediscovered.
 - **`Raid` has a precondition:** *"there must be an existing Synthoid community in your current city
   in order for this Operation to be successful"* — so `Synthoid Communities` (panel stat) gates it.
 

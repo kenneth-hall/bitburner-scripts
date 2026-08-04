@@ -480,8 +480,21 @@ describe('updateCityStock', () => {
     expect(breaches.some((b) => b.type === 'communities')).toBe(true);
   });
 
+  it('🔴 flags a DRAINED city -- measured 2026-08-03: six Raids took Volhaven to 0 population, which zeroes the success chance of EVERY action (contracts included) and stalls the engine outright', () => {
+    const { breaches } = updateCityStock(null, { cityName: 'Volhaven', population: 0, communities: 71, chaos: 5.9, contractCount: 500, opCount: 500 }, 1000);
+    expect(breaches.some((b) => b.type === 'population-drained')).toBe(true);
+  });
+
+  it('a healthy population raises no drained breach', () => {
+    const { breaches } = updateCityStock(null, { cityName: 'Ishima', population: 1132.7e6, communities: 39, chaos: 3.1, contractCount: 500, opCount: 500 }, 1000);
+    expect(breaches.some((b) => b.type === 'population-drained')).toBe(false);
+  });
+
+  // ACKNOWLEDGED FIXTURE CHANGE 2026-08-03 (spec T1): population raised from a toy 1000 to
+  // a realistic figure, because 1000 Synthoids is genuinely NOT comfortable under the new
+  // population-drained rule -- at ~0 population every action's success chance is 0.
   it('no breaches when everything is comfortable', () => {
-    const { breaches } = updateCityStock(null, { cityName: 'Aevum', population: 1000, communities: 10, chaos: 0, contractCount: 500, opCount: 500 }, 1000);
+    const { breaches } = updateCityStock(null, { cityName: 'Aevum', population: 569.1e6, communities: 10, chaos: 0, contractCount: 500, opCount: 500 }, 1000);
     expect(breaches).toEqual([]);
   });
 });

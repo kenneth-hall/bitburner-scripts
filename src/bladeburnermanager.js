@@ -207,6 +207,13 @@ export const CITY_ROTATE_CHAOS_THRESHOLD = 2.0;
 // That is a spec-level decision, so the engine still never rotates on its own; moves are
 // made manually with switchbbcity.js.
 export const CITY_ROTATION_ENABLED = false;
+// 🔴 MEASURED 2026-08-03: Raid CONSUMES the city. Six Raids took Volhaven from
+// 1,170.6m population / 75 communities to **0 population / 71 communities**, and at zero
+// Synthoid population the success chance of EVERY action -- contracts included -- goes to
+// 0. Tracking's score fell to exactly 0.0 and the engine stalled with rank flat until the
+// city was changed. So a drained city is not just "bad for Raid", it is a total stall, and
+// it is detectable from population alone.
+export const MIN_CITY_POPULATION = 1_000_000;
 const RAID_MIN_COMMUNITIES = 1; // "there must be an existing Synthoid community" (reference §5) -- exact threshold undocumented, 1 is the literal reading
 
 export const BLACKOPS_DAEDALUS_RANK = 400_000;
@@ -458,6 +465,7 @@ export function updateCityStock(priorStock, reads, nowMs) {
     breaches.push({ type: "inventory", cityName, contractCount, opCount });
   }
   if (communities < RAID_MIN_COMMUNITIES) breaches.push({ type: "communities", cityName, communities });
+  if (population < MIN_CITY_POPULATION) breaches.push({ type: "population-drained", cityName, population });
   return {
     stock: { ...(priorStock ?? {}), [cityName]: { pop: population, communities, chaos, contractCount, opCount, updatedMs: nowMs } },
     breaches,
