@@ -771,6 +771,44 @@ export function accumulateTotals(totals, sample) {
   };
 }
 
+/**
+ * Pure. Restores `detectRepStarvation`'s accumulator across a restart.
+ *
+ * 🔴 WITHOUT THIS THE D11a GUARD CAN NEVER FIRE, and that was the live state on
+ * 2026-08-03. The detector needs `REP_STARVED_SUSTAIN_MS` (30 min) of *continuous*
+ * starvation before it fires -- but `repStarvationState` was initialised to `null` on
+ * every startup and nothing read it back, while the engine restarts routinely (22 startups
+ * in one log ring: augfarmer's installs kill it, daemon.js's supervisor relaunches it,
+ * every deploy restarts it). Any restart inside the window reset the accumulator to zero,
+ * so the entire mechanism protecting the ratchet from Bladeburner had never once fired.
+ * Measured cost of that: rep accrued at **0.0023 rep/s while starved vs 1.1631 rep/s while
+ * working -- a 503x difference** -- which is why the aug ratchet sat 54h without an install.
+ *
+ * This is exactly the bug class `seedTotals` already exists to solve ("installs restart
+ * this engine repeatedly and an in-memory total cannot span a 24h window"); the starvation
+ * accumulator has the identical requirement and simply never got the identical fix.
+ *
+ * ⚠️ Bounded by `maxAgeMs`: a genuinely old snapshot is NOT restored, so the engine can
+ * never resume a stale accumulation from days ago and fire instantly on startup.
+ * `lastAugState` is deliberately not restored -- the first tick after a restart then reads
+ * `"unknown"`, which S3 makes inert in both directions, so it costs one tick, not a verdict.
+ * @param {any} state parsed bladeburner-state.json, or null
+ */
+export function seedRepStarvation(state, nowMs, maxAgeMs = 15 * 60_000) {
+  const prior = state?.repStarvation;
+  if (!prior || typeof prior !== "object") return null;
+  if (!Number.isFinite(state?.timestamp) || nowMs - state.timestamp > maxAgeMs) return null;
+  const accumSinceMs = Number.isFinite(prior.sinceMs) ? prior.sinceMs : null;
+  if (accumSinceMs === null && prior.fired !== true) return null;
+  return {
+    fired: prior.fired === true,
+    accumSinceMs,
+    clearAccumSinceMs: null,
+    lastAugState: null,
+    lastReadMs: null,
+  };
+}
+
 /** Pure. Recovers totals from a persisted bladeburner-state.json so a restart continues the measurement. Malformed/partial input degrades to fresh rather than throwing. */
 export function seedTotals(state) {
   const fresh = emptyTotals();
@@ -988,7 +1026,8 @@ export async function main(ns) {
   }
 
   let samples = []; // {timestamp, wallSec, actionSec, rankDelta, rankProducingSec, postInstallSec} -- finite windows only, pruned
-  let totals = seedTotals(readJsonState(ns, BB_STATE_FILE)); // persists across restarts -- see emptyTotals's doc comment
+  const persistedState = readJsonState(ns, BB_STATE_FILE);
+  let totals = seedTotals(persistedState); // persists across restarts -- see emptyTotals's doc comment
   let logEntries = seedBbLog(ns.read(BB_LOG_FILE));
   let attemptEntries = seedAttempts(ns.read(BB_ATTEMPTS_FILE));
   logEntries = appendBbLog(logEntries, { ...ts(), kind: "startup", resumedTotals: { ...totals } });
@@ -1006,7 +1045,9 @@ export async function main(ns) {
   let wasOffLastTick = false;
   let previousRank = ns.bladeburner.getRank();
   let previousAugState = readJsonState(ns, AUG_STATE_FILE);
-  let repStarvationState = null; // detectRepStarvation's carried-forward priorState
+  // Restored across restarts -- the 30-min starvation window is longer than this engine's
+  // typical uptime between restarts, so an in-memory-only accumulator never completes it.
+  let repStarvationState = seedRepStarvation(persistedState, Date.now());
   let lastMarkerWriteMs = 0;
   let lastStateWrite = 0;
   let staminaRecovering = false;

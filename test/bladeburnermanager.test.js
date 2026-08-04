@@ -39,6 +39,7 @@ import {
   LIVELOCK_WARN_STREAK,
   classifyRepProgress,
   detectRepStarvation,
+  seedRepStarvation,
   REP_STARVED_SUSTAIN_MS,
   REP_STARVED_RATE,
   REP_STARVED_CLEAR_RATE,
@@ -807,6 +808,53 @@ describe('detectRepStarvation', () => {
     t += 1000;
     state = detectRepStarvation({ ...liveShape(20653, t), phase: 'awaiting-money' }, t, state);
     expect(state.fired).toBe(false);
+  });
+});
+
+// --- seedRepStarvation (2026-08-03: the D11a guard could never fire) --------------
+//
+// 🔴 The detector needs 30 min of CONTINUOUS starvation, but its accumulator lived only in
+// memory while the engine restarts routinely (installs kill it, the supervisor relaunches
+// it, deploys restart it -- 22 startups in one log ring). Every restart reset the window to
+// zero, so the mechanism protecting the aug ratchet from Bladeburner had never once fired.
+// Measured cost: 0.0023 rep/s starved vs 1.1631 rep/s working -- 503x -- and a 54h stall.
+
+describe('seedRepStarvation', () => {
+  const NOW = 10_000_000;
+
+  it('🔴 THE REGRESSION: an in-progress accumulation survives a restart', () => {
+    const state = { timestamp: NOW - 1000, repStarvation: { fired: false, sinceMs: NOW - 20 * 60_000, status: 'stalled' } };
+    const seeded = seedRepStarvation(state, NOW);
+    expect(seeded.accumSinceMs).toBe(NOW - 20 * 60_000);
+    expect(seeded.fired).toBe(false);
+  });
+
+  it('and the restored accumulation actually reaches the fire threshold instead of restarting the clock', () => {
+    // 20 minutes were already banked before the restart; 10 more must be enough.
+    const state = { timestamp: NOW - 1000, repStarvation: { fired: false, sinceMs: NOW - 20 * 60_000, status: 'stalled' } };
+    let s = seedRepStarvation(state, NOW);
+    const shape = (deficit, at) => ({ phase: 'grinding', timestamp: at, workTarget: { aug: 'A', faction: 'F', deficit } });
+    s = detectRepStarvation(shape(999, NOW), NOW, s); // establishes a baseline read
+    const later = NOW + 10 * 60_000 + 1000;
+    s = detectRepStarvation(shape(999, later), later, s); // stalled, and past 30 min total
+    expect(s.fired).toBe(true);
+  });
+
+  it('a fired state survives a restart too -- the yield must not silently stop', () => {
+    const state = { timestamp: NOW - 1000, repStarvation: { fired: true, sinceMs: NOW - 60 * 60_000 } };
+    expect(seedRepStarvation(state, NOW).fired).toBe(true);
+  });
+
+  it('a STALE snapshot is not restored -- no resuming a days-old accumulation and firing instantly', () => {
+    const state = { timestamp: NOW - 16 * 60_000, repStarvation: { fired: false, sinceMs: NOW - 60 * 60_000 } };
+    expect(seedRepStarvation(state, NOW)).toBeNull();
+  });
+
+  it('missing / malformed / never-accumulated input degrades to a fresh start, not a crash', () => {
+    expect(seedRepStarvation(null, NOW)).toBeNull();
+    expect(seedRepStarvation({}, NOW)).toBeNull();
+    expect(seedRepStarvation({ timestamp: NOW, repStarvation: 'corrupt' }, NOW)).toBeNull();
+    expect(seedRepStarvation({ timestamp: NOW, repStarvation: { fired: false, sinceMs: null } }, NOW)).toBeNull();
   });
 });
 
