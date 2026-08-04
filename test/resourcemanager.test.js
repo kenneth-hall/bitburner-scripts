@@ -334,12 +334,20 @@ describe('computeOpenerActivation (Phase 35 WI3/D5, cold-review M3 hysteresis)',
     ).toBe(true);
   });
 
-  it('hysteresis: previously active releases below 0.35*cost', () => {
+  // ACKNOWLEDGED FIXTURE CHANGE 2026-08-04 (spec T1: named, not silent). The income was
+  // 1_000_000/s, which makes the fast-fund clause (cost <= income * 1800s = $1.8b) pass
+  // trivially for this $30m opener -- so after the flap fix carried fast-fund into the
+  // release test, money became irrelevant here and the assertion no longer tested what it
+  // meant to. Income lowered to $10k/s so fast-fund does NOT apply ($30m > $18m) and the
+  // MONEY band is what governs, which is this test's actual intent. Eligibility still
+  // holds (28800s * 10k * 1.25 = $360m >= $30m).
+  it('hysteresis: previously active releases below 0.35*cost (when fast-fund does not apply)', () => {
+    const lowIncome = 10_000;
     expect(
-      computeOpenerActivation({ cost: COST, money: OPENER_ACTIVATION_RELEASE_FRACTION * COST - 1, trailingIncomePerSec: 1_000_000, prevActive: true })
+      computeOpenerActivation({ cost: COST, money: OPENER_ACTIVATION_RELEASE_FRACTION * COST - 1, trailingIncomePerSec: lowIncome, prevActive: true })
     ).toBe(false);
     expect(
-      computeOpenerActivation({ cost: COST, money: OPENER_ACTIVATION_RELEASE_FRACTION * COST, trailingIncomePerSec: 1_000_000, prevActive: true })
+      computeOpenerActivation({ cost: COST, money: OPENER_ACTIVATION_RELEASE_FRACTION * COST, trailingIncomePerSec: lowIncome, prevActive: true })
     ).toBe(true); // exact boundary stays active
   });
 
@@ -355,6 +363,42 @@ describe('computeOpenerActivation (Phase 35 WI3/D5, cold-review M3 hysteresis)',
   it('null/non-numeric income always returns false, active or not -- floor-only mode, no hysteresis for a lost signal', () => {
     expect(computeOpenerActivation({ cost: COST, money: COST * 10, trailingIncomePerSec: null, prevActive: true })).toBe(false);
     expect(computeOpenerActivation({ cost: COST, money: COST * 10, trailingIncomePerSec: undefined, prevActive: true })).toBe(false);
+  });
+});
+
+describe('computeOpenerActivation -- the 2026-08-04 reserve/release FLAP', () => {
+  // Observed live: resourcemanager spammed the terminal every 2s alternating
+  // "reserved $250.000m -- next-port-opener (SQLInject.exe)" / "released ...".
+  // The live numbers, reproduced exactly.
+  const COST = 250_000_000;
+  const MONEY = 19_992_943;     // live finance-state.json
+  const INCOME = 200_000;       // ~$200k/sec live
+
+  it('🔴 THE FLAP: an opener armed via the fast-fund clause must STAY armed, not release next poll', () => {
+    // arm: money($20m) < 0.5*cost($125m), but fast-fund passes (250m <= 200k*1800s = 360m)
+    const armed = computeOpenerActivation({ cost: COST, money: MONEY, trailingIncomePerSec: INCOME, prevActive: false });
+    expect(armed).toBe(true);
+    // release must not immediately undo it -- that is the flap
+    const stillArmed = computeOpenerActivation({ cost: COST, money: MONEY, trailingIncomePerSec: INCOME, prevActive: true });
+    expect(stillArmed).toBe(true);
+  });
+
+  it('HYSTERESIS INVARIANT: release is never stricter than arm -- if it arms, it stays armed at the same inputs', () => {
+    // The property whose violation caused the flap, checked across a grid.
+    for (const cost of [10e6, 250e6, 1e9]) {
+      for (const money of [0, 1e6, 20e6, 100e6, 500e6]) {
+        for (const income of [0, 1000, 200_000, 5e6]) {
+          const armed = computeOpenerActivation({ cost, money, trailingIncomePerSec: income, prevActive: false });
+          if (!armed) continue;
+          const held = computeOpenerActivation({ cost, money, trailingIncomePerSec: income, prevActive: true });
+          expect(held).toBe(true); // armed at these inputs => must remain armed at these inputs
+        }
+      }
+    }
+  });
+
+  it('still releases when income genuinely collapses (the guard must not become unconditional)', () => {
+    expect(computeOpenerActivation({ cost: COST, money: MONEY, trailingIncomePerSec: 1, prevActive: true })).toBe(false);
   });
 });
 

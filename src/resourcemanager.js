@@ -120,9 +120,18 @@ export function computeOpenerActivation({ cost, money, trailingIncomePerSec, pre
   const horizonSec = OPENER_INCOME_HORIZON_MS / 1000;
   const fastFundSec = OPENER_FAST_FUND_MS / 1000;
 
+  // 🔴 FIXED 2026-08-04: `stillFunded` must mirror the ARM clause's `||` fast-fund branch.
+  // It did not, and the result was an infinite reserve/release flap -- observed live
+  // spamming the terminal every 2s for `next-port-opener (SQLInject.exe)`: at money
+  // $19.99m / cost $250m / income ~$200k/s, ARM passed via fast-fund
+  // (250m <= 200k*1800s = 360m) while RELEASE tested only money >= 0.35*250m = $87.5m and
+  // failed -- so it armed, released, armed, released forever. Hysteresis REQUIRES the
+  // release band to be at least as lenient as the arm band; carrying only one of the two
+  // arm clauses into release inverted that.
   if (prevActive) {
     const stillEligible = cost <= horizonSec * trailingIncomePerSec * OPENER_ELIGIBILITY_RELEASE_MULT;
-    const stillFunded = money >= OPENER_ACTIVATION_RELEASE_FRACTION * cost;
+    const stillFunded =
+      money >= OPENER_ACTIVATION_RELEASE_FRACTION * cost || cost <= trailingIncomePerSec * fastFundSec;
     return stillEligible && stillFunded;
   }
 
