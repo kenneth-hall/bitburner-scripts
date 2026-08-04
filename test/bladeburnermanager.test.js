@@ -636,22 +636,48 @@ describe('resolveYieldGrant', () => {
     expect(grantDurations).toEqual([180_000, 360_000, 720_000, 1_440_000, 1_440_000, 1_440_000]);
   });
 
+  // --- rep yield set to 0 on 2026-08-03 (reverses the spec's D11a default of 0.15) ---
+  //
+  // Measured basis: the single action slot is Bladeburner rank OR faction rep, never both.
+  // augfarmer's scoreAug picks augs by hacking mults (leftover from the M-climb path
+  // dropped 2026-08-02), and the live rep target `Neuregen Gene Modification` reads
+  // hacking_exp 1.4 with 1.0 on EVERY combat stat and EVERY bladeburner_* mult -- worth
+  // exactly zero toward rank 400,000. So the yield was buying nothing.
+
+  it('🔴 THE DECISION: rep yield is capped at zero, so no rep slice is ever granted', () => {
+    expect(MAX_REP_YIELD_DUTY).toBe(0);
+    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { rollingHourRepYieldMs: 0 });
+    expect(d.yield).toBe(false);
+    expect(d.refused).toBe(true);
+  });
+
+  it('the backdoor/study claimants are UNAFFECTED -- only the rep yield was zeroed', () => {
+    // These protect correctness (an interrupted installBackdoor), not economy, so the
+    // decision must not have collateral-damaged them.
+    expect(resolveYieldGrant('backdoorfactions.js', 'busy', 1000, null, {}).yield).toBe(true);
+    expect(resolveYieldGrant('studybootstrap.js', 'busy', 1000, null, {}).yield).toBe(true);
+  });
+
+  // ACKNOWLEDGED FIXTURE CHANGE 2026-08-03 (spec T1: named, not silent). These three now
+  // inject `maxRepYieldDuty` because the LIVE cap is 0, which makes the slice mechanism
+  // unreachable by default. The mechanism itself is unchanged and stays tested so it is
+  // known-good if option (b) ever revives it.
   it('the rep claimant grants a fixed REP_YIELD_SLICE_MS with no escalation', () => {
-    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, {});
+    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { maxRepYieldDuty: 0.15 });
     expect(d.budgetMs).toBe(REP_YIELD_SLICE_MS);
   });
 
   it('the rolling-hour rep cap refuses a WHOLE slice rather than truncating one', () => {
-    const almostFull = MAX_REP_YIELD_DUTY * 3_600_000 - 1; // one ms short of the cap
-    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { rollingHourRepYieldMs: almostFull });
+    const almostFull = 0.15 * 3_600_000 - 1; // one ms short of the cap
+    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { rollingHourRepYieldMs: almostFull, maxRepYieldDuty: 0.15 });
     expect(d.yield).toBe(false);
     expect(d.refused).toBe(true);
     expect(d.reason).toBe('rep-cap-refused');
   });
 
   it('the rep cap grants when the slice fits exactly within the rolling-hour budget', () => {
-    const exactRoom = MAX_REP_YIELD_DUTY * 3_600_000 - REP_YIELD_SLICE_MS;
-    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { rollingHourRepYieldMs: exactRoom });
+    const exactRoom = 0.15 * 3_600_000 - REP_YIELD_SLICE_MS;
+    const d = resolveYieldGrant(REP_YIELD_CLAIMANT, 'busy', 1000, null, { rollingHourRepYieldMs: exactRoom, maxRepYieldDuty: 0.15 });
     expect(d.yield).toBe(true);
   });
 });

@@ -64,7 +64,34 @@ export const REP_YIELD_CLAIMANT = "augfarmer-rep-work"; // synthetic claimant na
 export const BACKDOOR_YIELD_MAX_MS = 180_000;
 export const STUDY_YIELD_MAX_MS = 300_000;
 // S2.3 -- the rep-yield budget. The cap binds; the slice is derived from it (3 slices/hour).
-export const MAX_REP_YIELD_DUTY = 0.15;
+//
+// 🔴 SET TO 0 ON 2026-08-03 (Kenneth's call, option (a)), REVERSING the spec's D11a
+// default of 0.15. This is not a tuning tweak -- the measurement says the yield buys
+// literally nothing toward the win condition:
+//
+//   * The single player-action slot is shared: Bladeburner rank OR faction rep, never
+//     both. The 0.15 was the spec's guess at a fair split, explicitly declared "a
+//     defensible default, not a measurement" (S16.9).
+//   * But `augfarmer.js`'s `scoreAug` picks augs by `hacking / hacking_exp / faction_rep`
+//     -- leftover targeting from the M-climb win path DROPPED on 2026-08-02. So the rep
+//     grind aims at hacking augs.
+//   * Checked what the live rep target actually pays (augcheck.js, 2026-08-03):
+//     `Neuregen Gene Modification` = `hacking_exp: 1.4` and **1.0 on every combat stat and
+//     every bladeburner_* mult**. Same for every other Chongqing aug. Against rank 400,000
+//     that is worth EXACTLY ZERO.
+//   * So there was no trade-off to balance -- we were paying 15% of the win path for
+//     nothing. The optimum on current targeting is 0.
+//
+// ⚠️ This does NOT freeze the aug ratchet, which is why it is safe. Its next purchase is
+// NeuroFlux Governor, whose rep requirement (1.854k) is ALREADY MET (`deficit: 0`) -- NFG
+// is money-gated, and money comes from the batcher at zero slot cost. NFG grants
+// +1%/level to ALL mults including strength/defense/dexterity/agility, and combat feeds
+// max HP (`10 + defense/10`) and max stamina, i.e. DUTY CYCLE -- currently the binding
+// constraint. The ratchet therefore keeps contributing to rank without the slot at all.
+//
+// Restore a positive value ONLY alongside retargeting `scoreAug` at combat/bladeburner
+// mults (option (b), not taken) -- otherwise it re-buys hacking exp with win-path time.
+export const MAX_REP_YIELD_DUTY = 0;
 export const REP_YIELD_SLICE_MS = 180_000;
 // S2.4 -- anti-livelock escalation: 180 -> 360 -> 720 -> 1,440s, then flat. Reset on a clean grant.
 export const YIELD_ESCALATION_MAX_DOUBLINGS = 3;
@@ -132,6 +159,7 @@ export const REGIME_DOMINATED_THRESHOLD = 0.35;
 // kind (yield-grant, quarantine-set, checkpoints...) almost immediately. Edge-triggered
 // (a lead flag flips) plus a heartbeat, not every tick.
 export const CROSSOVER_LOG_INTERVAL_MS = 5 * 60_000;
+export const YIELD_REFUSED_LOG_INTERVAL_MS = 5 * 60_000;
 // 🔴 Added 2026-08-03 after the 10.5-hour HRC park (see shouldStartAction). That failure
 // was invisible for 10.5 hours because nothing shouted: the engine reported a perfectly
 // healthy-looking 100% duty cycle while `rankProducingSec` sat at 0. The existing
@@ -586,6 +614,10 @@ export function resolveYieldGrant(claimant, activity, nowMs, priorGrant, budgets
   const overrunStreak = budgets.overrunStreak ?? {};
   const fairnessUntilMs = budgets.fairnessUntilMs ?? {};
   const rollingHourRepYieldMs = budgets.rollingHourRepYieldMs ?? 0;
+  // Injectable so the slice mechanism stays under test even though the live cap is 0
+  // (2026-08-03). If option (b) -- retargeting scoreAug at combat mults -- is ever taken,
+  // this machinery must still be known-good rather than quietly rotted.
+  const maxRepYieldDuty = budgets.maxRepYieldDuty ?? MAX_REP_YIELD_DUTY;
   const wantsSlot = claimant !== null && claimant !== undefined && activity === "busy";
   const base = { claimant, overrunStreak, fairnessUntilMs, overrun: false, ended: null, refused: false, livelockSuspected: false };
 
@@ -627,7 +659,7 @@ export function resolveYieldGrant(claimant, activity, nowMs, priorGrant, budgets
     return { ...base, yield: false, budgetMs: 0, sinceMs: null, reason: "fairness-floor" };
   }
   if (claimant === REP_YIELD_CLAIMANT) {
-    if (rollingHourRepYieldMs + REP_YIELD_SLICE_MS > MAX_REP_YIELD_DUTY * 3_600_000) {
+    if (rollingHourRepYieldMs + REP_YIELD_SLICE_MS > maxRepYieldDuty * 3_600_000) {
       return { ...base, yield: false, budgetMs: 0, sinceMs: null, reason: "rep-cap-refused", refused: true };
     }
     return { ...base, yield: true, budgetMs: REP_YIELD_SLICE_MS, sinceMs: nowMs, reason: "granted" };
@@ -1062,6 +1094,7 @@ export async function main(ns) {
   let previousCrossoverLeadsPerSec = null;
   let previousCrossoverLeadsPerAction = null;
   let lastCrossoverLogMs = 0;
+  let lastYieldRefusedLogMs = 0;
   let postInstallTrainingMs = 0;
   let wasPostInstall = false;
   let activeGrant = null; // {claimant, sinceMs, budgetMs} | null -- S2's yieldedTo
@@ -1207,7 +1240,12 @@ export async function main(ns) {
     repStarvationState = detectRepStarvation(augState, nowMs, repStarvationState);
     if (repStarvationState.justFired) logEntries = appendBbLog(logEntries, { ...ts(), kind: "rep-starvation-set", status: repStarvationState.status, ratePerSec: repStarvationState.ratePerSec });
     if (repStarvationState.clearedNow) logEntries = appendBbLog(logEntries, { ...ts(), kind: "rep-starvation-clear" });
-    if (!requestedClaimant && repStarvationState.fired) {
+    // The detector keeps RUNNING at MAX_REP_YIELD_DUTY = 0 -- its status is real telemetry
+    // (it is how we see the ratchet is rep-starved at all) -- but it stops REQUESTING the
+    // slot. Without this guard a permanently-fired detector would ask, be refused, and log
+    // `yield-refused` on every ~1s tick, flooding the 2000-entry ring exactly the way the
+    // unthrottled crossover log did earlier today.
+    if (!requestedClaimant && repStarvationState.fired && MAX_REP_YIELD_DUTY > 0) {
       requestedClaimant = REP_YIELD_CLAIMANT;
       requestedActivity = "busy";
     }
@@ -1240,8 +1278,12 @@ export async function main(ns) {
     } else if (decision.ended === "clean") {
       livelockSuspected = null;
     }
-    if (decision.refused) {
+    // Rate-limited: a claimant that keeps asking while the cap is spent would otherwise
+    // log once per ~1s tick and evict the whole ring (the crossover-flood lesson, applied
+    // defensively here so a future non-zero MAX_REP_YIELD_DUTY cannot reintroduce it).
+    if (decision.refused && nowMs - lastYieldRefusedLogMs >= YIELD_REFUSED_LOG_INTERVAL_MS) {
       logEntries = appendBbLog(logEntries, { ...ts(), kind: "yield-refused", claimant: evalClaimant, rollingHourRepYieldMs: rollingHourMs });
+      lastYieldRefusedLogMs = nowMs;
     }
 
     if (decision.yield && (!activeGrant || activeGrant.claimant !== evalClaimant)) {

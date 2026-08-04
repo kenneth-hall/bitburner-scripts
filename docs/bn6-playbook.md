@@ -103,6 +103,15 @@ read it wrong. Three things justify taking it anyway:
 operation crossover (§5 C2) is not reached within **~2 weeks**, revert to batcher-primary. Default is
 revert, not extend. Logged so a bad call leaves an artifact rather than a memory.
 
+🚩 **C2 FIRED 2026-08-03 7:34:34 PM — the tripwire above is NOT triggered; the crossover was
+reached.** `Raid` overtook `Tracking` per-second **0.2550 vs 0.0854 (3.0×)** and has held (3.1×).
+It was caused by moving Sector-12 → Volhaven: Raid was suppressed by Sector-12's 177 chaos and 21
+communities (it requires a Synthoid community), versus Volhaven's 3.4 chaos and 75. **The Stage-B
+gate correctly stayed shut** — EV is not a safety property, and Q11 (HP cost per failed operation)
+is still unanswered. **Next step is S14.2 step 1: request a fresh go-ahead for a bounded live Q11
+measurement.** Until that is answered the engine keeps running Stage A, and if it comes back
+unmeasurable a third time the ~2-week revert-to-batcher default still applies.
+
 **Phase 39 (`phase-39-bladeburner-primary.spec.md`) is the engine that implements this** — telemetry
 rebuilt from wall-clock (S1), bounded slot yields (S2), the two structural safety gates (S4 Overclock
 held, S5 Stage B gated shut), and `computeCrossover` computing C2's evidence continuously **even

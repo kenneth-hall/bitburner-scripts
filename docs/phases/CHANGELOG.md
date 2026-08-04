@@ -8,6 +8,43 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-08-03
 
+- **🚩 C2 FIRED — Phase 39's actual go/no-go deliverable, reached the same day the phase shipped.**
+  At 7:34:34 PM, the exact moment of the Sector-12 → Volhaven move, `Raid` overtook `Tracking` on
+  the per-second score: **0.2550 vs 0.0854 rank/sec (3.0×)**, and it has held (currently 0.2648 vs
+  0.0844, 3.1×). The crossover was *caused by* the city move — Raid sat at 1.9–5.5% success under
+  Sector-12's 177 chaos with 21 communities, versus Volhaven's 3.4 chaos and 75 communities (Raid
+  additionally requires a Synthoid community, so both terms moved in its favour).
+  ✅ **The Stage-B gate correctly did NOT open.** `stageBEnabled` stays `false`, `applyStageGate`
+  still removes Raid from the candidate pool entirely, and the engine keeps running Tracking —
+  exactly S5.1's structural guarantee that a scoring swing cannot open a gate that exists to stop
+  unmeasured HP loss. **EV is not a safety property; Q11 is about HP.**
+  ⏭️ **Required next step is S14.2's step 1, and it needs Kenneth:** request a fresh go-ahead for a
+  bounded live Q11 measurement (HP cost per failed operation). C2 firing is the trigger to *ask*
+  with evidence in hand, not a licence to proceed. If declined, or if Q11 comes back unmeasurable a
+  third time, the gate stays shut and `docs/bn6-playbook.md` §1.1's ~2-week tripwire applies.
+- **Rep yield cut 0.15 → 0 (Kenneth's call, option (a)) — reversing the spec's D11a default,
+  on measurement.** The single player-action slot is Bladeburner rank OR faction rep, never both,
+  and 0.15 was the spec's own admitted guess ("a defensible default, not a measurement", S16.9).
+  Checking what that 15% actually bought: `augfarmer.js`'s `scoreAug` picks augs by
+  `hacking / hacking_exp / faction_rep` — leftover targeting from the M-climb win path dropped on
+  2026-08-02 — and the live rep target `Neuregen Gene Modification` reads **`hacking_exp: 1.4` with
+  `1.0` on every combat stat and every `bladeburner_*` mult** (augcheck.js). Against rank 400,000
+  that is worth **exactly zero**, as is every other Chongqing aug (hacking_money, hacking_chance,
+  charisma, company_rep). There was no trade-off to balance — 15% of the win path was being paid
+  for nothing.
+  ⚠️ **This does not freeze the ratchet, which is why it is safe:** its next purchase is NeuroFlux
+  Governor, whose rep requirement (1.854k) is **already met** (`deficit: 0`). NFG is *money*-gated,
+  money comes from the batcher at zero slot cost, and NFG grants +1%/level to **all** mults
+  including str/def/dex/agi — which feed max HP (`10 + defense/10`) and max stamina, i.e. duty
+  cycle, the actual binding constraint. The ratchet keeps contributing to rank without the slot.
+  The starvation detector still *runs* (its status is real telemetry) but no longer *requests* the
+  slot — guarded so a permanently-fired detector cannot spam `yield-refused` every tick and flood
+  the ring, plus a defensive rate-limit on that log for any future non-zero cap. The slice
+  mechanism stays under test via an injectable `maxRepYieldDuty` so it cannot rot before option (b).
+  **Not taken — option (b):** retargeting `scoreAug` at combat/`bladeburner_*` mults. None of the
+  joined factions (Chongqing, Ishima, New Tokyo, Tian Di Hui, CyberSec) sell combat augs, so it also
+  means joining different ones — a strategy change, and probably not worth it given combat stats
+  already grow free from Bladeburner actions (1 → 171 in 26h measured).
 - **🔑 Chaos fix — and the answer turned out not to be Diplomacy at all: we were grinding in the
   worst city in the game.** The reported symptom was chaos compounding unchecked (Sector-12 69 → 178
   in 10.6h, Tracking's EV/sec collapsing 2.5× over the same span) with `Diplomacy` never running.
