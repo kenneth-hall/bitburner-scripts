@@ -10,8 +10,13 @@ code. This file is the one that churns; that one shouldn't.
 > **Epistemic status, stated up front because it's load-bearing.** As of **2026-08-02** the win
 > path is **Bladeburner-primary** (third and current position — see §1.0). The *direction* is well
 > supported: BN6's multipliers penalise hacking four ways and Bladeburner zero ways, and that's now
-> measured, not argued. The *timeline* is **not** established. The best measured action rate still
-> projects **~150 days at 100% duty**, and the ~50× multiplier stack that makes the path viable is
+> measured, not argued. The *timeline* is **not** established — but it has **improved, and the old
+> figure should not be quoted unchecked**: as of 2026-08-04 the engine's own
+> `rates.cumulative.rankPerWallSec` reads **0.0664 at 99% duty → ≈68 days linear** (1h window:
+> 0.0876 → ≈52 days), against the **~150 days** this block previously asserted from the 0.0307
+> rank/s Tracking measurement. ⚠️ That is again *the engine measuring itself*, so treat it as a
+> promising unconfirmed reading, not a settled number (see §6's independent cross-check and §8's
+> 2026-08-04 entry). The ~50× multiplier stack that makes the path viable is
 > **entirely undemonstrated** — every factor in it is a ceiling read off the game's own numbers, not
 > an observed rate. ⚠️ **Worse, the engine that produced our recent rank data has known bugs** (Phase
 > 38's stamina floor isn't enforced; its telemetry reports zero rank gained while rank moves), so the
@@ -531,14 +536,75 @@ Per the convergence rules: each carries a default so it can't renew itself silen
 
 ## 6. Instrumentation: what the GOAL panel means in BN6
 
-**Retargeted 2026-07-29.** The tracker was still aimed at BN5 on entry, which mattered because it's
-the surface liveness and tripwires are read off.
+**Retargeted 2026-07-29** (BN5 → BN6), then **retargeted again 2026-08-04** (M → rank) to catch the
+panel up to the 2026-08-02 Bladeburner-primary flip. It matters because this is the surface liveness
+and tripwires are read off.
 
-- **`M x/30 (fallback)`** — `M_TARGET` is now BN6's *fallback* hacking gate, and the label says
-  "fallback" precisely so it can't be misread as the plan. 🔑 **M is not this node's win condition**;
-  the black-op rank ladder is. M is kept because (a) `evalTripwire`'s "M flat ⇒ ratchet stuck" test
-  is valid under either win path, and (b) if the black-op ladder turns out infeasible this becomes
-  the real gate again with no code change. `forecast.daysToGate` likewise projects the fallback path.
+**The panel now reads (live shape, 2026-08-04):**
+
+```
+-- GOAL (BN6.1) --
+rank 8.88k/400.00k (Op Daedalus) ~2.2% | 68d @ 0.0664/s
+goalposts: ON TRACK (rank climbing)
+income $192.61k/s DOWN (10m)
+M 1.86 (funds rank; not this node's gate)
+liveness: OK
+next: NeuroFlux Governor $10.17m
+```
+
+- **`rank x/400k (Op Daedalus) ~x.x% | Nd @ r/s`** — the win condition, now *leading* the panel. The
+  2026-07-29 retarget left M in the lead slot with a `(fallback)` label, on the reasoning that a
+  label was enough to stop it being misread as the plan. After the flip that was no longer true:
+  the panel's headline number was a path we had explicitly dropped, and the metric that actually
+  clears the node had **no target, no %, and no ETA anywhere on the dashboard** — while
+  `rankTarget: 400000` sat unused in `bladeburner-state.json`. The pct carries **one decimal** on
+  purpose: rank sits in low single-digit percent for most of the node, so integer rounding would
+  read a flat `~2%` for days and look like a stall.
+  - ⚠️ **The ETA is a linear projection, not a date.** It is *pessimistic* — `Overclock` is held at
+    17/90 against a ×8.3 ceiling, Stage B is shut, team size is 0, and action success levels (and
+    their rank payout) grow with use. It is simultaneously *optimistic* — the black-op ladder has
+    per-op rank requirements, not one 400,000 wall. Read it as "months or years?", never as a date.
+  - 🔑 **Derived from `goallog.js`'s own ring, deliberately NOT copied from `bladeburner-state.json`'s
+    `rates` block.** Phase 38's durable lesson was that an engine measuring itself must be validated
+    against an independent source. Two independently-derived rank rates on one screen — GOAL's
+    `@ r/s` and BLADEBURNER's `/ws` — *are* that check. A divergence between them is a signal worth
+    seeing, not a redundancy to unify away.
+- **`goalposts: … (rank climbing)`** — `evalTripwire` was **retargeted from M to rank** and retuned
+  **12h/11h → 4h/3h**. Three reasons, in severity order:
+  1. **Wrong axis.** It tested the ratchet, no longer the win path. Worse: the standing
+     "rep window, then one install" decision has the ratchet *deliberately* freezing while
+     Bladeburner grinds a rep tier — so under the intended policy a flat M is the **correct** state,
+     and the alarm would have screamed loudest exactly when things were going to plan.
+  2. **Dead calibration.** 12h was BN2's install cadence. BN6's measured cadence is 15–68h
+     (installs #37/#38/#39), so the window sat *below* the signal it sampled and read STALLED most
+     of the time.
+  3. **It fired falsely.** Confirmed live 2026-08-04 19:30: `WARN: goalposts STALLED -- M flat 12h
+     (ratchet stuck?)` while the ratchet was healthy and **~1 minute from install #39** (trigger
+     armed, deficit 0, `fundBlocked: false`). A permanently-lit WARN trains you to ignore the panel
+     — the exact failure mode CLAUDE.md's *"rarity is what makes an objection legible"* rule exists
+     to prevent.
+
+  Rank is a **better** fit for a flat-window test than M ever was: M is a step function that only
+  moves at an install, whereas rank accrues continuously *and* survives installs — monotonic and
+  smooth. At ~0.066 rank/wall-sec even one hour carries ~240 rank of signal, so 4h is generous:
+  wide enough to ride out a legitimate stand-down (the engine yields the slot to
+  `backdoorfactions.js`/`backdoorwd.js`, and trains post-install), far tighter than the 12h it
+  replaces. A genuinely flat 4h means the engine is dead, permanently yielded, or stamina-pinned.
+- **`M x (funds rank; not this node's gate)`** — M is **demoted, not retired**, and sits *below*
+  income deliberately: the flip made the batcher a funding engine, so **$/s is its objective and M
+  is only the lever that moves $/s**. Reading M as progress-toward-a-gate is the exact misread this
+  ordering prevents. The `~%`, the overshoot line, and the `+queued` projection are **gone** — all
+  three divided by the fallback path's gate and implied we were walking it.
+  - `M_TARGET` / `computeForecast` / `mProgress` are **unchanged in code**, so the fallback becomes
+    the real gate again with no code change if the ladder proves infeasible (§5's first open
+    question). And **when `rankProgress.value` is null** (division unjoined, or a future
+    non-Bladeburner node) the panel *reverts to leading with M and its full target/%* — on a
+    hacking-path node the fallback IS the plan, and the formatter follows the node rather than
+    hardcoding BN6.
+- **Row-neutral by construction** — the retarget added one line and removed two, so the panel's
+  worst case went **8 → 7 rows** (measured, not assumed). Not optional politeness: `DASHBOARD_H`'s
+  own comment records the window's bottom edge is already **1px past** the measured 1392px screen
+  ceiling, so a net row gain would silently break the no-scroll guarantee.
 - **`next: n/a (augfarmer stale)`** — new. `augfarmer-state.json` is only trustworthy while the
   farmer is alive (it heartbeats every 5 min); past 3 missed beats `nextAug` is withheld rather than
   shown. **This was a live bug on entry:** the panel reported *"NeuroFlux Governor / Tian Di Hui /
@@ -546,9 +612,9 @@ the surface liveness and tripwires are read off.
   `augfarmer.js` needs 64.10 GB and a fresh home is 32 GB, so it had never run in BN6 at all.
   Stale-but-plausible is worse than absent: it invites planning against a target that doesn't exist.
   `next: none` (nothing to buy) and `next: n/a` (nobody's looking) are now different strings.
-- ⚠️ **Still node-stale by design:** the `GOAL (BN6.1)` title and `M_TARGET` are hand-set constants.
-  **Bump both on every node entry** — `goallog.js`'s `M_TARGET` block and `dashboard.js`'s
-  `goalPanel` title.
+- ⚠️ **Still node-stale by design:** the `GOAL (BN6.1)` title, `M_TARGET`, and now `RANK_TARGET` /
+  `RANK_TARGET_LABEL` are hand-set constants. **Bump all of them on every node entry** —
+  `goallog.js`'s `M_TARGET` and `RANK_TARGET` blocks, and `dashboard.js`'s `goalPanel` title.
 
 ## 7. What carries over unchanged
 
@@ -693,3 +759,43 @@ the surface liveness and tripwires are read off.
     to be an artifact of the harness measuring them, not of the mechanic. **Audit the instrument
     before believing the next verdict** — and note that decision 9's "default if never revisited:
     non-viable" makes pessimistic instrument errors the ones that silently win.
+
+- **2026-08-04 — GOAL panel retargeted from M to rank (§6 rewritten).** The dashboard's headline
+  goalpost was still the fallback hacking path 2 days after the Bladeburner-primary flip:
+  `M 1.75/30 (fallback) ~6%` led the panel, plus a `+queued` line, while **rank → 400,000 had no
+  target, no %, and no ETA anywhere on the dashboard** despite `rankTarget: 400000` already sitting
+  unused in `bladeburner-state.json`. Rank now leads; `evalTripwire` retargeted M → rank and retuned
+  12h/11h → 4h/3h; M demoted below income to `M x (funds rank; not this node's gate)`; overshoot and
+  `+queued` lines removed. Row-neutral by construction — worst case **8 → 7 rows**, measured
+  (`DASHBOARD_H` is already 1px past the screen ceiling, so a net gain would break no-scroll). Full
+  rationale and the fallback-degradation behaviour in §6. Tests: 1315 pass (+17 new). ⚠️ RAM
+  unchanged *by inspection* — `goallog.js` added one `ns.read` (0 GB) and `dashboard.js` added no
+  `ns` calls — **but this has not been confirmed by an in-game `ramcheck.js` run yet.**
+  - **The trigger was a live false alarm, worth recording as evidence not anecdote.** At 19:30 the
+    panel read `WARN: goalposts STALLED -- M flat 12h (ratchet stuck?)` while the ratchet was
+    healthy and **~1 minute from install #39** (trigger armed, `sustainedMs` 300s, deficit 0,
+    `fundBlocked: false`). The 12h window was BN2's install cadence; BN6's measured cadence is
+    **15–68h** (#37 → #38 → #39), so the tripwire sat below the signal it sampled and read STALLED
+    most of the time. Under the standing "rep window, then one install" policy a flat M is the
+    *intended* state, so the alarm would have screamed loudest when things were going to plan.
+  - 🧮 **Rank rate is materially better than this doc's standing figure — recompute before quoting
+    150 days again.** `bladeburner-state.json` at 19:30 reads `rates.cumulative.rankPerWallSec`
+    **0.0664** over 87,538 wall-sec at **99.1% duty** (1h window: **0.0876**). Against rank 8,876 of
+    400,000 that projects **≈68 days** linear, or ≈52 days at the 1h rate — versus the **150 days**
+    §1/CLAUDE.md still carry from the 0.0307 rank/s Tracking measurement. That is a **~2.2×**
+    improvement and it is Phase 39's engine, not Phase 38's. ⚠️ **Do not promote this to a settled
+    number yet:** per the "audit the instrument before believing the verdict" pattern immediately
+    above, this is once again *the engine measuring itself*. The GOAL panel's independently-derived
+    `@ r/s` (from `goallog.js`'s own ring) now provides the cross-check, but it needs ≥6h of
+    post-deploy history before it reports, and an in-game-panel confirmation is still owed.
+  - 🔴 **Found while investigating, NOT fixed — the rep-window trigger is structurally unable to
+    fire.** `augfarmer.js`'s `FACTION_SCOPE` (`src/augfarmer.js:2120`) lists 14 factions and
+    **`Bladeburners` is not one of them**, so the farmer can never target a Bladeburner aug →
+    `repStarvation` can never see a deficit (it currently reports
+    `worth.reason: "no-deficit"`, `repForegone: 0`) → the "rep window, then one install" freeze has
+    nothing to trip it. The exclusion is *correct* for the code that owns it (Bladeburner rep cannot
+    be earned via `workForFaction`, so adding it would grind work that yields nothing while
+    contending for the action slot), which is exactly why this is **not a one-line fix** and belongs
+    in Phase 39's trigger spec. Cost so far, estimated: #38 → #39 was 15.2h at ~99% duty ≈ **4,700
+    Bladeburner rep destroyed, ~38% of the way to the cheapest 12.5k success-chance aug tier** —
+    third time in 3.5 days, and we still own **zero** `bladeburner_*` augs.

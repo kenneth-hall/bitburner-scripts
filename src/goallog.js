@@ -36,6 +36,16 @@ export const AUGFARMER_STATE_FILE = "augfarmer-state.json"; // hardcoded, not im
 export const DAEMON_STATUS_FILE = "daemon-status.json";
 export const FINANCE_STATE_FILE = "finance-state.json";
 export const BOUNDARY_START_FILE = "boundary-start.json"; // bootstrap.js's per-boundary marker (Phase 35 WI1)
+// Retarget 2026-08-04: same hardcoded-filename/tolerant-read precedent as the
+// four above (ns.read is 0 GB, so folding the win condition in here costs this
+// resident nothing). Read for `rank` ONLY -- the rate/ETA below are derived
+// from this script's own ring, deliberately NOT copied from
+// bladeburner-state.json's `rates` block. Phase 38's durable lesson was that
+// an engine measuring itself must be checked against an independent source;
+// two independently-derived rank rates sitting on one screen (GOAL's here vs
+// BLADEBURNER's /ws) is that check, and a divergence between them is a signal
+// worth seeing, not a bug to unify away.
+export const BLADEBURNER_STATE_FILE = "bladeburner-state.json";
 
 export const SAMPLE_INTERVAL_MS = 60_000; // 1 min -> RING_CAP below is 48h of history
 export const RING_CAP = 2880; // 2880 * 1min = 48h; oldest samples drop off the front
@@ -97,23 +107,71 @@ export const M_TARGET_LABEL = "fallback";
 // the dashboard's separate gate line (it only renders when gateTarget > target).
 export const M_GATE_TARGET = 30;
 
-// GP2 tripwire (BN2.1 goalposts): M only ever climbs (installs), so "M has not
-// increased across the last FLAT_WINDOW" == the ratchet is stuck (no install /
-// income stalled). 12h matches the goalpost table; require ~11h of history
-// before asserting so a fresh series reads "warming up", not a false stall.
-export const FLAT_WINDOW_MS = 43_200_000; // 12h
-export const TRIPWIRE_MIN_SPAN_MS = 39_600_000; // 11h
+// ---------------------------------------------------------------------------
+// BN6.1 WIN CONDITION (added 2026-08-04) -- the actual goalpost.
+//
+// The 2026-08-02 flip made Bladeburner the win condition and demoted the
+// batcher to "funding engine, not a second win path" (CLAUDE.md; trail in
+// docs/bn6-playbook.md §1). This file's headline metric was still M, i.e. the
+// fallback hacking path -- the panel led with "M x/30 (fallback) ~6%" while
+// the thing that actually clears the node, rank -> 400,000 (Operation
+// Daedalus, the last of the 21 black ops), had no target, no %, and no ETA
+// anywhere on the dashboard. `rankTarget: 400000` was already sitting unused
+// in bladeburner-state.json.
+//
+// M is NOT deleted: M_TARGET/computeForecast above and below stay exactly as
+// they were, both because M remains the honest proxy for "is the batcher
+// converting money into income at all" and because the fallback becomes the
+// real gate again with no code change if the black-op ladder proves
+// infeasible (bn6-playbook §5). M is demoted on the panel, not retired here.
+export const RANK_TARGET = 400_000;
+export const RANK_TARGET_LABEL = "Op Daedalus";
+
+// Goalpost tripwire. RETARGETED 2026-08-04 from M to rank, and retuned 12h/11h
+// -> 4h/3h. Three reasons the M version had to go, in order of severity:
+//
+//  1. WRONG AXIS. It tested the ratchet, which is no longer the win path. Worse,
+//     the standing "rep window, then one install" decision has the ratchet
+//     DELIBERATELY freezing while Bladeburner grinds a rep tier -- so under the
+//     intended policy a flat M is the *correct* state and the alarm would fire
+//     hardest exactly when things were going to plan.
+//  2. DEAD CALIBRATION. 12h was BN2's install cadence. BN6's measured cadence is
+//     15-68h (ratchet-log installs #37/#38/#39), so the window sat below the
+//     signal it was sampling and read STALLED most of the time.
+//  3. IT FIRED FALSELY. Confirmed live 2026-08-04 19:30: "WARN: goalposts
+//     STALLED -- M flat 12h (ratchet stuck?)" while the ratchet was healthy and
+//     ~1 minute from install #39 (trigger armed, deficit 0, fundBlocked false).
+//     A permanently-lit WARN trains you to ignore the panel, which is the
+//     failure mode CLAUDE.md's own "rarity is what makes an objection legible"
+//     rule exists to prevent.
+//
+// Rank is a BETTER fit for a flat-window test than M ever was: M is a step
+// function that only moves at an install, whereas rank accrues continuously and
+// survives installs, so it is monotonic *and* smooth. At the measured ~0.066
+// rank/wall-sec even one hour carries ~240 rank of signal, so 4h is generous --
+// wide enough to ride out a legitimate stand-down (the engine yields the action
+// slot to backdoorfactions.js/backdoorwd.js, and trains post-install) and still
+// far tighter than the 12h it replaces. A genuinely flat 4h means the engine is
+// dead, permanently yielded, or stamina-pinned -- all real alarms.
+export const FLAT_WINDOW_MS = 14_400_000; // 4h
+export const TRIPWIRE_MIN_SPAN_MS = 10_800_000; // 3h
 
 /**
- * Pure. GP2 tripwire from the persistent M series: STALLED when we have
- * >=TRIPWIRE_MIN_SPAN_MS of history and M hasn't grown across the last
+ * Pure. Goalpost tripwire from the persistent rank series: STALLED when we have
+ * >=TRIPWIRE_MIN_SPAN_MS of history and rank hasn't grown across the last
  * FLAT_WINDOW_MS; WARMING when there isn't enough history yet; else ON TRACK.
- * M is monotonic within a node, so a strict increase is all "on track" needs.
- * @param {{t:number, mHacking:number}[]} series
+ * Rank is monotonic within a node (it never decays and survives installs), so a
+ * strict increase is all "on track" needs.
+ *
+ * Samples without a numeric `rank` are filtered out rather than treated as 0 --
+ * the ring predates this field (and rank is null before the division is
+ * joined), so a mixed series must degrade to "not enough history" (WARMING/
+ * UNKNOWN), never to a false STALLED off missing data.
+ * @param {{t:number, rank:number}[]} series
  */
 export function evalTripwire(series, nowMs) {
   const list = (Array.isArray(series) ? series : []).filter(
-    (s) => s && typeof s.t === "number" && typeof s.mHacking === "number"
+    (s) => s && typeof s.t === "number" && typeof s.rank === "number"
   );
   if (list.length === 0) return { status: "UNKNOWN", flatHours: null };
   const last = list[list.length - 1];
@@ -122,8 +180,76 @@ export function evalTripwire(series, nowMs) {
   const spanMs = last.t - ref.t;
   const flatHours = Math.round((spanMs / 3_600_000) * 10) / 10;
   if (spanMs < TRIPWIRE_MIN_SPAN_MS) return { status: "WARMING", flatHours };
-  if (last.mHacking > ref.mHacking) return { status: "ON TRACK", flatHours };
+  if (last.rank > ref.rank) return { status: "ON TRACK", flatHours };
   return { status: "STALLED", flatHours };
+}
+
+/**
+ * Pure (2026-08-04). The win-condition forecast: at the rate rank has ACTUALLY
+ * moved across the retained series, how long to RANK_TARGET?
+ *
+ * Deliberately the same model-free shape as computeForecast (measure the rate,
+ * divide the remainder by it) and deliberately derived from THIS script's ring
+ * rather than bladeburner-state.json's `rates` block -- see
+ * BLADEBURNER_STATE_FILE's comment for why the redundancy is the point.
+ *
+ * Read the number as a LINEAR projection and nothing more. It is a pessimistic
+ * bound on a curve that is expected to bend upward: Overclock is held at 17/90
+ * against a x8.3 throughput ceiling, Stage B (high-payout operations) is still
+ * shut, team size is 0, and action success levels -- and their rank payout --
+ * grow with use. It is simultaneously optimistic in ignoring that the black-op
+ * ladder has its own per-op rank requirements rather than one 400,000 wall. It
+ * is on the panel to answer "are we on a months or years path", not to be
+ * quoted as a date.
+ *
+ * Statuses mirror computeForecast's: WARMING (span < FORECAST_MIN_SPAN_MS, or no
+ * rank samples at all -- a fresh series isn't judged), REACHED, STALLED (long
+ * enough span with no movement -> daysToTarget null, NOT Infinity: "no
+ * measurement" and "infinitely far" are different claims), OK.
+ *
+ * @param {{t:number, rank:number}[]} series
+ */
+export function computeRankForecast(series, nowMs) {
+  const list = (Array.isArray(series) ? series : []).filter(
+    (s) => s && typeof s.t === "number" && typeof s.rank === "number"
+  );
+  const empty = {
+    status: "WARMING",
+    basisHours: null,
+    ratePerSec: null,
+    rankRemaining: null,
+    daysToTarget: null,
+    etaMs: null,
+  };
+  if (list.length < 2) return empty;
+
+  const first = list[0];
+  const last = list[list.length - 1];
+  const spanMs = last.t - first.t;
+  if (!(spanMs > 0)) return empty;
+
+  const basisHours = Math.round((spanMs / 3_600_000) * 10) / 10;
+  const rankRemaining = Math.max(0, RANK_TARGET - last.rank);
+
+  if (spanMs < FORECAST_MIN_SPAN_MS) return { ...empty, basisHours, rankRemaining };
+  if (rankRemaining === 0) {
+    return { ...empty, status: "REACHED", basisHours, rankRemaining: 0, daysToTarget: 0, etaMs: 0 };
+  }
+
+  const dRank = last.rank - first.rank;
+  if (!(dRank > 0)) return { ...empty, status: "STALLED", basisHours, rankRemaining };
+
+  const ratePerSec = dRank / (spanMs / 1000);
+  const daysToTarget = rankRemaining / ratePerSec / 86_400;
+
+  return {
+    status: "OK",
+    basisHours,
+    ratePerSec,
+    rankRemaining,
+    daysToTarget,
+    etaMs: daysToTarget * 86_400_000,
+  };
 }
 
 /**
@@ -370,6 +496,20 @@ export function buildSnapshot(series, augState, nowMs, liveness = null) {
   const mValue = latest && typeof latest.mHacking === "number" ? latest.mHacking : null;
   const pct = mValue !== null ? Math.round((mValue / M_TARGET) * 100) : null;
 
+  // The win condition (2026-08-04). Null `value` == Bladeburner not joined or
+  // bladeburner-state.json absent/unreadable, in which case the dashboard falls
+  // back to leading with M -- which is correct, because a node with no
+  // Bladeburner engine running IS on the hacking path.
+  const rankValue = latest && typeof latest.rank === "number" ? latest.rank : null;
+  const rankPct = rankValue !== null ? Math.round((rankValue / RANK_TARGET) * 1000) / 10 : null;
+  const rankProgress = {
+    value: rankValue,
+    target: RANK_TARGET,
+    targetLabel: RANK_TARGET_LABEL,
+    pct: rankPct,
+    forecast: computeRankForecast(list, nowMs),
+  };
+
   // Projected M if the augs already PURCHASED this cycle were installed now.
   // augfarmer publishes queuedGain (product of the queued-but-uninstalled augs'
   // hacking mults); installed M x that == post-install M. Purchased-only -- it
@@ -415,6 +555,7 @@ export function buildSnapshot(series, augState, nowMs, liveness = null) {
   return {
     timestamp: nowMs,
     time: new Date(nowMs).toLocaleString(),
+    rankProgress,
     mProgress: { value: mValue, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct, gateTarget: M_GATE_TARGET, queuedValue, queuedPct, queuedCount },
     income: { perSec, trend, windowMs: RATE_WINDOW_MS, gangPerSec, hackingPerSec, perSec24h },
     forecast: computeForecast(list, nowMs),
@@ -487,7 +628,21 @@ export async function main(ns) {
       series = [];
     }
 
-    series = appendCapped(series, { t: nowMs, gangCum, hackingCum, mHacking: player.mults.hacking }, RING_CAP);
+    // Win-condition sample (2026-08-04). Read from bladeburnermanager.js's
+    // published state rather than ns.bladeburner.getRank() on purpose: that call
+    // THROWS until the division is joined (the whole API does -- see
+    // docs/bladeburner-reference.md), so calling it here would crash this
+    // resident in any node without Bladeburner. A tolerant file read degrades to
+    // `rank: null` instead, which every consumer below already handles.
+    const bbState = readJsonTolerant(ns, BLADEBURNER_STATE_FILE);
+    const rank = typeof bbState?.rank === "number" ? bbState.rank : null;
+
+    const sample = { t: nowMs, gangCum, hackingCum, mHacking: player.mults.hacking };
+    // Omit the key entirely when unknown -- the filters in evalTripwire /
+    // computeRankForecast drop non-numeric samples, and writing an explicit null
+    // would bloat 2880 ring entries for nothing.
+    if (rank !== null) sample.rank = rank;
+    series = appendCapped(series, sample, RING_CAP);
     ns.write(SERIES_FILE, JSON.stringify(series), "w");
 
     // Phase 35 WI6: two extra file reads (ns.read, 0 GB) plus the boundary

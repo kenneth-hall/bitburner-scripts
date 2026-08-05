@@ -639,17 +639,24 @@ export function bladeburnerPanel(state, now) {
 }
 
 /**
- * Phase 32 -- the "why everything below exists" readout: installed hacking
- * mult `M` progress toward the w0r1d_d43m0n gate, a smoothed income
- * $/sec + trend (fed by goallog.js's ring, NOT computed here), and the
- * $-to-next-aug + awaiting-money elapsed timer. Display forms are pinned
- * exactly (Phase 32 spec decision 11) so this formatter's tests are exact
- * strings, not substring checks.
+ * Phase 32 -- the "why everything below exists" readout. RETARGETED 2026-08-04
+ * to lead with the actual win condition (Bladeburner rank -> Operation
+ * Daedalus) instead of the fallback hacking path's `M`; see goallog.js's
+ * RANK_TARGET block for the full why. Then the goalpost tripwire, a smoothed
+ * income $/sec + trend (fed by goallog.js's ring, NOT computed here), M as a
+ * subordinate one-liner, liveness, and the $-to-next-aug timer.
+ *
+ * ROW-NEUTRAL BY CONSTRUCTION -- the retarget adds the rank line and removes
+ * the M overshoot + `+queued` lines, so the panel's worst case stays at 7 rows.
+ * This is not optional politeness: DASHBOARD_H's comment records that the
+ * window's bottom edge is already 1px past the measured 1392px screen ceiling,
+ * so a net row gain here would silently break the no-scroll guarantee.
+ *
+ * Display forms are pinned exactly (Phase 32 spec decision 11) so this
+ * formatter's tests are exact strings, not substring checks.
  */
 export function goalPanel(state, now) {
-  // Node label -- bump on every node entry (BN6.1 as of 2026-07-29). In BN6 the
-  // M line reads "(fallback)": M is NOT this node's win condition, the
-  // Bladeburner black-op rank ladder is. See goallog.js's M_TARGET comment.
+  // Node label -- bump on every node entry (BN6.1 as of 2026-07-29).
   const title = "GOAL (BN6.1)";
   if (state === null) return [`-- ${title} --`, "no data yet"];
   if (state === PARSE_FAILED) return [`-- ${title} --`, "unreadable"];
@@ -659,44 +666,38 @@ export function goalPanel(state, now) {
 
   const m = state.mProgress ?? {};
   const mText = typeof m.value === "number" ? m.value.toFixed(2) : "?";
-  const pctText = typeof m.pct === "number" ? m.pct : "?";
-  lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%`);
+  const rank = state.rankProgress ?? {};
+  const rankLive = typeof rank.value === "number";
 
-  // Installed M against a FARTHER overshoot target, on its own line, shown only
-  // when that target is genuinely beyond the primary one (gateTarget > target).
-  // In BN2 the primary line was a near catalog milestone (~16.7) and this was
-  // the real clear/overshoot (45), so the two %s divided by different
-  // denominators and were not comparable -- hence two lines. In BN5 the primary
-  // line IS the gate and no overshoot is set (gateTarget === target), so this
-  // line is suppressed rather than printing a redundant identical %.
-  if (typeof m.value === "number" && m.gateTarget && m.gateTarget > (m.target ?? 0)) {
-    const gatePct = Math.round((m.value / m.gateTarget) * 100);
-    lines.push(`M ${mText}/${m.gateTarget} (overshoot) ~${gatePct}%`);
+  // The win condition, leading. `~x.x%` gets a decimal where M's got none: rank
+  // sits in the low single digits of percent for most of the node, so integer
+  // rounding would read a flat "2%" for days and look like the stall it isn't.
+  if (rankLive) {
+    const rf = rank.forecast ?? {};
+    let etaPart;
+    if (rf.status === "OK" && typeof rf.daysToTarget === "number" && typeof rf.ratePerSec === "number") {
+      etaPart = ` | ${Math.round(rf.daysToTarget)}d @ ${rf.ratePerSec.toFixed(4)}/s`;
+    } else if (rf.status === "REACHED") {
+      etaPart = " | REACHED";
+    } else if (rf.status === "STALLED") {
+      etaPart = " | ETA n/a (rank flat)";
+    } else {
+      etaPart = " | ETA warming up";
+    }
+    const rPct = typeof rank.pct === "number" ? rank.pct.toFixed(1) : "?";
+    lines.push(`rank ${fmtNum(rank.value)}/${fmtNum(rank.target)} (${rank.targetLabel ?? "?"}) ~${rPct}%${etaPart}`);
   }
 
-  // Projected M if the augs already bought this cycle were installed now
-  // (installed M x queuedGain). Only shown while augs are actually pending --
-  // M sits flat through the whole buy phase and only steps at install, so this
-  // is the line that makes the flat installed-M readable as progress, not a
-  // stall. Omitted when nothing's queued (queuedCount 0) to keep the panel
-  // quiet.
-  if (typeof m.queuedValue === "number" && typeof m.queuedCount === "number" && m.queuedCount > 0) {
-    const qPctText = typeof m.queuedPct === "number" ? m.queuedPct : "?";
-    // Naming the denominator is load-bearing: queuedPct divides by M_TARGET (the
-    // primary line's target), which can differ from the overshoot line's, so it
-    // can read >100% while still under a farther target. Uses the live target
-    // label ("gate" in BN5, "core" in BN2) rather than hardcoding one.
-    const denom = m.targetLabel ?? "target";
-    lines.push(`+queued: M ${m.queuedValue.toFixed(2)} ~${qPctText}% of ${denom} (${m.queuedCount} aug${m.queuedCount === 1 ? "" : "s"} pending install)`);
-  }
-
-  // Goalpost tripwire (GP2): M only climbs, so a 12h-flat M means the ratchet
-  // stalled. STALLED is the alarm; ON TRACK/warming are quiet confirmations.
+  // Goalpost tripwire -- now on rank, not M (goallog.js's FLAT_WINDOW_MS block
+  // has the three reasons). STALLED is the alarm; ON TRACK/warming are quiet
+  // confirmations. "engine" not "ratchet": a flat rank means the Bladeburner
+  // engine is dead/permanently-yielded/stamina-pinned, which is a different
+  // problem from a stuck aug ratchet and points at a different script.
   const tw = state.tripwire ?? {};
   if (tw.status === "STALLED") {
-    lines.push(`WARN: goalposts STALLED -- M flat ${tw.flatHours ?? "?"}h (ratchet stuck?)`);
+    lines.push(`WARN: goalposts STALLED -- rank flat ${tw.flatHours ?? "?"}h (engine stuck?)`);
   } else if (tw.status === "ON TRACK") {
-    lines.push("goalposts: ON TRACK (M climbing)");
+    lines.push("goalposts: ON TRACK (rank climbing)");
   } else if (tw.status === "WARMING") {
     lines.push(`goalposts: warming up (${tw.flatHours ?? "?"}h history)`);
   }
@@ -711,6 +712,23 @@ export function goalPanel(state, now) {
   } else {
     const mins = Math.round((income.windowMs ?? DEFAULT_GOAL_WINDOW_MS) / 60_000);
     lines.push(`income $${fmtNum(perSec)}/s ${trend} (${mins}m)`);
+  }
+
+  // M, demoted (2026-08-04). Sits BELOW income deliberately: the 2026-08-02 flip
+  // made the batcher a funding engine, so $/s is its objective and M is now just
+  // the lever that moves $/s -- reading M as progress-toward-a-gate is the exact
+  // misread this ordering prevents. No %, no target, no queued projection: all
+  // three divided by the fallback path's gate and implied we were walking it.
+  //
+  // When rank is NOT live (Bladeburner unjoined, or a future non-Bladeburner
+  // node) the panel has no win-condition line above, so M reverts to leading
+  // with its full target/% form -- on a hacking-path node the fallback IS the
+  // plan, and this formatter should follow the node rather than hardcode BN6.
+  if (rankLive) {
+    lines.push(`M ${mText} (funds rank; not this node's gate)`);
+  } else {
+    const pctText = typeof m.pct === "number" ? m.pct : "?";
+    lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%`);
   }
 
   // Phase 35 WI6 (D6/D12): the liveness verdict, one line, display forms
