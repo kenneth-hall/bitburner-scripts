@@ -651,6 +651,36 @@ for a future brainstorm pass, not scoped or spec'd.
   the four-day gang-decision circling that the "…and then converge" rules were added to fix
   after the fact. A second perspective spun up mid-deliberation, not just pre-ship, is the
   earlier-intervention version of the same fix.
+- **`project-manager` agent — v1 SHIPPED 2026-08-04 (`/pm`); v2/v3 open.** Came out of a
+  brainstorm on losing situational awareness as the repo grew. Diagnosis worth keeping: the
+  reported symptom ("can't tell if we're on target") was **three** problems — (A) goal state
+  buried in CLAUDE.md's 667 lines, (B) no visibility into what the game did while away, (C)
+  ~4,800 lines of required reading before any session starts. The originally-proposed fix (a
+  `projectmanager/` notes directory) was rejected because it makes (C) strictly worse and adds a
+  fifth home for the fastest-rotting content in the repo. v1 is instead a **cold-context,
+  read-only auditor** that reports contradictions between tracking artifacts — never advice —
+  capped at ~25 lines, on a deliberately bounded read list.
+  - **v2 — extract the goal state out of `CLAUDE.md` into a one-screen `docs/project-state.md`
+    the agent owns.** Attacks (A) and (C) together; it's a *move*, not a new store. The blocker
+    is deciding what in the "Working with Kenneth" section is current state vs. superseded
+    decision trail that belongs in `docs/bn6-playbook.md` — that split is the actual work.
+  - **v3 — feed it live telemetry so it answers (B), the thing Kenneth cares most about.**
+    Deliberately deferred from v1 so the report format proves useful before anyone aggregates
+    155 files in `logs/`. ⚠️ **Overlaps the autonomous-liveness-watch entry above and should be
+    designed with it, not beside it** — both want "read live state while no session is open",
+    and that entry already records the correction that a `/schedule` cloud routine *cannot* see
+    the local `logs/` dir (it runs on a cloud clone of the repo). Same OS-scheduler conclusion
+    applies here.
+  - **Open questions (unresolved, no default set):** (1) **who fires it and when** — session
+    start is likely too often since drift accrues over days, not turns; manual `/pm` plus phase
+    boundaries is the instinct, but it wants a few runs of evidence first. (2) **Does it get
+    authority to *delete*?** v1 is read-only, which sidesteps this — but half the value is
+    closing stale bugs, graduating shipped phase docs, and cutting superseded decisions out of
+    CLAUDE.md, and none of that happens without a write grant that is bigger than it sounds.
+  - **Known weakening, accepted at build time:** the agent holds `Bash` (unlike `spec-reviewer`,
+    which is `Read, Glob, Grep`) because `git log` drives the commit-vs-doc drift checks — half
+    its value. So read-only is enforced by **instruction, not by tool restriction**. Revisit if
+    a read-only git affordance appears.
 
 ### Repo & workflow hygiene
 - **Repo decluttering** — root is the low-risk win (viteburner only watches `src/**`, so ~25 loose
