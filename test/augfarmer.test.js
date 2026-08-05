@@ -1201,7 +1201,7 @@ describe('evalTrigger', () => {
   // floor". MIN_TOTAL_GAIN is now 1.05, so the fixture moves below the new floor -- the
   // assertion's intent (a sub-floor gain must not arm) is unchanged.
   it('the gain floor blocks arming even at idle-plateau (early-cycle degenerate-loop guard)', () => {
-    expect(evalTrigger(baseInputs({ queuedGain: 1.02 }), null).armed).toBe(false);
+    expect(evalTrigger(baseInputs({ queuedGain: 1.005 }), null).armed).toBe(false);
   });
 
   it('arms at idle-plateau once the gain floor is cleared', () => {
@@ -1321,7 +1321,7 @@ describe('evalTrigger', () => {
     });
 
     it('still respects every gain-side block (the plateau read widens phaseArmed only)', () => {
-      expect(evalTrigger(baseInputs({ ...noOwedGrind, queuedGain: 1.02 }), null).armed).toBe(false); // sub-floor: MIN_TOTAL_GAIN is 1.05 as of 2026-08-04
+      expect(evalTrigger(baseInputs({ ...noOwedGrind, queuedGain: 1.005 }), null).armed).toBe(false); // sub-floor: MIN_TOTAL_GAIN is 1.015 as of 2026-08-04
       expect(evalTrigger(baseInputs({ ...noOwedGrind, queuedCount: 0, queuedGain: 5 }), null).armed).toBe(false);
       expect(evalTrigger(baseInputs({ ...noOwedGrind, paused: true }), null).armed).toBe(false);
       expect(evalTrigger(baseInputs({ ...noOwedGrind, endgameHold: true }), null).armed).toBe(false);
@@ -1450,9 +1450,14 @@ describe('evalTrigger', () => {
     const closedTrue = { faction: 'Daedalus', gap: 1, closedByQueue: true };
     const closedFalse = { faction: 'Daedalus', gap: 1, closedByQueue: false };
 
-    it('arms under endgameHold, ignoring MIN_TOTAL_GAIN — the live BN1.3 fixture (totalGain 1.02) verbatim', () => {
-      const t = evalTrigger(baseInputs({ queuedGain: 1.02, endgameHold: true, gateRelease: closedTrue }), null);
-      expect(t.totalGain).toBeCloseTo(1.02, 6);
+    // ACKNOWLEDGED FIXTURE CHANGE 2026-08-04 (spec T1). The live BN1.3 value was 1.02,
+    // chosen because it sat below the then-1.1 floor -- the point of the test is that
+    // gate-release arms DESPITE the gain floor. MIN_TOTAL_GAIN is now 1.015, so 1.02 is no
+    // longer sub-floor and would no longer demonstrate anything. Lowered to 1.01 to keep
+    // the assertion meaningful; the historical value is recorded here rather than lost.
+    it('arms under endgameHold, ignoring MIN_TOTAL_GAIN (live BN1.3 shape; value lowered to stay sub-floor)', () => {
+      const t = evalTrigger(baseInputs({ queuedGain: 1.01, endgameHold: true, gateRelease: closedTrue }), null);
+      expect(t.totalGain).toBeCloseTo(1.01, 6);
       expect(t.totalGain).toBeLessThan(MIN_TOTAL_GAIN);
       expect(t.reasons.gateArmed).toBe(true);
       expect(t.armed).toBe(true);

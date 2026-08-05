@@ -143,7 +143,16 @@ export const ALLOWLIST_SCORE = 0.25;
 // ⚠️ Under Bladeburner-primary an install is NOT free: rank and skill points survive it,
 // but COMBAT STATS DO NOT, and combat stats are what drive maxHp/max-stamina and therefore
 // duty cycle. Re-tune only against measured postInstallSec/wallSec, not intuition.
-export const MIN_TOTAL_GAIN = 1.05;
+// 1.05 -> 1.015, same day: 1.05 sat INSIDE the fluctuation band and so never actually
+// fired. totalGain = queuedGain x projectedNfgFactor, and that projection is money-driven,
+// so it swings as cash is spent elsewhere -- observed live oscillating 1.0201 <-> 1.0615
+// within minutes as a $250m port-opener reservation and cloud upgrades moved the balance.
+// At a 1.05 floor the trigger armed at the top of the swing, disarmed on the way down, and
+// TRIGGER_SUSTAIN_MS (10 min) reset before it could ever complete -- observed reaching
+// 300s of 600s, then back to 0. The floor has to sit BELOW the trough, not in the middle.
+// ⚠️ If it flaps again, the durable fix is to gate on queuedGain (stable: actual queued
+// augs) instead of the volatile money projection -- a bigger change than a constant.
+export const MIN_TOTAL_GAIN = 1.015;
 // ⚠️ STOPGAP 2026-07-28 (Phase 36) -- was 8h. The 8h bound assumes waiting for
 // a short rep grind is cheap. It is not once the cycle's price ladder is deep:
 // live at 613x escalation (1.9^10 queued buys) with $38.7t idle and the fleet
