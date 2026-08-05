@@ -768,9 +768,21 @@ next: NeuroFlux Governor $10.17m
   12h/11h → 4h/3h; M demoted below income to `M x (funds rank; not this node's gate)`; overshoot and
   `+queued` lines removed. Row-neutral by construction — worst case **8 → 7 rows**, measured
   (`DASHBOARD_H` is already 1px past the screen ceiling, so a net gain would break no-scroll). Full
-  rationale and the fallback-degradation behaviour in §6. Tests: 1315 pass (+17 new). ⚠️ RAM
-  unchanged *by inspection* — `goallog.js` added one `ns.read` (0 GB) and `dashboard.js` added no
-  `ns` calls — **but this has not been confirmed by an in-game `ramcheck.js` run yet.**
+  rationale and the fallback-degradation behaviour in §6. Tests: 1315 pass (+17 new). ✅ **RAM
+  confirmed unchanged in-game** via `mem`: `dashboard.js` **2.60 GB** (matches its documented
+  2026-07-14 figure exactly) and `goallog.js` **3.10 GB** (baseCost + `getMoneySources` +
+  `getPlayer`) — the added `ns.read` is 0 GB as expected, and both breakdowns are clean, so neither
+  the identifier-hygiene trap nor import bleed fired. Note `ramcheck.js` does **not** cover these two
+  scripts (its list is `daemon.js` + `share.js` only); `mem <script>` over the CDP terminal is the
+  way to check an arbitrary one.
+  - ✅ **Live-validated** after restarting both scripts: `goal-state.json` publishes the
+    `rankProgress` block, and the rendered panel reads
+    `rank 8.91k/400.00k (Op Daedalus) ~2.2% | ETA warming up` with the false STALLED WARN replaced by
+    an honest `goalposts: warming up (0h history)`. ⏳ The ETA and the tripwire verdict both need
+    history the `rank` field didn't exist for, so they read "warming up" for the first **~6h**
+    (`FORECAST_MIN_SPAN_MS`) / **3h** (`TRIPWIRE_MIN_SPAN_MS`) after deploy — expected, not a fault.
+    Cross-check already working as designed: GOAL's rank (8.91k) agrees with BLADEBURNER's
+    independently-sourced 8.91k / 0.0661 per wall-sec.
   - **The trigger was a live false alarm, worth recording as evidence not anecdote.** At 19:30 the
     panel read `WARN: goalposts STALLED -- M flat 12h (ratchet stuck?)` while the ratchet was
     healthy and **~1 minute from install #39** (trigger armed, `sustainedMs` 300s, deficit 0,
