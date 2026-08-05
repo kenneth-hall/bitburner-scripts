@@ -680,37 +680,50 @@ describe('bladeburnerPanel', () => {
 // --- goalPanel (Phase 32) -----------------------------------------------------
 
 describe('goalPanel', () => {
-  it('renders the M-progress line exactly (decision 11); the overshoot line appears only when gateTarget > target', () => {
-    const lines = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9 } }, NOW);
-    expect(lines).toContain('M 1.51/16.7 (core) ~9%');
-    expect(lines.some((l) => l.includes('(overshoot)'))).toBe(false); // no gate target -> no overshoot line
-    const withGate = goalPanel({ timestamp: NOW, mProgress: { value: 9.73, target: 16.7, targetLabel: 'core', pct: 58, gateTarget: 45 } }, NOW);
-    expect(withGate).toContain('M 9.73/16.7 (core) ~58%'); // core % unchanged, no suffix
-    expect(withGate).toContain('M 9.73/45 (overshoot) ~22%'); // farther target on its own line, divides by gateTarget
+  // Retargeted 2026-08-04: rank leads, M is demoted below income, and the
+  // overshoot / +queued lines are gone (both divided by the fallback path's
+  // gate and implied we were walking it). See goalPanel's own comment.
+  const RANK_OK = { value: 8876, target: 400_000, targetLabel: 'Op Daedalus', pct: 2.2, forecast: { status: 'OK', daysToTarget: 68.2, ratePerSec: 0.0664, basisHours: 48 } };
 
-    // BN5 shape: primary line IS the gate, no overshoot set (gateTarget === target) -> single line.
-    const bn5 = goalPanel({ timestamp: NOW, mProgress: { value: 1.28, target: 9.7, targetLabel: 'gate', pct: 13, gateTarget: 9.7 } }, NOW);
-    expect(bn5).toContain('M 1.28/9.7 (gate) ~13%');
-    expect(bn5.some((l) => l.includes('(overshoot)'))).toBe(false); // gateTarget not beyond target -> suppressed
+  it('leads with the rank win-condition line, one-decimal pct plus ETA and rate', () => {
+    const lines = goalPanel({ timestamp: NOW, rankProgress: RANK_OK, mProgress: { value: 1.86 } }, NOW);
+    expect(lines[1]).toBe('rank 8.88k/400.00k (Op Daedalus) ~2.2% | 68d @ 0.0664/s');
   });
 
-  it('renders a +queued projection line when augs are pending install; omits it when none/zero', () => {
-    const withQueued = goalPanel(
-      { timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, gateTarget: 36, queuedValue: 3.42, queuedPct: 20, queuedCount: 9 } },
+  it('renders each forecast status distinctly, and never prints a bogus ETA', () => {
+    const mk = (forecast) => goalPanel({ timestamp: NOW, rankProgress: { ...RANK_OK, forecast }, mProgress: { value: 1.86 } }, NOW)[1];
+    expect(mk({ status: 'STALLED', daysToTarget: null, ratePerSec: null })).toContain('| ETA n/a (rank flat)');
+    expect(mk({ status: 'WARMING', daysToTarget: null, ratePerSec: null })).toContain('| ETA warming up');
+    expect(mk({ status: 'REACHED', daysToTarget: 0, ratePerSec: 0.07 })).toContain('| REACHED');
+  });
+
+  it('demotes M below income to one line with no target/pct when rank is live', () => {
+    const lines = goalPanel(
+      { timestamp: NOW, rankProgress: RANK_OK, mProgress: { value: 1.86, target: 30, targetLabel: 'fallback', pct: 6, queuedValue: 1.88, queuedPct: 6, queuedCount: 1 }, income: { perSec: 192_613, trend: 'DOWN', windowMs: 600_000 } },
       NOW
     );
-    expect(withQueued).toContain('+queued: M 3.42 ~20% of core (9 augs pending install)');
-    const singular = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, queuedValue: 1.7, queuedPct: 10, queuedCount: 1 } }, NOW);
-    expect(singular).toContain('+queued: M 1.70 ~10% of core (1 aug pending install)');
-    const none = goalPanel({ timestamp: NOW, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9, queuedValue: 1.51, queuedPct: 9, queuedCount: 0 } }, NOW);
-    expect(none.some((l) => l.startsWith('+queued'))).toBe(false);
+    expect(lines).toContain("M 1.86 (funds rank; not this node's gate)");
+    expect(lines.some((l) => l.includes('/30') || l.includes('~6%'))).toBe(false);
+    expect(lines.some((l) => l.startsWith('+queued') || l.includes('(overshoot)'))).toBe(false);
+    // Ordering is load-bearing: income is the batcher's objective now, M is only
+    // the lever that moves it.
+    expect(lines.indexOf('income $192.61k/s DOWN (10m)')).toBeLessThan(lines.indexOf("M 1.86 (funds rank; not this node's gate)"));
+  });
+
+  it('falls back to leading with M and its full target/pct when rank is absent (non-Bladeburner node)', () => {
+    const lines = goalPanel({ timestamp: NOW, rankProgress: { value: null, target: 400_000, pct: null }, mProgress: { value: 1.51, target: 16.7, targetLabel: 'core', pct: 9 } }, NOW);
+    expect(lines.some((l) => l.startsWith('rank '))).toBe(false);
+    expect(lines).toContain('M 1.51/16.7 (core) ~9%');
+    // Same fallback when the block is missing entirely (pre-retarget export).
+    const legacy = goalPanel({ timestamp: NOW, mProgress: { value: 1.28, target: 9.7, targetLabel: 'gate', pct: 13 } }, NOW);
+    expect(legacy).toContain('M 1.28/9.7 (gate) ~13%');
   });
 
   it('tripwire: STALLED renders a WARN line; ON TRACK/WARMING render quiet lines; absent/UNKNOWN render nothing', () => {
-    const stalled = goalPanel({ timestamp: NOW, mProgress: {}, tripwire: { status: 'STALLED', flatHours: 13.2 } }, NOW);
-    expect(stalled.some((l) => l === 'WARN: goalposts STALLED -- M flat 13.2h (ratchet stuck?)')).toBe(true);
-    const onTrack = goalPanel({ timestamp: NOW, mProgress: {}, tripwire: { status: 'ON TRACK', flatHours: 12 } }, NOW);
-    expect(onTrack).toContain('goalposts: ON TRACK (M climbing)');
+    const stalled = goalPanel({ timestamp: NOW, mProgress: {}, tripwire: { status: 'STALLED', flatHours: 4.2 } }, NOW);
+    expect(stalled.some((l) => l === 'WARN: goalposts STALLED -- rank flat 4.2h (engine stuck?)')).toBe(true);
+    const onTrack = goalPanel({ timestamp: NOW, mProgress: {}, tripwire: { status: 'ON TRACK', flatHours: 4 } }, NOW);
+    expect(onTrack).toContain('goalposts: ON TRACK (rank climbing)');
     const warming = goalPanel({ timestamp: NOW, mProgress: {}, tripwire: { status: 'WARMING', flatHours: 3.5 } }, NOW);
     expect(warming).toContain('goalposts: warming up (3.5h history)');
     const none = goalPanel({ timestamp: NOW, mProgress: {} }, NOW);
@@ -894,10 +907,20 @@ describe('renderAll', () => {
     };
     const worstGangTrend = { spanMs: 3_600_000, rateDelta: -999.999 };
 
-    // GOAL at its widest: every optional segment present (gate target + trend +
-    // STALLED tripwire + waiting).
+    // GOAL at its widest: every optional segment present (rank line with the
+    // widest ETA form + trend + STALLED tripwire + demoted M + STUCK liveness +
+    // waiting). Post-retarget (2026-08-04) this is the row-count worst case that
+    // has to stay inside ROW_BUDGET -- DASHBOARD_H's bottom edge is already 1px
+    // past the measured screen ceiling, so a net row gain here breaks no-scroll.
     const worstGoal = {
       timestamp: NOW,
+      rankProgress: {
+        value: 399_999.9,
+        target: 400_000,
+        targetLabel: 'Op Daedalus',
+        pct: 99.9,
+        forecast: { status: 'OK', daysToTarget: 999.9, ratePerSec: 0.0664, basisHours: 47.9 },
+      },
       mProgress: { value: 16.699, target: 16.7, targetLabel: 'core', pct: 99, gateTarget: 45, queuedValue: 31.728, queuedPct: 190, queuedCount: 15 },
       income: { perSec: 9.99e12, trend: 'DOWN', windowMs: 600_000 },
       tripwire: { status: 'STALLED', flatHours: 47.9 },

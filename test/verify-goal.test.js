@@ -36,6 +36,25 @@ describe('goal-state.json (Phase 32)', () => {
     expect(Number.isFinite(data.mProgress.target)).toBe(true);
     expect(typeof data.mProgress.targetLabel).toBe('string');
 
+    // Retargeted 2026-08-04: the win condition (rank -> Operation Daedalus).
+    // Optional-shaped so a pre-retarget export still passes -- `value` is
+    // legitimately null before the Bladeburner division is joined.
+    if (data.rankProgress !== null && data.rankProgress !== undefined) {
+      expect(Number.isFinite(data.rankProgress.target)).toBe(true);
+      expect(typeof data.rankProgress.targetLabel).toBe('string');
+      if (data.rankProgress.value !== null) {
+        expect(Number.isFinite(data.rankProgress.value)).toBe(true);
+        expect(Number.isFinite(data.rankProgress.pct)).toBe(true);
+      }
+      const rf = data.rankProgress.forecast;
+      if (rf) {
+        expect(['OK', 'WARMING', 'STALLED', 'REACHED']).toContain(rf.status);
+        // The whole point of the STALLED branch: "no measurement" must never be
+        // published as Infinity.
+        if (rf.daysToTarget !== null) expect(Number.isFinite(rf.daysToTarget)).toBe(true);
+      }
+    }
+
     expect(data.income).toBeTruthy();
     expect(Number.isFinite(data.income.windowMs)).toBe(true);
     if (data.income.perSec !== null) expect(Number.isFinite(data.income.perSec)).toBe(true);

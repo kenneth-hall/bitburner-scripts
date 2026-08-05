@@ -22,6 +22,43 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🟡 The dashboard's no-scroll guarantee looks broken — measured, not diagnosed.** `ROW_BUDGET` is
+  **63** and `DASHBOARD_H` (1372px) is documented as sized to hold exactly that many no-wrap rows, but
+  the live window only surfaces about **42** rows: `renderAll` produced **50** rows against the real
+  state files (0 lines over `COLUMN_BUDGET`), while `cli.mjs read-tail dashboard.js` returns 41
+  content lines on repeated reads and a `shot` confirms the `-- GOAL (BN6.1) --` title is missing off
+  the top with the last line clipped at the bottom. So ~8 rendered rows are going unseen.
+  Viewport re-measured live: `innerHeight` **1392px** at `devicePixelRatio` 1.5 — i.e. the screen
+  assumption in `DASHBOARD_H`'s comment still holds, which is what makes the 63-vs-42 gap
+  unexplained. Candidate causes not yet separated: real row height larger than the calibrated
+  21.8px/row (63 × 21.8 = 1373 assumes that number), the tail window's own chrome/padding eating
+  content height, or `read-tail` and the renderer disagreeing.
+  **Not caused by, but found during, the 2026-08-04 GOAL retarget** — that change *reduced* the
+  panel's worst case 8 → 7 rows, so it improved the situation slightly. Flagged rather than chased
+  because the retarget was the task.
+  **Next action:** measure the tail content element's `clientHeight` and one line's real rendered
+  height over CDP, then either recalibrate `ROW_BUDGET`/`DASHBOARD_H` to the true capacity or trim
+  panels to fit. Cheap candidate for the trim: the **GANG panel is burning 6 rows on a node with no
+  gang** (renders `STALE 1054803s` — telemetry left over from BN2).
+
+- **🔴 The "rep window, then one install" freeze cannot fire — nothing can trip it.** The 2026-08-02
+  decision has the aug ratchet freezing while Bladeburner grinds a rep tier, then buying the tier and
+  installing once. But `augfarmer.js`'s `FACTION_SCOPE` (`src/augfarmer.js:2120`) lists 14 factions and
+  **`Bladeburners` is not one of them**, so the farmer can never target a Bladeburner aug →
+  `repStarvation` can never observe a deficit (live: `worth.reason: "no-deficit"`, `repForegone: 0`) →
+  the freeze has no trigger and the ratchet installs freely forever. Every install wipes Bladeburner
+  faction rep, which is the *only* rep the win path needs and the only one that cannot be donated for.
+  **Not a one-line fix:** the exclusion is correct for the code that owns it — Bladeburner rep can't be
+  earned via `workForFaction`, so adding the faction to `FACTION_SCOPE` would make the farmer grind
+  work that yields nothing while contending for the single player-action slot. The trigger belongs in
+  Phase 39's spec, not in `FACTION_SCOPE`.
+  **Cost so far (estimated):** install #38 → #39 was 15.2h at ~99% duty ≈ **4,700 rep destroyed, ~38%
+  of the cheapest 12.5k success-chance aug tier** — third time in 3.5 days; we own **zero**
+  `bladeburner_*` augs. Found 2026-08-04 while retargeting the GOAL panel; full write-up in
+  `docs/bn6-playbook.md` §8's 2026-08-04 entry.
+  **Next action:** decide whether to hold the ratchet (`ratchet-mode.txt`) until the trigger is
+  specified — freezing costs ~0.1 M/cycle, not freezing costs the win path its only rep accrual.
+
 - **🟡 Four-way player-action-slot contention has no arbiter.** `bladeburnermanager.js`,
   `augfarmer.js` (faction work), `backdoorfactions.js` and `backdoorwd.js` (`installBackdoor`) all
   claim the single player-action slot. Only the bladeburner<->augfarmer pair cooperates (via

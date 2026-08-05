@@ -11,6 +11,9 @@ import {
   M_TARGET,
   M_TARGET_LABEL,
   M_GATE_TARGET,
+  RANK_TARGET,
+  RANK_TARGET_LABEL,
+  computeRankForecast,
   RATE_WINDOW_MS,
   FLAT_WINDOW_MS,
   INCOME_WINDOW_24H_MS,
@@ -160,7 +163,7 @@ describe('buildSnapshot', () => {
   });
 
   it('includes the tripwire status in the snapshot', () => {
-    const snap = buildSnapshot([{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.51 }], null, T);
+    const snap = buildSnapshot([{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.51, rank: 8876 }], null, T);
     expect(snap.tripwire).toBeDefined();
     expect(snap.tripwire.status).toBe('WARMING'); // single sample -> not enough span
   });
@@ -428,41 +431,64 @@ describe('buildSnapshot liveness passthrough (Phase 35 WI6)', () => {
   });
 });
 
-describe('evalTripwire (GP2)', () => {
+describe('evalTripwire (goalposts -- rank, retargeted 2026-08-04)', () => {
   const H = 3_600_000;
 
   it('UNKNOWN on an empty series', () => {
     expect(evalTripwire([], T)).toEqual({ status: 'UNKNOWN', flatHours: null });
   });
 
-  it('WARMING until there is >=11h of history', () => {
-    const s = [{ t: T, mHacking: 1.5 }, { t: T + 5 * H, mHacking: 1.5 }]; // only 5h span
-    expect(evalTripwire(s, T + 5 * H).status).toBe('WARMING');
+  it('WARMING until there is >=3h of history', () => {
+    const s = [{ t: T, rank: 1000 }, { t: T + 2 * H, rank: 1000 }]; // only 2h span
+    expect(evalTripwire(s, T + 2 * H).status).toBe('WARMING');
   });
 
-  it('ON TRACK when M grew across a full 12h window', () => {
+  it('ON TRACK when rank grew across a full 4h window', () => {
     const start = T;
-    const s = [{ t: start, mHacking: 1.5 }, { t: start + FLAT_WINDOW_MS, mHacking: 2.0 }];
+    const s = [{ t: start, rank: 8000 }, { t: start + FLAT_WINDOW_MS, rank: 8900 }];
     expect(evalTripwire(s, start + FLAT_WINDOW_MS).status).toBe('ON TRACK');
   });
 
-  it('STALLED when M is flat across a full 12h window', () => {
+  it('STALLED when rank is flat across a full 4h window', () => {
     const start = T;
-    const s = [{ t: start, mHacking: 1.51 }, { t: start + FLAT_WINDOW_MS, mHacking: 1.51 }];
+    const s = [{ t: start, rank: 8876 }, { t: start + FLAT_WINDOW_MS, rank: 8876 }];
     const r = evalTripwire(s, start + FLAT_WINDOW_MS);
     expect(r.status).toBe('STALLED');
-    expect(r.flatHours).toBe(12);
+    expect(r.flatHours).toBe(4);
+  });
+
+  // The retarget's whole point: a frozen ratchet (flat M) is the INTENDED state
+  // under "rep window, then one install", so it must not raise the alarm on its
+  // own. Only rank going flat does.
+  it('does NOT fire on a flat M when rank is still climbing', () => {
+    const start = T;
+    const s = [
+      { t: start, mHacking: 1.86, rank: 8000 },
+      { t: start + FLAT_WINDOW_MS, mHacking: 1.86, rank: 9000 },
+    ];
+    expect(evalTripwire(s, start + FLAT_WINDOW_MS).status).toBe('ON TRACK');
+  });
+
+  // A ring that predates the rank field (or a pre-join node) must degrade to
+  // "no history", never to a false STALLED off missing data.
+  it('ignores samples with no numeric rank rather than reading them as 0', () => {
+    const start = T;
+    const s = [
+      { t: start, mHacking: 1.5 },
+      { t: start + FLAT_WINDOW_MS, mHacking: 1.5 },
+    ];
+    expect(evalTripwire(s, start + FLAT_WINDOW_MS).status).toBe('UNKNOWN');
   });
 
   it('references the oldest sample WITHIN the window, not the whole series, so an old jump does not mask a recent stall', () => {
     const start = T;
-    // M jumped 24h ago but has been flat for the last 12h -> STALLED.
+    // rank climbed 8h ago but has been flat for the last 4h -> STALLED.
     const s = [
-      { t: start, mHacking: 1.0 },
-      { t: start + 12 * H, mHacking: 5.0 }, // the jump, 12h into the series
-      { t: start + 24 * H, mHacking: 5.0 }, // flat since
+      { t: start, rank: 1000 },
+      { t: start + 4 * H, rank: 5000 }, // the climb, 4h into the series
+      { t: start + 8 * H, rank: 5000 }, // flat since
     ];
-    expect(evalTripwire(s, start + 24 * H).status).toBe('STALLED');
+    expect(evalTripwire(s, start + 8 * H).status).toBe('STALLED');
   });
 });
 
@@ -561,5 +587,82 @@ describe('computeForecast', () => {
     const snap = buildSnapshot(s, null, T + DAY);
     expect(snap.forecast.status).toBe('OK');
     expect(snap.forecast.daysToGate).toBeCloseTo(M_TARGET - 3.0, 6);
+  });
+});
+
+// --- rank goalpost (retargeted 2026-08-04) -----------------------------------
+
+describe('computeRankForecast', () => {
+  const HOUR = 3_600_000;
+  const DAY = 86_400_000;
+
+  it('WARMING with fewer than two rank samples', () => {
+    expect(computeRankForecast([], T).status).toBe('WARMING');
+    expect(computeRankForecast([{ t: T, rank: 8876 }], T).status).toBe('WARMING');
+  });
+
+  it('WARMING while the span is under the 6h forecast floor, but still reports the remainder', () => {
+    const s = [{ t: T, rank: 1000 }, { t: T + 5 * HOUR, rank: 3000 }];
+    const f = computeRankForecast(s, T + 5 * HOUR);
+    expect(f.status).toBe('WARMING');
+    expect(f.rankRemaining).toBe(RANK_TARGET - 3000);
+    expect(f.daysToTarget).toBeNull();
+  });
+
+  it('projects days-to-target from the observed rank rate', () => {
+    // 1 rank/sec across a 24h span -> 400,000-86,400 remaining at 1/s.
+    const s = [{ t: T, rank: 0 }, { t: T + DAY, rank: 86_400 }];
+    const f = computeRankForecast(s, T + DAY);
+    expect(f.status).toBe('OK');
+    expect(f.ratePerSec).toBeCloseTo(1, 6);
+    expect(f.rankRemaining).toBe(RANK_TARGET - 86_400);
+    expect(f.daysToTarget).toBeCloseTo((RANK_TARGET - 86_400) / 86_400, 6);
+  });
+
+  it('STALLED (daysToTarget null, NOT Infinity) when rank did not move across a forecastable span', () => {
+    const s = [{ t: T, rank: 8876 }, { t: T + 12 * HOUR, rank: 8876 }];
+    const f = computeRankForecast(s, T + 12 * HOUR);
+    expect(f.status).toBe('STALLED');
+    expect(f.daysToTarget).toBeNull();
+    expect(f.ratePerSec).toBeNull();
+  });
+
+  it('REACHED at or past the target', () => {
+    const s = [{ t: T, rank: 399_000 }, { t: T + 12 * HOUR, rank: RANK_TARGET + 5 }];
+    const f = computeRankForecast(s, T + 12 * HOUR);
+    expect(f.status).toBe('REACHED');
+    expect(f.rankRemaining).toBe(0);
+    expect(f.daysToTarget).toBe(0);
+  });
+
+  it('ignores samples with no numeric rank', () => {
+    const s = [{ t: T, mHacking: 1.5 }, { t: T + 12 * HOUR, mHacking: 1.9 }];
+    expect(computeRankForecast(s, T + 12 * HOUR).status).toBe('WARMING');
+  });
+});
+
+describe('buildSnapshot rankProgress', () => {
+  it('publishes the win condition with a one-decimal pct', () => {
+    const snap = buildSnapshot([{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.86, rank: 8876 }], null, T);
+    expect(snap.rankProgress.value).toBe(8876);
+    expect(snap.rankProgress.target).toBe(RANK_TARGET);
+    expect(snap.rankProgress.targetLabel).toBe(RANK_TARGET_LABEL);
+    // 8876/400000 = 2.219% -> 2.2, not an integer 2 (a flat "2%" for days would
+    // read as the stall it isn't -- see dashboard.js's goalPanel comment).
+    expect(snap.rankProgress.pct).toBe(2.2);
+    expect(snap.rankProgress.forecast).toBeDefined();
+  });
+
+  it('reports value null (not 0) when no sample carries a rank -- pre-join / pre-field ring', () => {
+    const snap = buildSnapshot([{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.86 }], null, T);
+    expect(snap.rankProgress.value).toBeNull();
+    expect(snap.rankProgress.pct).toBeNull();
+  });
+
+  it('leaves mProgress and its fallback math untouched by the retarget', () => {
+    const snap = buildSnapshot([{ t: T, gangCum: 0, hackingCum: 0, mHacking: 1.86, rank: 8876 }], null, T);
+    expect(snap.mProgress.value).toBe(1.86);
+    expect(snap.mProgress.target).toBe(M_TARGET);
+    expect(snap.mProgress.targetLabel).toBe(M_TARGET_LABEL);
   });
 });
