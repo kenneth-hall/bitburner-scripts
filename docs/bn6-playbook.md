@@ -117,6 +117,66 @@ is still unanswered. **Next step is S14.2 step 1: request a fresh go-ahead for a
 measurement.** Until that is answered the engine keeps running Stage A, and if it comes back
 unmeasurable a third time the ~2-week revert-to-batcher default still applies.
 
+### 🔴 RESOLVED 2026-08-05 — STAGE B IS CLOSED PERMANENTLY, AND WE DO NOT REVERT TO BATCHER
+
+Kenneth granted the Q11 go-ahead. **It was never spent** — a cheaper measurement settled the branch
+first, and the answer is *don't open the gate, ever*. Three findings, in the order they landed:
+
+1. **Population never regenerates — the Raid drain is permanent.** Volhaven, drained to 0 on
+   2026-08-03, still reads **exactly 0** 47.6 hours later, confirmed *from inside the city* via a
+   `switchbbcity.js` round trip (40s, $0, zero rank lost) so a stale estimate couldn't fake it. The
+   four unworked cities are frozen to **14 decimal places** across the same window. Full evidence in
+   `docs/bladeburner-reference.md` §5.
+   - 🧮 **The trade, stated plainly:** ~585 rank harvested per city destroyed, against a city that
+     pays **18,900 rank/day** via Tracking. **Ishima repays the entire Raid harvest in 45 minutes.**
+     All five surviving cities together are ~2,900 rank = **0.73% of the 400,000 gate**, and
+     spending them ends the engine.
+2. **Raid was the only operation worth opening the gate for.** Re-measured net of `rankLoss`
+   (reference §5): Assassination **1.27×** Tracking and Stealth Retirement **1.08×** are the only
+   other operations that beat contracts at all, and neither justifies importing failure/HP risk into
+   a grind that is already at **100% success**. Investigation, Undercover and Sting are all *worse*
+   than Tracking. **Stage B has no surviving candidate** — this closes it on merit, not on caution.
+3. **The revert-to-batcher tripwire's premise is dead, so it does not fire.** That default was
+   written when Stage A looked like a **~570-day** path. Measured 2026-08-05, Stage A alone runs
+   **32–38 days** (engine 0.1371 rank/s over 24h → 32.1d; `goal-log.js`'s independent ring 0.1156
+   rank/s over 25.1h → 38.1d — two separately-sourced numbers agreeing within 19%, which is the
+   cross-check the Phase 38 lesson demands). **Stage A clears the node on its own.** Closing Stage B
+   costs us nothing that was being counted on.
+
+⚠️ **Q11 is closed as moot, not as answered.** The HP cost of a failed Raid remains unmeasured and
+should stay that way — the question stopped mattering when Raid was disqualified on city
+consumption. Do not reopen it as unfinished business.
+
+### ✅ The aug tier is also closed — measured inert, 2026-08-05
+
+Kenneth also approved revisiting the Bladeburner aug tier. **Measurement says don't.** All 18 augs
+multiply exactly one of four things — success chance, max stamina, stamina gain, analysis — and
+**not one increases rank-per-action or reduces action time** (full table: reference §7). Against the
+current engine: contracts are at **100% success** (success augs do nothing), duty is **99.9%**
+(stamina augs do nothing), and analysis only sharpens population *estimates*. The reachable tier
+costs ~$36.5b at base prices to buy a ×1.49 multiplier on a capped stat.
+
+⚠️ **This retires the "install↔rep deadlock" below as a live concern.** The deadlock only bit because
+the aug tier was the prize; with the tier inert, faction rep resetting on every install costs
+**nothing**. Phase 39's **S4a was right** — and this is now the durable reason for it, replacing the
+cost-based argument it was originally made from. 🔴 **Correction to a claim made earlier the same
+day:** the measured rep rate *had* improved ~11× (0.086 → ~0.95 rep/s), and that was floated as new
+evidence to reopen S4a. It was real evidence but the wrong variable — rep was never the binding
+constraint on whether the augs are worth owning. Do not reopen S4a on rep-rate grounds again.
+
+### ➡️ The lever that IS left: `Overclock`, gated on Q10
+
+With success capped and duty saturated, the only remaining multipliers are rank-per-action (rises
+with action level automatically) and **action time**. `Overclock` cuts −1%/level to a max of 90; we
+sit at **17/90**, leaving **×8.3 throughput** on the table — which would take the 32–38 day path to
+roughly **4–5 days**. Nothing else measured is within an order of magnitude.
+
+It is held shut by **Q10 — is stamina spent per action or per second?** Per-second ⇒ the 8.3× is
+real. Per-action ⇒ faster actions burn stamina proportionally faster and Overclock buys nothing
+sustained. **Recommendation carried into the next session: move the live-testing budget from Q11
+(now closed) to Q10.** It is a materially safer experiment — stamina accounting, not HP — whose
+worst case is the engine resting more, with no hospitalisation and no irreversible destruction.
+
 **Phase 39 (`phase-39-bladeburner-primary.spec.md`) is the engine that implements this** — telemetry
 rebuilt from wall-clock (S1), bounded slot yields (S2), the two structural safety gates (S4 Overclock
 held, S5 Stage B gated shut), and `computeCrossover` computing C2's evidence continuously **even
@@ -129,7 +189,13 @@ then ask again" limit — then (2) if the go-ahead is declined, or Q11 comes bac
 **the gate stays shut and this same ~2-week tripwire applies**: revert to batcher-primary. Only a
 recorded Q11 answer opens a path past this.
 
-### The strongest objection — and it is not resolved, only scheduled
+### [RETIRED 2026-08-05 — see "The aug tier is also closed" above] The strongest objection — and it is not resolved, only scheduled
+
+⚠️ **This whole section is kept for the trail only.** The install↔rep deadlock stopped being a
+constraint when the aug tier it was protecting measured **inert**. Two of its numbers are also stale:
+rep accrues at **~0.95 rep/s** (measured 2026-08-05, 26,564 rep in 7.74h), not 0.086, and duty runs
+**99.9%**, not ~30%. Neither correction changes the conclusion — the tier is not worth buying at any
+rep rate. Do not re-derive a "rep window" plan from what follows.
 
 **The install↔rep deadlock.** Bladeburner faction rep resets on every install and can *only* be
 earned by Bladeburner actions (no donation, no `workForFaction`). The success-chance augs sit at

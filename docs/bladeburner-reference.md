@@ -313,9 +313,27 @@ current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract
   - 🧮 **The arithmetic that matters for the win path:** ~6 Raids drained one city. Six cities ⇒
     roughly **36 Raids** before all are exhausted, at 97.44 rank/success ≈ **3,500 rank — 0.9% of the
     400,000 gate.** So **Raid cannot clear the node by itself**; it is a *consumable*, not an engine,
-    unless population regenerates meaningfully (the panel does log Synthoids *migrating between*
-    cities, so some recovery is plausible — **unmeasured**, and worth watching whether Volhaven's 0
-    recovers).
+    unless population regenerates.
+  - 🔴 **✅ ANSWERED 2026-08-05 — POPULATION DOES NOT REGENERATE. The drain is PERMANENT.** Volhaven
+    was drained to 0 on 2026-08-03 ~9:14pm; re-read **47.6 hours later** it is still **exactly 0**.
+    Verified two ways so a stale estimate couldn't fake it: (1) the engine's own six-city sample
+    (`chaosByCity`, resampled live every cycle) and (2) a deliberate `switchbbcity.js` round trip
+    (Ishima → Volhaven → Ishima, 40s, $0, zero rank lost) so the reading was taken **from inside the
+    city**. Both read 0.
+    - **The four unworked cities are frozen to 14 decimal places over the same 47.6h** (Aevum
+      569,114,813.6538942 · Chongqing 1,465,421,806.969731 · Sector-12 620,691,613 · New Tokyo
+      1,085,215,120.659082 — identical in both snapshots). Only the **occupied** city ever moved
+      (Ishima +1.73m while running Tracking). ⚠️ **This contradicts the in-panel claim that
+      "population migrates between cities continuously"** — whatever that log line describes, it does
+      not move `getCityEstimatedPopulation`. Trust the measurement, not the panel text, on this one.
+    - Communities *do* recover (Volhaven 71 → 77, Ishima 39 → 44 over the same window). **Population
+      does not.** Communities gate whether Raid is *possible*; population is what drives success
+      chance — so the recovering quantity is not the one that matters.
+    - 🔑 **Therefore `Raid` is disqualified permanently, and Stage B with it** (Raid was the only
+      operation worth opening the gate for — see the net-EV table in §5). The trade is: ~585 rank
+      harvested per city, against a city that pays **18,900 rank/day** via Tracking. **Ishima repays
+      the entire Raid harvest in 45 minutes.** Q11's literal question (HP per failed Raid) is now
+      moot — the answer is "never run it," reached without ever spending HP to find out.
   - ⚠️ **Implication for Stage B:** opening it as a continuous Raid grind would drain the current
     city in minutes and then stall the whole engine, contracts and all. Any Stage-B policy needs a
     **population floor** plus city rotation, not just an HP guard. `bladeburnermanager.js`'s
@@ -370,6 +388,37 @@ present:
 ⚠️ **Two actions are net-negative on rank right now.** An engine that picks by rank-per-success
 rather than by EV will happily grind backwards.
 
+#### 🔄 Re-measured 2026-08-05 at rank 19,571 — the table above is OBSOLETE, keep it only for the shape
+
+The 2026-08-02 numbers were taken at rank ~1,221 with 49 skill levels. After Phase 39's engine ran
+(Blade's Intuition **25**, Digital Observer **25**, Tracer **25**), success chances are transformed —
+contracts are now *capped*. Fresh sweep (`bladeburneractionprobe.js`, Ishima, chaos 9.3), with EV
+computed **net of `rankLoss` on failure**, which the older table ignored:
+
+| Action | Tier | Time | Success | Rank/action | **Net EV rank/s** | vs Tracking |
+|---|---|---|---|---|---|---|
+| **Tracking** | contract | 47s | **100%** | 10.30 | **0.2191** | 1.00× |
+| **Raid** | operation | 68s | 66.7% | 97.44 | **0.9337** | **4.26×** ⛔ city-killer |
+| Assassination | operation | 97s | 64.5% | 44.0 | 0.2778 | 1.27× |
+| Stealth Retirement | operation | 65s | 72.6% | 22.0 | 0.2372 | 1.08× |
+| Undercover Operation | operation | 33s | 100% | 4.40 | 0.1333 | 0.61× |
+| Investigation | operation | 34s | 100% | 4.04 | 0.1190 | 0.54× |
+| Sting Operation | operation | 42s | 84.2% | 5.50 | 0.1083 | 0.49× |
+| Bounty Hunter | contract | 19s | 100% | 1.25 | 0.0656 | 0.30× |
+| Retirement | contract | 13s | 100% | 0.60 | 0.0462 | 0.21× |
+
+🔑 **Three findings that reorder the whole strategy:**
+1. **Raid is the *only* operation that meaningfully beats contracts** — and it permanently destroys
+   the city (§ above). Every other operation is either **worse than Tracking** (Investigation,
+   Undercover, Sting) or beats it by so little (Assassination 1.27×, Stealth Retirement 1.08×) that
+   it cannot justify introducing failure/HP risk into a working 100%-success grind. **Stage B has no
+   surviving candidate.**
+2. **Contracts are at 100% success.** Success chance has stopped being the binding constraint —
+   which retires the premise behind the entire Bladeburner aug tier (see the aug table below).
+3. **The remaining levers are rank-per-action and action time, not success.** Rank/action rises with
+   action level automatically; action time is `Overclock`'s −1%/level. That makes **`Overclock` the
+   only large multiplier left** (see Q10 in §10 — currently 17/90, ×8.3 still on the table).
+
 **⚠️ There is ONE player-action slot — Bladeburner actions block gym, crime, and faction work.**
 This is why `The Blade's Simulacrum` exists: *"allows you to perform Bladeburner actions and other
 actions (such as working, committing crimes, etc.) at the same time."* Consequence: **you cannot
@@ -423,6 +472,49 @@ the whole tier, not the money.
 🧮 **Rep timeline at the measured 0.086 rep/s (Tracking):** 12.5k rep = **1.7 days** at 100% duty
 (~5.6 days at 30%); 62.5k rep = **8.4 days** at 100% duty (~28 days at 30%). All four
 `bladeburner_*` player mults read **1.00** as of 2026-08-02 — the entire tier is uninvested.
+
+#### 🔴 VERDICT 2026-08-05 — the entire tier is worthless to this engine. Do not buy it.
+
+Full `augcheck.js faction Bladeburners` sweep of all 18 augs' `bladeburner_*` multipliers:
+
+| Aug | success | max stamina | stamina gain | analysis |
+|---|---|---|---|---|
+| EsperTech Bladeburner Eyewear | ×1.03 | — | — | — |
+| EMS-4 Recombination | ×1.03 | — | ×1.02 | ×1.05 |
+| ORION-MKIV Shoulder | ×1.04 | — | — | — |
+| Hyperion Plasma Cannon V1 / V2 | ×1.06 / ×1.08 | — | — | — |
+| BLADE-51b Tesla Armor | ×1.03 | — | ×1.02 | — |
+| …: Power Cells / Energy Shielding | ×1.05 / ×1.06 | ×1.05 / — | ×1.02 / — | — |
+| …: Unibeam / Omnibeam | ×1.08 / ×1.10 | — | — | — |
+| …: IPU Upgrade | ×1.02 | — | — | ×1.15 |
+| Vangelis Virus / 3.0 | ×1.04 / ×1.05 | — | — | ×1.10 / ×1.15 |
+| I.N.T.E.R.L.I.N.K.E.D | — | ×1.10 | — | — |
+| Blade's Runners | — | ×1.05 | ×1.05 | — |
+| GOLEM Serum | — | — | ×1.05 | — |
+| Glibness Enhancement | — | — | — | — |
+| The Blade's Simulacrum | — | — | — | — |
+
+🔑 **Every aug in the tree multiplies exactly one of four things: success chance, max stamina,
+stamina gain, or analysis. NOT ONE increases rank-per-action or reduces action time.** Against the
+2026-08-05 engine state that makes the tier inert:
+
+- **Contracts run at 100% success** → every `bladeburner_success_chance` aug does *literally
+  nothing*. The full reachable success stack (~×1.49 combined) multiplies a capped stat.
+- **Duty cycle is 99.9%** → stamina augs buy no additional uptime.
+- **`bladeburner_analysis` improves *population-estimate accuracy*** (§5) — it narrows uncertainty,
+  not the rate. Irrelevant when the action is already at its success ceiling.
+- Cost of the reachable tier (≤26.5k rep) is **~$36.5b at base prices**, and far more in practice
+  because per-purchase price escalation compounds within a cycle.
+
+⚠️ **The one aug that is still worth something is `The Blade's Simulacrum`** — its value is
+structural (frees the player-action slot), not a multiplier, which is exactly why it reads all-1.00
+here. Price, not rep, is its wall ($150b base).
+
+**Corollary — the install↔rep deadlock is DISSOLVED, not solved.** The deadlock only mattered
+because the aug tier was the prize. With the tier inert, faction rep resetting on every install
+costs **nothing**, and no "rep window / install freeze" mechanism is needed. Phase 39's S4a decision
+("no aug chase, no install freeze") was correct — and this is the durable reason, replacing the
+cost-based one it was originally argued from.
 
 ### What the API genuinely doesn't expose (the honest, much shorter list)
 

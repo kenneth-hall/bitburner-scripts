@@ -31,16 +31,23 @@ on request — hold to them even when the moment is uncomfortable.
     faster bet** (10–20 days vs a Bladeburner path measured at ~570 days for contracts alone, needing
     a 40–70× undemonstrated improvement). Bladeburner is chosen for **engine value** — BN7 is next
     and the hacking-walled back half (BN9/10/13/14) needs an alt-destroy engine; clearing BN6 by
-    hacking banks nothing new. **Never restate this as "Bladeburner is faster."** Hard tripwire: if
-    the Stage B operation crossover isn't reached within **~2 weeks**, revert to batcher-primary.
-  - **The strongest objection, unresolved and load-bearing: the install↔rep deadlock.** Bladeburner
-    **faction rep resets on every install** and can *only* be earned by Bladeburner actions (no
-    donation, no `workForFaction`), yet the success-chance augs sit at **12.5k–62.5k rep** and rep
-    accrues at a measured **0.086 rep/s** → **8.4 days at 100% duty, ~28 days at the ~30% duty
-    stamina currently allows**. The ratchet installs roughly daily. **Decision taken 2026-08-02:
-    "rep window, then one install"** — ratchet installs freely until a trigger, then freezes while
-    Bladeburner grinds the rep tier, buy the whole tier at once, install once, resume. Phase 39 owns
-    specifying the trigger.
+    hacking banks nothing new. **Never restate this as "Bladeburner is faster."** ~~Hard tripwire: if
+    the Stage B operation crossover isn't reached within **~2 weeks**, revert to batcher-primary.~~
+    **✅ TRIPWIRE RETIRED 2026-08-05 — do NOT revert to batcher.** C2 fired 2026-08-03 (crossover
+    reached, so it never triggered), and the premise behind it is now dead anyway: it assumed Stage A
+    was a ~570-day path, but **Stage A alone measures 32–38 days** (0.1371 rank/s engine / 0.1156
+    rank/s from `goal-log.js`'s independent ring — two sources agreeing within 19%). Stage B is
+    separately **closed permanently** (Raid destroys cities irreversibly; no other operation beats
+    contracts enough to matter). Full record: `docs/bn6-playbook.md` §1.1.
+  - **✅ DISSOLVED 2026-08-05 — the install↔rep deadlock is no longer a constraint, and no "rep
+    window / install freeze" is needed.** It only ever bit because the 12.5k–62.5k-rep aug tier was
+    the prize; that tier measured **inert** (every Bladeburner aug multiplies success chance, stamina
+    or analysis — and we run at **100% success / 99.9% duty**, so all of it buys nothing). With the
+    tier worthless, faction rep resetting on every install costs **nothing**. Phase 39's **S4a
+    decision — "no aug chase, no install freeze" — stands, and this is now its durable reason.**
+    ⚠️ **Do not reopen it on rep-rate grounds:** the rate did improve ~11× (0.086 → ~0.95 rep/s), that
+    was checked, and rep was simply never the binding variable. Full record: `bn6-playbook.md` §1.1 +
+    `bladeburner-reference.md` §7.
   - **Second structural constraint: there is ONE player-action slot.** Bladeburner actions block
     gym/crime/faction work. `The Blade's Simulacrum` removes exactly this (rep req 1.25k — we
     already qualify; price **$1.029t**). So "fund combat stats at the gym" is never free — it costs
@@ -58,10 +65,11 @@ on request — hold to them even when the moment is uncomfortable.
     `bladeburner-state.json` and obvious in the in-game panel. ⚠️ **Do not treat any rank rate
     produced by Phase 38 as evidence** — the engine was mis-tuned three separate ways and the
     objective function it optimised (rank/second) is itself now in question.
-  - **Phase 39 (`phase-39-bladeburner-primary.features.md`) is the active phase — Stage 1 brainstorm,
-    and it has NO spec yet.** ⚠️ Several implementation commits already landed on `src/` under
-    explicit one-off authorisation (bug fixes, probes, skill-order change). **That is a stage-boundary
-    drift, not a precedent** — decide whether Phase 39 gets a real Stage-2 spec before more code.
+  - **✅ Phase 39 SHIPPED 2026-08-03** (`phase-39-bladeburner-primary.spec.md` — spec drafted, cold
+    review, implemented, live-validated, 1246 tests green; commits 36e788f/7fe288e). Its go/no-go
+    deliverable **C2 fired 2026-08-03**, and the node-level branch that followed it was resolved
+    2026-08-05 (Stage B closed permanently — see the retired tripwire above). Docs still sit in the
+    repo root and have not graduated to `docs/phases/`.
   - **🔴 LANDMINE — FOUR scripts contend for the single player-action slot.**
     `bladeburnermanager.js`, `augfarmer.js` (faction work), `backdoorfactions.js` and
     `backdoorwd.js` (`installBackdoor`) all claim it. Any probe or feature needing the slot must
@@ -71,16 +79,18 @@ on request — hold to them even when the moment is uncomfortable.
     `true` does NOT mean the action is running** (confirmed live: `true` returned while
     `getCurrentAction()` read `null` across 60 samples). Verify with `getCurrentAction()`, never the
     boolean. Full table of claimants and failure modes: `docs/bladeburner-reference.md` §8.
-  - **Current standing 2026-08-02 (re-checked live, 8:33pm):** rank **~1,459** / 400,000 (was 1,221
-    earlier the same day — climbing on Stage A contracts) · skill points **6** banked (407 earned
-    total, most spent across 12 skills before D5's success-skills-first policy) · **Overclock
-    17/90** (×0.83 action time; ceiling ×0.10 = **8.3× throughput**) · team size **0** · all four
-    `bladeburner_*` aug mults **1.00** · 81 hospitalisations / **$837m** lost against max HP **27**
-    (hospitalisation count stale — `bladeburner-state.json`'s field reads `null`, part of the known
-    broken-telemetry bug, D9). Best measured action (Tracking,
-    0.0307 rank/s) projects **150 days at 100% duty**. The conservative multiplier stack is
-    **~50×** before switching to high-payout operations. **The ceiling is real; none of it is
-    demonstrated yet — that is the bet, and it should be stated as a bet.**
+  - **Current standing 2026-08-05 (re-checked live, 9:15pm):** rank **~19,571** / 400,000 (4.9%) ·
+    skill points **4,033** banked · Blade's Intuition **25** / Digital Observer **25** / Tracer **25**
+    · **Overclock 17/90** (×0.83 action time; ceiling ×0.10 = **8.3× throughput**) · team size **0** ·
+    duty cycle **99.9%** · 0 hospitalisations · city **Ishima** (chaos 9.3) · running **Tracking at
+    100% success**, 0.2191 net rank/s per action-second. Rank rate **0.1371/wall-sec** (24h) →
+    **32–38 days** to the 400,000 `Operation Daedalus` gate. ⚠️ The old "150 days / 0.0307 rank/s /
+    ~50× stack" figures are **obsolete by 4.5×** — do not quote them.
+  - **🔑 The one lever left is `Overclock` (17/90, ×8.3 still on the table → ~4–5 days), and it is
+    gated on Q10** (is stamina spent per action or per second?). Success chance is **capped at 100%**
+    and duty is **99.9%**, so nothing else measured moves the rate — including the entire Bladeburner
+    aug tier, which measured **inert** 2026-08-05 (every aug multiplies only success/stamina/analysis;
+    none touches rank-per-action or action time). **Recommended next live measurement: Q10, not Q11.**
   - **✅ BN2.1 CLEARED 2026-07-23** — `w0r1d_d43m0n` backdoored (`backdoorwd.js` auto-fired once
     hacking crossed the gate), confirmed on the BitVerse screen (`bb-shot.png`). **Cleared at
     M≈34.3, NOT the M≈45 target**: the exp stack overshot (13.9B exp) and put the level at

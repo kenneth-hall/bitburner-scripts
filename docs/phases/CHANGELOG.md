@@ -6,6 +6,34 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-05
+
+- **🔴 STAGE B CLOSED PERMANENTLY — and the Q11 go-ahead was never spent.** Kenneth approved the
+  bounded live Q11 HP probe; a cheaper measurement settled the branch first. **Population never
+  regenerates:** Volhaven, drained to 0 by Raid on 2026-08-03, still read **exactly 0** 47.6h later —
+  confirmed *from inside the city* via a `switchbbcity.js` round trip (40s, $0, zero rank lost) so a
+  stale estimate couldn't fake it, with the four unworked cities frozen to **14 decimal places**
+  across the same window. Raid therefore harvests ~585 rank per city and permanently destroys an asset
+  paying **18,900 rank/day** — Ishima repays the whole harvest in 45 minutes. Re-measured net of
+  `rankLoss`, Raid was also the *only* operation worth the gate (Assassination 1.27×, Stealth
+  Retirement 1.08×, everything else *below* Tracking), so **Stage B has no surviving candidate.**
+  Q11 is closed as **moot, not answered** — do not reopen it.
+- **✅ The revert-to-batcher tripwire is retired, not triggered.** Its premise (Stage A ≈ 570 days)
+  is dead: Stage A alone measures **32–38 days** — 0.1371 rank/s (engine, 24h) vs 0.1156 rank/s
+  (`goal-log.js`'s independent ring, 25.1h), two separately-sourced numbers agreeing within 19%.
+- **✅ The Bladeburner aug tier measured INERT — and the install↔rep deadlock dissolved with it.**
+  All 18 augs multiply exactly one of success chance / max stamina / stamina gain / analysis;
+  **none** touches rank-per-action or action time. We run at **100% success** and **99.9% duty**, so
+  the reachable ~$36.5b tier buys a ×1.49 multiplier on a capped stat. Phase 39's **S4a stands**, now
+  on a durable reason rather than a cost argument. 🔴 Self-correction recorded: the ~11× rep-rate
+  improvement (0.086 → ~0.95 rep/s) was real but the wrong variable — rep never bound this decision.
+- **➡️ Next lever identified: `Overclock` 17/90 (×8.3 unclaimed → ~4–5 days), gated on Q10.**
+  Live-testing budget recommended to move from Q11 to Q10 — stamina accounting, not HP.
+- Docs updated in the same pass: `docs/bladeburner-reference.md` (§5 population permanence + fresh
+  net-EV action table; §7 full aug-multiplier table + verdict), `docs/bn6-playbook.md` §1.1,
+  `CLAUDE.md` goal block (standing figures were stale by 4.5×), `BACKLOG.md` (Q10 next action +
+  the logged dropped objection on Assassination/Stealth Retirement).
+
 ## 2026-08-03
 
 - **🚩 C2 FIRED — Phase 39's actual go/no-go deliverable, reached the same day the phase shipped.**
