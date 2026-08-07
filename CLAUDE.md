@@ -26,19 +26,30 @@ on request — hold to them even when the moment is uncomfortable.
     vs BN6's *first* install at M=1.59). The clean comparison is the table: **BN6
     `HackingLevelMultiplier` 0.35 vs BN5's 1.00**, gate 6,000 vs 4,500 → BN6 needs ~**5× the mult BN5
     cleared at**. ⚠️ **But BN6's ratchet economics are BETTER than BN5's** (no aug-cost penalty), so
-    **the batcher path is slower, not foreclosed — estimate 10–20 days.**
-  - **⚠️ Be honest about what the flip is.** On raw time-to-clear the **batcher is probably the
-    faster bet** (10–20 days vs a Bladeburner path measured at ~570 days for contracts alone, needing
-    a 40–70× undemonstrated improvement). Bladeburner is chosen for **engine value** — BN7 is next
-    and the hacking-walled back half (BN9/10/13/14) needs an alt-destroy engine; clearing BN6 by
-    hacking banks nothing new. **Never restate this as "Bladeburner is faster."** ~~Hard tripwire: if
+    **the batcher path is slower, not foreclosed** ~~— estimate 10–20 days.~~ (that estimate is
+    retracted, see the next bullet).
+  - **🔴 RETRACTED 2026-08-06 — "the batcher is probably the faster bet" is FALSE, by measurement.**
+    ~~On raw time-to-clear the batcher is probably the faster bet (10–20 days vs a Bladeburner path
+    measured at ~570 days for contracts alone, needing a 40–70× undemonstrated improvement).~~
+    ~~**Never restate this as "Bladeburner is faster."**~~ Both halves rested on numbers nobody had
+    re-measured. Measured 2026-08-06 (`docs/bn6-go-no-go.md`): **Bladeburner ~9–25 days** vs
+    **batcher ~240–323 days** to the M≈28–37 gate. The batcher figure is per-install
+    `deltaMultHacking` normalised by elapsed wall time — **~0.0045 M/hour, flat** across installs
+    #37–43 — against `mHacking` **2.10 → 28–37 needed**; the retracted "10–20 days" had **no
+    derivation anywhere in the repo**. Bladeburner is now **faster *and* banks the engine**, so the
+    engine-value argument for the flip still stands — it is simply no longer a sacrifice. That
+    argument, unchanged: BN7 is next and the hacking-walled back half (BN9/10/13/14) needs an
+    alt-destroy engine; clearing BN6 by hacking banks nothing new. ⚠️ This is the **fourth** position
+    on this question and reopens under the "new evidence" clause; trail in `docs/bn6-playbook.md` §1.
+    ~~Hard tripwire: if
     the Stage B operation crossover isn't reached within **~2 weeks**, revert to batcher-primary.~~
     **✅ TRIPWIRE RETIRED 2026-08-05 — do NOT revert to batcher.** C2 fired 2026-08-03 (crossover
     reached, so it never triggered), and the premise behind it is now dead anyway: it assumed Stage A
-    was a ~570-day path, but **Stage A alone measures 32–38 days** (0.1371 rank/s engine / 0.1156
-    rank/s from `goal-log.js`'s independent ring — two sources agreeing within 19%). Stage B is
-    separately **closed permanently** (Raid destroys cities irreversibly; no other operation beats
-    contracts enough to matter). Full record: `docs/bn6-playbook.md` §1.1.
+    was a ~570-day path, but **Stage A alone measures in days, not months** (~32–38 at the time;
+    re-measured **~9–25 on 2026-08-06** — quote the stamped snapshot below, not either of these).
+    ~~Stage B is separately closed permanently (Raid destroys cities irreversibly…).~~ 🔴 **That
+    Stage B closure is RETRACTED** — see the Stage B bullet below; it was never measured. Full
+    record: `docs/bn6-playbook.md` §1.1.
   - **✅ DISSOLVED 2026-08-05 — the install↔rep deadlock is no longer a constraint, and no "rep
     window / install freeze" is needed.** It only ever bit because the 12.5k–62.5k-rep aug tier was
     the prize; that tier measured **inert** (every Bladeburner aug multiplies success chance, stamina
@@ -79,13 +90,27 @@ on request — hold to them even when the moment is uncomfortable.
     `true` does NOT mean the action is running** (confirmed live: `true` returned while
     `getCurrentAction()` read `null` across 60 samples). Verify with `getCurrentAction()`, never the
     boolean. Full table of claimants and failure modes: `docs/bladeburner-reference.md` §8.
-  - **Current standing 2026-08-05 (re-checked live, 9:15pm):** rank **~19,571** / 400,000 (4.9%) ·
-    skill points **4,033** banked · Blade's Intuition **25** / Digital Observer **25** / Tracer **25**
-    · **Overclock 17/90** (×0.83 action time; ceiling ×0.10 = **8.3× throughput**) · team size **0** ·
-    duty cycle **99.9%** · 0 hospitalisations · city **Ishima** (chaos 9.3) · running **Tracking at
-    100% success**, 0.2191 net rank/s per action-second. Rank rate **0.1371/wall-sec** (24h) →
-    **32–38 days** to the 400,000 `Operation Daedalus` gate. ⚠️ The old "150 days / 0.0307 rank/s /
-    ~50× stack" figures are **obsolete by 4.5×** — do not quote them.
+  - **📊 Current standing — this is a SNAPSHOT, not a fact. Recompute before quoting it.**
+    🔴 **Never quote a percentage, a rank rate, or an ETA out of this file.** They stale within a
+    day and have caused two wrong answers already: "4.9%" written 08-05 read **8.4%** on 08-06, and
+    a rate recorded here as "0.1371/wall-sec" was ~24% low within a day. **Every number below is
+    stamped; if the stamp isn't today's, go get the live one** — `node tools/bb/cli.mjs stats`, or
+    the last entry of `logs/goal-log.json` (`rank` field, 60s samples, ~2 days deep). *Durable*
+    facts, safe to quote: the goal is **rank 400,000** (`Operation Daedalus`), rank and skill points
+    **survive installs**, and the rank rate has been **rising, not decaying** (see below).
+    - *Stamped 2026-08-06 ~01:40 UTC:* rank **33,793** · skill points **8,819** banked · Blade's
+      Intuition / Digital Observer / Tracer **25** each · team size **0** · city **Ishima** ·
+      running **Tracking** at 100% success, **action level 99**.
+    - *Rate, stamped same read:* **~0.17 rank/s and RISING** — 0.102 → 0.17 over the 44h window,
+      **superlinear** (rank-per-action scales 1.041/action-level vs action time 1.020, so each
+      level is net-positive and the rate compounds). ETA **~9–25 days**, the spread driven almost
+      entirely by one unmeasured bit — **does action level cap at 100?** ⚠️ The rate is *not*
+      constant, so any ETA computed from a single rate reading is wrong in both directions.
+    - **Overclock 17/90 — do NOT buy more, it is measured DEAD** (stamina is per-action, so action
+      time is irrelevant to sustainable throughput). ⚠️ The "×0.10 ceiling = 8.3× throughput" claim
+      this bullet used to carry was wrong; never restate it.
+    - ⚠️ Also obsolete, do not quote: "150 days / 0.0307 rank/s / ~50× stack", and "32–38 days /
+      0.1371 rank/s" — both superseded by the stamped figures above.
   - **🚨 STAGE B REOPENED 2026-08-06 (evening) — the "Raid permanently kills a city" finding is
     RETRACTED. It was never measured.** Volhaven's population `0` and its actions scoring `0` both
     mean **"unknown," not "zero"**: `getActionEstimatedSuccessChance` returns a **[MIN, MAX]** range,
