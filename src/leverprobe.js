@@ -29,9 +29,30 @@
 const SAMPLE_MS = 1000;
 const SAMPLE_COUNT = 300; // ~5 minutes
 
+/**
+ * `run leverprobe.js intel` -- skips the 5-minute stamina sample and instead reads:
+ *
+ *   Q11-MOOT? getActionEstimatedSuccessChance for every action in the CURRENT city.
+ *             Q11 asks "HP cost per FAILED operation". If Raid reads [1.0, 1.0] here we
+ *             never fail, so that cost is never paid and Q11 cannot gate Stage B in this
+ *             city. bladeburner-state.json currently reads stageBBlockedBy: "Q11".
+ *
+ *   Q14/RETRACTION  getCityEstimatedPopulation + getCityCommunities for ALL SIX cities.
+ *             Both take a city argument, so this needs NO travel and changes nothing.
+ *             Volhaven's cached pop reads 0 with 77 communities and a ~10h-stale
+ *             updatedMs -- if a fresh read returns nonzero, the "Volhaven is dead"
+ *             reading was staleness, which is what the retraction claimed.
+ *
+ * 🔴 EVERY VALUE HERE IS AN `Estimated` RANGE [MIN, MAX], NOT A POINT. That is the trap
+ * that produced three successive wrong conclusions on this exact question. [0.0, 1.0] is
+ * maximum uncertainty = UNSCOUTED, and is NOT the same as "zero". Report ranges, never
+ * midpoints.
+ */
+
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
+  if (ns.args[0] === "intel") return intelRun(ns);
 
   const startedAt = Date.now();
   const out = {
@@ -133,6 +154,89 @@ export async function main(ns) {
   ns.tprint(`staminaMax observed: ${out.regen.maxObserved}`);
   ns.tprint(`chaos ${out.homeCity}: ${ns.format.number(out.chaos[out.homeCity] ?? 0)}`);
   ns.tprint(`skill points banked: ${ns.format.number(out.skillPoints)}`);
+  ns.tprint(`wrote ${fname}`);
+}
+
+/**
+ * READ-ONLY intel pass. No travel, no action change, no purchase.
+ * @param {NS} ns
+ */
+async function intelRun(ns) {
+  const startedAt = Date.now();
+  const city = ns.bladeburner.getCity();
+  const out = {
+    probe: "leverprobe:intel",
+    startedAt,
+    startedAtLabel: new Date(startedAt).toISOString(),
+    currentCity: city,
+    note: "read-only; no travel, no state change. ALL success values are [min,max] ESTIMATE ranges.",
+  };
+
+  // ---- Q11: do we ever actually fail in this city? ----------------------
+  const actions = [
+    ...ns.bladeburner.getContractNames().map((n) => ["Contracts", n]),
+    ...ns.bladeburner.getOperationNames().map((n) => ["Operations", n]),
+  ];
+  out.successRanges = actions.map(([kind, name]) => {
+    const entry = { kind, name };
+    try {
+      const range = ns.bladeburner.getActionEstimatedSuccessChance(kind, name);
+      entry.pMin = range[0];
+      entry.pMax = range[1];
+      entry.converged = range[0] === range[1];
+      entry.unscouted = range[0] === 0 && range[1] === 1;
+      entry.neverFails = range[0] >= 1;
+    } catch (err) {
+      entry.error = String(err).slice(0, 120);
+    }
+    try {
+      entry.countRemaining = ns.bladeburner.getActionCountRemaining(kind, name);
+    } catch (err) {
+      entry.countRemaining = null;
+    }
+    return entry;
+  });
+  const raid = out.successRanges.find((x) => x.name === "Raid");
+  out.q11Verdict = !raid || raid.pMin === undefined
+    ? "Raid unreadable"
+    : raid.neverFails
+      ? `Raid pMin=${raid.pMin} in ${city} -> NEVER FAILS -> Q11 (HP per failed op) cannot gate Stage B here`
+      : `Raid pMin=${raid.pMin} pMax=${raid.pMax} in ${city} -> failure IS possible -> Q11 still binds`;
+
+  // ---- Q14 / the retraction: is Volhaven dead, or just unscouted? -------
+  const cityNames = ["Aevum", "Chongqing", "Sector-12", "New Tokyo", "Ishima", "Volhaven"];
+  out.cities = cityNames.map((name) => {
+    const entry = { name };
+    try {
+      entry.population = ns.bladeburner.getCityEstimatedPopulation(name);
+    } catch (err) {
+      entry.population = null;
+    }
+    try {
+      entry.communities = ns.bladeburner.getCityCommunities(name);
+    } catch (err) {
+      entry.communities = null;
+    }
+    try {
+      entry.chaos = ns.bladeburner.getCityChaos(name);
+    } catch (err) {
+      entry.chaos = null;
+    }
+    return entry;
+  });
+  const vol = out.cities.find((c) => c.name === "Volhaven");
+  out.volhavenVerdict = vol && vol.population > 0
+    ? `Volhaven pop reads ${vol.population} -> the cached 0 was STALE/unscouted, not drained`
+    : `Volhaven pop still reads ${vol ? vol.population : "?"} with ${vol ? vol.communities : "?"} communities -> inconclusive from population alone (this is an ESTIMATE; 0 can mean unknown)`;
+
+  out.finishedAt = Date.now();
+  const fname = `leverprobe-${startedAt}.json`;
+  ns.write(fname, JSON.stringify(out, null, 2), "w");
+
+  ns.tprint("=== leverprobe:intel ===");
+  ns.tprint(`city: ${city}`);
+  ns.tprint(`Q11: ${out.q11Verdict}`);
+  ns.tprint(`Volhaven: ${out.volhavenVerdict}`);
   ns.tprint(`wrote ${fname}`);
 }
 

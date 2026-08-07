@@ -589,3 +589,93 @@ is now too loose to fire on anything and should be re-derived, not trusted.**
 
 **Open and unmeasured:** whether operations actually pay more rank-per-action than a capped
 Tracking (§8.3's premise), and whether any action's max level exceeds 100.
+
+---
+
+## 9. INTEL PASS — 2026-08-07 (`run leverprobe.js intel`, read-only, no travel)
+
+`logs/leverprobe-1786101340885.json`. Answers **Q11**, materially resolves the **Volhaven
+retraction**, and surfaces a constraint §4.2 filed as "unquantified" that has **already fired**.
+
+### 9.1 ✅ Q11 is MOOT in Ishima — it cannot gate Stage B here
+
+Q11 asks *"what is the HP cost per FAILED operation?"* Measured success ranges in Ishima:
+
+| Action | [pMin, pMax] | count remaining |
+|---|---|---|
+| Tracking | [1, 1] | 🔴 **0** |
+| Bounty Hunter | [1, 1] | 5,751 |
+| Retirement | [1, 1] | 5,844 |
+| Investigation | [1, 1] | 2,757 |
+| Undercover Operation | [1, 1] | 3,683 |
+| Sting Operation | [1, 1] | 3,219 |
+| **Raid** | **[1, 1]** | **2,883** |
+| Stealth Retirement | [1, 1] | 1,593 |
+| Assassination | [0.99761, 1] | 1,511 |
+
+**`Raid` reads [1, 1] — converged at certainty. We never fail it, so the HP cost of failing it is
+never paid.** `bladeburner-state.json`'s `stageBBlockedBy: "Q11"` is satisfied *in this city*.
+
+⚠️ These are `Estimated` ranges, read correctly as ranges. **[1, 1] is converged-certain**
+(distinct from Volhaven's uninformed [0, 1] — the distinction the retraction turned on). Note the
+range is city-scoped: `getActionEstimatedSuccessChance` takes no city argument, so this says
+nothing about Raid anywhere else.
+
+### 9.2 🔴 NEW BLOCKER — `Tracking` is EXHAUSTED (count 0), and this is a second cause of the plateau
+
+**`Tracking` has 0 contracts remaining.** §4.2 filed contract depletion as "unquantified…
+consideration, not a blocker." It is now measured, and it is a blocker: the engine's highest-scoring
+contract (per-action **17.36**) has run dry.
+
+Cross-validated against an independent source — summing the probe's per-action counts against
+`bladeburner-state.json`'s aggregate:
+
+- contracts: probe **11,595.86** vs state **11,597.29** → Tracking contributes **1.43**
+- operations: probe **15,649.03** vs state **15,649.33** → exact
+
+🔑 **§8.1 attributed the rate plateau entirely to the level cap. That was half the story.** There
+are **two** causes: `Tracking` capped at level 100 *and* `Tracking` depleted to zero supply. The
+engine has been alternating into Investigation because its preferred action is unavailable, not only
+because Investigation out-scores it. **Fixing the cap is impossible; fixing supply is not.**
+
+⚠️ The remaining well-supplied contracts are much weaker — `Bounty Hunter` scores **1.247**
+per-action against Tracking's 17.36, a **14× drop**. Falling back to contracts is not a fix.
+
+### 9.3 🟡 Volhaven — the retraction holds; "dead" remains unsupported
+
+| City | est. population | communities | chaos |
+|---|---|---|---|
+| Ishima | 5.581e9 | 47 | **18.49** |
+| Chongqing | 1.465e9 | 158 | 1,089 |
+| New Tokyo | 1.085e9 | 16 | 507 |
+| Sector-12 | 6.207e8 | 22 | 2,408 |
+| Aevum | 5.691e8 | 57 | 157 |
+| **Volhaven** | **0** | **77** | **0.00** |
+
+**The chaos column is the tell.** Raids *raise* chaos. A city drained by raiding would read high
+chaos; Volhaven reads **0.00 — the lowest on the board** — with **77 communities intact** (second
+highest) and a full action inventory. That is the signature of a city **never worked**, not one
+destroyed.
+
+⚠️ Stated at its true strength: this is **consistent with** unscouted and **inconsistent with**
+drained-by-raiding, but population is itself an `Estimated` value where 0 means *unknown*. It does
+not prove Raid is safe. **Q14 (does scouting restore a drained city) remains open**, and so does
+Raid's actual per-use city cost — which is the thing that was retracted for never having been
+measured, and is still not measured.
+
+### 9.4 Where this leaves Stage B
+
+The stated blocker (Q11) is answered and does not bind in Ishima. `Raid` is the only action that is
+simultaneously **high-value** (per-action 97.44 = 5.6× Tracking), **well-supplied** (2,883), and
+**certain** ([1, 1]) — while the incumbent is capped *and* exhausted.
+
+🔴 **IRREVERSIBILITY WARNING, restated at the point of decision:** enabling Raid is a one-way action
+against **Ishima specifically — our best city** (highest population by 3.8×, lowest chaos by 8.5×).
+**Raid's per-use cost to a city has never been measured.** The prior "Raid permanently kills a city"
+finding was retracted for being an inference off an uninformed estimate; **retraction is not
+exoneration** — it moved the question from *answered wrongly* to *unanswered*. Nothing in §9 measures
+what Raid costs. This is a decision for Kenneth, not a conclusion this document draws.
+
+**Cheapest way to de-risk it:** Raid a *different* city first and watch its population/communities/
+chaos move. That converts an unmeasured irreversibility into a measured one, at the cost of a city
+we are not using.
