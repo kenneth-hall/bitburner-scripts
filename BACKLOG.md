@@ -529,23 +529,28 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
-- **🔑 Measure Q10 (stamina: per-action or per-second?) — the only large multiplier left in BN6.**
-  With contract success **capped at 100%** and duty at **99.9%**, nothing moves the rank rate except
-  action time. `Overclock` cuts −1%/level to max 90; we sit at **17/90**, so **×8.3 throughput** is
-  unclaimed — that is the 32–38 day path becoming **~4–5 days**. The skill is held shut by Q10: per-
-  second ⇒ the 8.3× is real; per-action ⇒ faster actions burn stamina proportionally and it buys
-  nothing sustained. **Next action:** request a fresh live go-ahead (per the standing "one round,
-  then ask again" limit), then a bounded stamina-accounting probe with all four action-slot claimants
-  quiesced (`bladeburnermanager.js`, `augfarmer.js`, `backdoorfactions.js`, `backdoorwd.js` — see the
-  LANDMINE in CLAUDE.md). Materially safer than the Q11 probe it replaces: stamina accounting, not
-  HP, so the worst case is the engine resting more — no hospitalisation, nothing irreversible.
-  Context: `docs/bn6-playbook.md` §1.1, `docs/bladeburner-reference.md` §5/§10.
-- **Dropped objection, logged per CLAUDE.md rather than erased (2026-08-05):** `Assassination` (1.27×
-  Tracking) and `Stealth Retirement` (1.08×) *do* beat contracts on net EV, and were rejected anyway
-  — the margin doesn't justify importing 27–35% failure rates, HP loss and hospitalisation risk into
-  a grind already at 100% success. **Wake condition:** revisit only if Q10 comes back *per-action*
-  (killing Overclock) **and** Stage A's 32–38 day path slips materially. Not otherwise — this was
-  weighed on measured numbers, not skipped.
+- **🔑 Q13: is per-action stamina cost FLAT, or proportional to action time?** Q10 came back
+  **per-action** (2026-08-06), which makes stamina the binding constraint and — if cost is flat —
+  makes **rank per action** the correct objective instead of the engine's `objectiveMode:
+  "per-second"`. Net of `rankLoss`, `Assassination` pays **26.96/action vs Tracking's 10.30 (2.6×)`.
+  Only `Tracking` (51s) was ever measured; if cost scales with time, Assassination's 97s cancels the
+  gain and nothing changes. **Next action:** run `q10probe.js` while a different-duration action is
+  live and compare the drop size to 2.162 — no new code, no irreversible spend. If flat, Stage B
+  reopens *for Assassination only* (never Raid — it destroys the city permanently).
+- **Measure whether Bladeburner stamina REGEN scales with max stamina.** Decides whether
+  `bladeburner_max_stamina` augs (I.N.T.E.R.L.I.N.K.E.D ×1.10, Blade's Runners ×1.05, Power Cells
+  ×1.05) do anything; `stamina_gain` is already known to help. An attempt from
+  `bladeburner-attempts.json` was too noisy to call, and the natural experiment died with install
+  #43. **Next action:** re-run `q10probe.js` after max stamina has drifted materially (combat stats
+  grow continuously) and compare `regenPerRestingSec`. **Wake condition:** before any Bladeburner aug
+  purchase — do not buy on the strength of the reasoning alone.
+- **🔺 The dropped objection from 2026-08-05 has been REVIVED by Q10 — its wake condition fired.**
+  `Assassination` and `Stealth Retirement` were rejected on a **per-second** comparison (1.27× and
+  1.08× Tracking) as too small to justify their failure rates. Q10 came back **per-action**
+  (2026-08-06), which is precisely the condition that entry named. On the objective that now applies,
+  the margin is not marginal: **Assassination 26.96 rank/action vs Tracking 10.30 — 2.6×.** This is
+  the logged-objection mechanism working as designed: it returned as *evidence*, not as repetition.
+  Gated behind **Q13** above — if stamina cost scales with action time, the 2.6× evaporates.
 - **Phase 34's NFG revisit trigger (decision 4, parked)** — `decideInstall`'s escalation rule
   deliberately excludes NFG targets (`!targetIsNFG`): its price ladder is 2.166 not 1.9, and its
   tail is designed to run long, so arming on it would fight `spendDownPlan`'s ordering. **Wake

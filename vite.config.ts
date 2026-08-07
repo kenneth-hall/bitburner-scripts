@@ -119,6 +119,7 @@ export default defineConfig({
         if (/^bladeburneractionprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburneractionprobe.js -- per-action yield sweep (time/success/rank gain-loss/rep/count), one file per run
         if (/^bladeburnerskillprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburnerskillprobe.js -- per-skill cost/level sweep, one file per run
         if (/^slotconflictprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/slotconflictprobe.js -- Phase 38 blocker: does a bladeburner action occupy augfarmer's player-work slot, one file per run
+        if (/^q10probe-\d+\.json$/.test(file)) return `logs/${file}`; // src/q10probe.js -- Q10: is stamina spent per action or per second (gates Overclock), one file per run
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';

@@ -320,15 +320,38 @@ current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract
     (`chaosByCity`, resampled live every cycle) and (2) a deliberate `switchbbcity.js` round trip
     (Ishima → Volhaven → Ishima, 40s, $0, zero rank lost) so the reading was taken **from inside the
     city**. Both read 0.
-    - **The four unworked cities are frozen to 14 decimal places over the same 47.6h** (Aevum
-      569,114,813.6538942 · Chongqing 1,465,421,806.969731 · Sector-12 620,691,613 · New Tokyo
-      1,085,215,120.659082 — identical in both snapshots). Only the **occupied** city ever moved
-      (Ishima +1.73m while running Tracking). ⚠️ **This contradicts the in-panel claim that
-      "population migrates between cities continuously"** — whatever that log line describes, it does
-      not move `getCityEstimatedPopulation`. Trust the measurement, not the panel text, on this one.
+    - 🔴 **CORRECTED 2026-08-06 — the "frozen to 14 decimal places" evidence below was INVALID, and
+      the conclusion it supported was right only by luck. Do not reuse this reasoning.**
+      The original argument was: the four unworked cities read identical to 14 decimals across 47.6h
+      (Aevum 569,114,813.6538942 · Chongqing 1,465,421,806.969731 · Sector-12 620,691,613 · New Tokyo
+      1,085,215,120.659082), therefore population is static everywhere. **That inference is wrong.**
+      `getCityEstimatedPopulation` is *explicitly an estimate*, and it **only refreshes for the city
+      you currently occupy.** Proof, 2026-08-06 over ~22h: those same four cities were *still* byte-
+      identical while **chaos moved in every one of them** (Sector-12 633 → 1,492, Chongqing 271 →
+      651, Aevum 49 → 91) — so `getCityChaos` is live everywhere and `getCityEstimatedPopulation`
+      is not. **A frozen population reading is the instrument idling, not the world holding still.**
+      ⚠️ **Never compare `getCityEstimatedPopulation` across cities or across time unless you
+      occupied each city at each reading.** (This also dissolves the apparent contradiction with the
+      in-panel "population migrates between cities continuously" line — the panel was never wrong;
+      the estimate just wasn't watching.)
+    - 🧮 **What actually happens: the OCCUPIED city's population GROWS, and grows proportionally.**
+      Ishima went **1,134,484,224 → 2,580,846,305 in ~22.2h** while being worked — ×2.28, or about
+      **+3.8%/hour compounding** (independently re-sampled 25 min later at 2,548m → 2,581m, ≈+77m/h,
+      consistent). The earlier "+1.73m over 48h" figure was the same stale-estimate artifact.
+    - 🔑 **Proportional growth is the MECHANISM that makes a drained city permanent — and it is
+      tidier than a special rule: zero cannot grow.** `0 × 1.038 = 0`, forever. That single fact
+      explains both observations at once (Volhaven pinned at exactly 0, Ishima more than doubling)
+      without needing population to be "static."
     - Communities *do* recover (Volhaven 71 → 77, Ishima 39 → 44 over the same window). **Population
       does not.** Communities gate whether Raid is *possible*; population is what drives success
       chance — so the recovering quantity is not the one that matters.
+    - ✅ **Re-confirmed BEHAVIOURALLY 2026-08-06, which is the evidence that actually carries the
+      conclusion.** Occupying Volhaven again (48h+ after the drain), with `cityStock.Volhaven`
+      freshly sampled in-city: `pop 0`, **`Tracking scorePerSec` exactly `0`**, best operation
+      `Sting Operation` at **−0.0111/sec**. Scores derive from success chance, which is computed from
+      **true** population rather than the estimate — so this is the world reporting the city is dead,
+      not the instrument idling. That distinction is the whole reason the corrected reasoning above
+      still lands in the same place.
     - 🔑 **Therefore `Raid` is disqualified permanently, and Stage B with it** (Raid was the only
       operation worth opening the gate for — see the net-EV table in §5). The trade is: ~585 rank
       harvested per city, against a city that pays **18,900 rank/day** via Tracking. **Ishima repays
@@ -415,9 +438,53 @@ computed **net of `rankLoss` on failure**, which the older table ignored:
    surviving candidate.**
 2. **Contracts are at 100% success.** Success chance has stopped being the binding constraint —
    which retires the premise behind the entire Bladeburner aug tier (see the aug table below).
-3. **The remaining levers are rank-per-action and action time, not success.** Rank/action rises with
-   action level automatically; action time is `Overclock`'s −1%/level. That makes **`Overclock` the
-   only large multiplier left** (see Q10 in §10 — currently 17/90, ×8.3 still on the table).
+3. ~~**The remaining levers are rank-per-action and action time, not success.** … **`Overclock` the
+   only large multiplier left** (×8.3 still on the table).~~ 🔴 **RETRACTED 2026-08-06 by the Q10
+   measurement below — Overclock buys NOTHING. Do not quote the ×8.3.**
+
+#### ✅ Q10 ANSWERED 2026-08-06 — stamina is spent **PER ACTION**, and that kills `Overclock`
+
+Measured by `src/q10probe.js` (read-only, 1 Hz, 593 samples, Overclock 17, Tracking at 51.0s). Across
+**449 rank-producing seconds** stamina fell **exactly 9 times**:
+
+- every drop **precisely 2.162** — identical, not noisy
+- every drop landed on a **rank tick** (action completion)
+- drops spaced at t = 41, 91, 143, 194, 245, … **≈51s apart = exactly the action time**
+- stamina **rose** on 583 of 592 intervals ⇒ regeneration is **continuous at 0.03352/s**
+
+So cost is a fixed lump charged at completion, not an accrual per second. The consequence is
+arithmetic:
+
+```
+spend while acting continuously = 2.162 / 51s = 0.04239 /s
+regeneration                    =              0.03352 /s   -> ALREADY stamina-limited
+sustainable actions/hour = regen x 3600 / cost = 55.8   <-- INDEPENDENT OF ACTION TIME
+```
+
+`Overclock` 90 would permit **585.9** actions/hour by the clock; stamina caps us at **55.8**
+regardless. Live corroboration: the engine's rank-producing fraction is already **68.5%** — roughly a
+third of every hour is spent regenerating. **`Overclock` is closed permanently, and the ~4,000 banked
+SP were NOT spent on it.**
+
+🔑 **The reordering this forces — flagged in the pre-measurement note as the thing that would change
+if Q10 came back per-action, and it did:** when stamina is the binding constraint and each action
+costs the same, the correct objective function is **rank per ACTION**, not rank per second. The
+engine currently runs `objectiveMode: "per-second"`. Net-of-`rankLoss` rank per action:
+
+| Action | Rank/action (net of failure) | vs Tracking |
+|---|---|---|
+| Raid | 65.0 | 6.3× ⛔ city-killer |
+| **Assassination** | **26.96** | **2.6×** |
+| Stealth Retirement | 15.42 | 1.5× |
+| **Tracking** (current) | **10.30** | 1.00× |
+| Sting / Undercover / Investigation | 4.55 / 4.40 / 4.04 | <1× |
+
+⚠️ **DO NOT act on that table yet — it rests on an unverified premise.** The 2.162 cost was measured
+for `Tracking` **only**. If stamina cost is **flat per action**, Assassination is genuinely ~2.6×
+better and Stage B should reopen *for Assassination* (never Raid). If cost instead scales with action
+**time**, Assassination's 97s vs Tracking's 51s cancels the gain and nothing changes. **New open
+question Q13: is per-action stamina cost flat, or proportional to action time?** It is cheap to
+settle — run `q10probe.js` while a different-duration action is active and compare the drop size.
 
 **⚠️ There is ONE player-action slot — Bladeburner actions block gym, crime, and faction work.**
 This is why `The Blade's Simulacrum` exists: *"allows you to perform Bladeburner actions and other
@@ -495,12 +562,26 @@ Full `augcheck.js faction Bladeburners` sweep of all 18 augs' `bladeburner_*` mu
 | The Blade's Simulacrum | — | — | — | — |
 
 🔑 **Every aug in the tree multiplies exactly one of four things: success chance, max stamina,
-stamina gain, or analysis. NOT ONE increases rank-per-action or reduces action time.** Against the
-2026-08-05 engine state that makes the tier inert:
+stamina gain, or analysis. NOT ONE increases rank-per-action or reduces action time.** That structural
+fact is still true — but the 2026-08-05 conclusion drawn from it ("the entire tier is worthless") was
+**half wrong**, and the corrections are inline below:
 
 - **Contracts run at 100% success** → every `bladeburner_success_chance` aug does *literally
   nothing*. The full reachable success stack (~×1.49 combined) multiplies a capped stat.
-- **Duty cycle is 99.9%** → stamina augs buy no additional uptime.
+  **This half of the verdict stands.**
+- ~~**Duty cycle is 99.9%** → stamina augs buy no additional uptime.~~ 🔴 **WRONG — CORRECTED
+  2026-08-06.** `dutyCycle` counts **regeneration as on-duty**, so 99.9% never meant what it was used
+  to mean here. The metric that binds is the **rank-producing fraction, measured at 68.5%**, and Q10
+  proved it is throttled by *exactly* what these augs boost. Sustainable throughput is
+  `staminaRegen x 3600 / costPerAction`, so **`bladeburner_stamina_gain` multiplies the rank rate
+  directly**, and `bladeburner_max_stamina` does too if regen scales with max. Candidates now back in
+  play: **I.N.T.E.R.L.I.N.K.E.D** (max ×1.10), **Blade's Runners** (max ×1.05, gain ×1.05),
+  **GOLEM Serum** (gain ×1.05), **Power Cells** (max ×1.05, gain ×1.02).
+  ⚠️ **Still unproven: does regen scale with max stamina, or is it flat?** An attempt to answer it
+  from `bladeburner-attempts.json` was too noisy to call (buckets disagreed and the largest bucket
+  was an order of magnitude off), and the natural experiment set up to settle it died with install
+  #43. Until measured, only `stamina_gain` is *known* to help. **Do not buy the max-stamina augs on
+  the strength of this paragraph alone.**
 - **`bladeburner_analysis` improves *population-estimate accuracy*** (§5) — it narrows uncertainty,
   not the rate. Irrelevant when the action is already at its success ceiling.
 - Cost of the reachable tier (≤26.5k rep) is **~$36.5b at base prices**, and far more in practice

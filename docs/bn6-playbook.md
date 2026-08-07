@@ -164,7 +164,39 @@ day:** the measured rep rate *had* improved ~11× (0.086 → ~0.95 rep/s), and t
 evidence to reopen S4a. It was real evidence but the wrong variable — rep was never the binding
 constraint on whether the augs are worth owning. Do not reopen S4a on rep-rate grounds again.
 
-### ➡️ The lever that IS left: `Overclock`, gated on Q10
+### 🔴 UPDATE 2026-08-06 — Q10 answered, `Overclock` is DEAD, and the aug verdict was half wrong
+
+The section immediately below is **superseded**; kept because its framing of the question was right
+even though its expected answer was wrong.
+
+- **Q10 = PER ACTION** (`src/q10probe.js`, 593 samples). Stamina fell exactly **9 times in 449
+  producing seconds**, every drop precisely **2.162**, every one on a rank tick, spaced at the 51s
+  action time; regen is continuous at 0.03352/s. Sustainable actions/hour =
+  `regen x 3600 / cost` = **55.8, independent of action time**. Overclock 90 would allow 585.9/hour
+  by the clock and change nothing. **The ×8.3 was a mirage; the ~4,000 SP were not spent.** Live
+  corroboration: rank-producing fraction is already 68.5%. Full derivation in
+  `bladeburner-reference.md` §5.
+- **We are stamina-limited, and that reopens part of the aug tier.** The 2026-08-05 "inert" verdict
+  argued stamina augs were useless because "duty is 99.9%" — but `dutyCycle` counts regeneration as
+  on-duty. **`bladeburner_stamina_gain` multiplies the rank rate directly.** Success-chance augs
+  remain genuinely worthless (100% success). ⚠️ Whether `max_stamina` also helps depends on an
+  unmeasured question (does regen scale with max?), so nothing should be bought yet.
+- **Q13 opened:** is per-action stamina cost **flat**, or proportional to action **time**? Only
+  `Tracking` was measured. If flat, `Assassination` pays **2.6× Tracking per action** and Stage B
+  should reopen *for Assassination specifically* (never Raid) — because under per-action stamina the
+  right objective is **rank per action**, not the `objectiveMode: "per-second"` the engine currently
+  runs. If cost scales with time, nothing changes. Cheap to settle.
+- **Stage B / Raid stays closed** — re-confirmed behaviourally 2026-08-06 (in-city: `Tracking`
+  scored **exactly 0**, best operation **−0.0111**). ⚠️ But the *reasoning* published 2026-08-05 was
+  invalid: population estimates only refresh for the occupied city, so the "frozen to 14 decimals"
+  argument proved nothing. The real mechanism is **proportional growth (~+3.8%/hour in the occupied
+  city) — and zero cannot grow**, which is why a drained city never returns.
+- **Install cadence stopped 2026-08-06** (`src/ratchet-mode.txt` → `observe`). Installs cost a
+  measured **5.4%** of Bladeburner wall-time. 🔴 Note the trap that cost us install #43: that file is
+  pushed by viteburner from the repo and is *gitignored*, so an in-game write alone silently reverts
+  on the next dev-server restart — see `docs/scripts.md`'s `setratchetmode.js` row.
+
+### [SUPERSEDED 2026-08-06 — Overclock is dead, see above] The lever that IS left: `Overclock`, gated on Q10
 
 With success capped and duty saturated, the only remaining multipliers are rank-per-action (rises
 with action level automatically) and **action time**. `Overclock` cuts −1%/level to a max of 90; we

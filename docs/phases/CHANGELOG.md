@@ -6,6 +6,38 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-06
+
+- **✅ Q10 ANSWERED — stamina is spent PER ACTION, so `Overclock` is dead and the ×8.3 was a mirage.**
+  New `src/q10probe.js` (read-only, 1 Hz): across **449 rank-producing seconds** stamina fell exactly
+  **9 times**, every drop precisely **2.162**, every one on a rank tick, spaced at the 51s action
+  time; regen is continuous at **0.03352/s**. Sustainable actions/hour = `regen × 3600 / cost` =
+  **55.8 — independent of action time**, against the 585.9/hour Overclock 90 would allow by the
+  clock. Rank-producing fraction is already **68.5%**. The ~4,000 banked SP were correctly not spent.
+- **🔴 Two corrections to the 2026-08-05 entry, both from the same root cause — reading an instrument
+  without first checking what it measures.**
+  1. **The aug tier is NOT wholly inert.** "Stamina augs do nothing because duty is 99.9%" was wrong:
+     `dutyCycle` counts regeneration as on-duty. The binding metric is the 68.5% rank-producing
+     fraction, and Q10 proves it is stamina-throttled — so `bladeburner_stamina_gain` multiplies the
+     rank rate directly. Success-chance augs remain genuinely worthless (100% success).
+  2. **The Stage B closure was right, but its evidence was invalid.** "Four unworked cities frozen to
+     14 decimal places" proved nothing — `getCityEstimatedPopulation` **only refreshes for the
+     occupied city** (proved by chaos moving in all six while population stayed byte-identical).
+     Re-confirmed behaviourally instead: in-city, Volhaven scored `Tracking` at **exactly 0** and its
+     best operation at **−0.0111**. Real mechanism: the occupied city grows **~+3.8%/hour
+     proportionally** (Ishima 1,134m → 2,581m in 22h) — **and zero cannot grow**, which is why a
+     drained city never returns.
+- **⚠️ Install cadence stopped** (`src/ratchet-mode.txt` → `observe`); installs cost a measured
+  **5.4%** of Bladeburner wall-time. 🔴 **Trap discovered the hard way:** that file is pushed from the
+  repo by viteburner *and* is gitignored (6a0dc63), so an in-game write silently reverts on the next
+  dev-server restart — which is exactly what re-enabled installs and let **#43** fire, killing a
+  running probe. Documented in `setratchetmode.js` + `docs/scripts.md`.
+- **➡️ Q13 opened (cheap, no irreversible spend):** is per-action stamina cost **flat** or
+  proportional to action **time**? Only `Tracking` was measured. If flat, the correct objective
+  becomes **rank-per-action** (engine runs `objectiveMode: "per-second"`), `Assassination` pays
+  **2.6× Tracking**, and Stage B reopens *for Assassination only* — never Raid.
+- New scripts: `src/q10probe.js`, `src/setratchetmode.js` (+ `vite.config.ts` download filter).
+
 ## 2026-08-05
 
 - **🔴 STAGE B CLOSED PERMANENTLY — and the Q11 go-ahead was never spent.** Kenneth approved the

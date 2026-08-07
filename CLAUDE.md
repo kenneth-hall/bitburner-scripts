@@ -86,11 +86,27 @@ on request — hold to them even when the moment is uncomfortable.
     100% success**, 0.2191 net rank/s per action-second. Rank rate **0.1371/wall-sec** (24h) →
     **32–38 days** to the 400,000 `Operation Daedalus` gate. ⚠️ The old "150 days / 0.0307 rank/s /
     ~50× stack" figures are **obsolete by 4.5×** — do not quote them.
-  - **🔑 The one lever left is `Overclock` (17/90, ×8.3 still on the table → ~4–5 days), and it is
-    gated on Q10** (is stamina spent per action or per second?). Success chance is **capped at 100%**
-    and duty is **99.9%**, so nothing else measured moves the rate — including the entire Bladeburner
-    aug tier, which measured **inert** 2026-08-05 (every aug multiplies only success/stamina/analysis;
-    none touches rank-per-action or action time). **Recommended next live measurement: Q10, not Q11.**
+  - **🔴 Q10 ANSWERED 2026-08-06: stamina is spent PER ACTION → `Overclock` is DEAD.** Measured
+    (`src/q10probe.js`, 593 samples): stamina fell exactly **9 times in 449 producing seconds**, every
+    drop precisely **2.162**, every one on a rank tick, spaced at the 51s action time; regen is
+    continuous at 0.03352/s. Sustainable actions/hour = `regen × 3600 / cost` = **55.8, independent of
+    action time** — Overclock 90 would permit 585.9/hour by the clock and change nothing. ⚠️ **Never
+    quote the "×8.3 → ~4 days" figure again**; the ~4,000 banked SP were correctly *not* spent.
+  - **We are stamina-limited (rank-producing fraction 68.5%), which partly REOPENS the aug tier.**
+    The 2026-08-05 "inert" verdict was half wrong: it argued stamina augs were useless because
+    "duty is 99.9%", but `dutyCycle` counts regeneration as on-duty. **`bladeburner_stamina_gain`
+    multiplies the rank rate directly.** Success-chance augs remain worthless (100% success).
+    ⚠️ Buy nothing yet — whether `max_stamina` helps hinges on an unmeasured question (does regen
+    scale with max?).
+  - **➡️ Next measurement is Q13, and it is cheap:** is per-action stamina cost **flat** or
+    proportional to action **time**? Only `Tracking` was measured. If flat, `Assassination` pays
+    **2.6× Tracking per action**, the correct objective becomes **rank-per-action** (the engine runs
+    `objectiveMode: "per-second"`), and Stage B reopens *for Assassination only* — never Raid.
+  - **⚠️ Install cadence STOPPED 2026-08-06** (`src/ratchet-mode.txt` → `observe`; installs cost a
+    measured **5.4%** of Bladeburner wall-time). 🔴 **That file is pushed from the repo by viteburner
+    AND is gitignored** — an in-game write alone silently reverts on the next dev-server restart, and
+    did: it re-enabled installs and #43 fired 7 min later, killing a running probe. Edit the repo
+    copy, then verify with `run setratchetmode.js`.
   - **✅ BN2.1 CLEARED 2026-07-23** — `w0r1d_d43m0n` backdoored (`backdoorwd.js` auto-fired once
     hacking crossed the gate), confirmed on the BitVerse screen (`bb-shot.png`). **Cleared at
     M≈34.3, NOT the M≈45 target**: the exp stack overshot (13.9B exp) and put the level at
