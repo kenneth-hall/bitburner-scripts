@@ -463,3 +463,129 @@ Read for context: `CLAUDE.md` · `docs/bn6-playbook.md` · `docs/bladeburner-ref
 `docs/bitnodes.md` · `docs/gang-engine.md` · `docs/batcher-engine.md`.
 
 No game state was modified. No probe was run. No other file was changed.
+
+---
+
+## 8. MEASURED FOLLOW-UP — 2026-08-06 21:07 CDT (`src/leverprobe.js`, read-only)
+
+`logs/leverprobe-1786067728150.json` — 300 stamina samples over 302 s, plus direct
+`getActionMaxLevel` reads. This settles the two questions §7 left open and **falsifies this
+document's own central case**.
+
+### 8.1 🔴 The action level DOES cap at 100. The ~14-day central case is dead.
+
+`Tracking` reads **100 / 100**. It has sat there for hours without advancing.
+
+| Action | current / max |
+|---|---|
+| **Tracking** | **100 / 100** |
+| Investigation | 22 / 22 |
+| Raid | 7 / 7 |
+| Bounty Hunter | 5 / 5 |
+| Retirement · Undercover · Sting · Stealth Retirement · Assassination | 1 / 1 |
+
+⚠️ **`current == max` is the normal state for every action** (the engine always operates at the
+highest unlocked level), so "at cap" *by itself* proves nothing. The cap conclusion rests on three
+things together: the value is exactly **100** where every other action sits at an unround number
+still visibly growing (22, 7, 5); Tracking has not moved past it in hours; and the hourly rank rate
+**stopped climbing at the same time**.
+
+**The rate confirms it.** Hourly, UTC: peaked **0.1952 at 15:08**, then
+`0.1738 → 0.1521 → 0.1541 → 0.1614 → 0.1671 → 0.1686 → 0.1791 → 0.1802` — oscillating in a band,
+never again exceeding the 15:08 peak. §2's superlinear fit was **real but is now historical**;
+the compounding it measured has ended.
+
+🔑 **This also explains the unexplained 16:40 UTC drop** flagged when this doc's numbers were
+first checked (0.2022 → 0.1461). That was not noise and not the install — it was Tracking topping
+out, and the engine beginning to alternate into Investigation. §4.1 called that "more likely
+crossover scoring than a cap." **It was the cap.**
+
+**Revised projection at rank 34,083 and a plateaued ~0.17 rank/s: ~25 days.** The pessimistic
+branch of §7 is now the operative one. (A 302 s window during the probe read 0.1356, but that is
+five minutes of a noisy series overlapping install #43's recovery — the hourly series is the
+honest source. Do not quote 0.1356.)
+
+### 8.2 ✅ Stamina regen is FLAT — `Cyber's Edge` is worthless. Do not spend the SP.
+
+Measured **0.03274 / s** at `staminaMax` **88.96**, against Q10's **0.03352 / s** at a max of
+~136.5. Max moved ~35%; regen moved **2.3%**. **Regen does not scale with max stamina.**
+
+This closes `CLAUDE.md`'s open *"whether `max_stamina` helps hinges on an unmeasured question
+(does regen scale with max?)"* — **it does not help.**
+
+- Sustainable actions/hour = `0.03274 × 3600 / 2.1434` = **55.0** — matching Q10's 55.8 and §2.5's
+  derived 52.7 from a third data path.
+- **`Cyber's Edge` is neutral-to-harmful, not merely useless.** The guard thresholds are
+  *fractions* of max (`STAMINA_FLOOR_FRACTION` 0.5 / `STAMINA_RESUME_FRACTION` 0.55), while regen
+  is a flat *absolute* rate. Raising max widens the 0.05×max recovery band in absolute stamina, so
+  each rest gets **longer** in wall-clock. Throughput is unchanged; the duty pattern just gets
+  lumpier. **8,912 SP stay parked. The `bladeburner_stamina_gain` aug argument in `CLAUDE.md`
+  dies with it.**
+
+### 8.3 🔑 The objective function is provably wrong — this is now the top lever
+
+Actions/hour is **fixed at ~55 by arithmetic** (flat regen ÷ flat per-action cost), *independent of
+action time*. Therefore:
+
+```
+rank/sec  =  55/hour  x  rank-per-action  /  3600
+```
+
+**Actions/hour cannot be raised by anything.** The only remaining term is **rank per action** — so
+the correct objective is **rank-per-action**, and the engine runs `objectiveMode: "per-second"`
+(`bladeburnermanager.js`). A per-second objective systematically prefers *short* actions, which is
+exactly backwards when time is free and stamina is the currency.
+
+At 0.17 rank/s and 55 actions/hour we are earning **~11.1 rank/action**. Tracking is capped; the
+higher-yield operations are not. ⚠️ Their scores derive from `Estimated` ranges, so the size of the
+gain is **not** established here — only that the objective is measuring the wrong thing.
+
+### 8.4 Diplomacy starvation — behaviour confirmed, value NOT established
+
+Action mix over the 302 s window: **Tracking 122 s · HRC 120 s · Investigation 58 s · Diplomacy 0 s**,
+with Ishima chaos at **15.68** — far above `CHAOS_DIPLOMACY_THRESHOLD` (1.0). The
+`staminaRecovering → HRC` return at `bladeburnermanager.js:547` sits above both Diplomacy branches,
+so ~40% of wall time is spent on HRC while chaos management never runs. **The hypothesis is
+confirmed as behaviour.**
+
+Two corrections to how tempting that looks:
+
+1. **That 40% is not recoverable as rank.** It is the forced idle the 55 actions/hour ceiling
+   implies — HRC is not *costing* throughput, it is what "waiting for stamina" looks like. Regen
+   measured identical across a window mixing HRC, Tracking and Investigation, so regen is
+   **action-independent**: the idle is free, but filling it cannot buy actions.
+2. **Chaos may not be binding at all.** `pMin` has held **1.0** from level 48 to 99 — success has
+   never degraded. Ishima at 15.68 is the *cleanest* city on the board (Sector-12 **1,491**,
+   Chongqing **651**, Aevum **108**).
+
+So the correct read is: Diplomacy is **free to run** in idle time, not **valuable** to run.
+Considerations, not a blocker.
+
+### 8.5 Revised lever table
+
+| # | Lever | Status after measurement |
+|---|---|---|
+| 1 | Stop installs | ✅ **DONE** — verified in-game, `setratchetmode.js` reads `observe` |
+| 2 | Action-level cap | ✅ **ANSWERED — capped at 100.** ~14 days → **~25 days** |
+| 3 | `objectiveMode` → per-action | 🔼 **now the top lever**, and §8.3 proves the current one wrong |
+| 4 | Q11 / Stage B | unchanged — still gated on an `Estimated`-derived score |
+| 5 | Chaos / Diplomacy | 🔽 **downgraded** — free but probably not valuable (§8.4) |
+| 6 | Spend the 8,912 SP | ❌ **CLOSED for stamina** — `Cyber's Edge` measured inert (§8.2) |
+
+### 8.6 Does the recommendation survive?
+
+**Yes, but on a weaker margin, and for a different reason than §7 gave.** ~25 days still beats
+option B's 240–323 by an order of magnitude, and option C is unchanged. But the *acceleration
+thesis* that made continuing feel obvious is **spent** — §7's argument 1 ("the wall is not there")
+is now only half true: there was no wall for the first 44 h, and there is one now.
+
+**What has NOT changed:** rank is monotonic, survives installs, and no alternative is closer.
+**What HAS changed:** the forecast is ~25 days, not ~14, and the next gain must come from
+rank-per-action, not from waiting.
+
+⚠️ §6's tripwire *"rank still under 80,000 on 2026-08-13"* was calibrated against the ~14-day
+central case. At a plateaued 0.17 rank/s the honest 7-day expectation is ~137,000 — **the tripwire
+is now too loose to fire on anything and should be re-derived, not trusted.**
+
+**Open and unmeasured:** whether operations actually pay more rank-per-action than a capped
+Tracking (§8.3's premise), and whether any action's max level exceeds 100.

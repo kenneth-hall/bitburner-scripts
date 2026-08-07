@@ -100,12 +100,16 @@ on request — hold to them even when the moment is uncomfortable.
     **survive installs**, and the rank rate has been **rising, not decaying** (see below).
     - *Stamped 2026-08-06 ~01:40 UTC:* rank **33,793** · skill points **8,819** banked · Blade's
       Intuition / Digital Observer / Tracer **25** each · team size **0** · city **Ishima** ·
-      running **Tracking** at 100% success, **action level 99**.
-    - *Rate, stamped same read:* **~0.17 rank/s and RISING** — 0.102 → 0.17 over the 44h window,
-      **superlinear** (rank-per-action scales 1.041/action-level vs action time 1.020, so each
-      level is net-positive and the rate compounds). ETA **~9–25 days**, the spread driven almost
-      entirely by one unmeasured bit — **does action level cap at 100?** ⚠️ The rate is *not*
-      constant, so any ETA computed from a single rate reading is wrong in both directions.
+      running **Tracking**, at 100% success.
+    - *Stamped 2026-08-07 ~02:08 UTC:* rank **34,083** · skill points **8,912** · Ishima chaos
+      **15.68** (the *cleanest* city — Sector-12 1,491 / Chongqing 651 / Aevum 108).
+    - 🔴 *Rate, stamped same read:* **~0.17 rank/s and PLATEAUED — the acceleration is OVER.**
+      **`Tracking` measured 100 / 100 — the action level caps at 100** (`leverprobe.js`). The
+      superlinear climb (0.102 → 0.195 over 44h) was real but is **historical**: the hourly rate
+      peaked **0.1952 at 15:08 UTC 08-06** and has oscillated 0.15–0.18 since without ever
+      re-passing it. ETA is now **~25 days**, not ~14. ⚠️ Do not quote "0.1356" — that was a noisy
+      302 s probe window overlapping install #43's recovery; the hourly series is the honest source.
+      Recompute from `logs/goal-log.json`, never from a single short sample.
     - **Overclock 17/90 — do NOT buy more, it is measured DEAD** (stamina is per-action, so action
       time is irrelevant to sustainable throughput). ⚠️ The "×0.10 ceiling = 8.3× throughput" claim
       this bullet used to carry was wrong; never restate it.
@@ -133,16 +137,29 @@ on request — hold to them even when the moment is uncomfortable.
     continuous at 0.03352/s. Sustainable actions/hour = `regen × 3600 / cost` = **55.8, independent of
     action time** — Overclock 90 would permit 585.9/hour by the clock and change nothing. ⚠️ **Never
     quote the "×8.3 → ~4 days" figure again**; the ~4,000 banked SP were correctly *not* spent.
-  - **We are stamina-limited (rank-producing fraction 68.5%), which partly REOPENS the aug tier.**
-    The 2026-08-05 "inert" verdict was half wrong: it argued stamina augs were useless because
-    "duty is 99.9%", but `dutyCycle` counts regeneration as on-duty. **`bladeburner_stamina_gain`
-    multiplies the rank rate directly.** Success-chance augs remain worthless (100% success).
-    ⚠️ Buy nothing yet — whether `max_stamina` helps hinges on an unmeasured question (does regen
-    scale with max?).
-  - **➡️ Next measurement is Q13, and it is cheap:** is per-action stamina cost **flat** or
-    proportional to action **time**? Only `Tracking` was measured. If flat, `Assassination` pays
-    **2.6× Tracking per action**, the correct objective becomes **rank-per-action** (the engine runs
-    `objectiveMode: "per-second"`), and Stage B reopens *for Assassination only* — never Raid.
+  - **🔴 RE-CLOSED 2026-08-06 (measured) — the aug tier is inert after all, and `Cyber's Edge` is
+    worthless. Buy neither; the ~8,912 SP stay parked.** ~~We are stamina-limited, which partly
+    REOPENS the aug tier … `bladeburner_stamina_gain` multiplies the rank rate directly.~~ That
+    reopening rested on an assumption nobody had measured. `src/leverprobe.js` measured regen at
+    **0.03274/s at `staminaMax` 88.96** vs Q10's **0.03352/s at ~136.5** — max moved ~35%, regen
+    moved **2.3%**. **Stamina regen is FLAT, independent of max.** So sustainable actions/hour is
+    `regen × 3600 / cost` = **55.0** and *nothing* about max stamina can raise it. ⚠️ `Cyber's Edge`
+    is **neutral-to-harmful**, not merely useless: the guards are *fractions* of max
+    (`STAMINA_FLOOR_FRACTION` 0.5 / `STAMINA_RESUME_FRACTION` 0.55) while regen is a flat *absolute*
+    rate, so raising max only makes each rest **longer** in wall-clock. Success-chance augs remain
+    worthless (100% success). Full record: `docs/bn6-go-no-go.md` §8.2.
+  - **🔑 The correct objective is rank-PER-ACTION, and the engine uses the wrong one.** Follows
+    directly from the above: `rank/sec = 55/hour × rank-per-action / 3600`, and **actions/hour is
+    fixed by arithmetic regardless of action time**. `bladeburnermanager.js` runs
+    `objectiveMode: "per-second"`, which systematically prefers *short* actions — exactly backwards
+    when time is free and stamina is the currency. ⚠️ **This is a diagnosis, not a shipped fix** —
+    it needs a phase branch + the 1246-test suite, and the size of the gain is **not** established
+    (operation scores derive from `Estimated` ranges). `docs/bn6-go-no-go.md` §8.3.
+  - **➡️ Q13 is partly ANSWERED and no longer the next measurement.** Per-action stamina cost
+    measures **~62% flat / 38% time-proportional** (`bn6-go-no-go.md` §2.5), cross-validated by
+    Q10's 55.8 actions/hour vs an independently derived 52.7. **The open question is now whether
+    operations actually pay more rank-per-action than a capped `Tracking`** — that is what gates
+    the `objectiveMode` flip and Stage B.
   - **⚠️ Install cadence STOPPED 2026-08-06** (`src/ratchet-mode.txt` → `observe`; installs cost a
     measured **5.4%** of Bladeburner wall-time). 🔴 **That file is pushed from the repo by viteburner
     AND is gitignored** — an in-game write alone silently reverts on the next dev-server restart, and
