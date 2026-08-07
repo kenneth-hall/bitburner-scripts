@@ -679,3 +679,74 @@ what Raid costs. This is a decision for Kenneth, not a conclusion this document 
 **Cheapest way to de-risk it:** Raid a *different* city first and watch its population/communities/
 chaos move. That converts an unmeasured irreversibility into a measured one, at the cost of a city
 we are not using.
+
+---
+
+## 10. 🔴 RETRACTION — §8.1's "the action level caps at 100" is FALSE
+
+**`Tracking` reads 103 / 103** (2026-08-07 ~12:20 UTC, `leverprobe.js`). It read **100 / 100**
+fourteen hours earlier. **`maxLevel` keeps growing. There is no cap at 100.** `Investigation` moved
+**22 → 29** over the same span. §8.1 is withdrawn in full, and with it §8.6's "the acceleration is
+spent" and the ~25-day forecast.
+
+**Current state:** rank **41,271**, hourly rate **0.2161** and climbing monotonically for 11 hours
+(0.1743 → 0.2161); the most recent 5-minute window read **0.2798**. Projection at 0.22–0.28:
+**~15–19 days**, i.e. back at or better than §7's original central case.
+
+### 10.1 How the wrong conclusion was reached — this is the same trap, a fourth time
+
+§8.1 rested on three legs and **every one was weak**:
+
+1. **"`Tracking` is at 100/100."** §8.1 *itself* wrote: *"`current == max` is the normal state for
+   every action … so 'at cap' by itself proves nothing."* That warning was correct and was then
+   reasoned around anyway.
+2. **"100 is a round number."** Coincidence. It is now 103.
+3. **"The rate stopped climbing."** Measured **across install #43's recovery window**. The dip was
+   the install, not a ceiling. Removing that window, the series never stopped rising.
+
+🔑 **The generalisable rule, and it is a sibling of the one already in `CLAUDE.md`:** *an estimate is
+not a measurement* — **and a trend read across a known disturbance is not a trend.** Install #43 was
+a recorded, timestamped event sitting in `ratchet-log.json`; the rate window overlapping it should
+have been excluded before any conclusion was drawn from its shape.
+
+⚠️ Note the exact shape of the repeat: **a weak signal was "confirmed" by a second weak signal, and
+the agreement was mistaken for evidence.** `CLAUDE.md` already records this failure verbatim —
+*"Three successive wrong conclusions were each 'confirmed' by re-reading the same uninformed number
+through a different lens."* This is the fourth. **Two weak confirmations of the same hypothesis are
+not independent evidence when both derive from the same uninformed reading.**
+
+### 10.2 What survives from §8 and §9
+
+| Claim | Status |
+|---|---|
+| Action level caps at 100 | 🔴 **RETRACTED** — Tracking is 103 and climbing |
+| Acceleration is over / ~25 days | 🔴 **RETRACTED** — 0.2161 and rising, ~15–19 days |
+| Stamina regen is FLAT (0.03274/s at max 88.96 vs 0.03352 at ~136.5) | ✅ **STANDS** — direct measurement, no estimate in the chain |
+| `Cyber's Edge` worthless; 8,912 SP stay parked | ✅ **STANDS** — follows from flat regen |
+| Actions/hour fixed ~55; objective should be rank-per-action | ✅ **STANDS** — arithmetic, not inference |
+| Q11 moot in Ishima (Raid [1,1]) | ✅ **STANDS** — converged range, read directly |
+| `Tracking` supply pinned at ~0 (0.6 → 0.9, net +0.46/h) | ✅ **STANDS**, but ⚠️ **reweighted** — see below |
+| Volhaven never-worked, not drained | ✅ **STANDS** — chaos 0.00 with inventory intact |
+
+**§9.2's "NEW BLOCKER" framing was overstated.** Tracking's supply *is* pinned near zero, but
+contracts regenerate at a uniform **~29.8/hour** (Bounty Hunter +29.79, Retirement +29.80 — near
+identical, and Tracking's net +0.46 is that same gross minus full consumption). Tracking therefore
+supplies ~30 of the ~55 actions/hour the stamina ceiling permits and `Investigation` absorbs the
+rest. **Aggregate supply is not binding; the engine already routes around it.** `Raid` regenerates
+**+15.9/hour** entirely unused, so supply would never gate Stage B either.
+
+### 10.3 Consequences for the recommendation
+
+**Continue — now on the strongest evidence yet, not the weakest.** ~15–19 days against option B's
+240–323. §8.6's "weaker margin" caveat is withdrawn along with §8.1.
+
+⚠️ **Do not treat the level as unbounded.** Nothing here measures a ceiling — it measures that 100
+is not one. The honest statement is **"no cap observed through level 103."**
+
+⚠️ **§6's tripwire and §8.6's revision of it are both now miscalibrated** (one against ~14 days, one
+against ~25). At 0.22–0.28 rank/s the 7-day expectation from rank 41,271 is **~170,000–210,000**.
+Re-derive before trusting either.
+
+**Standing measurement, no probe needed:** `bn6watch.js` is sampling counts/rank/chaos every 60 s
+for 12 h to `logs/leverprobe-<epoch>.json`. Re-fit the rate from `goal-log.json` — **excluding any
+window containing an install** — before drawing a curve through it.

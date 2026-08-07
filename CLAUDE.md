@@ -103,13 +103,20 @@ on request — hold to them even when the moment is uncomfortable.
       running **Tracking**, at 100% success.
     - *Stamped 2026-08-07 ~02:08 UTC:* rank **34,083** · skill points **8,912** · Ishima chaos
       **15.68** (the *cleanest* city — Sector-12 1,491 / Chongqing 651 / Aevum 108).
-    - 🔴 *Rate, stamped same read:* **~0.17 rank/s and PLATEAUED — the acceleration is OVER.**
-      **`Tracking` measured 100 / 100 — the action level caps at 100** (`leverprobe.js`). The
-      superlinear climb (0.102 → 0.195 over 44h) was real but is **historical**: the hourly rate
-      peaked **0.1952 at 15:08 UTC 08-06** and has oscillated 0.15–0.18 since without ever
-      re-passing it. ETA is now **~25 days**, not ~14. ⚠️ Do not quote "0.1356" — that was a noisy
-      302 s probe window overlapping install #43's recovery; the hourly series is the honest source.
-      Recompute from `logs/goal-log.json`, never from a single short sample.
+    - *Stamped 2026-08-07 ~12:20 UTC:* rank **41,271** · `Tracking` **103 / 103** ·
+      `Investigation` **29 / 29** · hourly rate **0.2161 and still climbing** (0.1743 → 0.2161
+      monotonically over 11h; latest 5-min window 0.2798) · ETA **~15–19 days**.
+    - 🔴 **RETRACTED 2026-08-07 — "the action level caps at 100 / the acceleration is over / ~25
+      days" was WRONG.** `Tracking` read 100/100, then **103/103** fourteen hours later — `maxLevel`
+      keeps growing. The honest statement is **"no cap observed through level 103,"** not "no cap."
+      ⚠️ **How it went wrong, because it is the fourth instance of one pattern:** `current == max` is
+      the *normal* state for every action (the doc said so and reasoned around it anyway), 100 being
+      round was coincidence, and the "rate stopped climbing" reading was **taken across install
+      #43's recovery window**. 🔑 **New rule, sibling to "an estimate is not a measurement":
+      A TREND READ ACROSS A KNOWN DISTURBANCE IS NOT A TREND** — installs are timestamped in
+      `ratchet-log.json`; exclude those windows before fitting anything. And **two weak signals
+      agreeing is not evidence when both derive from the same uninformed reading.** Full record:
+      `docs/bn6-go-no-go.md` §10.
     - **Overclock 17/90 — do NOT buy more, it is measured DEAD** (stamina is per-action, so action
       time is irrelevant to sustainable throughput). ⚠️ The "×0.10 ceiling = 8.3× throughput" claim
       this bullet used to carry was wrong; never restate it.
