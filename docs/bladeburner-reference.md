@@ -314,7 +314,42 @@ current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract
     roughly **36 Raids** before all are exhausted, at 97.44 rank/success ≈ **3,500 rank — 0.9% of the
     400,000 gate.** So **Raid cannot clear the node by itself**; it is a *consumable*, not an engine,
     unless population regenerates.
-  - 🔴 **✅ ANSWERED 2026-08-05 — POPULATION DOES NOT REGENERATE. The drain is PERMANENT.** Volhaven
+  - # 🚨 RETRACTED IN FULL 2026-08-06 (evening) — EVERYTHING FROM HERE TO THE END OF THIS BULLET IS WITHDRAWN
+    **The claim "Raid permanently kills a city" was never measured. Do not cite any of it.** The one
+    reading it all rested on — `getCityEstimatedPopulation` = 0 for Volhaven, and every action there
+    scoring 0 — turns out to mean **"unknown," not "zero."**
+
+    **The measurement that overturns it** (`bladeburneractionprobe.js`, run while occupying Volhaven,
+    2026-08-06): `getActionEstimatedSuccessChance` returns a **[MIN, MAX] range**, and for *every one
+    of the nine* contracts/operations in Volhaven it reads **`[0.0000, 1.0000]`** — maximum
+    uncertainty. Ishima, worked continuously, reads **`[1.0000, 1.0000]`** — converged. Volhaven's
+    action inventory is also **intact and large** (2,727 Raids · 3,496 Undercover · 1,432
+    Assassinations remaining), which a destroyed city would not have.
+
+    🔑 **Why this fooled us three times: `bladeburnermanager.js:304` scores on `pMin`** — the
+    *minimum* of that range. An unscouted city and a genuinely dead city therefore produce an
+    **identical** `scorePerSec: 0`. The "behavioural confirmation" logged below was not independent
+    evidence at all; it was the same uninformed estimate read through its most pessimistic bound.
+
+    ⚠️ **Compounding gap — `Field Analysis` is NOT in the engine's action pool.** It is the documented
+    counter (*"will improve the accuracy of your Synthoid population estimated in the current city"*,
+    and proven 2026-07-30 to collapse Raid's range from `[0.075, 0.097]` to a point value). Because
+    the engine cannot scout, it can never recover intel on a city it has lost track of — it sees
+    `pMin = 0` forever and mistakes a **fixable intelligence problem for a dead city**.
+
+    **Status of everything downstream:** Raid's true cost to a city is **UNKNOWN**; whether population
+    regenerates is **UNKNOWN**; the Stage B closure that rested on city-consumption is **REOPENED**
+    (see Q11/Q14 in §10). What survives untouched is only what was measured *directly*: Raid does
+    consume Synthoid population per its in-game description, and on 2026-08-03 the engine did stall
+    in Volhaven — but that stall is now explained by lost intel, not a dead city.
+
+    📌 **The lesson, which cost three separate commits to learn: an ESTIMATE is not a MEASUREMENT.**
+    The `[min, max]` range was available from the first minute and would have shown this immediately.
+    Any `ns.bladeburner` value whose name contains `Estimated` must be read as a range, and any
+    conclusion drawn from a single-point read of one is not evidence. The original text follows,
+    struck through, only so the reasoning error stays legible.
+
+  - ~~🔴 **✅ ANSWERED 2026-08-05 — POPULATION DOES NOT REGENERATE. The drain is PERMANENT.**~~ Volhaven
     was drained to 0 on 2026-08-03 ~9:14pm; re-read **47.6 hours later** it is still **exactly 0**.
     Verified two ways so a stale estimate couldn't fake it: (1) the engine's own six-city sample
     (`chaosByCity`, resampled live every cycle) and (2) a deliberate `switchbbcity.js` round trip
@@ -345,13 +380,13 @@ current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract
     - Communities *do* recover (Volhaven 71 → 77, Ishima 39 → 44 over the same window). **Population
       does not.** Communities gate whether Raid is *possible*; population is what drives success
       chance — so the recovering quantity is not the one that matters.
-    - ✅ **Re-confirmed BEHAVIOURALLY 2026-08-06, which is the evidence that actually carries the
-      conclusion.** Occupying Volhaven again (48h+ after the drain), with `cityStock.Volhaven`
-      freshly sampled in-city: `pop 0`, **`Tracking scorePerSec` exactly `0`**, best operation
-      `Sting Operation` at **−0.0111/sec**. Scores derive from success chance, which is computed from
-      **true** population rather than the estimate — so this is the world reporting the city is dead,
-      not the instrument idling. That distinction is the whole reason the corrected reasoning above
-      still lands in the same place.
+    - ~~✅ **Re-confirmed BEHAVIOURALLY 2026-08-06** … Scores derive from success chance, which is
+      computed from **true** population rather than the estimate — so this is the world reporting the
+      city is dead, not the instrument idling.~~
+      🚨 **FALSE, and this specific sentence is the error that made a retraction necessary.** Scores
+      do **not** derive from true population — `bladeburnermanager.js:304` reads `pMin` from
+      `getActionEstimatedSuccessChance`, i.e. the pessimistic bound of *the same estimate*. The
+      "independent behavioural confirmation" was circular.
     - 🔑 **Therefore `Raid` is disqualified permanently, and Stage B with it** (Raid was the only
       operation worth opening the gate for — see the net-EV table in §5). The trade is: ~585 rank
       harvested per city, against a city that pays **18,900 rank/day** via Tracking. **Ishima repays

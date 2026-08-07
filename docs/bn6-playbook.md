@@ -117,7 +117,40 @@ is still unanswered. **Next step is S14.2 step 1: request a fresh go-ahead for a
 measurement.** Until that is answered the engine keeps running Stage A, and if it comes back
 unmeasurable a third time the ~2-week revert-to-batcher default still applies.
 
-### 🔴 RESOLVED 2026-08-05 — STAGE B IS CLOSED PERMANENTLY, AND WE DO NOT REVERT TO BATCHER
+### 🚨 2026-08-06 (evening) — STAGE B IS **REOPENED**. The section below is RETRACTED, not superseded.
+
+**What broke.** The closure rested on "Raid permanently kills a city," evidenced by Volhaven reading
+population 0 and every action there scoring 0. Both numbers mean **"unknown," not "zero."**
+`getActionEstimatedSuccessChance` returns a **[MIN, MAX]** range; in Volhaven every one of the nine
+contracts/operations reads **`[0.0000, 1.0000]`** (maximum uncertainty) against Ishima's
+**`[1.0000, 1.0000]`** (converged). And the engine scores on **`pMin`**
+(`bladeburnermanager.js:304`), so an *unscouted* city is arithmetically indistinguishable from a dead
+one. Volhaven's inventory is intact and large — **2,727 Raids, 3,496 Undercover, 1,432
+Assassinations** still listed.
+
+**So the real event on 2026-08-03 was that Raid destroyed our INTELLIGENCE about the city**, and the
+engine has no way to rebuild it: **`Field Analysis` is not in its action pool.** It is the documented
+counter and is already proven to work here (2026-07-30: collapsed Raid's range from `[0.075, 0.097]`
+to a point value). A fixable intel problem was read as a permanent loss.
+
+**Current status of the BN6 win path, stated honestly:**
+- **Raid's true cost to a city: UNKNOWN.** It does consume Synthoids (in-game description), but by
+  how much, and whether that recovers, was never measured.
+- **Stage B: OPEN**, gated on Q11 (HP per failed operation) and now **Q14** (does scouting a drained
+  city restore usable success chances?).
+- **Q13 matters more than before:** if per-action stamina cost is flat, the objective is
+  **rank-per-action**, where Raid pays **65.0** and Assassination **26.96** against Tracking's
+  **10.30**. Those are 6.3× and 2.6×.
+- **What still stands, because it was measured directly and is unaffected:** Q10 — stamina is spent
+  **per action**, `Overclock` is dead (see below). That probe measured stamina deltas against a
+  wall clock, with no estimate anywhere in the chain.
+
+⚠️ **Method note, earned the hard way over three commits: an ESTIMATE is not a MEASUREMENT.** Any
+`ns.bladeburner` value containing `Estimated` must be read as a **range**; a single-point read of one
+is not evidence. This one error produced three successive wrong conclusions, each "confirmed" by
+re-reading the same uninformed number through a different lens.
+
+### [RETRACTED 2026-08-06 — see above] ~~RESOLVED 2026-08-05 — STAGE B IS CLOSED PERMANENTLY~~, AND WE DO NOT REVERT TO BATCHER
 
 Kenneth granted the Q11 go-ahead. **It was never spent** — a cheaper measurement settled the branch
 first, and the answer is *don't open the gate, ever*. Three findings, in the order they landed:

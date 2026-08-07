@@ -86,7 +86,23 @@ on request — hold to them even when the moment is uncomfortable.
     100% success**, 0.2191 net rank/s per action-second. Rank rate **0.1371/wall-sec** (24h) →
     **32–38 days** to the 400,000 `Operation Daedalus` gate. ⚠️ The old "150 days / 0.0307 rank/s /
     ~50× stack" figures are **obsolete by 4.5×** — do not quote them.
-  - **🔴 Q10 ANSWERED 2026-08-06: stamina is spent PER ACTION → `Overclock` is DEAD.** Measured
+  - **🚨 STAGE B REOPENED 2026-08-06 (evening) — the "Raid permanently kills a city" finding is
+    RETRACTED. It was never measured.** Volhaven's population `0` and its actions scoring `0` both
+    mean **"unknown," not "zero"**: `getActionEstimatedSuccessChance` returns a **[MIN, MAX]** range,
+    and in Volhaven every one of the nine contracts/operations reads **`[0.0000, 1.0000]`** (maximum
+    uncertainty) vs Ishima's **`[1.0000, 1.0000]`** (converged). The engine scores on **`pMin`**
+    (`bladeburnermanager.js:304`), so an **unscouted city is indistinguishable from a dead one**.
+    Volhaven's inventory is intact: 2,727 Raids · 3,496 Undercover · 1,432 Assassinations.
+    ⚠️ **`Field Analysis` is not in the engine's pool**, so it can never rebuild lost intel — it reads
+    a fixable intelligence problem as a permanent loss. **Raid's true city cost is UNKNOWN**;
+    Stage B is gated on Q11 + new **Q14** (does scouting restore a drained city?).
+  - **📌 The method rule this cost three commits to learn: an ESTIMATE is not a MEASUREMENT.** Any
+    `ns.bladeburner` value whose name contains `Estimated` must be read as a **range**; a
+    single-point read of one is not evidence. Three successive wrong conclusions were each
+    "confirmed" by re-reading the same uninformed number through a different lens.
+  - **🔴 Q10 ANSWERED 2026-08-06: stamina is spent PER ACTION → `Overclock` is DEAD.** *(Unaffected by
+    the retraction above — this probe timed real stamina deltas against a wall clock, no estimate in
+    the chain.)* Measured
     (`src/q10probe.js`, 593 samples): stamina fell exactly **9 times in 449 producing seconds**, every
     drop precisely **2.162**, every one on a rank tick, spaced at the 51s action time; regen is
     continuous at 0.03352/s. Sustainable actions/hour = `regen × 3600 / cost` = **55.8, independent of

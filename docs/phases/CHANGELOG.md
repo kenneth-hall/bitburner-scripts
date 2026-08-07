@@ -37,6 +37,27 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
   becomes **rank-per-action** (engine runs `objectiveMode: "per-second"`), `Assassination` pays
   **2.6× Tracking**, and Stage B reopens *for Assassination only* — never Raid.
 - New scripts: `src/q10probe.js`, `src/setratchetmode.js` (+ `vite.config.ts` download filter).
+- **🚨 LATER THE SAME DAY — the Stage B closure above is RETRACTED. "Raid permanently kills a city"
+  was never measured.** Kenneth asked whether we were missing a way to regrow a city; checking rather
+  than defending the conclusion overturned it. `getActionEstimatedSuccessChance` returns a
+  **[MIN, MAX]** range, and in Volhaven every one of the nine contracts/operations reads
+  **`[0.0000, 1.0000]`** — *maximum uncertainty* — against Ishima's **`[1.0000, 1.0000]`**. Volhaven's
+  inventory is intact (2,727 Raids · 3,496 Undercover · 1,432 Assassinations). The engine scores on
+  **`pMin`** (`bladeburnermanager.js:304`), so an **unscouted city is arithmetically identical to a
+  dead one**. The 2026-08-03 stall was **lost intelligence, not a dead city** — and the engine cannot
+  fix it because **`Field Analysis` is not in its action pool**.
+  - Also retracted with it: the "occupied city grows ~+3.8%/hour proportionally" mechanism published
+    hours earlier. Ishima was occupied continuously for three days and moved **+1m in two days, then
+    +1,447m in one** — the jump coinciding exactly with the engine switching to `Investigation`. That
+    was **estimate refinement, not growth**.
+  - **Now OPEN:** Raid's true city cost · whether population regenerates · Stage B (gated on Q11 and
+    new **Q14**, does scouting restore a drained city). **Unaffected:** Q10 — that probe timed real
+    stamina deltas against a wall clock with no estimate in the chain.
+  - 📌 **Method rule extracted, at the cost of three commits: an ESTIMATE is not a MEASUREMENT.** Any
+    `ns.bladeburner` value containing `Estimated` must be read as a **range**; a single-point read of
+    one is not evidence. Each wrong conclusion was "confirmed" by re-reading the same uninformed
+    number through a different lens — including one explicitly billed as *independent behavioural
+    confirmation*, which was circular.
 
 ## 2026-08-05
 

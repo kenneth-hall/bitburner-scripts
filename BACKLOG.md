@@ -529,6 +529,21 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
+- **🚨 Q14: does scouting a drained city restore usable success chances? (Volhaven is the test case.)**
+  Volhaven reads population `0` and every action `[0.0000, 1.0000]` — **maximum uncertainty, not
+  zero** — while its inventory is intact (2,727 Raids · 3,496 Undercover · 1,432 Assassinations).
+  `Field Analysis` is the documented counter and is already proven here (2026-07-30: collapsed Raid's
+  range from `[0.075, 0.097]` to a point value). **Next action:** occupy Volhaven, run `Field
+  Analysis` repeatedly, re-run `bladeburneractionprobe.js`, and watch whether the `[min, max]` range
+  narrows off `[0, 1]`. If it does, Raid is **not** a city-killer, Stage B reopens on economics, and
+  a whole city is recovered. ⚠️ Needs the action slot — note that standing the engine down *releases*
+  `backdoorfactions.js`/`backdoorwd.js` to grab it (they yield to the engine's hold marker), so the
+  naive quiesce is backwards.
+- **🔧 The engine cannot scout — `Field Analysis` is absent from its action pool.** Consequence: any
+  city whose intel degrades looks permanently dead to it forever (`pMin = 0`), and it will rotate
+  away rather than spend two minutes fixing it. **Next action:** decide whether scouting belongs in
+  the engine as a maintenance action (with a trigger on a wide `[min, max]` spread) — that is a spec
+  question, not a constant tweak. **Wake condition:** immediately, if Q14 comes back positive.
 - **🔑 Q13: is per-action stamina cost FLAT, or proportional to action time?** Q10 came back
   **per-action** (2026-08-06), which makes stamina the binding constraint and — if cost is flat —
   makes **rank per action** the correct objective instead of the engine's `objectiveMode:
