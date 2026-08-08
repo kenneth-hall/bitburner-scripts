@@ -76,11 +76,13 @@ on request — hold to them even when the moment is uncomfortable.
     `bladeburner-state.json` and obvious in the in-game panel. ⚠️ **Do not treat any rank rate
     produced by Phase 38 as evidence** — the engine was mis-tuned three separate ways and the
     objective function it optimised (rank/second) is itself now in question.
-  - **✅ Phase 39 SHIPPED 2026-08-03** (`phase-39-bladeburner-primary.spec.md` — spec drafted, cold
-    review, implemented, live-validated, 1246 tests green; commits 36e788f/7fe288e). Its go/no-go
-    deliverable **C2 fired 2026-08-03**, and the node-level branch that followed it was resolved
-    2026-08-05 (Stage B closed permanently — see the retired tripwire above). Docs still sit in the
-    repo root and have not graduated to `docs/phases/`.
+  - **✅ Phase 39 SHIPPED 2026-08-03** (`docs/phases/phase-39-bladeburner-primary.spec.md` — spec
+    drafted, cold review, implemented, live-validated, 1246 tests green; commits 36e788f/7fe288e).
+    Its go/no-go deliverable **C2 fired 2026-08-03**. ✅ Docs graduated to `docs/phases/` 2026-08-08.
+    🔴 **This bullet used to say the 2026-08-05 branch "closed Stage B permanently" — that is
+    RETRACTED** (see the Stage B bullet below; the closure was never measured). ⚠️ And **C2 itself
+    is now suspect**: it fired on `getActionEstimatedSuccessChance`, which was measured on
+    2026-08-08 to be biased **high** at its lower bound — see `bn6-go-no-go.md` §11.5.
   - **🔴 LANDMINE — FOUR scripts contend for the single player-action slot.**
     `bladeburnermanager.js`, `augfarmer.js` (faction work), `backdoorfactions.js` and
     `backdoorwd.js` (`installBackdoor`) all claim it. Any probe or feature needing the slot must
@@ -635,9 +637,14 @@ is pre-authorized; don't checkpoint for it.
   restart loads stale behavior, the push hadn't landed — restart again.
 
 ## Tracking work
-Check `BACKLOG.md` before starting; keep it current (In Progress / Next Up / Ideas). On
+Check `BACKLOG.md` before starting; keep it current. ⚠️ **Its only two entry kinds are `Bugs` and
+`Ideas`** — this line used to say "In Progress / Next Up / Ideas" and was **stale by 8 days**
+(BACKLOG deliberately dropped the driver/calendar role in 169bc93, 2026-07-12; corrected here
+2026-08-08). **Do not add In Progress / Next Up sections back** — what to work on next lives in
+this file's "Current goal" line, and active feature work lives in its phase docs. On
 completion, move a dated, condensed entry to `docs/phases/CHANGELOG.md` — keep history out
-of BACKLOG. **Update as part of the work, not after** — stage the BACKLOG/CHANGELOG edit in
+of BACKLOG (**resolved entries are deleted there, not annotated in place**; git history is the
+trail). **Update as part of the work, not after** — stage the BACKLOG/CHANGELOG edit in
 the same commit as the change it describes, so it doesn't become a separate git cycle.
 
 **Keep the engine reference docs current *without being asked*.** The gated references —

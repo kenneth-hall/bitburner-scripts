@@ -6,6 +6,31 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-08
+
+- **📊 BN6 re-stamp + the throughput model closed.** Rank **59,008**; rate re-fit on a clean 35h
+  window (install #43 excluded) at **0.1952 rank/s = 703 rank/h, FLAT** → ETA **~20.2 days**. The
+  08-07 "0.2161 and still climbing / ~15–19 days" was an 11h read that did not persist. Measured
+  realised rank/action from `context.rank` deltas: `Tracking` **19.77** and rising with its level
+  (110, no cap observed) vs `Investigation` **4.27** and collapsing (9.75 → 0.88; 68.9% of its
+  actions pay zero) — they cancel, which is *why* the aggregate looks flat. Model closes to 0.2%:
+  `Tracking` is supply-capped at ~30 actions/h against a ~56/h stamina ceiling, so `Investigation`
+  is filler on capacity that would otherwise idle — **"just drop it" is wrong.** Worst finding:
+  `getActionEstimatedSuccessChance`'s **lower** bound is biased high (pMin 0.764 vs ~7% realised),
+  which puts checkpoint C2 and `Raid`'s 45.72/action in doubt. Also logged: `Diplomacy` has **never
+  fired** despite chaos 66.34 vs its own target 50. → [`docs/bn6-go-no-go.md`](../bn6-go-no-go.md) §11.
+- **✅ RESOLVED (dissolved, not fixed) — the "rep window, then one install" freeze that could never
+  fire.** `augfarmer.js`'s `FACTION_SCOPE` genuinely excludes `Bladeburners`, so the freeze had no
+  trigger — but the prize it protected measured **inert** (the 12.5k–62.5k-rep tier only multiplies
+  success chance / stamina / analysis, and we run at 100% success / 99.9% duty), so rep resetting on
+  install costs nothing. Verified live 2026-08-08: `repStarvation` now reads a 13,601-rep deficit and
+  correctly declines it (`reason: "deficit-too-expensive"`). Doubly moot — installs stopped 08-06.
+- **🧹 Phase-doc filing.** Phase 39 (`.features` + `.spec`) and Phase 34's orphaned `.features`
+  graduated to `docs/phases/`; Phase 36's void live gates struck (see its spec's banner) and its
+  work-item count corrected to **1 of 4 shipped**. `BACKLOG.md`'s Bugs/Ideas structure confirmed
+  deliberate (169bc93, 2026-07-12) and `CLAUDE.md`'s stale "In Progress / Next Up" instruction
+  updated to match.
+
 ## 2026-08-06
 
 - **✅ Q10 ANSWERED — stamina is spent PER ACTION, so `Overclock` is dead and the ×8.3 was a mirage.**
@@ -188,7 +213,7 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 - **Phase 39 (Bladeburner-primary engine) implemented and live-validated — `npm test` green (1246
   tests), R1 measured (with a caveat) and V1 passed live; V3/V4 (C1/C2 checkpoints) still pending
   their real-time thresholds.** `src/bladeburnermanager.js` substantially rebuilt per
-  [`phase-39-bladeburner-primary.spec.md`](../../phase-39-bladeburner-primary.spec.md): telemetry
+  [`phase-39-bladeburner-primary.spec.md`](phase-39-bladeburner-primary.spec.md): telemetry
   derived only from `getRank()`/verified `getCurrentAction()` time, never engine intent (S1 — the
   rule that would have caught every Phase 38 telemetry bug); the engine now HOLDS the player-action
   slot continuously and grants bounded, budgeted, escalating yields instead of Phase 38's
