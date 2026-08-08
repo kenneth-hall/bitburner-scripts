@@ -847,20 +847,49 @@ the Raid figure has **never been realised**, only predicted. Even the *converged
 Supply is **not** a candidate — Investigation count 3,076 with +17.2/h regen against ~26/h use is
 falling but nowhere near empty.
 
-### 11.7 🔴 ENGINE DEFECT — `Diplomacy` is configured against exactly this and has never run
+### 11.7 🔴 ENGINE DEFECT — `Diplomacy` is configured against exactly this and cannot run
 
-`bladeburner-state.json`: `diplomacy: {target: 50, maxDuty: 0.2, budgetRemainingMs: 720000,
-runsThisHour: 0, effect: {runs: 0, totalRemoved: 0, samples: [], meanRemovedPerRun: null}}`.
+🔴 **CORRECTED 2026-08-08 (evening). The original heading and claim — "*and has never run* … fired
+**zero times — ever** (`effect.runs` is cumulative)" — were WRONG on both counts, and are struck.**
 
-Chaos is **66.34**, the target is **50**, the budget is **untouched**, and the countermeasure has
-fired **zero times — ever** (`effect.runs` is cumulative). If cause (1) holds, this is the cheap,
-reversible lever and it is currently inert.
+`effect.runs` is **not cumulative**. `diplomacyEffect` is initialised to `emptyDiplomacyEffect()` at
+loop start (`bladeburnermanager.js:1180`) and lives only in memory; with **17 restarts** logged and
+the last startup at 2026-08-07T00:40Z, `runs: 0` means *"none since the last process start."*
+`bladeburner-log.json` in fact holds **two** `diplomacy-effect` records, both 2026-08-03. ⚠️ This is
+the **fifth** instance of one pattern: a counter was read as cumulative without checking whether
+anything persists it. Sibling rule to "an estimate is not a measurement" and "a trend read across a
+known disturbance is not a trend": **a counter is not cumulative until you find the code that
+persists it.**
+
+**The defect is real, and it is a different mechanism than §8.4's.** `pickOverheadAction` is only
+called when `pickRankAction` returns `null` (`bladeburnermanager.js:1592`). The engine now holds
+**24h `dutyCycle` 0.9998 with `rankProducingSec == actionSec`** — `Investigation` backfills every bit
+of capacity `Tracking` cannot supply (§11.4), so overhead is **never selected at all**. §8.4's
+finding (HRC out-prioritising Diplomacy *within* the overhead ladder) has been overtaken: there is no
+longer any overhead time to prioritise within. Every guard on the chaos branch currently passes —
+`bladeburner-state.json` at 2026-08-08 ~18:20 UTC reads Ishima chaos **69.02** > `CHAOS_TARGET` 50,
+`budgetRemainingMs` **720,000**, `hpFraction` **1**, stamina **0.986** and not recovering. The branch
+is live code that is structurally unreachable in this regime.
+
+**Consequence for the fix:** it is *not* a reordering of `pickOverheadAction`'s ladder. Chaos
+suppression has to **pre-empt a rank action**, which is a policy change (what chaos threshold
+justifies displacing rank, and how it interacts with the existing `MAX_DIPLOMACY_DUTY` 20%/hour cap)
+— spec-level, not a constant tweak.
+
+🔴 **And `Diplomacy`'s strength is UNMEASURED — do not quote 174 chaos/run.** Of the two records, the
+second is correctly `discarded` (`city changed Volhaven -> Ishima`); the first (`removed: 174.15`,
+Sector-12 177.5 → 3.39) **predates the same-city guard** — it carries no `cityName` field, and it is
+precisely the contaminated sample `bladeburnermanager.js:1671-1674` was written to catch ("makes it
+look ~50× stronger than it is"). The policy's justification is that it self-measures; it has not yet
+returned one usable number. **So the +230 rank/h in §11.8's table below is a hypothesis with an
+unmeasured multiplier at both ends** — it assumes chaos is Investigation's cause *and* that Diplomacy
+can move chaos materially. Neither is established.
 
 ### 11.8 The lever table this produces
 
 | lever | est. gain | reversible? | status |
 |---|---|---|---|
-| Fix `Diplomacy` (11.7) — if chaos is the cause, restores Investigation ~0.88 → ~9.75/action | **+~230 rank/h (~+33 %)** | ✅ yes | **defect, not a decision** — needs a phase branch |
+| Fix `Diplomacy` (11.7) — if chaos is the cause, restores Investigation ~0.88 → ~9.75/action | **+~230 rank/h (~+33 %)** — ⚠️ hypothesis, unmeasured at *both* ends (see 11.7) | ✅ yes | **defect, not a decision** — needs a phase branch; the fix is a pre-emption policy, not a ladder reorder |
 | Cap/freeze `Investigation` autolevel — if cause (2) holds | up to the same | ✅ yes | untested |
 | Swap filler to `Bounty Hunter`/`Retirement` (regen ~30/h each, stock ~6.5k) | **~+10 rank/h** — predicted 1.25/action; near worthless | ✅ yes | measured-poor |
 | **`Raid` in the filler slot** (regen 15.7/h, stock 3,265, Ishima pMin 1.0) | **potentially +~600 rank/h — roughly doubles the rate** | 🔴 **NO** | **Stage B — gated, see below** |

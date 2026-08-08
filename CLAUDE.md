@@ -130,9 +130,31 @@ on request — hold to them even when the moment is uncomfortable.
       ⚠️ **Checkpoint C2 ("operations lead contracts", fired 2026-08-03) and `Raid`'s 45.72/action
       both come from this same estimator and have NEVER been realised.** Do not quote 45.72 as a
       measurement; it is the strongest lever on the table *and* the least trustworthy number.
-    - 🔴 **ENGINE DEFECT, unfixed: `Diplomacy` has never run** — chaos **66.34** vs its own target
-      **50**, budget untouched, `effect.runs: 0` cumulative (§11.7). If chaos is what is killing
-      `Investigation`, this is the cheap **reversible** lever and it is inert. Needs a phase branch.
+    - 🔴 **ENGINE DEFECT, real — but CORRECTED 2026-08-08 (evening): `Diplomacy` HAS run, and
+      `effect.runs: 0` is NOT a cumulative count.** ~~"`Diplomacy` has never run … `effect.runs: 0`
+      cumulative"~~ was wrong on both halves. `bladeburner-log.json` holds **two** `diplomacy-effect`
+      records (both 2026-08-03), and `diplomacyEffect` is an **in-memory accumulator reset to
+      `emptyDiplomacyEffect()` on every process start** — with **17 restarts** logged and the last
+      startup at 2026-08-07T00:40Z, `runs: 0` means *"none since the last restart,"* never *"never."*
+      ⚠️ **Fifth instance of the same pattern: a counter was read as cumulative without checking
+      whether anything persists it.**
+      - **The defect underneath is real, and it is a DIFFERENT mechanism than the one fixed
+        2026-08-03.** That fix made the chaos branch *reachable*; it is now **starved of slack**.
+        `pickOverheadAction` is only called when `pickRankAction` returns `null`
+        (`bladeburnermanager.js:1592`), and the engine now runs **24h `dutyCycle` 0.9998 with
+        `rankProducingSec == actionSec`** — `Investigation` always backfills, so overhead is never
+        picked at all. Every guard on the branch itself currently *passes* (Ishima chaos **69.02** >
+        `CHAOS_TARGET` 50, `budgetRemainingMs` 720,000 > 0, `hpFraction` 1, stamina 0.986 not
+        recovering) — it is simply never reached.
+      - 🔴 **Diplomacy's strength is UNMEASURED — do not quote 174 chaos/run.** Of the two records,
+        the second was correctly **discarded** (`city changed Volhaven -> Ishima`) and the first
+        (`removed: 174.15`, Sector-12 177.5 → 3.39) **predates the same-city guard** — it carries no
+        `cityName` field, and it is precisely the contaminated sample
+        `bladeburnermanager.js:1671-1674` was written to catch ("makes it look ~50× stronger than it
+        is"). One clean sample has never been taken.
+      - *Stamped 2026-08-08 ~18:20 UTC:* Ishima chaos **69.02** (15.68 on 08-07 → 66.34 on 08-08
+        13:42 → 69.02) — still climbing. If chaos is what is killing `Investigation`, this is the
+        cheap **reversible** lever and it is inert. Needs a phase branch.
     - 🔴 **RETRACTED 2026-08-07 — "the action level caps at 100 / the acceleration is over / ~25
       days" was WRONG.** `Tracking` read 100/100, then **103/103** fourteen hours later — `maxLevel`
       keeps growing. The honest statement is **"no cap observed through level 103,"** not "no cap."
@@ -159,6 +181,16 @@ on request — hold to them even when the moment is uncomfortable.
     ⚠️ **`Field Analysis` is not in the engine's pool**, so it can never rebuild lost intel — it reads
     a fixable intelligence problem as a permanent loss. **Raid's true city cost is UNKNOWN**;
     Stage B is gated on Q11 + new **Q14** (does scouting restore a drained city?).
+    - **DEFAULT + DATE (set 2026-08-08, per the "open decisions carry a default and a date" rule —
+      this gate had neither for two days): Stage B stays CLOSED, expiring 2026-08-15.** If Q14 is
+      not run by then, Stage B is closed for the rest of BN6 and Stage A carries the clear alone.
+      **Why closed is the right default even though Raid is the biggest number on the table:** the
+      45.72 rank/action that makes Stage B attractive comes from `getActionEstimatedSuccessChance`,
+      and that estimator's **lower** bound was measured biased *high* on 2026-08-08 (§11.5) — so the
+      lever's headline figure is the least trustworthy number we hold. Q11 is separately moot in
+      Ishima (commit `fff3849`). **What it costs if wrong:** we forgo the largest single lever for a
+      week against a ~20-day Stage A ETA. **What reopens it early:** a positive Q14 (see the Ideas
+      entry in `BACKLOG.md`), nothing else.
   - **📌 The method rule this cost three commits to learn: an ESTIMATE is not a MEASUREMENT.** Any
     `ns.bladeburner` value whose name contains `Estimated` must be read as a **range**; a
     single-point read of one is not evidence. Three successive wrong conclusions were each

@@ -8,6 +8,36 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-08-08
 
+- **🔴 CORRECTION — "`Diplomacy` has never run" was WRONG, and the real defect is a different one.**
+  The same-day entry below recorded `effect.runs: 0` as a cumulative count; it is an **in-memory
+  accumulator reset on every process start** (17 restarts logged), and `bladeburner-log.json` holds
+  two `diplomacy-effect` records from 2026-08-03. Fifth instance of the same pattern — a counter read
+  as cumulative without checking whether anything persists it. **The defect underneath is real but
+  distinct from the 2026-08-03 fix:** that fix made the chaos branch *reachable*; it is now **starved
+  of slack**, because `pickOverheadAction` only runs when `pickRankAction` returns `null` and the
+  engine holds 24h `dutyCycle` **0.9998** (`Investigation` backfills everything). Every guard on the
+  branch passes; it is never reached. Also established: **`Diplomacy`'s strength is unmeasured** —
+  one sample was discarded for a city change, the other predates the same-city guard and is exactly
+  the contamination that guard exists to catch, so **174 chaos/run must not be quoted**. Three
+  entries filed in `BACKLOG.md`.
+- **✅ RESOLVED 2026-08-03 (filed to CHANGELOG 2026-08-08) — chaos climbed unbounded because
+  `Diplomacy` was unreachable.** Two causes. (1) `pickOverheadAction`'s call site passed
+  `hpRecovering ? 0 : hpFraction`, forcing the HP branch and making the chaos branch dead code; it
+  now passes the real `hpFraction` plus the latch separately, bounded by `MAX_DIPLOMACY_DUTY`
+  (20%/hour), target-seeking on `CHAOS_TARGET` (50), and self-measuring via the `diplomacy-effect`
+  log. (2) 🔑 **The bigger win was moving city** — sampling all six showed Sector-12 at chaos 177.5 /
+  pop 620.7m vs Volhaven at 3.4 / 1170.6m, strictly dominant; `src/switchbbcity.js` took Tracking's
+  EV/sec **0.0084 → 0.0854 (10.2×) for $0 and 0 rank**. Autonomous rotation stays off — re-filed as
+  an open Ideas entry.
+- **🧹 Phase 36 filed dormant.** Its `.features` + `.spec` moved from the repo root to
+  `docs/phases/unshipped/` — 1 of 4 work items shipped, live gates VOID, and its two premises
+  (install cadence, batcher as a win path) both removed by later decisions, so the root was
+  advertising active work that nothing was driving. `unshipped/README.md` amended: it is the first
+  entry there that is partially shipped rather than untouched.
+- **📌 Stage B's gate given a default and a date** (it had neither for two days, against
+  `CLAUDE.md`'s own "open decisions carry a default and a date" rule): **closed, expiring
+  2026-08-15**, reopened early only by a positive Q14. Rationale: Raid's headline 45.72 rank/action
+  comes from the estimator measured biased-high the same day.
 - **📊 BN6 re-stamp + the throughput model closed.** Rank **59,008**; rate re-fit on a clean 35h
   window (install #43 excluded) at **0.1952 rank/s = 703 rank/h, FLAT** → ETA **~20.2 days**. The
   08-07 "0.2161 and still climbing / ~15–19 days" was an 11h read that did not persist. Measured

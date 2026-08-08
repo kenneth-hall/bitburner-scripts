@@ -104,24 +104,37 @@ do, and what's broken?*
   rather than a real bug — not verified live either way this session. **Next action:** if HP dips
   below the floor again, check whether it's poll-cadence lag (expected, bounded) or the guard
   failing to trigger at all (a real bug) before assuming either.
-- **✅ FIXED 2026-08-03 — chaos was climbing unbounded because `Diplomacy` was unreachable; the real
-  win turned out to be moving city.** Two causes, both fixed. (1) `pickOverheadAction` is only called
-  when `pickRankAction` returns null (i.e. while recovering), and the call site passed
-  `hpRecovering ? 0 : hpFraction` — forcing the HP branch and making the chaos branch **dead code**.
-  Now passes the real `hpFraction` plus the latch separately, so chaos suppression can run inside the
-  HP hysteresis band (above the hard floor, where it is safe) while the hard floor itself is never
-  traded away. Bounded by `MAX_DIPLOMACY_DUTY` (20%/hour), target-seeking on `CHAOS_TARGET` (50) so
-  it stops on its own, and **self-measuring** (`diplomacy-effect` log records the per-run chaos delta
-  — the number the policy was missing). (2) 🔑 **The bigger finding: we were in the worst city on
-  every axis.** Sampling all six cities (free — those getters were already charged) showed Sector-12
-  at chaos 177.5 / pop 620.7m / 21 communities versus **Volhaven at 3.4 / 1170.6m / 75** — strictly
-  dominant, no trade-off. A one-off `src/switchbbcity.js` moved the division: **Tracking's EV/sec
-  went 0.0084 → 0.0854 (10.2×), for $0 and 0 rank.** ⚠️ **Still open, deliberately:** the engine does
-  **not** rotate autonomously — `CITY_ROTATION_ENABLED` stays `false`, because an automatic rotation
-  *policy* (when to move, anti-thrash hysteresis, and whether to prefer Chongqing's 2.4× population
-  over Volhaven's lower chaos once chaos is controlled) is a spec-level decision. The mechanic is now
-  measured and cheap, so that decision can be made on evidence — see `docs/bladeburner-reference.md`
-  §6's switchCity table.
+- **🔴 NEW 2026-08-08 — the chaos branch is REACHABLE but STARVED; `Diplomacy` cannot run in the
+  current regime.** Distinct from the 2026-08-03 fix (which made the branch reachable at all — that
+  entry is closed, see CHANGELOG). `pickOverheadAction` is only called when `pickRankAction` returns
+  `null` (`bladeburnermanager.js:1592`), and the engine now runs **24h `dutyCycle` 0.9998 with
+  `rankProducingSec == actionSec`** — `Investigation` always backfills the capacity `Tracking` can't
+  supply, so overhead is never selected. Every guard on the branch itself passes right now (Ishima
+  chaos **69.02** > `CHAOS_TARGET` 50, `budgetRemainingMs` 720,000, `hpFraction` 1, stamina 0.986 not
+  recovering); it is simply never reached. Chaos is climbing (15.68 on 08-07 → 69.02 on 08-08) and is
+  the leading hypothesis for `Investigation`'s collapse (9.75 → 0.88 rank/action, `bn6-go-no-go.md`
+  §11.4/§11.7). **Next action:** spec-level decision — chaos suppression has to *pre-empt* a rank
+  action rather than wait for slack, which is a policy change (what threshold, what duty ceiling,
+  how it interacts with `MAX_DIPLOMACY_DUTY`'s existing 20%/hour cap), not a constant tweak. Pairs
+  naturally with the `objectiveMode` flip (`CLAUDE.md`'s "correct objective is rank-PER-ACTION").
+- **🟡 NEW 2026-08-08 — `diplomacyEffect` does not persist across restarts, so its counter reads as
+  a cumulative one and isn't.** `diplomacyEffect` is initialised to `emptyDiplomacyEffect()` at loop
+  start (`bladeburnermanager.js:1180`) and only ever lives in memory, while `runs`/`meanRemovedPerRun`
+  are published into `bladeburner-state.json` where they read like lifetime totals. With **17
+  restarts** logged, `runs: 0` means "none since the last process start." **This directly caused a
+  wrong finding** — `runs: 0` was written into `CLAUDE.md` and `bn6-go-no-go.md` §11.7 as "`Diplomacy`
+  has never run," when `bladeburner-log.json` holds two `diplomacy-effect` records. **Next action:**
+  either seed it from the log ring at startup (same shape as `resumedTotals`, which already does
+  exactly this for `totals`) or rename the fields to make the scope obvious.
+- **🟡 NEW 2026-08-08 — `Diplomacy`'s strength has never been cleanly measured; one sample is
+  contaminated and the other was discarded.** Of the two `diplomacy-effect` records, the second is
+  correctly `discarded` (`city changed Volhaven -> Ishima`) and the first (`removed: 174.15`,
+  Sector-12 177.5 → 3.39) **predates the same-city guard** — it carries no `cityName` field, and it
+  is exactly the contamination `bladeburnermanager.js:1671-1674` was written to catch ("makes it look
+  ~50× stronger than it is"). ⚠️ **Do not quote 174 chaos/run as Diplomacy's effect.** The policy's
+  whole justification is that it self-measures, and it has not yet returned one usable number.
+  **Next action:** falls out for free once the starvation entry above is fixed — the instrument
+  already exists, it just never gets to run.
 - **🟡 NEW 2026-08-03 — `cli.mjs restart <companion>` races the daemon's supervisor and can leave TWO
   instances running.** Observed live: `restart bladeburnermanager.js` killed it, `daemon.js`'s
   supervisor logged `bladeburnermanager.js not running -- relaunching (attempt 1, missing 0s)` and
@@ -537,6 +550,17 @@ do, and what's broken?*
   a whole city is recovered. ⚠️ Needs the action slot — note that standing the engine down *releases*
   `backdoorfactions.js`/`backdoorwd.js` to grab it (they yield to the engine's hold marker), so the
   naive quiesce is backwards.
+- **The engine does not rotate cities autonomously — `CITY_ROTATION_ENABLED` is `false`, deliberately.**
+  Re-filed 2026-08-08 from the resolved 2026-08-03 chaos entry, where it was the one open item buried
+  in a closed bug. The *mechanic* is measured and cheap (the one-off `src/switchbbcity.js` move took
+  Tracking's EV/sec 0.0084 → 0.0854, 10.2×, for $0 and 0 rank), but an automatic rotation *policy* —
+  when to move, anti-thrash hysteresis, and whether to prefer Chongqing's larger population over a
+  lower-chaos city once chaos is controlled — is a spec-level decision. **Wake condition:** whenever
+  the chaos-suppression policy is specced, since "move city" and "run Diplomacy" are the two levers
+  on the same variable and should be chosen against each other, not separately. Live chaos spread as
+  of 2026-08-08: Volhaven **3.5** (pop 0, unscouted) · Ishima **69.0** (pop 9.99b) · New Tokyo
+  **995** · Aevum **224** · Chongqing **5,462** · Sector-12 **6,999**. → `docs/bladeburner-reference.md`
+  §6's switchCity table.
 - **🔧 The engine cannot scout — `Field Analysis` is absent from its action pool.** Consequence: any
   city whose intel degrades looks permanently dead to it forever (`pMin = 0`), and it will rotate
   away rather than spend two minutes fixing it. **Next action:** decide whether scouting belongs in
