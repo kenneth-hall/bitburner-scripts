@@ -152,9 +152,23 @@ on request — hold to them even when the moment is uncomfortable.
         `cityName` field, and it is precisely the contaminated sample
         `bladeburnermanager.js:1671-1674` was written to catch ("makes it look ~50× stronger than it
         is"). One clean sample has never been taken.
+      - 🔴 **AND THE LEVER IS AIMED AT THE WRONG TARGET — chaos is FALSIFIED as `Investigation`'s
+        cause (2026-08-08 evening).** Chaos is **city-scoped**, so `Tracking` is a free control: over
+        the same window, same city, while chaos rose **7.2×** (9.3 → 66.5), `Tracking`'s zero-rate
+        stayed at **0–1%** and its yield *rose* (29.92 → 24.52 rank/action, level 99 → 112) while
+        `Investigation` collapsed 5.81 → **0.23** (8% → **99%** zero). Whatever is killing
+        `Investigation` is **action-specific**, and chaos cannot be. ⚠️ **Do not quote
+        `bn6-go-no-go.md` §11.8's "+230 rank/h from fixing Diplomacy"** — its premise is contradicted.
+      - 🔑 **The real cause is the action's own LEVEL, and the engine has never managed it.**
+        `Investigation` yield by level is a clean dose-response: rises to a **peak at L26–29 (~9–10
+        rank/action)**, then cliffs — L30 6.67, L31 4.77, L32 1.33, **L33 0.21 (99% zero)**. It is
+        **stuck at L33**: `autolevel` only advances on success, so it locked itself at a level it
+        cannot clear. `bladeburnermanager.js` **never calls `setActionAutolevel`/`setActionLevel`** —
+        `autolevel: true` is the game default, ungoverned. Install #43 is ruled out as the driver:
+        the by-level curve runs **smooth and monotonic straight through** the install boundary (L21
+        pre 21% zero → L22 post 23%). → **Phase 40**, `phase-40-autolevel-governor.features.md`.
       - *Stamped 2026-08-08 ~18:20 UTC:* Ishima chaos **69.02** (15.68 on 08-07 → 66.34 on 08-08
-        13:42 → 69.02) — still climbing. If chaos is what is killing `Investigation`, this is the
-        cheap **reversible** lever and it is inert. Needs a phase branch.
+        13:42 → 69.02) — still climbing, and now **not known to be costing anything**.
     - 🔴 **RETRACTED 2026-08-07 — "the action level caps at 100 / the acceleration is over / ~25
       days" was WRONG.** `Tracking` read 100/100, then **103/103** fourteen hours later — `maxLevel`
       keeps growing. The honest statement is **"no cap observed through level 103,"** not "no cap."

@@ -86,9 +86,14 @@ do, and what's broken?*
   ships a survival strategy, not a fix**: the engine now verifies every `startAction` call against
   `getCurrentAction()` on the next tick, quarantines an action after 3 consecutive verification
   failures, and logs every attempt (predicted EV, verified outcome, full context) to the new
-  `bladeburner-attempts.json` ledger. **Next action:** the diagnosis is now a *log read*, not a live
+  `bladeburner-attempts.json` ledger. ~~**Next action:** the diagnosis is now a *log read*, not a live
   experiment — check whether the ledger's context fields (stamina/HP/city/level/autolevel) correlate
-  with which attempts fail once enough samples accumulate.
+  with which attempts fail once enough samples accumulate.~~ 🔴 **THAT NEXT ACTION IS NOT EXECUTABLE
+  — corrected 2026-08-08.** The ledger's correlate fields are **hardcoded `null`**
+  (`bladeburnermanager.js:1653`) and `observed.rankDelta`/`successDelta` are **0 on all 4,487
+  records**. This bug has been parked for five days waiting on evidence the instrument was never
+  recording. **Real next action:** it is blocked on Phase 40 work item 1 (ledger repair); re-attempt
+  the correlation once the fields carry real values. → `docs/bn6-go-no-go.md` §12.4.
 - **✅ SHIPPED 2026-08-03 (Phase 39 WI1/S1) — `bladeburnermanager.js` telemetry rebuilt from
   wall-clock.** The old `rankPerHeldSec`/`dutyCycle` fields were derived from the engine's own
   intent (`heldSec` = "we called `startAction`") rather than from verified `getCurrentAction()` time,
@@ -111,12 +116,16 @@ do, and what's broken?*
   `rankProducingSec == actionSec`** — `Investigation` always backfills the capacity `Tracking` can't
   supply, so overhead is never selected. Every guard on the branch itself passes right now (Ishima
   chaos **69.02** > `CHAOS_TARGET` 50, `budgetRemainingMs` 720,000, `hpFraction` 1, stamina 0.986 not
-  recovering); it is simply never reached. Chaos is climbing (15.68 on 08-07 → 69.02 on 08-08) and is
-  the leading hypothesis for `Investigation`'s collapse (9.75 → 0.88 rank/action, `bn6-go-no-go.md`
-  §11.4/§11.7). **Next action:** spec-level decision — chaos suppression has to *pre-empt* a rank
-  action rather than wait for slack, which is a policy change (what threshold, what duty ceiling,
-  how it interacts with `MAX_DIPLOMACY_DUTY`'s existing 20%/hour cap), not a constant tweak. Pairs
-  naturally with the `objectiveMode` flip (`CLAUDE.md`'s "correct objective is rank-PER-ACTION").
+  recovering); it is simply never reached. Chaos is climbing (15.68 on 08-07 → 69.02 on 08-08).
+  🔴 **DOWNGRADED THE SAME DAY — chaos is FALSIFIED as `Investigation`'s cause, so this defect has no
+  demonstrated cost.** ~~It was the leading hypothesis for `Investigation`'s collapse.~~ `Tracking` is
+  a free control (chaos is city-scoped): across the same window it took **zero damage** — 0–1% failure
+  while chaos rose **7.2×**. The real cause is the action's own **level** → **Phase 40**
+  (`phase-40-autolevel-governor.features.md`). Full record: `docs/bn6-go-no-go.md` §12.1.
+  **Next action:** none scheduled — a real defect whose fix buys an unknown, probably small amount.
+  **Wake condition:** an action-*independent* degradation, i.e. `Tracking`'s zero-rate rising while
+  Phase 40's governor holds its level constant. That is the signature chaos should have left and
+  didn't, and Phase 40 makes the test free.
 - **🟡 NEW 2026-08-08 — `diplomacyEffect` does not persist across restarts, so its counter reads as
   a cumulative one and isn't.** `diplomacyEffect` is initialised to `emptyDiplomacyEffect()` at loop
   start (`bladeburnermanager.js:1180`) and only ever lives in memory, while `runs`/`meanRemovedPerRun`

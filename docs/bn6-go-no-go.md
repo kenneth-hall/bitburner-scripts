@@ -889,8 +889,8 @@ can move chaos materially. Neither is established.
 
 | lever | est. gain | reversible? | status |
 |---|---|---|---|
-| Fix `Diplomacy` (11.7) — if chaos is the cause, restores Investigation ~0.88 → ~9.75/action | **+~230 rank/h (~+33 %)** — ⚠️ hypothesis, unmeasured at *both* ends (see 11.7) | ✅ yes | **defect, not a decision** — needs a phase branch; the fix is a pre-emption policy, not a ladder reorder |
-| Cap/freeze `Investigation` autolevel — if cause (2) holds | up to the same | ✅ yes | untested |
+| ~~Fix `Diplomacy` (11.7) — if chaos is the cause, restores Investigation ~0.88 → ~9.75/action~~ | ~~**+~230 rank/h (~+33 %)**~~ | ✅ yes | 🔴 **FALSIFIED 2026-08-08 — see §12. Do not quote the +230.** Chaos is city-scoped and `Tracking` took no damage at 66.5. The starvation defect is real; its *payoff* was not. |
+| **Govern `Investigation`'s autolevel** — cause (2), now CONFIRMED (§12) | **+~244 rank/h (~+34 %)**, ETA 19.8 → 14.8 days — ⚠️ extrapolated from per-level yields, not measured | ✅ yes (single API call with an inverse) | → **Phase 40** |
 | Swap filler to `Bounty Hunter`/`Retirement` (regen ~30/h each, stock ~6.5k) | **~+10 rank/h** — predicted 1.25/action; near worthless | ✅ yes | measured-poor |
 | **`Raid` in the filler slot** (regen 15.7/h, stock 3,265, Ishima pMin 1.0) | **potentially +~600 rank/h — roughly doubles the rate** | 🔴 **NO** | **Stage B — gated, see below** |
 
@@ -912,3 +912,81 @@ untracked `src/raidtest.js`) — it travelled to **Aevum**, read Raid success `[
 | Action level caps at 100 | retracted at 103 | ✅ holds — **no cap observed through 110** |
 | "`Investigation` absorbs the rest" (framed as neutral) | neutral filler | ⚠️ **reweighted** — worth 111 rank/h and **decaying to ~23** |
 | Actions/hour ~55; objective should be rank-per-action | ✅ stands | ✅ **confirmed independently** — 56/h measured from inter-start gaps |
+
+---
+
+## 12. 🔴 CHAOS FALSIFIED, AUTOLEVEL CONFIRMED — 2026-08-08 evening (log rebuild, read-only)
+
+Rebuilt from `bladeburner-attempts.json` (n = 4,487, 2026-08-03 → 08-08) by **differencing
+consecutive `context.rank`** — not from `observed.rankDelta`, which is broken (§12.4). This is the
+same method §11.4 used; it is re-stated here because it is a workaround, not the intended path.
+
+### 12.1 Chaos is falsified by its own control
+
+§11.7 proposed chaos as the cause of `Investigation`'s collapse. **Chaos is city-scoped**, so
+`Tracking` is a free control — same city, same window, same chaos.
+
+| window | Ishima chaos | `Tracking` rank/act | zero | `Investigation` rank/act | zero |
+|---|---|---|---|---|---|
+| 08-06 PM | 9.3 | 29.92 (L99, n=216) | 0% | 5.81 (L21, n=190) | 8% |
+| 08-07 AM | 16.0 | 19.78 (L102, n=298) | 1% | 8.66 (L29, n=275) | 23% |
+| 08-07 PM | — | 19.49 (L106, n=350) | 1% | 4.84 (L32, n=347) | 70% |
+| 08-08 AM | — | 21.71 (L109, n=360) | 0% | 0.95 (L33, n=359) | 95% |
+| 08-08 PM | 66.5 | 24.52 (L112, n=341) | 0% | 0.23 (L33, n=342) | 99% |
+
+Chaos rose **7.2×**. `Tracking` took **zero damage** — 0–1% failure throughout, yield rising. The
+collapse is **action-specific**; chaos cannot be. 🔴 **§11.8's +230 rank/h Diplomacy gain is
+withdrawn.** The starvation defect in §11.7 is still real — its *payoff* was never there.
+
+Chaos series is from timestamped `leverprobe-*.json` / `switchbbcity-*.json` point samples (Ishima
+3.49 on 08-04 → 9.27 on 08-06 → 15.98 on 08-07 → 66.50 on 08-08). ⚠️ **No chaos time series is
+logged anywhere** — see §12.4.
+
+### 12.2 The cause is the action's own level
+
+`Investigation` by level: rises to a **peak at L26–29 (~9.02–10.44 rank/action)**, then cliffs —
+L30 **6.67** (58% zero), L31 **4.77** (72%), L32 **1.33** (93%), L33 **0.21** (99%). It is **stuck at
+L33**: `autolevel` advances only on success, so it has locked itself at a level it cannot clear.
+
+🔑 **`bladeburnermanager.js` never calls `setActionAutolevel`/`setActionLevel`** (grep-confirmed; only
+`bladeburneractionprobe.js` does, and it restores). `autolevel: true` is the **game default, entirely
+ungoverned** — the engine has no view of the succeed → level-up → harder → fail loop.
+
+### 12.3 Install #43 ruled out, not assumed away
+
+Install #43 (2026-08-07T00:40:12Z) resets combat stats to 1 — a real rival explanation. Split at the
+install: **before** n=207, mean 5.96, 9% zero (L10→21); **after** n=1,307, mean 3.33, 75% zero
+(L21→33). But the **by-level curve runs smooth and monotonic straight through the boundary** (L21 pre
+21% zero → L22 post 23%) — no step change. **Level explains it; the install does not.** Per §10's
+rule, the disturbance was located first and the fit re-run against level rather than time.
+
+⚠️ Combat stats *are* still regrowing, so the clearable level is a **moving target** — a design input
+for Phase 40, not a defect in this finding. It does mean §11.8's +34% is extrapolated from L26–29
+yields recorded at a *different* stat level. **Estimate, not measurement.**
+
+### 12.4 🔴 THE ATTEMPTS LEDGER IS LARGELY DEAD — and it has been silently blocking an open bug
+
+Phase 39 S6/S7 built `bladeburner-attempts.json` so `startAction` failures and per-action yields
+could be diagnosed **by log read rather than live experiment**. Measured across all 4,487 records:
+
+| field | state |
+|---|---|
+| `observed.rankDelta` | **0 on 4,487 / 4,487** — including `Tracking`, known to realise ~20–25 |
+| `observed.successDelta` | **0 on 4,487 / 4,487** |
+| `context.cityChaos` | **null on all** — hardcoded at `bladeburnermanager.js:1653` |
+| `context.countRemaining` / `skillLevelsHash` / `teamSize` | **null on all** — same line |
+| `context.rank` / `stamina*` / `hpFraction` / `cityName` | ✅ real |
+| `predicted.*` | ✅ real, and wrong (§11.5) |
+
+Line 1653 declares the four correlates as literal `null` placeholders never wired up. All four are
+cheaply available a few lines earlier (`:1597`/`:1599`), inside the `else` branch.
+
+🔴 **The open `BACKLOG` bug "`startAction` silently no-ops for Tracking and Raid" carries the next
+action *"the diagnosis is now a log read — check whether the ledger's context fields correlate with
+which attempts fail."* That is not executable — those fields are null.** The bug has been waiting on
+evidence the instrument never recorded.
+
+⚠️ **Sixth instance of one pattern**, and it earns the general form: **a field that exists is not a
+field that is populated — check a real record before building on it.** (Siblings: an estimate is not
+a measurement · a trend read across a known disturbance is not a trend · a counter is not cumulative
+until you find the code that persists it.)
