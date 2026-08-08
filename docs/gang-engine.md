@@ -581,7 +581,7 @@ other five rivals sit at power 1,455-2,546 with 0% territory. Win-odds against t
 
 **What survives regardless:** `gangreward.js` (money-x/respect-x territory multiplier probe, fixed
 2026-07-22) and `gangratelog.js`'s respect-rate series. The warfare-specific instruments
-(power/win-odds/rival panel) were dropped — a `phase-30-gang-territory.features.md` deliverable —
+(power/win-odds/rival panel) were dropped — a `docs/phases/unshipped/phase-30-gang-territory.features.md` deliverable —
 since we'll never act on them for this node.
 
 **For any future gang-capable node: re-price from scratch — and don't assume the catalog/Red-Pill
@@ -592,7 +592,7 @@ mechanic**, not a general gang property. Territory's re-pricing advice (income c
 hacking gang is probably power-viable, earlier is cheaper since rivals compound) still holds
 independent of that. The cheapest
 settling measurement: one member on Territory Warfare (clashes off, zero death risk) for ~15 min,
-sample `power`, restore. Full record: `phase-30-gang-territory.features.md` (repo root — unshipped,
+sample `power`, restore. Full record: `docs/phases/unshipped/phase-30-gang-territory.features.md` (unshipped,
 Stage 2 is conditional on a gate this node never needed to clear).
 
 ---
@@ -651,7 +651,7 @@ check there for everything else.
 
 - **Phase docs (full narrative, left in place):** `docs/phases/phase-27-gang.*.md` (Tier 1),
   `docs/phases/phase-28-gang-rep-pivot.md` (first reversal), `docs/phases/phase-29-gang-scaling.*.md`
-  (Tiers 2-3), `phase-30-gang-territory.features.md` (repo root, unshipped),
+  (Tiers 2-3), `docs/phases/unshipped/phase-30-gang-territory.features.md`,
   `docs/phases/phase-32-bn2-progress-tracker.*.md` (dashboard GOAL panel),
   `docs/phases/phase-33-money-throughput.*.md` (buy-order fixes).
 - **Archived (superseded by this doc, kept for history):** `docs/archive/gang-api.md`,

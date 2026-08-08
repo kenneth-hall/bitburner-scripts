@@ -582,7 +582,7 @@ do, and what's broken?*
   Kenneth's, not technical: who writes the solvers (demand-driven / Kenneth-solves /
   bulk-delegated). Also a candidate Daedalus-rep accelerator. **Next:** run the cheap RAM probe
   first — does `contract.submit()` dodge `attempt`'s 10 GB charge? — it can invalidate the
-  single-script architecture. → `phase-19-contracts.features.md`.
+  single-script architecture. → `docs/phases/unshipped/phase-19-contracts.features.md`.
 - **Augment breadth-vs-depth, narrowed (Phase 25)** — the original v1 tension (shallow rep spread
   across many factions banking favor slower than concentrating on one) is now addressed: S4's camp
   commitment concentrates city-faction joining, and S6's generalized donation route lets a faction
