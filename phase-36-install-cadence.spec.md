@@ -475,6 +475,28 @@ is deleted. No test fixture changes (ground rules).
 
 ## Live procedure [live]
 
+> 🔴 **VOID as written — struck 2026-08-08. These are NOT overdue commitments; do not schedule them.**
+> Only **work item 4** ever shipped (as F-A + F-B). Work items **1–3 are unbuilt** — none of
+> `augIsWorthLadder` / `marginalBlocked` / `LADDER_FILTER_MIN_MULT` / `ladderCountsFrom` /
+> `ladderArmed` appears in `src/augfarmer.js`. Consequences for each gate below:
+> - **L2 can never fire.** Its bar is `trigger.reason === "ladder"`; the running code's only reasons
+>   are `gain-phase` / `escalation` / `stall` (124 live `trigger-fire` records, zero `ladder`). Its
+>   2026-07-29 deadline was a deadline on unwritten code. Its own fallback (`GRIND_HORIZON_MS` → 1h)
+>   is **already the shipped state** — `augfarmer.js:163` reads `1 * 3600_000`, and it shipped as a
+>   stopgap *before* this phase.
+> - **L1 is mis-specified.** It expects `GRIND_HORIZON_MS` to read `28800000` (8h); that was never
+>   the shipped value.
+> - **L3 depends on L2**, so it inherits the same void.
+> - **L4 (the restart drill) is the only one that tests shipped code** — it covers work item 4's
+>   `resolveArmResume`. It was never recorded as run. Re-runnable in principle, but see below.
+> - **All of them need installs, and installs are OFF.** `src/ratchet-mode.txt` = `observe` (repo
+>   *and* `dist/`); install #43 on 2026-08-07 was the last, and it fired *against* the 2026-08-06
+>   stop decision via the gitignored-file revert (CLAUDE.md's ratchet landmine).
+>
+> **If the buy-set filter is ever built, re-derive these gates from BN6 numbers — do not revive them
+> as written.** BN6 has no aug-cost penalty where BN5 had 200%, so the 613× ladder they are tuned
+> against does not exist here. Status tracked in `BACKLOG.md`.
+
 - **L1 (immediately after deploy + `node tools/bb/cli.mjs restart augfarmer.js`):** a
   `trigger-resume` record appears in `ratchet-decisions.json` with a populated `reason`; the trigger
   re-arms within ~5 min; **no RUNTIME ERROR popup** (CDP check per CLAUDE.md — a script that
@@ -496,6 +518,10 @@ is deleted. No test fixture changes (ground rules).
   spec did not anticipate (that is F-B's instrument doing its job — read it before designing).
 
 ## Acceptance criteria
+
+> 🔴 **V1–V4 are VOID with L1–L4 — struck 2026-08-08, see the banner under "Live procedure".** V2's
+> bar cannot be met by the running code, V1's "8h constant" was never shipped, and every one of them
+> needs installs, which are off. **T1 / T2 / R1 still hold** for whatever ships next here.
 
 Test-gated (Claude clears): **T1** `npm test` green including every unit above and `T-INV`, with no
 existing fixture's expected value changed; **T2** `npm run verify:log` green post-deploy.

@@ -168,10 +168,22 @@ do, and what's broken?*
   worth fixing, needs a live session bracketing a known hospitalization event (watch the panel
   counter tick while sampling `getPlayer().hp` every tick) to see what actually happens to HP at
   that moment — not attempted yet, low priority since the panel already works.
-- **🟡 [PARTIALLY SHIPPED 2026-07-29] Phase 36 (`phase-36-install-cadence.spec.md`, twice
-  cold-reviewed) has 4 work items; F-B and F-A have landed, the buy-set filter has not.** BN6.1
-  entry surfaced this as stranded — features + spec sat in the repo root, never in
+- **🟡 [PARTIALLY SHIPPED 2026-07-29 · DORMANT 2026-08-06 · live gates VOID] Phase 36
+  (`phase-36-install-cadence.spec.md`, twice cold-reviewed) is **1 of 4 work items shipped**.**
+  ⚠️ **Read the count carefully — it has been misread twice.** Work item **4** shipped, delivered as
+  the *two* pieces **F-A + F-B** below; **work items 1, 2 and 3 are all open**, bundled under the one
+  name "the buy-set filter". Two deliverables of one item is what makes this read as 3-of-4.
+  BN6.1 entry surfaced this as stranded — features + spec sat in the repo root, never in
   `docs/phases/CHANGELOG.md`, only the `GRIND_HORIZON_MS` stopgap (1h, was 8h) had shipped.
+  - **🔴 The spec's live gates L1–L4 are VOID, not overdue** (checked 2026-08-08). L2's bar is an
+    install with `trigger.reason === "ladder"`, but `ladderArmed` is *in the deferred bundle* — the
+    running code's only trigger reasons are `gain-phase` / `escalation` / `stall` (124 live
+    `trigger-fire` records, zero `ladder`), so the gate can never fire. L2's own fallback
+    (`GRIND_HORIZON_MS` → 1h) is **already the shipped state**, and L1's expected `28800000` (8h)
+    never was the shipped value. On top of that, installs are **off** (`src/ratchet-mode.txt` =
+    `observe`; #43 on 08-07 was the last, and it fired *against* that decision via the gitignored
+    revert). **Do not treat the 2026-07-29 L2 deadline as a live commitment** — re-derive the gates
+    if and when the buy-set filter is actually built.
   - **✅ F-B shipped 2026-07-29** — disarms are no longer invisible in auto mode. Deleted the
     `mode !== "auto"` guard on `trigger-clear` logging; added `lostSustainedMs` (the previous pass's
     `sustainedMs` — the one field that would have diagnosed the 19:28 restart-voided-the-arm failure
@@ -191,11 +203,15 @@ do, and what's broken?*
     `triggerArmChanged` joins the state-write gate (decision 10, exact precedent of
     `awaitingMoneySinceChanged`) so a just-armed stamp is never lost to the 5-min heartbeat window.
     11 new tests, 1040 total pass, `augfarmer.js` RAM unchanged at 64.10 GB.
-  - **Still open, deliberately deferred — the buy-set filter** (`augIsWorthLadder`,
-    `ladderCountsFrom`, `pickTarget` tier 4, `ladderArmed`, the T-INV grid). ~75% of the phase's test
-    surface. Tuned to BN5's 613× price ladder and needs re-deriving against BN6 numbers (aug cost
-    1.0×, not BN5's 200%) — wait for real BN6 income data before touching it, per the "gathering
-    data before analysis" standing grant.
+  - **Still open, deliberately deferred — the buy-set filter = work items 1 + 2 + 3**
+    (`augIsWorthLadder`, `marginalBlocked`, `LADDER_FILTER_MIN_MULT`, `ladderCountsFrom`,
+    `pickTarget` tier 4, `ladderArmed`, the T-INV grid). Verified 2026-08-08: **none of those
+    identifiers exists in `src/augfarmer.js`** — this is genuinely unbuilt, not built-and-unvalidated.
+    ~75% of the phase's test surface. Tuned to BN5's 613× price ladder and needs re-deriving against
+    BN6 numbers (aug cost 1.0×, not BN5's 200%) — wait for real BN6 income data before touching it,
+    per the "gathering data before analysis" standing grant. ⚠️ **Blocked harder than that now:**
+    installs are stopped (08-06, a measured 5.4% of Bladeburner wall-time) and the batcher is a
+    funding engine only (08-02), so there is no install cadence for this to tune.
   - Historical context below (why Phase 36 exists) is unchanged and still accurate:
 
 - **🟡 [SUPERSEDED 2026-07-28 — the race is over, the stall was not caused by it] cloudmanager and
