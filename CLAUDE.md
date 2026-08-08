@@ -96,16 +96,41 @@ on request — hold to them even when the moment is uncomfortable.
     a rate recorded here as "0.1371/wall-sec" was ~24% low within a day. **Every number below is
     stamped; if the stamp isn't today's, go get the live one** — `node tools/bb/cli.mjs stats`, or
     the last entry of `logs/goal-log.json` (`rank` field, 60s samples, ~2 days deep). *Durable*
-    facts, safe to quote: the goal is **rank 400,000** (`Operation Daedalus`), rank and skill points
-    **survive installs**, and the rank rate has been **rising, not decaying** (see below).
+    facts, safe to quote: the goal is **rank 400,000** (`Operation Daedalus`), and rank and skill
+    points **survive installs**. 🔴 **"The rank rate has been rising, not decaying" was listed here
+    as durable and is now FALSE — do not restate it** (measured flat over 35 clean hours, §11.2).
+    What is still rising is the **action level**, which is a different claim.
     - *Stamped 2026-08-06 ~01:40 UTC:* rank **33,793** · skill points **8,819** banked · Blade's
       Intuition / Digital Observer / Tracer **25** each · team size **0** · city **Ishima** ·
       running **Tracking**, at 100% success.
     - *Stamped 2026-08-07 ~02:08 UTC:* rank **34,083** · skill points **8,912** · Ishima chaos
       **15.68** (the *cleanest* city — Sector-12 1,491 / Chongqing 651 / Aevum 108).
     - *Stamped 2026-08-07 ~12:20 UTC:* rank **41,271** · `Tracking` **103 / 103** ·
-      `Investigation` **29 / 29** · hourly rate **0.2161 and still climbing** (0.1743 → 0.2161
-      monotonically over 11h; latest 5-min window 0.2798) · ETA **~15–19 days**.
+      `Investigation` **29 / 29** · ⚠️ **its rate figures are SUPERSEDED, do not quote:**
+      ~~"0.2161 and still climbing (0.1743 → 0.2161 monotonically over 11h; latest 5-min window
+      0.2798) · ETA ~15–19 days"~~ — that was an 11h read that did not persist (§11.2).
+    - *Stamped 2026-08-08 ~13:42 UTC* — fit on a **clean 35h window** (install #43 fired
+      2026-08-07T00:40:12Z; that window + 2h recovery excluded), full record `bn6-go-no-go.md` §11:
+      rank **59,008** · skill points **17,259** idle · `Tracking` **110** (still climbing ~1 level /
+      3.5h, **no cap observed through 110**) · `Investigation` **33** · Ishima chaos **66.34**
+      (**4.2× in 35h**, was 15.68) · duty cycle **99.4%** · rate **0.1952 rank/s = 703 rank/h,
+      FLAT** (hourly buckets 625–806, no trend) · ETA **~20.2 days**.
+    - 🔑 **The throughput model now CLOSES (§11.4), and it changes what the levers are.** Measured
+      realised rank/action: `Tracking` **19.77** (n=965, zero failures) vs `Investigation` **4.27**
+      (n=960, median **0.00**, 68.9% pay nothing, and **decaying — 9.75 → 0.88** across the window).
+      `Tracking` is **supply-capped at ~30 actions/h** (count pinned at 1.13, regen +0.008/h) while
+      stamina permits ~56/h, so `30×19.77 + 26×4.27 = 704` vs 703 measured. ⚠️ **Therefore "just
+      drop Investigation" is WRONG — it is filler on capacity Tracking cannot supply.** The two
+      actions moving in opposite directions is *why* the aggregate looks flat.
+    - 🔴 **The estimator's LOWER bound is biased HIGH, not merely uncertain (§11.5).**
+      `Investigation` predicted `evPerAction` **14.23** at pMin **0.764**; realised **0.88** →
+      true success ~**7%**. Even the *converged* pMin-1.0 case (`Tracking`) runs **17% hot**.
+      ⚠️ **Checkpoint C2 ("operations lead contracts", fired 2026-08-03) and `Raid`'s 45.72/action
+      both come from this same estimator and have NEVER been realised.** Do not quote 45.72 as a
+      measurement; it is the strongest lever on the table *and* the least trustworthy number.
+    - 🔴 **ENGINE DEFECT, unfixed: `Diplomacy` has never run** — chaos **66.34** vs its own target
+      **50**, budget untouched, `effect.runs: 0` cumulative (§11.7). If chaos is what is killing
+      `Investigation`, this is the cheap **reversible** lever and it is inert. Needs a phase branch.
     - 🔴 **RETRACTED 2026-08-07 — "the action level caps at 100 / the acceleration is over / ~25
       days" was WRONG.** `Tracking` read 100/100, then **103/103** fourteen hours later — `maxLevel`
       keeps growing. The honest statement is **"no cap observed through level 103,"** not "no cap."

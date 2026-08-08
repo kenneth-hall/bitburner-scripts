@@ -750,3 +750,136 @@ Re-derive before trusting either.
 **Standing measurement, no probe needed:** `bn6watch.js` is sampling counts/rank/chaos every 60 s
 for 12 h to `logs/leverprobe-<epoch>.json`. Re-fit the rate from `goal-log.json` — **excluding any
 window containing an install** — before drawing a curve through it.
+
+---
+
+## 11. RE-STAMP + THROUGHPUT DECOMPOSITION — 2026-08-08 ~13:42 UTC
+
+Read-only, no probe run: `logs/goal-log.json` (2,880 samples), `logs/bladeburner-attempts.json`
+(3,911 entries, carries `context.rank` at every action start), `logs/bladeburner-state.json`,
+`logs/leverprobe-1786145430950.json` (the 12 h `bn6watch.js` run §10 asked for), and
+`node tools/bb/cli.mjs stats`.
+
+**Window discipline, per §10's rule.** Install **#43 fired 2026-08-07T00:40:12Z** and is the last
+install (`ratchet-log.json`, 43 entries; cadence stopped). Everything below is fit on
+**2026-08-07T02:40Z → 2026-08-08T13:40Z — 35.0 clean hours**, install + 2 h recovery excluded.
+
+### 11.1 Live standing
+
+| | |
+|---|---|
+| rank | **59,008** (34,409 at window start) |
+| skill points | **17,259**, idle |
+| skills | Blade's Intuition / Digital Observer / Tracer **25** · Overclock **17** · Reaper **6** · Evasive System **6** |
+| `Tracking` level | **110** — was 103 on 08-07 |
+| `Investigation` level | **33** — was 29 on 08-07 |
+| city | Ishima · chaos **66.34** (was 15.68 on 08-07 02:08 — **4.2x in 35 h**) |
+| stamina | 155.0 / 155.0 · duty cycle **99.4 %** (24 h) |
+| rank rate | **0.1952 rank/wall-s = 703 rank/h** (engine's own `rates.24h` agrees: 0.19286, 694/h) |
+| ETA to 400,000 | **~20.2 days** at that rate |
+
+### 11.2 🔴 The rate is FLAT, not climbing — §10's "0.2161 and rising, ~15–19 days" is superseded
+
+35 clean hours in 1-hour buckets run **625 – 806 rank/h with no trend** (peak at hour 9, trough at
+hour 21, back to ~710 by the end). The 08-07 reading was an 11 h window; it has not persisted.
+
+⚠️ **Do not restate "the rank rate has been rising, not decaying."** ✅ What *is* still rising is the
+**action level** (110, ~1 level / 3.5 h, no cap observed) — §10's core retraction stands.
+
+### 11.3 🔑 Why flat: the two actions move in opposite directions, and they cancel
+
+Realised rank/action, measured by differencing `context.rank` between consecutive action starts
+(pairs 40–90 s apart only), across the clean window in five buckets:
+
+| bucket (UTC) | `Tracking` | `Investigation` |
+|---|---|---|
+| 08-07 02:41 | 16.61 | 9.75 |
+| 08-07 09:42 | 17.93 | 8.34 |
+| 08-07 16:43 | 19.43 | 3.54 |
+| 08-07 23:44 | 21.03 | 0.86 |
+| 08-08 06:45 | **22.80** | **0.88** |
+| whole window | **19.77** (n=965, median 19.70, **0** failures) | **4.27** (n=960, median **0.00**, **68.9 % pay nothing**) |
+
+`Tracking` **+37 %**, `Investigation` **−91 %**, aggregate flat. The engine splits actions almost
+exactly 50/50 between them (last 400 starts: 199 / 201).
+
+### 11.4 ✅ The throughput model now closes to within 0.2 %
+
+| term | measured | source |
+|---|---|---|
+| `Tracking` supply | **~29.9 contracts/h** gross; count pinned at **1.13**, net **+0.008/h** | `leverprobe-1786145430950` (12 h) |
+| stamina ceiling | ~55.8 actions/h | Q10 |
+| observed cadence | median inter-start gap **64.4 s** (p10 49.4, p90 67.0) → **~56 actions/h**; **no restart churn** (1 gap < 30 s in 703) | attempts log |
+
+`30 x 19.77  +  26 x 4.27  =  593 + 111 =` **704 rank/h** vs **703 measured**.
+
+🔑 **So `Investigation` is not a mistake — it is filler on capacity `Tracking` cannot supply.**
+Tracking is consumed as fast as it regenerates (~30/h) while stamina permits ~56/h; the other ~26
+actions/h would otherwise be idle. ⚠️ **This kills the obvious "just drop Investigation" reading:
+all-Tracking is not supply-feasible.** The filler slot is worth **~111 rank/h today and decaying
+toward ~23**.
+
+### 11.5 🔴 The engine's predictions run hot, and worst exactly where it matters
+
+| action | predicted `evPerAction` | realised | error |
+|---|---|---|---|
+| `Tracking` (pMin **1.000**, converged) | 23.95 | 19.77 | **−17 %** |
+| `Investigation` (pMin **0.764**, a range floor) | 14.23 | **0.88** (latest bucket) | **−94 %** |
+
+Investigation's realised payout implies a **true success rate of ~7 %** against a predicted floor of
+**76 %**. ⚠️ **`getActionEstimatedSuccessChance` is not merely *uncertain* here — its lower bound is
+biased HIGH.** That is a stronger and worse statement than "read it as a range," and it lands on a
+third consequence:
+
+⚠️ **Checkpoint C2 — "operations lead contracts," fired 2026-08-03 — rests on this same predicted
+number.** The engine currently scores `Raid` at **45.72/action** and `Bounty Hunter` at 1.25/action;
+the Raid figure has **never been realised**, only predicted. Even the *converged* pMin 1.0 case runs
+17 % hot. **Do not treat 45.72 as a measurement.**
+
+### 11.6 Candidate causes for Investigation's collapse — NOT distinguished, do not pick one yet
+
+1. **Chaos.** Ishima 15.68 → 66.34 over the same window. Chaos raises difficulty; `Tracking` at level
+   110 has success headroom (pMin 1.0) and absorbs it, `Investigation` at level 33 does not.
+2. **Autolevel self-harm.** `autolevel: true`; `Investigation` climbed 22 → 33 in the same window.
+   Action level raises reward **and difficulty** — it may have levelled itself past its own success
+   chance, which would make the engine's own autolevel the cause.
+
+Supply is **not** a candidate — Investigation count 3,076 with +17.2/h regen against ~26/h use is
+falling but nowhere near empty.
+
+### 11.7 🔴 ENGINE DEFECT — `Diplomacy` is configured against exactly this and has never run
+
+`bladeburner-state.json`: `diplomacy: {target: 50, maxDuty: 0.2, budgetRemainingMs: 720000,
+runsThisHour: 0, effect: {runs: 0, totalRemoved: 0, samples: [], meanRemovedPerRun: null}}`.
+
+Chaos is **66.34**, the target is **50**, the budget is **untouched**, and the countermeasure has
+fired **zero times — ever** (`effect.runs` is cumulative). If cause (1) holds, this is the cheap,
+reversible lever and it is currently inert.
+
+### 11.8 The lever table this produces
+
+| lever | est. gain | reversible? | status |
+|---|---|---|---|
+| Fix `Diplomacy` (11.7) — if chaos is the cause, restores Investigation ~0.88 → ~9.75/action | **+~230 rank/h (~+33 %)** | ✅ yes | **defect, not a decision** — needs a phase branch |
+| Cap/freeze `Investigation` autolevel — if cause (2) holds | up to the same | ✅ yes | untested |
+| Swap filler to `Bounty Hunter`/`Retirement` (regen ~30/h each, stock ~6.5k) | **~+10 rank/h** — predicted 1.25/action; near worthless | ✅ yes | measured-poor |
+| **`Raid` in the filler slot** (regen 15.7/h, stock 3,265, Ishima pMin 1.0) | **potentially +~600 rank/h — roughly doubles the rate** | 🔴 **NO** | **Stage B — gated, see below** |
+
+🔴 **IRREVERSIBILITY, restated at the point of decision.** `Raid` is the one-way door. Its true cost
+to a city is **still UNKNOWN** (§9.3 / the Stage B reopening: pop `0` in Volhaven means *unknown*,
+not *zero*), Q11 + Q14 are unanswered, and its 45.72 score is a **prediction from the same estimator
+just measured to be 16x hot on `Investigation`**. This is not a "the numbers say do it" situation.
+
+**Note:** a `raidtest.js` probe ran today at 13:15 UTC (`logs/leverprobe-1786194909909.json`,
+untracked `src/raidtest.js`) — it travelled to **Aevum**, read Raid success `[0.0208, 1]`,
+**aborted without raiding** on its own `pMin < 0.9` guard, and returned to Ishima. `raidsCompleted:
+0`. **No city was raided; nothing irreversible happened.**
+
+### 11.9 Corrections to §10.2's table
+
+| Claim | Was | Now |
+|---|---|---|
+| Acceleration / ~15–19 days | 🔴 retracted → "0.2161 and rising" | 🔴 **that replacement is ALSO superseded** — flat 0.1952, **~20.2 days** |
+| Action level caps at 100 | retracted at 103 | ✅ holds — **no cap observed through 110** |
+| "`Investigation` absorbs the rest" (framed as neutral) | neutral filler | ⚠️ **reweighted** — worth 111 rank/h and **decaying to ~23** |
+| Actions/hour ~55; objective should be rank-per-action | ✅ stands | ✅ **confirmed independently** — 56/h measured from inter-start gaps |
