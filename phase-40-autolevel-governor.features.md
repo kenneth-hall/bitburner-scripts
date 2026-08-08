@@ -224,13 +224,53 @@ a real record before building on it.**
 
 ## 5. Open questions
 
+> ✅ **Q40-1 and Q40-2 were ANSWERED from existing logs before the spec** — no live probe, no
+> permission needed, nothing mutated. Both are recorded as answered below; §5.1 carries the result
+> because it changes the design.
+
 | # | question | default if unanswered | date |
 |---|---|---|---|
-| Q40-1 | Can `setActionLevel` lower a level *below* the current one, or does the game clamp to a floor/`maxLevel`? Whole phase depends on it. | Verify with a read-only-then-restore probe before speccing — `bladeburneractionprobe.js:360-381` already does exactly this dance and can be reused | before spec |
-| Q40-2 | Does lowering the level reduce the *payout* proportionally, or only the difficulty? The by-level table shows yield rising with level, so the peak may shift once success is restored. | Assume payout scales with level and target the **measured** peak, re-fit after the first week | at spec |
+| Q40-1 | ~~Can `setActionLevel` lower a level *below* the current one, or does it clamp?~~ | ✅ **ANSWERED — it can.** See §5.1 | closed 2026-08-08 |
+| Q40-2 | ~~Does lowering the level reduce *payout* proportionally, or only difficulty?~~ | ✅ **ANSWERED — payout scales gently (~4%/level).** See §5.1 | closed 2026-08-08 |
 | Q40-3 | What does the governor do across an install, when combat stats reset to 1 and every clearable level drops at once? | Re-enter the post-install regime the engine already models (`inPostInstallRegime`) and re-converge from a low level | at spec |
 | Q40-4 | Is the L26–29 peak still the peak at *current* combat stats? Those samples predate install #43. | Treat §1.4's +34% as unvalidated; the controller finds the peak empirically rather than being told it | at spec |
 | Q40-5 | Should the governor write its own log, or extend the attempts ledger? | Extend the ledger (D4 is repairing it anyway) — one source, per the Phase 38 lesson | at spec |
+
+### 5.1 Q40-1 + Q40-2, answered from existing logs (2026-08-08)
+
+**Q40-1 — `setActionLevel` CAN lower a level. The phase's central mechanism is viable.**
+`logs/bladeburneractionprobe-1785722785366.json` (2026-08-02) drove `Tracking` from its live L32
+down through **L1…L31**, and `confirmedLevel === level` on **all 31 levels below the original**. It
+then restored to L32 with `autolevel` back to `true`. No clamp, no floor, and the set-then-restore
+dance is proven working code (`bladeburneractionprobe.js:360-381`).
+
+**Q40-2 — payout scales *gently* with level, and this is the key design input.** From the same log,
+using the **exact** getters (`getActionRankGain`/`getActionRankLoss` — not the disqualified
+estimator of D3):
+
+| level | `rankGain` | `rankLoss` | `actionTimeMs` |
+|---|---|---|---|
+| 1 | 0.300 | 0 | 9,000 |
+| 8 | 0.397 | 0 | 10,000 |
+| 16 | 0.548 | 0 | 12,000 |
+| 24 | 0.756 | 0 | 13,000 |
+| 32 | 1.043 | 0 | 16,000 |
+
+**L32/L1 = 3.48× across 31 levels — roughly +4%/level.** Meanwhile success collapses *far* faster:
+`Investigation` went 8% → 99% zero across **12** levels (§1.2).
+
+🔑 **The trade is wildly asymmetric, and it sets the controller's shape.** Dropping `Investigation`
+L33 → L28 forfeits only ~1.2× of per-action payout to recover success from ~1% to ~80%. **So the
+optimum sits just *under* the cliff edge — the governor should hunt the highest reliably-clearing
+level, not retreat to a safe low one.** A conservative controller that overshoots downward is
+cheap (~4%/level); one that sits above the cliff is catastrophic (~100%).
+
+⚠️ **Two caveats the spec must carry.** (a) These are `Tracking`'s numbers — a **Contract**;
+`Investigation` is an **Operation**, and the level→payout slope is not verified to be identical.
+(b) `Tracking`'s `rankLoss` is **0** at every level, but `Investigation`'s is **0.774** — so for
+`Investigation` a failure actively *costs* rank, which makes sitting above the cliff worse than
+merely unproductive. The asymmetry argument strengthens; the exact numbers need re-reading for
+Operations.
 
 ---
 
