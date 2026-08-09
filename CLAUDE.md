@@ -91,14 +91,16 @@ on request — hold to them even when the moment is uncomfortable.
       server**), implement WI1+WI2 per the spec, `npm test` (~1246 must stay green), then hand the
       RAM gate to Kenneth. **Measured baseline R0 = 90.00 GB**; spec gates are **R1a 94.00 GB after
       WI1**, **R1b 102.00 GB after WI2** (`mem bladeburnermanager.js` over CDP).
-    - 🔴 **TWO OPEN CALLS KENNETH HAS NOT RULED ON — surface these before implementing.** (1) **Q40-12**
-      — the governor **never automatically releases ownership**; once it takes an action, autolevel
-      stays off permanently. The spec author declined half of blocker #4 on the grounds that handing
-      autolevel back re-arms the loop with no self-exit, and addressed the *danger* (cohort guard +
-      a ≤12-levels-per-24h drop budget) rather than the *stickiness*. (2) **S2.3** — with only one
-      action sampled, the cohort guard is **overridden** and a level drop is allowed with a warn,
-      because holding would disable the phase whenever the pool narrows. Both are logged, neither is
-      buried, and both were flagged to Kenneth at pause without a reply.
+    - ✅ **TWO CALLS — RULED BY KENNETH 2026-08-08. Implement as specced; do NOT reopen either.**
+      (1) **Q40-12** — the governor **never automatically releases ownership**; once it takes an
+      action, autolevel stays off permanently. Rationale: handing autolevel back re-arms the exact
+      loop being fixed, with no self-exit. The *danger* is addressed instead, via the cohort guard +
+      a ≤12-levels-per-24h drop budget; the *stickiness* is accepted. Cost accepted: on a healthy
+      action the governor climbs slower than autolevel would. (2) **S2.3** — with only one action
+      sampled, the cohort guard is **overridden** and a level drop proceeds with a warn, because
+      holding would disable the phase entirely whenever the pool narrows to one. Cost accepted: a
+      wrongly-lowered healthy action in a rare degraded state. **Both are bounded and reversible,
+      both carry expiry dates, and both are Kenneth's call — not the spec author's default.**
     - ⚠️ **WI2 ships INERT** (`LEVEL_GOVERNOR_MODE = "shadow"`) — it logs what it *would* decide and
       touches nothing. Only WI1's ledger repair changes live behaviour. Activation is WI3.
   - **✅ Phase 39 SHIPPED 2026-08-03** (`docs/phases/phase-39-bladeburner-primary.spec.md` — spec
