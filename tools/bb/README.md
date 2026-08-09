@@ -44,6 +44,43 @@ reverts to the filename title); `restart` closes it between kill and relaunch so
 restarts don't pile up stray popups. Since Phase 24, every companion is headless (nothing to
 re-dock) except `dashboard.js`, the single standing tail, which self-closes via `ns.atExit`.
 
+**Reading the in-game Bladeburner CONSOLE — the only ground truth for action outcomes.**
+The Bladeburner screen carries a console panel logging every *completed* action with its **realised**
+result. It is the most authoritative outcome source in that subsystem, and there is **no `ns` API to
+read it** (verified against the official upstream repo — see `docs/bladeburner-reference.md` §5), so
+this CDP route is the only route.
+
+```
+node tools/bb/cli.mjs goto "Bladeburner"    # then:
+node tools/bb/cli.mjs body                  # the whole panel, console included
+```
+
+Filter the console lines out of `body` with `grep -E '^\[20'`. Format:
+
+```
+[2026-08-09 06:03:48] Player: Tracking contract successfully completed! Gained 27.328 rank and $26.836m.
+[2026-08-09 06:21:16] Tensions between Synthoids and humans lead to riots in New Tokyo! Chaos increased
+```
+
+Two line classes: **player action completions** (timestamp · action · type · outcome · exact rank ·
+money) and **world events** (Synthoid migrations/population changes, chaos riots by city).
+
+- 🔴 **The buffer is a hard 100-entry FIFO ring — `body` already returns all of it, and scrolling
+  reveals NOTHING more.** Measured 2026-08-09: the panel *is* scrollable (`scrollHeight` 2416 vs
+  `clientHeight` 844), but scrolling fully to the top left the DOM at **exactly 100 lines with the
+  same first entry**. There is no virtualisation and no lazy-load — the viewport moves, the content
+  does not. Don't waste a probe re-testing this.
+- ⚠️ **Retention is entry-count based, so history shrinks as the engine gets faster.** At the
+  2026-08-09 rate (~30.5 completions/h + ~6.7 world events/h ≈ 37/h) 100 entries ≈ **2.7 h** — which
+  matched the observed span exactly. Roughly double the completion rate and the window drops to
+  **~1.6 h**. **Snapshot it before you need it**; you cannot go back.
+- ⚠️ **Only successes appear.** Across 2.69 h there were zero failure lines while `Investigation` was
+  demonstrably being started every ~77 s. So the console gives you the *numerator*; the failure rate
+  must come from subtraction against the engine's own start count, never from counting lines.
+- **Use it to validate, not to drive.** It confirmed three independent instruments agree on the rank
+  rate (console 909/h · engine `rates['1h']` 902/h · a `context.rank`-differencing reconstruction
+  28.21/action vs the console's 29.79). That cross-check is what Phase 38's lesson demands.
+
 **Gotcha — error modals and story popups block navigation.** A script runtime error (any
 Bitburner dialog) or a narrative toast (faction-recruit text, "Message received" notifications)
 overlays the whole UI and intercepts clicks, so `goto`/`click`/`restart` time out with `waiting

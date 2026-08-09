@@ -687,6 +687,22 @@ failure lines, while `Investigation` was demonstrably being started every ~77 s.
 not logged at all or operation logging is off; **unresolved**, and it is why the failure rate must
 come from subtraction rather than from counting console lines.
 
+🔴 **The buffer is a hard 100-entry FIFO ring, and scrolling reveals NOTHING more.** Measured
+2026-08-09 with a read-only scroll probe: the panel *is* scrollable (`scrollHeight` 2416 vs
+`clientHeight` 844), but after scrolling fully to the top the DOM still held **exactly 100 lines with
+the same first entry** — no virtualisation, no lazy-load. `body` already returns the entire buffer.
+**Don't re-test this.**
+
+⚠️ **Retention is entry-count based, so the window SHRINKS as the engine gets faster.** At the
+2026-08-09 rate (~30.5 completions/h + ~6.7 world events/h ≈ **37 entries/h**) 100 entries ≈
+**2.7 h** — the model predicted 2.69 h and the observed span was 2.69 h. Restore `Investigation` to
+~26 completions/h and the window falls to **~1.6 h**. **Snapshot before you need it**; there is no
+way back. Two line classes only: player action completions, and world events (Synthoid
+migration/population, chaos riots by city).
+
+**Tooling recipe** (`cli.mjs goto "Bladeburner"` → `body` → `grep -E '^\[20'`) and the operational
+caveats live in [`tools/bb/README.md`](../tools/bb/README.md) — keep the two in step.
+
 **Revised design conclusion — the gang comparison was drawn wrongly.** The old text argued that,
 unlike gangs (where `GangTaskStats` + `ns.formulas.gang.*` exposed every yield), Bladeburner was
 genuinely empirical and so "observe-and-measure" was correct. **That framing survives only in part.**
