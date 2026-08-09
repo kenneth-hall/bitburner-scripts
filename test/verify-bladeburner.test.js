@@ -69,6 +69,24 @@ describe('bladeburner-state.json (Phase 39)', () => {
     expect(data.repForegone).toBeGreaterThanOrEqual(0);
   });
 
+  it('Phase 40 S8: carries a levelGovernor block whose mode is one of the three values, and every per-action successes <= attempts', () => {
+    const { exists, data } = readJson('bladeburner-state.json');
+    if (!exists) return skip('bladeburner-state.json');
+    const lg = data.levelGovernor;
+    if (!lg) return skip('bladeburner-state.json (no levelGovernor block yet)');
+
+    expect(['off', 'shadow', 'active']).toContain(lg.mode);
+    expect(Number.isFinite(lg.completions)).toBe(true);
+    expect(lg.completions).toBeGreaterThanOrEqual(0);
+    expect(Number.isFinite(lg.uncertainCompletions)).toBe(true);
+    expect(typeof lg.constants).toBe('object');
+
+    for (const [name, action] of Object.entries(lg.actions ?? {})) {
+      if (!Number.isFinite(action.attempts) || !Number.isFinite(action.successes)) continue;
+      expect(action.successes, `${name}: successes must not exceed attempts`).toBeLessThanOrEqual(action.attempts);
+    }
+  });
+
   it('🔴 QUALIFIED broken-telemetry assertion (fixes reviewer blocker 10): a full hour with half of it verified on a rank-producing action must show SOME rank movement -- Tracking carries no rank loss on failure, so zero movement across that much verified time is diagnostic of the Phase 38 startAction-lied-about-duty bug, not a state this spec designs for', () => {
     const { exists, data } = readJson('bladeburner-state.json');
     if (!exists) return skip('bladeburner-state.json');
@@ -130,6 +148,8 @@ describe('bladeburner-log.json (Phase 39)', () => {
       'regime-enter', 'regime-exit',
       'checkpoint-C1', 'checkpoint-C2', 'checkpoint-C3',
       'warn',
+      // Phase 40 -- the autolevel governor (S8).
+      'level-govern', 'level-govern-revert',
     ]);
     for (const record of data) {
       expect(record).toMatchObject({ timestamp: expect.any(Number), time: expect.any(String), kind: expect.any(String) });
@@ -177,5 +197,43 @@ describe('bladeburner-attempts.json (Phase 39, S7)', () => {
         expect(Number.isFinite(record.predicted.evPerAction)).toBe(true);
       }
     }
+  });
+});
+
+describe('bladeburner-attempts.json ledger repair (Phase 40 WI1, blocker 11)', () => {
+  // All four assertions are qualified on record COUNT so a freshly-restarted engine
+  // (too few `complete` records yet) cannot fail them -- T2's exact wording.
+  it('(a) Tracking: with >=50 non-uncertain complete records, successDelta is not identically zero across them', () => {
+    const { exists, data } = readJson('bladeburner-attempts.json');
+    if (!exists) return skip('bladeburner-attempts.json');
+    const tracking = data.filter((r) => r.kind === 'complete' && r.uncertain !== true && r.name === 'Tracking');
+    if (tracking.length < 50) return skip('bladeburner-attempts.json (fewer than 50 Tracking complete records yet)');
+    expect(tracking.some((r) => (r.observed?.successDelta ?? 0) !== 0)).toBe(true);
+  });
+
+  it('(b) Investigation: with >=50 non-uncertain complete records, at least 90% read successDelta === 0 -- the failure-path check Tracking cannot provide (blocker 11)', () => {
+    const { exists, data } = readJson('bladeburner-attempts.json');
+    if (!exists) return skip('bladeburner-attempts.json');
+    const investigation = data.filter((r) => r.kind === 'complete' && r.uncertain !== true && r.name === 'Investigation');
+    if (investigation.length < 50) return skip('bladeburner-attempts.json (fewer than 50 Investigation complete records yet)');
+    const zeroRate = investigation.filter((r) => (r.observed?.successDelta ?? 0) === 0).length / investigation.length;
+    expect(zeroRate).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('(c) no complete record ever has rankDelta < 0 -- a negative reading is an instrument fault (blocker 11), not a failed action', () => {
+    const { exists, data } = readJson('bladeburner-attempts.json');
+    if (!exists) return skip('bladeburner-attempts.json');
+    const completes = data.filter((r) => r.kind === 'complete');
+    if (completes.length === 0) return skip('bladeburner-attempts.json (no complete records yet)');
+    expect(completes.every((r) => (r.observed?.rankDelta ?? 0) >= 0)).toBe(true);
+  });
+
+  it('(d) the pairing invariant (successDelta === 0 <=> rankDelta === 0) holds on >=95% of non-uncertain complete records', () => {
+    const { exists, data } = readJson('bladeburner-attempts.json');
+    if (!exists) return skip('bladeburner-attempts.json');
+    const completes = data.filter((r) => r.kind === 'complete' && r.uncertain !== true && r.observed);
+    if (completes.length === 0) return skip('bladeburner-attempts.json (no complete records yet)');
+    const paired = completes.filter((r) => (r.observed.successDelta === 0) === (r.observed.rankDelta === 0));
+    expect(paired.length / completes.length).toBeGreaterThanOrEqual(0.95);
   });
 });

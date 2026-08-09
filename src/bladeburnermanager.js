@@ -260,6 +260,28 @@ export const RATE_WINDOWS_MS = { "1h": 3_600_000, "24h": 86_400_000 };
 export const MAX_FINITE_WINDOW_MS = Math.max(...Object.values(RATE_WINDOWS_MS));
 export const SAMPLE_HARD_CAP = 120_000;
 
+// ---- Phase 40 -- autolevel governor tuning (phase-40-autolevel-governor.spec.md S2.2) --
+// Shipped INERT: "shadow" computes and logs decisions but never calls a setter (S7). Flip
+// to "active" only per S5/S7's staged gate (WI3, out of scope for this implementation).
+export const LEVEL_GOVERNOR_MODE = "shadow"; // "off" | "shadow" | "active"
+export const LEVEL_RECENT_WINDOW = 30;
+export const LEVEL_MIN_SAMPLES = 20;
+export const LEVEL_LOWER_BAND = 0.6;
+export const LEVEL_RAISE_BAND = 0.95;
+export const LEVEL_COOLDOWN_MS = 600_000;
+export const LEVEL_FLOOR = 1;
+export const LEVEL_CEILING_HOLD_MS = 21_600_000; // 6h
+export const LEVEL_HARD_CEILING_RETRY_MS = 14_400_000; // 4h
+export const LEVEL_MAX_RAISE_STEP = 4;
+export const LEVEL_MAX_TOTAL_DROP = 12;
+export const LEVEL_DROP_BUDGET_MS = 86_400_000; // 24h
+export const LEVEL_SET_RETRY_MS = 1_800_000; // 30 min
+export const LEVEL_UNCERTAIN_WARN_FRACTION = 0.05;
+export const COHORT_MIN_ACTIONS = 2;
+export const LEVEL_OUTCOME_LEVELS_KEPT = 12;
+// S8 -- "edge-triggered only, plus a 30-minute heartbeat" (the crossover-flood lesson).
+export const LEVEL_GOVERN_HEARTBEAT_MS = 30 * 60_000;
+
 // ---- Pure functions (the testable surface) -----------------------------------------
 
 /** Pure. `(pMin*rankGain - (1-pMin)*rankLoss) / (timeMs/1000)`. Unchanged from Phase 38 -- this IS scoreCandidate's per-second score. */
@@ -291,6 +313,11 @@ export function scoreCandidate(candidate, mode = OBJECTIVE_MODE) {
  * by any action-starting path (that's `applyStageGate`'s job, S5.1). This is the single
  * source `computeCrossover` scores from, so C2's evidence is reachable while Stage B is
  * gated shut.
+ *
+ * Phase 40 S1.3: carries `countRemaining` (the value this function already fetches to
+ * gate the pool -- no longer discarded) and `pMax` (the estimator's upper bound, already
+ * returned by the same `getActionEstimatedSuccessChance` call as `pMin`) onto every
+ * candidate. Net call count is UNCHANGED -- both were already-charged reads.
  * @param {NS} ns
  */
 export function buildCandidates(ns) {
@@ -300,16 +327,19 @@ export function buildCandidates(ns) {
     ["Operations", OPERATIONS],
   ]) {
     for (const name of names) {
-      if (ns.bladeburner.getActionCountRemaining(type, name) < 1) continue;
-      const [pMin] = ns.bladeburner.getActionEstimatedSuccessChance(type, name);
+      const countRemaining = ns.bladeburner.getActionCountRemaining(type, name);
+      if (countRemaining < 1) continue;
+      const [pMin, pMax] = ns.bladeburner.getActionEstimatedSuccessChance(type, name);
       candidates.push({
         type,
         name,
         pMin,
+        pMax,
         rankGain: ns.bladeburner.getActionRankGain(type, name),
         rankLoss: ns.bladeburner.getActionRankLoss(type, name),
         timeMs: ns.bladeburner.getActionTime(type, name),
         risksHp: !NO_HP_RISK_ACTIONS.has(name),
+        countRemaining,
       });
     }
   }
@@ -584,10 +614,16 @@ export function pickOverheadAction(hpFraction, cityChaos, teamSize, lowInventory
  * @param {string|null} liveActionName `getCurrentAction()?.name` -- the GAME's truth, not our intent
  * @returns {{start:boolean, reason:string}}
  */
-export function shouldStartAction({ chosenAction, intendedAction, liveActionName, nowMs, lastGeneralRecheckMs = 0, generalRecheckMs = GENERAL_ACTION_RECHECK_MS }) {
+export function shouldStartAction({ chosenAction, intendedAction, liveActionName, nowMs, lastGeneralRecheckMs = 0, generalRecheckMs = GENERAL_ACTION_RECHECK_MS, forceRestartReason = null }) {
   // Already running precisely what we want -> never restart (S6: a repeat startAction
-  // resets action progress and completes nothing).
-  if (liveActionName && liveActionName === chosenAction.name) return { start: false, reason: "running-desired" };
+  // resets action progress and completes nothing). Phase 40 S3 step 5's ONE exception:
+  // a forced restart so a just-applied level change takes effect on the next rep instead
+  // of the one already in flight. The parameter defaults to null, so every existing call
+  // site/test is unaffected.
+  if (liveActionName && liveActionName === chosenAction.name) {
+    if (forceRestartReason) return { start: true, reason: forceRestartReason };
+    return { start: false, reason: "running-desired" };
+  }
   // Running something else -> switch NOW, regardless of idleness. This is the line whose
   // absence caused the 10.5-hour park.
   if (liveActionName) return { start: true, reason: "switch" };
@@ -1032,9 +1068,43 @@ export function seedAttempts(raw) {
   return parsed.length > BB_ATTEMPTS_MAX_ENTRIES ? parsed.slice(parsed.length - BB_ATTEMPTS_MAX_ENTRIES) : parsed;
 }
 
-/** Pure (S7). Assembles one attempt-ledger record from already-read/computed values -- the caller supplies every field, this just fixes the shape. */
+/** Pure (S7). Assembles one attempt-ledger record from already-read/computed values -- the caller supplies every field, this just fixes the shape. Unchanged shape (Phase 40 S1): also serves `kind: "complete"` records -- the caller spreads extra top-level fields (`success`/`uncertain`) onto the returned object rather than this function growing new parameters. */
 export function recordAttempt({ ts, kind, type, name, level, autolevel, startActionReturned, verified, predicted, observed, context }) {
   return { ts, kind, type, name, level, autolevel, startActionReturned, verified, predicted, observed, context };
+}
+
+/**
+ * Pure (Phase 40 S1.1). Detects one completed Bladeburner action rep from consecutive
+ * `getActionCurrentTime()` readings -- the only documented detector (reference gotcha 13):
+ * `startAction` auto-repeats and `getCurrentAction()` never goes null between reps, so a
+ * completion shows up as elapsed time WRAPPING from near `actionTimeMs` back down.
+ *
+ * `verified`/`sameAction` gate against reading garbage: `getActionCurrentTime()` is
+ * documented "undefined behavior when idle" (reference gotcha, Q40-11), so this function
+ * never trusts `elapsedMs` unless the caller has already confirmed (via `getCurrentAction`)
+ * that the SAME action is genuinely running.
+ * @param {{elapsedMs:number, previousElapsedMs:number|null, actionTimeMs:number, verified:boolean, sameAction:boolean}} args
+ * @returns {{completed:boolean, uncertain:boolean, reason:string}}
+ */
+export function detectActionBoundary({ elapsedMs, previousElapsedMs, actionTimeMs, verified, sameAction }) {
+  if (verified === false) return { completed: false, uncertain: false, reason: "not-running" };
+  if (!sameAction) return { completed: false, uncertain: false, reason: "action-changed" };
+  if (previousElapsedMs === null || previousElapsedMs === undefined) return { completed: false, uncertain: false, reason: "no-baseline" };
+  if (!(actionTimeMs > 0)) return { completed: false, uncertain: false, reason: "bad-action-time" };
+  const delta = elapsedMs - previousElapsedMs;
+  // Two INDEPENDENT completion signals (S1.2): a normal wrap (the counter dropped -- one
+  // rep, confidently), or a jump forward of more than one action's worth of time in a
+  // single tick without ever being observed to wrap (nextUpdate()'s bonus-time burst, up
+  // to 5x, can straddle more than one rep -- confirmed possible, so this sample's
+  // numerator/denominator are both suspect and it's flagged uncertain rather than dropped).
+  if (delta < 0) return { completed: true, uncertain: false, reason: "wrapped" };
+  if (delta > actionTimeMs) return { completed: true, uncertain: true, reason: "big-jump" };
+  return { completed: false, uncertain: false, reason: "not-completed" };
+}
+
+/** Pure (Phase 40 S1.1). A stable per-skill-levels fingerprint for `context.skillLevelsHash` -- a missing skill reads 0, not undefined, so a partial `skillLevels` object still fingerprints deterministically. */
+export function skillLevelsFingerprint(skillLevels, order) {
+  return order.map((s) => skillLevels[s] ?? 0).join("/");
 }
 
 /** Pure (S14). `null` while below the uptime threshold; otherwise the PASS/FAIL verdict against C1_BAR. */
@@ -1071,6 +1141,404 @@ export function buildBbState(fields) {
     timestamp: now,
     time: new Date(now).toLocaleTimeString(),
     ...fields,
+  };
+}
+
+// ---- Phase 40 -- the autolevel governor (S2). Every function here is pure and takes no
+// `ns`/candidate object -- D3's guard, structural: `getActionEstimatedSuccessChance`
+// cannot reach the controller because nothing here can call it (V2). --------------------
+
+/** Pure (S2.1). A fresh per-action governor state -- the shape `foldCompletion`/`applyLevelDecision`/`seedLevelGovernor` all operate on. */
+export function emptyActionGovernorState(type) {
+  return {
+    type,
+    level: null,
+    governed: false,
+    adopted: false,
+    governorFailedUntilMs: null,
+    levelSetAtMs: null,
+    ceilingLevel: null,
+    ceilingSetAtMs: null,
+    hardCeilingLevel: null,
+    hardCeilingSetAtMs: null,
+    regimeResetAppliedAtMs: null,
+    drops: [],
+    raiseStreak: 0,
+    recentWindow: [],
+    byLevel: {},
+    completions: 0,
+    uncertainCompletions: 0,
+    lastDecision: null,
+  };
+}
+
+/**
+ * Pure (S2.5's `levelDropsInWindow` helper, fixes blocker 4's rule 6c). Sums `.levels`
+ * for `drops` entries newer than `windowMs` -- OUR level reductions only (a regime reset
+ * is not charged here, S2.2 rule 2).
+ * @param {{atMs:number, levels:number}[]} drops
+ */
+export function levelDropsInWindow(drops, nowMs, windowMs) {
+  if (!Array.isArray(drops)) return 0;
+  return drops.filter((d) => d && Number.isFinite(d.atMs) && nowMs - d.atMs < windowMs).reduce((sum, d) => sum + (d.levels ?? 0), 0);
+}
+
+/**
+ * Pure. The autolevel governor's decision for ONE action. Reads realised outcomes only --
+ * `getActionEstimatedSuccessChance` appears nowhere in this call graph (D3, V2).
+ * S2.2's rule table, evaluated in order; the first matching rule returns.
+ * @param {{
+ *   name?: string, type?: "Contracts"|"Operations",
+ *   level: number, governed: boolean, attempts: number, successes: number, rankSum?: number,
+ *   levelSpan: {min:number, max:number}|null,
+ *   levelSetAtMs: number|null,
+ *   ceilingLevel: number|null, ceilingSetAtMs: number|null,
+ *   hardCeilingLevel: number|null, hardCeilingSetAtMs: number|null,
+ *   regimeResetAppliedAtMs: number|null,
+ *   drops: {atMs:number, levels:number}[],
+ *   governorFailedUntilMs: number|null,
+ *   raiseStreak: number
+ * }} actionOutcome
+ * @param {{ nowMs:number, regimeEnteredAtMs?:number|null, cohortCollapsed?:boolean,
+ *           minSamples?:number, lowerBand?:number, raiseBand?:number, cooldownMs?:number,
+ *           minLevel?:number, ceilingHoldMs?:number, hardCeilingRetryMs?:number,
+ *           maxRaiseStep?:number, maxTotalDrop?:number, dropBudgetMs?:number }} opts
+ * @returns {{ decision:"hold"|"lower"|"raise"|"insufficient-data",
+ *             toLevel:number|null, successRate:number|null, samples:number,
+ *             levelSpan:{min:number,max:number}|null, reason:string }}
+ */
+export function planLevelAdjustment(actionOutcome, opts = {}) {
+  const {
+    nowMs,
+    regimeEnteredAtMs = null,
+    cohortCollapsed = false,
+    minSamples = LEVEL_MIN_SAMPLES,
+    lowerBand = LEVEL_LOWER_BAND,
+    raiseBand = LEVEL_RAISE_BAND,
+    cooldownMs = LEVEL_COOLDOWN_MS,
+    minLevel = LEVEL_FLOOR,
+    ceilingHoldMs = LEVEL_CEILING_HOLD_MS,
+    hardCeilingRetryMs = LEVEL_HARD_CEILING_RETRY_MS,
+    maxRaiseStep = LEVEL_MAX_RAISE_STEP,
+    maxTotalDrop = LEVEL_MAX_TOTAL_DROP,
+    dropBudgetMs = LEVEL_DROP_BUDGET_MS,
+  } = opts;
+  const {
+    level, attempts, successes, governed, levelSetAtMs, ceilingLevel, ceilingSetAtMs,
+    hardCeilingLevel, hardCeilingSetAtMs, regimeResetAppliedAtMs, drops = [],
+    governorFailedUntilMs = null, raiseStreak = 0, levelSpan = null,
+  } = actionOutcome;
+
+  // Rule 1 -- never act on a malformed record.
+  if (
+    !Number.isFinite(level) || level < 0 ||
+    !Number.isFinite(attempts) || attempts < 0 ||
+    !Number.isFinite(successes) || successes < 0 ||
+    successes > attempts
+  ) {
+    return { decision: "insufficient-data", toLevel: null, successRate: null, samples: attempts, levelSpan, reason: "bad-input" };
+  }
+
+  const successRate = attempts > 0 ? successes / attempts : null;
+
+  // Rule 1b -- a setter that didn't take is not retried immediately.
+  if (governorFailedUntilMs !== null && governorFailedUntilMs !== undefined && nowMs < governorFailedUntilMs) {
+    return { decision: "hold", toLevel: null, successRate, samples: attempts, levelSpan, reason: "governor-failed" };
+  }
+
+  const regimeArmed = regimeEnteredAtMs !== null && regimeEnteredAtMs !== undefined &&
+    (regimeResetAppliedAtMs === null || regimeResetAppliedAtMs === undefined || regimeResetAppliedAtMs < regimeEnteredAtMs);
+
+  // Rule 2 -- post-install reset, latched to once per regime entry (blocker 3).
+  if (regimeEnteredAtMs !== null && regimeEnteredAtMs !== undefined && governed === true && regimeArmed) {
+    const toLevel = Math.max(minLevel, Math.floor(level / 2));
+    return { decision: "lower", toLevel, successRate, samples: attempts, levelSpan, reason: "post-install-reset" };
+  }
+
+  // Rule 3 -- an ungoverned action during a regime is left to autolevel (rule 6 catches a
+  // real collapse empirically at a cost of <=1 window).
+  if (regimeEnteredAtMs !== null && regimeEnteredAtMs !== undefined && governed === false) {
+    return { decision: "hold", toLevel: null, successRate, samples: attempts, levelSpan, reason: "ungoverned-regime" };
+  }
+
+  // Rule 4 -- sample floor.
+  if (attempts < minSamples) {
+    return { decision: "insufficient-data", toLevel: null, successRate, samples: attempts, levelSpan, reason: "samples" };
+  }
+
+  // Rule 5 -- wall-clock anti-thrash floor.
+  if (levelSetAtMs !== null && levelSetAtMs !== undefined && nowMs - levelSetAtMs < cooldownMs) {
+    return { decision: "hold", toLevel: null, successRate, samples: attempts, levelSpan, reason: "cooldown" };
+  }
+
+  if (successRate < lowerBand) {
+    // Rule 6's floor-clamp degrade, evaluated before the cohort guard: at the floor there
+    // is no "lower" decision for 5b to guard in the first place.
+    if (level <= minLevel) {
+      return { decision: "hold", toLevel: null, successRate, samples: attempts, levelSpan, reason: "at-floor" };
+    }
+    // Rule 5b (blocker 4) -- a cohort-wide collapse is not an autolevel problem.
+    if (cohortCollapsed === true) {
+      return { decision: "hold", toLevel: null, successRate, samples: attempts, levelSpan, reason: "cohort-collapse" };
+    }
+    // Rule 6 -- lower, asymmetric step sized to how far below band we are.
+    let step = successRate < 0.2 ? 4 : successRate < 0.4 ? 2 : 1;
+    // Rule 6c -- the drop budget, regardless of cause.
+    const priorDrops = levelDropsInWindow(drops, nowMs, dropBudgetMs);
+    if (priorDrops + step > maxTotalDrop) {
+      const remaining = maxTotalDrop - priorDrops;
+      if (remaining <= 0) {
+        return { decision: "hold", toLevel: null, successRate, samples: attempts, levelSpan, reason: "drop-budget" };
+      }
+      step = remaining;
+    }
+    const toLevel = Math.max(minLevel, level - step);
+    const reason = governed === false ? "take-ownership" : "below-band";
+    return { decision: "lower", toLevel, successRate, samples: attempts, levelSpan, reason };
+  }
+
+  // Rule 7 -- D5's no-op guarantee: an ungoverned, healthy action is never touched.
+  if (governed === false) {
+    return { decision: "hold", toLevel: null, successRate, samples: attempts, levelSpan, reason: "autolevel-healthy" };
+  }
+
+  // Rule 8 -- raise, streak-accelerated, clamped to whichever ceiling still holds.
+  if (successRate >= raiseBand) {
+    const step = Math.min(maxRaiseStep, 1 + raiseStreak);
+    let toLevel = level + step;
+    const ceilingActive = ceilingLevel !== null && ceilingLevel !== undefined && ceilingSetAtMs !== null && ceilingSetAtMs !== undefined && nowMs - ceilingSetAtMs < ceilingHoldMs;
+    if (ceilingActive) toLevel = Math.min(toLevel, ceilingLevel - 1);
+    const hardCeilingActive = hardCeilingLevel !== null && hardCeilingLevel !== undefined && hardCeilingSetAtMs !== null && hardCeilingSetAtMs !== undefined && nowMs - hardCeilingSetAtMs < hardCeilingRetryMs;
+    if (hardCeilingActive) toLevel = Math.min(toLevel, hardCeilingLevel);
+    // Rule 9 -- the clamp ate the whole step.
+    if (toLevel <= level) {
+      return { decision: "hold", toLevel: null, successRate, samples: attempts, levelSpan, reason: "ceiling" };
+    }
+    return { decision: "raise", toLevel, successRate, samples: attempts, levelSpan, reason: "above-band" };
+  }
+
+  // Rule 10 -- the intended steady state.
+  return { decision: "hold", toLevel: null, successRate, samples: attempts, levelSpan, reason: "in-band" };
+}
+
+/**
+ * Pure. Is the whole sampled cohort down, or is one action down? Chaos and population are
+ * city-scoped and hit every action equally, so a cohort-wide collapse is NOT an autolevel
+ * problem and must not be answered by lowering levels (blocker 4).
+ * @param {{name:string, attempts:number, successes:number}[]} outcomes
+ * @param {{minSamples?:number, lowerBand?:number, minActions?:number}} opts
+ * @returns {{collapsed:boolean, sampled:number, belowBand:number, reason:string}}
+ */
+export function classifyCohort(outcomes, opts = {}) {
+  const { minSamples = LEVEL_MIN_SAMPLES, lowerBand = LEVEL_LOWER_BAND, minActions = COHORT_MIN_ACTIONS } = opts;
+  const sampledList = (outcomes ?? []).filter((o) => Number.isFinite(o?.attempts) && o.attempts >= minSamples);
+  const belowBandList = sampledList.filter((o) => (o.attempts > 0 ? o.successes / o.attempts : 0) < lowerBand);
+  const sampled = sampledList.length;
+  const belowBand = belowBandList.length;
+  if (sampled < minActions) {
+    return { collapsed: false, sampled, belowBand, reason: "single-action-cohort" };
+  }
+  const collapsed = belowBand === sampled;
+  return { collapsed, sampled, belowBand, reason: collapsed ? "cohort-collapse" : "not-collapsed" };
+}
+
+/**
+ * Pure. Folds an APPLIED decision (and the actuator's read-back) into the action's
+ * governor state. Never calls `ns` -- the caller supplies the read-back (S2.5, fixes
+ * blocker 10). `hold`/`insufficient-data` are the identity: a decision that does nothing
+ * must change nothing.
+ * @param {ReturnType<typeof emptyActionGovernorState>} prior
+ * @param {{decision:string, toLevel:number|null, reason:string}} decision
+ * @param {{level:number, autolevel:boolean|null, ok:boolean}} readBack
+ * @param {number} nowMs
+ */
+export function applyLevelDecision(prior, decision, readBack, nowMs) {
+  const kind = decision?.decision;
+  const toLevel = decision?.toLevel;
+  const reason = decision?.reason;
+
+  if (kind === "hold" || kind === "insufficient-data") {
+    return { ...prior };
+  }
+
+  // Synthetic case: the actuator's step 1 (setActionAutolevel(false)) didn't take -- no
+  // level was ever attempted (S3 step 1, S2.5's "autolevel read-back failed" row).
+  if (kind === "autolevel-set-failed") {
+    return { ...prior, governorFailedUntilMs: nowMs + LEVEL_SET_RETRY_MS, governed: false };
+  }
+
+  // Synthetic case: S5's revert -- ownership released deliberately, everything WE tracked
+  // is cleared (Q40-12: this is the ONLY path that ever releases ownership).
+  if (kind === "release") {
+    return {
+      ...prior,
+      governed: false,
+      ceilingLevel: null,
+      ceilingSetAtMs: null,
+      hardCeilingLevel: null,
+      hardCeilingSetAtMs: null,
+      raiseStreak: 0,
+      drops: [],
+      levelSetAtMs: null,
+      recentWindow: [],
+    };
+  }
+
+  if (kind === "lower") {
+    const matched = readBack?.level === toLevel;
+    if (matched && reason === "post-install-reset") {
+      return {
+        ...prior,
+        level: readBack.level,
+        governed: true,
+        levelSetAtMs: nowMs,
+        recentWindow: [],
+        raiseStreak: 0,
+        regimeResetAppliedAtMs: nowMs,
+        ceilingLevel: null,
+        ceilingSetAtMs: null,
+        // hardCeilingLevel untouched; drops NOT charged (S2.5).
+      };
+    }
+    if (matched) {
+      const priorCeiling = prior.ceilingLevel === null || prior.ceilingLevel === undefined ? Infinity : prior.ceilingLevel;
+      const replaceCeiling = prior.level < priorCeiling;
+      return {
+        ...prior,
+        level: readBack.level,
+        governed: true,
+        levelSetAtMs: nowMs,
+        recentWindow: [],
+        raiseStreak: 0,
+        drops: [...(prior.drops ?? []), { atMs: nowMs, levels: prior.level - readBack.level }],
+        ceilingLevel: replaceCeiling ? prior.level : prior.ceilingLevel,
+        ceilingSetAtMs: replaceCeiling ? nowMs : prior.ceilingSetAtMs,
+      };
+    }
+    // Read-back mismatch on a lower is a genuine anomaly, not a max-level clamp.
+    return {
+      ...prior,
+      level: readBack?.level ?? prior.level,
+      governorFailedUntilMs: nowMs + LEVEL_SET_RETRY_MS,
+      recentWindow: [],
+    };
+  }
+
+  if (kind === "raise") {
+    const matched = readBack?.level === toLevel;
+    if (matched) {
+      return {
+        ...prior,
+        level: readBack.level,
+        raiseStreak: (prior.raiseStreak ?? 0) + 1,
+        levelSetAtMs: nowMs,
+        recentWindow: [],
+      };
+    }
+    // Read-back < toLevel is a max-level clamp, not an error.
+    return {
+      ...prior,
+      level: readBack?.level ?? prior.level,
+      hardCeilingLevel: readBack?.level ?? prior.hardCeilingLevel,
+      hardCeilingSetAtMs: nowMs,
+      raiseStreak: 0,
+      recentWindow: [],
+    };
+  }
+
+  return { ...prior };
+}
+
+/**
+ * Pure (S2.1). Folds one completed action rep into the governor's per-action state --
+ * `recentWindow` (evicts oldest-first past `LEVEL_RECENT_WINDOW`) + `byLevel` (keyed by
+ * the level AT COMPLETION, not the current level). An uncertain completion changes NO
+ * counter except `uncertainCompletions` (S1.2) -- the sample is evidence about the
+ * instrument, not about the action.
+ * @param {ReturnType<typeof emptyActionGovernorState>} governorState
+ * @param {{name?:string, type?:string, level:number, success:boolean, rankDelta:number, uncertain:boolean, nowMs:number}} completion
+ */
+export function foldCompletion(governorState, completion) {
+  const prior = governorState ?? emptyActionGovernorState(completion?.type ?? null);
+  const { level, success, rankDelta, uncertain, nowMs } = completion;
+
+  if (uncertain) {
+    return { ...prior, uncertainCompletions: (prior.uncertainCompletions ?? 0) + 1 };
+  }
+
+  const recentWindow = [...(prior.recentWindow ?? []), { level, success: !!success, rankDelta: rankDelta ?? 0, atMs: nowMs }];
+  const trimmedWindow = recentWindow.length > LEVEL_RECENT_WINDOW ? recentWindow.slice(recentWindow.length - LEVEL_RECENT_WINDOW) : recentWindow;
+
+  const levelKey = String(level);
+  const byLevelWithoutKey = { ...(prior.byLevel ?? {}) };
+  const priorLevelStats = byLevelWithoutKey[levelKey] ?? { attempts: 0, successes: 0, rankSum: 0 };
+  delete byLevelWithoutKey[levelKey]; // re-inserted below -- moves this key to the "most recently touched" end for pruneLevelOutcomes' LRU order
+  const byLevelUnpruned = {
+    ...byLevelWithoutKey,
+    [levelKey]: {
+      attempts: priorLevelStats.attempts + 1,
+      successes: priorLevelStats.successes + (success ? 1 : 0),
+      rankSum: priorLevelStats.rankSum + (rankDelta ?? 0),
+    },
+  };
+
+  return {
+    ...prior,
+    recentWindow: trimmedWindow,
+    byLevel: pruneLevelOutcomes(byLevelUnpruned, LEVEL_OUTCOME_LEVELS_KEPT),
+    completions: (prior.completions ?? 0) + 1,
+  };
+}
+
+/** Pure (S8). Drops the least-recently-touched `byLevel` entries past `keep` -- relies on `foldCompletion` re-inserting a touched key so object key order tracks recency. */
+export function pruneLevelOutcomes(byLevel, keep = LEVEL_OUTCOME_LEVELS_KEPT) {
+  const keys = Object.keys(byLevel ?? {});
+  if (keys.length <= keep) return byLevel;
+  const out = { ...byLevel };
+  for (const k of keys.slice(0, keys.length - keep)) delete out[k];
+  return out;
+}
+
+/**
+ * Pure (S8, the `seedTotals` precedent). Restores the governor's restart-persistent
+ * bookkeeping (ceilings, drops, byLevel, adoption/failure state) from a parsed
+ * `bladeburner-state.json`. Deliberately does NOT restore `recentWindow` -- S4: "a lost
+ * state file degrades to re-earn the samples, never to hand back ownership" -- the raw
+ * completion ring is not part of the persisted shape (only its derived summary is, for
+ * observability); the live loop re-fills it from fresh completions after a restart.
+ *
+ * Schema guard: a blob missing its own `constants` key is rejected WHOLE, not partially
+ * adopted (the Phase 39 `seedTotals` regression, S8).
+ * @param {any} raw parsed bladeburner-state.json, or null
+ * @returns {{actions: Record<string, object>}|null}
+ */
+export function seedLevelGovernor(raw) {
+  const block = raw?.levelGovernor;
+  if (!block || typeof block !== "object" || !("constants" in block)) return null;
+  const rawActions = block.actions && typeof block.actions === "object" ? block.actions : {};
+  const actions = {};
+  for (const [name, a] of Object.entries(rawActions)) {
+    if (!a || typeof a !== "object") continue;
+    const base = emptyActionGovernorState(typeof a.type === "string" ? a.type : null);
+    actions[name] = {
+      ...base,
+      governorFailedUntilMs: Number.isFinite(a.governorFailedUntilMs) ? a.governorFailedUntilMs : null,
+      levelSetAtMs: Number.isFinite(a.levelSetAtMs) ? a.levelSetAtMs : null,
+      ceilingLevel: Number.isFinite(a.ceilingLevel) ? a.ceilingLevel : null,
+      ceilingSetAtMs: Number.isFinite(a.ceilingSetAtMs) ? a.ceilingSetAtMs : null,
+      hardCeilingLevel: Number.isFinite(a.hardCeilingLevel) ? a.hardCeilingLevel : null,
+      hardCeilingSetAtMs: Number.isFinite(a.hardCeilingSetAtMs) ? a.hardCeilingSetAtMs : null,
+      regimeResetAppliedAtMs: Number.isFinite(a.regimeResetAppliedAtMs) ? a.regimeResetAppliedAtMs : null,
+      drops: Array.isArray(a.drops) ? a.drops.filter((d) => d && Number.isFinite(d.atMs) && Number.isFinite(d.levels)) : [],
+      raiseStreak: Number.isFinite(a.raiseStreak) && a.raiseStreak >= 0 ? a.raiseStreak : 0,
+      byLevel: a.byLevel && typeof a.byLevel === "object" ? a.byLevel : {},
+      adopted: a.adopted === true,
+    };
+  }
+  return {
+    actions,
+    completions: Number.isFinite(block.completions) && block.completions >= 0 ? block.completions : 0,
+    uncertainCompletions: Number.isFinite(block.uncertainCompletions) && block.uncertainCompletions >= 0 ? block.uncertainCompletions : 0,
   };
 }
 
@@ -1183,6 +1651,71 @@ export async function main(ns) {
   let recoveryActionQuarantinedFlag = false;
   let livelockSuspected = null;
 
+  // ---- Phase 40 -- autolevel governor + ledger repair state -------------------------
+  let boundaryState = null; // {type, name, level, rankAtBoundary, successesAtBoundary, sinceMs} -- S1.2, discarded (not settled) on any action change
+  let previousElapsedMs = null; // last tick's getActionCurrentTime() reading -- S1.1's wrap detector baseline
+  const seededGovernor = seedLevelGovernor(persistedState); // S8 -- null on a missing/malformed/schema-mismatched blob, never partially adopted
+  let completionsCount = seededGovernor?.completions ?? 0; // levelGovernor.completions (S1.2/S8) -- summed across actions for the state snapshot
+  let uncertainCompletionsCount = seededGovernor?.uncertainCompletions ?? 0;
+  let levelGovernorActions = seededGovernor ? { ...seededGovernor.actions } : {}; // {name: actionState} -- ownership itself is always reconciled live (S4), never trusted from this seed
+  let regimeEnteredAtMs = null; // Phase 39's existing regime-enter edge, now also feeding S2.2 rule 2
+  let forcedRestartAction = null; // {type, name, reason} -- S3 step 5, consumed by the NEXT tick's shouldStartAction call
+  let lastLevelGovernLog = {}; // {name: {reason, atMs}} -- S8's edge-trigger-plus-heartbeat log gate
+  let cohortWarnLogged = false;
+  let singleActionCohortWarnLogged = false;
+  let lastCohortReport = { collapsed: false, sampled: 0, belowBand: 0, reason: "no-data" };
+  let governorRevertDone = false; // S5 -- fires the revert exactly once per "off" transition, not every tick
+  let uncertaintyWarnLogged = false; // edge-triggers "boundary-uncertainty-high" (S1.2) -- one warn per crossing, not one per tick
+
+  // Shared by all three state-snapshot write sites (off-marker/interim/held) so
+  // `levelGovernor.mode` is always one of the three values, per T2's verify:log check.
+  const buildLevelGovernorSnapshot = () => ({
+    mode: LEVEL_GOVERNOR_MODE,
+    completions: completionsCount,
+    uncertainCompletions: uncertainCompletionsCount,
+    cohort: lastCohortReport,
+    constants: {
+      recentWindow: LEVEL_RECENT_WINDOW,
+      minSamples: LEVEL_MIN_SAMPLES,
+      lowerBand: LEVEL_LOWER_BAND,
+      raiseBand: LEVEL_RAISE_BAND,
+      cooldownMs: LEVEL_COOLDOWN_MS,
+      ceilingHoldMs: LEVEL_CEILING_HOLD_MS,
+      hardCeilingRetryMs: LEVEL_HARD_CEILING_RETRY_MS,
+      maxRaiseStep: LEVEL_MAX_RAISE_STEP,
+      maxTotalDrop: LEVEL_MAX_TOTAL_DROP,
+      dropBudgetMs: LEVEL_DROP_BUDGET_MS,
+    },
+    actions: Object.fromEntries(
+      Object.entries(levelGovernorActions).map(([name, a]) => [
+        name,
+        {
+          type: a.type,
+          level: a.level,
+          governed: a.governed,
+          adopted: a.adopted,
+          governorFailedUntilMs: a.governorFailedUntilMs,
+          attempts: a.recentWindow.length,
+          successes: a.recentWindow.filter((e) => e.success).length,
+          rankSum: a.recentWindow.reduce((sum, e) => sum + (e.rankDelta ?? 0), 0),
+          levelSpan: a.recentWindow.length > 0
+            ? { min: Math.min(...a.recentWindow.map((e) => e.level)), max: Math.max(...a.recentWindow.map((e) => e.level)) }
+            : null,
+          levelSetAtMs: a.levelSetAtMs,
+          ceilingLevel: a.ceilingLevel,
+          ceilingSetAtMs: a.ceilingSetAtMs,
+          hardCeilingLevel: a.hardCeilingLevel,
+          hardCeilingSetAtMs: a.hardCeilingSetAtMs,
+          regimeResetAppliedAtMs: a.regimeResetAppliedAtMs,
+          drops: a.drops,
+          raiseStreak: a.raiseStreak,
+          lastDecision: a.lastDecision,
+          byLevel: a.byLevel,
+        },
+      ]),
+    ),
+  });
+
   ns.atExit(() => {
     try {
       ns.bladeburner.stopBladeburnerAction();
@@ -1194,7 +1727,10 @@ export async function main(ns) {
 
   const flushLogs = () => {
     ns.write(BB_LOG_FILE, JSON.stringify(logEntries, null, 2), "w");
-    ns.write(BB_ATTEMPTS_FILE, JSON.stringify(attemptEntries, null, 2), "w");
+    // S1.3 -- Phase 40 roughly doubles the record rate (a `complete` record per rep, on
+    // top of `start`); pretty-print indentation is a ~40% write-size cost with zero
+    // information loss (every consumer is JSON.parse), so it's dropped here only.
+    ns.write(BB_ATTEMPTS_FILE, JSON.stringify(attemptEntries), "w");
   };
 
   while (true) {
@@ -1277,6 +1813,7 @@ export async function main(ns) {
               checkpointC3: null,
               totals: { ...totals },
               blackOpsDaedalusRank: BLACKOPS_DAEDALUS_RANK,
+              levelGovernor: buildLevelGovernorSnapshot(),
             }),
             null,
             2,
@@ -1430,6 +1967,7 @@ export async function main(ns) {
             checkpointC3: null,
             totals: { ...totals },
             blackOpsDaedalusRank: BLACKOPS_DAEDALUS_RANK,
+            levelGovernor: buildLevelGovernorSnapshot(),
           }),
           null,
           2,
@@ -1494,6 +2032,7 @@ export async function main(ns) {
     const inPostInstall = isPostInstallRegime(player.hp.max);
     if (inPostInstall && !wasPostInstall) {
       postInstallTrainingMs = 0;
+      regimeEnteredAtMs = nowMs; // Phase 40 S2.2 rule 2's latch input -- never cleared, only compared against per-action regimeResetAppliedAtMs
       logEntries = appendBbLog(logEntries, { ...ts(), kind: "regime-enter" });
     } else if (!inPostInstall && wasPostInstall) {
       logEntries = appendBbLog(logEntries, { ...ts(), kind: "regime-exit" });
@@ -1507,6 +2046,10 @@ export async function main(ns) {
 
     const liveAction = ns.bladeburner.getCurrentAction();
     const verified = !!(liveAction && liveAction.name && intendedAction && liveAction.name === intendedAction.name);
+    // Snapshot, since `intendedAction` is reassigned later THIS tick if a new start fires
+    // below -- the governor's S3 precondition 4 ("currently running") must pair with the
+    // SAME intent `verified` was computed against, not a start decision made afterward.
+    const verifiedRunningAction = verified ? intendedAction : null;
 
     // Finalize the pending attempt (the action we started LAST tick) now that we know
     // whether it verified.
@@ -1561,6 +2104,179 @@ export async function main(ns) {
       overheadStallWarned = true;
     }
 
+    // ---- WI1 hoist (fixes blocker 9): city/team/skill reads moved up from after the
+    // start block (their original position) to here, before candidate selection, so the
+    // attempt-context correlates (S1.3) and the completion-boundary settlement below can
+    // both read them without any new RAM -- nothing in this block reads `chosenAction`,
+    // verified against every downstream consumer, so the move is behaviour-preserving.
+    // The Stage-B team assignment (which DOES read chosenAction) stays at its original
+    // position, after chosenAction is chosen. ------------------------------------------
+    const cityName = ns.bladeburner.getCity();
+    const chaos = ns.bladeburner.getCityChaos(cityName);
+    const population = ns.bladeburner.getCityEstimatedPopulation(cityName);
+    const communities = ns.bladeburner.getCityCommunities(cityName);
+    const teamSize = ns.bladeburner.getTeamSize();
+    // Computed ONCE (fixes blocker 9's flagged call-count reduction): getInventoryCounts
+    // and the old inline contractCount/opCount reductions both called
+    // getActionCountRemaining for every tracked action -- 18 calls/tick where 9 suffice.
+    // RAM is unchanged (the method is already charged); this only reduces call COUNT.
+    const inventoryCounts = getInventoryCounts(ns); // CONTRACTS then OPERATIONS, in that order
+    const contractCount = inventoryCounts.slice(0, CONTRACTS.length).reduce((a, b) => a + b, 0);
+    const opCount = inventoryCounts.slice(CONTRACTS.length).reduce((a, b) => a + b, 0);
+    const lowInventory = isInventoryLow(inventoryCounts);
+    const cityUpdate = updateCityStock(cityStock, { cityName, population, communities, chaos, contractCount, opCount }, nowMs);
+    cityStock = cityUpdate.stock;
+    // All six cities, FREE on RAM (getCityChaos/getCityEstimatedPopulation/
+    // getCityCommunities are already charged for our own city, so the extra five cost
+    // nothing), and this is the complete dataset Q5 needs. Until now the engine only ever
+    // sampled its OWN city, which is exactly why nobody knew Sector-12 sat at 50x the
+    // chaos of Volhaven. ⚠️ Chaos alone must NOT decide a rotation -- population drives
+    // success chance and communities gate Raid -- which is why all three are sampled.
+    chaosByCity = Object.fromEntries(
+      ALL_CITIES.map((c) => [
+        c,
+        { chaos: ns.bladeburner.getCityChaos(c), pop: ns.bladeburner.getCityEstimatedPopulation(c), communities: ns.bladeburner.getCityCommunities(c) },
+      ]),
+    );
+    // Edge-triggered (log only on the transition INTO a breach) -- confirmed live
+    // 2026-08-03: Sector-12's chaos sits ~69 (way above the rotation threshold) during
+    // ordinary grinding, and logging it every tick has the exact same ring-flooding
+    // effect as the unthrottled crossover log above.
+    const priorBreachTypes = cityBreachState[cityName] ?? new Set();
+    const currentBreachTypes = new Set(cityUpdate.breaches.map((b) => b.type));
+    for (const breach of cityUpdate.breaches) {
+      if (!priorBreachTypes.has(breach.type)) logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: `city-breach-${breach.type}`, ...breach });
+    }
+    cityBreachState = { ...cityBreachState, [cityName]: currentBreachTypes };
+    if (CITY_ROTATION_ENABLED) {
+      const chaosByCityStock = Object.fromEntries(Object.entries(cityStock).map(([c, v]) => [c, v.chaos]));
+      shouldRotateCity(chaosByCityStock, cityName, CITY_ROTATE_CHAOS_THRESHOLD); // instrumented only -- never acted on (Q5 unmeasured)
+    }
+
+    // Skill-level read block, hoisted (WI1 point 4) so skillLevelsFingerprint can run at
+    // attempt-context time. planSkillBuy/upgradeSkill stay at their ORIGINAL position,
+    // below, reading these same hoisted values.
+    const skillLevels = {};
+    const skillCosts = {};
+    for (const skill of SKILL_BUY_ORDER) {
+      skillLevels[skill] = ns.bladeburner.getSkillLevel(skill);
+      skillCosts[skill] = ns.bladeburner.getSkillUpgradeCost(skill, 1);
+    }
+    const points = ns.bladeburner.getSkillPoints();
+    const skillLevelsHash = skillLevelsFingerprint(skillLevels, SKILL_BUY_ORDER);
+
+    // ---- WI1 S1.1/S1.2 -- completion-boundary detection, settling the action started
+    // (and possibly already completed several reps) since the LAST tick. A preempted rep
+    // is discarded, not settled (S1.2): attributing an interval spanning two different
+    // actions would manufacture exactly the contaminated sample the Diplomacy code
+    // already guards against elsewhere in this file. -----------------------------------
+    const currentElapsedMs = ns.bladeburner.getActionCurrentTime(); // the one new read this phase adds (S1.1)
+    const trackable = verified && intendedAction && intendedAction.type !== "General";
+    const sameBoundaryAction = trackable && boundaryState !== null && boundaryState.type === intendedAction.type && boundaryState.name === intendedAction.name;
+    let justSettledAction = null; // {type, name} -- feeds S3 precondition 4 (acting only at a boundary, or on an idle action)
+
+    if (!trackable) {
+      boundaryState = null;
+      previousElapsedMs = null;
+    } else if (!sameBoundaryAction) {
+      // No open interval, or the running action changed underneath us -- open a fresh one.
+      boundaryState = {
+        type: intendedAction.type,
+        name: intendedAction.name,
+        level: ns.bladeburner.getActionCurrentLevel(intendedAction.type, intendedAction.name),
+        rankAtBoundary: rankNow,
+        successesAtBoundary: ns.bladeburner.getActionSuccesses(intendedAction.type, intendedAction.name),
+        sinceMs: nowMs,
+      };
+      previousElapsedMs = currentElapsedMs;
+    } else {
+      const boundary = detectActionBoundary({
+        elapsedMs: currentElapsedMs,
+        previousElapsedMs,
+        actionTimeMs: ns.bladeburner.getActionTime(intendedAction.type, intendedAction.name),
+        verified: true,
+        sameAction: true,
+      });
+      if (boundary.completed) {
+        const successesAtSettle = ns.bladeburner.getActionSuccesses(intendedAction.type, intendedAction.name);
+        const successDelta = successesAtSettle - boundaryState.successesAtBoundary;
+        const rankDeltaSinceBoundary = Math.max(0, rankNow - boundaryState.rankAtBoundary); // blocker 11: never negative -- a negative reading is an instrument fault (S1.3)
+        const actionSecSinceBoundary = (nowMs - boundaryState.sinceMs) / 1000;
+        // S1.2: uncertain on EITHER the time-detector's own flag OR successDelta > 1 (an
+        // independent signal that the time-based detector missed a boundary).
+        const uncertain = boundary.uncertain || successDelta > 1;
+        const success = successDelta >= 1;
+
+        completionsCount += 1;
+        if (uncertain) uncertainCompletionsCount += 1;
+
+        attemptEntries = appendAttempt(attemptEntries, {
+          ...recordAttempt({
+            ts: nowMs,
+            kind: "complete",
+            type: intendedAction.type,
+            name: intendedAction.name,
+            level: boundaryState.level,
+            autolevel: null,
+            startActionReturned: null,
+            verified: true,
+            predicted: null,
+            observed: { rankDelta: rankDeltaSinceBoundary, actionSec: actionSecSinceBoundary, successDelta },
+            context: {
+              rank: rankNow,
+              staminaCurrent: staminaCur,
+              staminaMax,
+              staminaFraction,
+              hpFraction,
+              cityName,
+              cityChaos: chaos,
+              countRemaining: ns.bladeburner.getActionCountRemaining(intendedAction.type, intendedAction.name),
+              skillLevelsHash,
+              teamSize,
+            },
+          }),
+          success,
+          uncertain,
+        });
+
+        if (rankNow - boundaryState.rankAtBoundary < 0) {
+          logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "negative-rank-delta", type: intendedAction.type, name: intendedAction.name, rankBefore: boundaryState.rankAtBoundary, rankAfter: rankNow });
+        }
+
+        const priorActionState = levelGovernorActions[intendedAction.name] ?? emptyActionGovernorState(intendedAction.type);
+        levelGovernorActions[intendedAction.name] = foldCompletion(priorActionState, {
+          name: intendedAction.name,
+          type: intendedAction.type,
+          level: boundaryState.level,
+          success,
+          rankDelta: rankDeltaSinceBoundary,
+          uncertain,
+          nowMs,
+        });
+        justSettledAction = { type: intendedAction.type, name: intendedAction.name };
+
+        // Re-open the boundary for the next rep (its level may already have moved if the
+        // governor acted on the settle above -- re-read rather than assume it's unchanged).
+        boundaryState = {
+          type: intendedAction.type,
+          name: intendedAction.name,
+          level: ns.bladeburner.getActionCurrentLevel(intendedAction.type, intendedAction.name),
+          rankAtBoundary: rankNow,
+          successesAtBoundary: successesAtSettle,
+          sinceMs: nowMs,
+        };
+      }
+      previousElapsedMs = currentElapsedMs;
+    }
+
+    const uncertaintyHigh = completionsCount > 0 && uncertainCompletionsCount / completionsCount > LEVEL_UNCERTAIN_WARN_FRACTION;
+    if (uncertaintyHigh && !uncertaintyWarnLogged) {
+      logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "boundary-uncertainty-high", completions: completionsCount, uncertainCompletions: uncertainCompletionsCount });
+      uncertaintyWarnLogged = true;
+    } else if (!uncertaintyHigh) {
+      uncertaintyWarnLogged = false;
+    }
+
     // ---- Candidate selection: buildCandidates (ungated) -> applyStageGate (the ONLY
     // gate) -> pickRankAction. computeCrossover ALSO consumes the ungated pool -- C2's
     // evidence is reachable without ever opening the gate (S5.1). ----------------------
@@ -1593,10 +2309,8 @@ export async function main(ns) {
       chosenAction = { type: picked.type, name: picked.name };
       chosenCandidate = picked;
     } else {
-      const cityName = ns.bladeburner.getCity();
-      const chaos = ns.bladeburner.getCityChaos(cityName);
-      const teamSize = ns.bladeburner.getTeamSize();
-      const lowInventory = isInventoryLow(getInventoryCounts(ns));
+      // cityName/chaos/teamSize/lowInventory are hoisted above (WI1 point 2 -- deletes
+      // only these three duplicate declarations; the branch now uses the hoisted values).
       // 🔴 Passes the REAL hpFraction plus the latch as a separate flag. The old
       // `hpRecovering ? 0 : hpFraction` destroyed the distinction between "genuinely in
       // danger" and "above the floor, building a buffer", which forced the HP branch and
@@ -1626,7 +2340,12 @@ export async function main(ns) {
       liveActionName: liveAction?.name ?? null,
       nowMs,
       lastGeneralRecheckMs,
+      // Phase 40 S3 step 5 -- a level change applied to the CURRENTLY running action last
+      // tick forces one restart so it takes effect on the next rep. One-shot: consumed
+      // here regardless of whether it matches this tick's chosenAction.
+      forceRestartReason: forcedRestartAction && forcedRestartAction.type === chosenAction.type && forcedRestartAction.name === chosenAction.name ? forcedRestartAction.reason : null,
     });
+    forcedRestartAction = null;
 
     if (startDecision.start) {
       writeSlotHold(ns);
@@ -1648,9 +2367,13 @@ export async function main(ns) {
         successesBefore,
         hpBefore: player.hp.current,
         predicted: chosenCandidate
-          ? { pMin: chosenCandidate.pMin, pMax: undefined, rankGain: chosenCandidate.rankGain, rankLoss: chosenCandidate.rankLoss, actionTimeMs: chosenCandidate.timeMs, evPerSec: scoreCandidate(chosenCandidate, "per-second").evPerSec, evPerAction: scoreCandidate(chosenCandidate, "per-action").evPerAction }
+          ? { pMin: chosenCandidate.pMin, pMax: chosenCandidate.pMax, rankGain: chosenCandidate.rankGain, rankLoss: chosenCandidate.rankLoss, actionTimeMs: chosenCandidate.timeMs, evPerSec: scoreCandidate(chosenCandidate, "per-second").evPerSec, evPerAction: scoreCandidate(chosenCandidate, "per-action").evPerAction }
           : null,
-        context: { rank: rankNow, staminaCurrent: staminaCur, staminaMax, staminaFraction, hpFraction, cityName: ns.bladeburner.getCity(), cityChaos: null, countRemaining: null, skillLevelsHash: null, teamSize: null },
+        // S1.3 -- the four correlates, now populated from this tick's hoisted reads
+        // instead of hardcoded null. countRemaining comes from the candidate itself
+        // (buildCandidates already fetched it) when we started a ranked action; General/
+        // overhead actions have no candidate, so it stays null (unchanged from before).
+        context: { rank: rankNow, staminaCurrent: staminaCur, staminaMax, staminaFraction, hpFraction, cityName, cityChaos: chaos, countRemaining: chosenCandidate?.countRemaining ?? null, skillLevelsHash, teamSize },
       };
       // Open a Diplomacy measurement window. This is the whole reason the policy is
       // defensible without knowing Diplomacy's strength up front: it answers that
@@ -1697,61 +2420,210 @@ export async function main(ns) {
       lastMarkerWriteMs = nowMs;
     }
 
-    // ---- Skill buy (best-effort, one per tick). ---------------------------------------
-    const skillLevels = {};
-    const skillCosts = {};
-    for (const skill of SKILL_BUY_ORDER) {
-      skillLevels[skill] = ns.bladeburner.getSkillLevel(skill);
-      skillCosts[skill] = ns.bladeburner.getSkillUpgradeCost(skill, 1);
-    }
-    const points = ns.bladeburner.getSkillPoints();
+    // ---- Skill buy (best-effort, one per tick). skillLevels/skillCosts/points are
+    // hoisted above (WI1 point 4); this stays at its original position, reading them. --
     const buy = planSkillBuy(skillLevels, points, skillCosts);
     if (buy) {
       const ok = ns.bladeburner.upgradeSkill(buy.skill);
       if (ok) logEntries = appendBbLog(logEntries, { ...ts(), kind: "skill-buy", skill: buy.skill, toLevel: buy.toLevel, cost: buy.cost, costs: { ...skillCosts } });
     }
 
-    // ---- City stock instrumentation (S10/WI5) -- disabled for effect, logged for data. -
-    const cityName = ns.bladeburner.getCity();
-    const chaos = ns.bladeburner.getCityChaos(cityName);
-    const population = ns.bladeburner.getCityEstimatedPopulation(cityName);
-    const communities = ns.bladeburner.getCityCommunities(cityName);
-    const teamSize = ns.bladeburner.getTeamSize();
-    const contractCount = CONTRACTS.reduce((sum, n) => sum + ns.bladeburner.getActionCountRemaining("Contracts", n), 0);
-    const opCount = OPERATIONS.reduce((sum, n) => sum + ns.bladeburner.getActionCountRemaining("Operations", n), 0);
-    const cityUpdate = updateCityStock(cityStock, { cityName, population, communities, chaos, contractCount, opCount }, nowMs);
-    cityStock = cityUpdate.stock;
-    // All six cities, FREE on RAM (getCityChaos/getCityEstimatedPopulation/
-    // getCityCommunities are already charged for our own city, so the extra five cost
-    // nothing), and this is the complete dataset Q5 needs. Until now the engine only ever
-    // sampled its OWN city, which is exactly why nobody knew Sector-12 sat at 50x the
-    // chaos of Volhaven. ⚠️ Chaos alone must NOT decide a rotation -- population drives
-    // success chance and communities gate Raid -- which is why all three are sampled.
-    chaosByCity = Object.fromEntries(
-      ALL_CITIES.map((c) => [
-        c,
-        { chaos: ns.bladeburner.getCityChaos(c), pop: ns.bladeburner.getCityEstimatedPopulation(c), communities: ns.bladeburner.getCityCommunities(c) },
-      ]),
-    );
-    // Edge-triggered (log only on the transition INTO a breach) -- confirmed live
-    // 2026-08-03: Sector-12's chaos sits ~69 (way above the rotation threshold) during
-    // ordinary grinding, and logging it every tick has the exact same ring-flooding
-    // effect as the unthrottled crossover log above.
-    const priorBreachTypes = cityBreachState[cityName] ?? new Set();
-    const currentBreachTypes = new Set(cityUpdate.breaches.map((b) => b.type));
-    for (const breach of cityUpdate.breaches) {
-      if (!priorBreachTypes.has(breach.type)) logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: `city-breach-${breach.type}`, ...breach });
-    }
-    cityBreachState = { ...cityBreachState, [cityName]: currentBreachTypes };
-    if (CITY_ROTATION_ENABLED) {
-      const chaosByCity = Object.fromEntries(Object.entries(cityStock).map(([c, v]) => [c, v.chaos]));
-      shouldRotateCity(chaosByCity, cityName, CITY_ROTATE_CHAOS_THRESHOLD); // instrumented only -- never acted on (Q5 unmeasured)
-    }
+    // City stock instrumentation (S10/WI5) is hoisted above, before candidate selection
+    // (WI1 point 1) -- cityName/chaos/population/communities/teamSize/cityStock/
+    // chaosByCity/the breach log are all already computed for this tick.
 
     // ---- Team assignment for Operations (Stage B only -- no benefit in Stage A). ------
     if (STAGE_B_ENABLED && chosenAction.type === "Operations") {
       const availableTeam = ns.bladeburner.getTeamSize();
       if (availableTeam > 0) ns.bladeburner.setTeamSize(chosenAction.type, chosenAction.name, availableTeam);
+    }
+
+    // ---- Phase 40 WI2 -- the autolevel governor (S2-S5, S7). Scope is S6: every
+    // Contract/Operation in the already-gated pool (gatedPool never contains a Stage-B
+    // operation while STAGE_B_ENABLED is false, so the governor cannot reach one). Shadow
+    // mode computes and logs a decision for every governed-scope action every tick but
+    // NEVER calls a setter; only "active" mode's actuator (below) does that, and Q40-12:
+    // ownership, once taken, is released only by S5's deliberate revert, never here. -----
+    if (LEVEL_GOVERNOR_MODE === "off") {
+      if (!governorRevertDone) {
+        for (const [name, priorState] of Object.entries(levelGovernorActions)) {
+          if (!priorState.governed) continue;
+          ns.bladeburner.setActionAutolevel(priorState.type, name, true);
+          const autolevelNow = ns.bladeburner.getActionAutolevel(priorState.type, name);
+          levelGovernorActions[name] = applyLevelDecision(
+            priorState,
+            { decision: "release", toLevel: null, reason: "revert" },
+            { level: priorState.level, autolevel: autolevelNow, ok: autolevelNow === true },
+            nowMs,
+          );
+          logEntries = appendBbLog(logEntries, { ...ts(), kind: "level-govern-revert", type: priorState.type, name, ok: autolevelNow === true });
+        }
+        governorRevertDone = true;
+      }
+    } else {
+      governorRevertDone = false;
+      const governedScope = gatedPool.map((c) => ({ type: c.type, name: c.name }));
+
+      // S2.3 -- is the whole sampled cohort down, or just one action? Computed from each
+      // action's OWN recentWindow (not the estimator -- D3/V2).
+      const outcomesForCohort = governedScope.map((c) => {
+        const priorState = levelGovernorActions[c.name] ?? emptyActionGovernorState(c.type);
+        levelGovernorActions[c.name] = priorState;
+        const windowEntries = priorState.recentWindow;
+        return { name: c.name, attempts: windowEntries.length, successes: windowEntries.filter((e) => e.success).length };
+      });
+      const cohort = classifyCohort(outcomesForCohort, { minSamples: LEVEL_MIN_SAMPLES, lowerBand: LEVEL_LOWER_BAND, minActions: COHORT_MIN_ACTIONS });
+      lastCohortReport = cohort;
+      if (cohort.collapsed) {
+        if (!cohortWarnLogged) {
+          logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "cohort-collapse", ...cohort });
+          cohortWarnLogged = true;
+        }
+      } else {
+        cohortWarnLogged = false;
+      }
+      if (cohort.reason === "single-action-cohort") {
+        if (!singleActionCohortWarnLogged) {
+          logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "single-action-cohort", ...cohort });
+          singleActionCohortWarnLogged = true;
+        }
+      } else {
+        singleActionCohortWarnLogged = false;
+      }
+
+      for (const c of governedScope) {
+        // S4 -- ownership is always reconciled from the game, never trusted from a seed.
+        // getActionAutolevel/getActionCurrentLevel are both already-charged reads
+        // (Phase 39), so this costs nothing new.
+        const liveAutolevel = ns.bladeburner.getActionAutolevel(c.type, c.name);
+        const liveLevel = ns.bladeburner.getActionCurrentLevel(c.type, c.name);
+        let actionState = levelGovernorActions[c.name] ?? emptyActionGovernorState(c.type);
+        const nowGoverned = liveAutolevel === false;
+        if (nowGoverned && !actionState.governed) {
+          // S4's adoption path: autolevel already reads false and we didn't set it (a
+          // fresh takeover, or a stray probe's leftover, gotcha 5). recentWindow starts
+          // EMPTY -- no decision is ever taken on pre-adoption data.
+          actionState = { ...actionState, governed: true, adopted: true, level: liveLevel, recentWindow: [] };
+          logEntries = appendBbLog(logEntries, { ...ts(), kind: "level-govern", type: c.type, name: c.name, adopted: true, level: liveLevel });
+        } else {
+          actionState = { ...actionState, governed: nowGoverned, level: liveLevel };
+        }
+        levelGovernorActions[c.name] = actionState;
+
+        const windowEntries = actionState.recentWindow;
+        const attempts = windowEntries.length;
+        const successes = windowEntries.filter((e) => e.success).length;
+        const rankSum = windowEntries.reduce((sum, e) => sum + (e.rankDelta ?? 0), 0);
+        const levelSpan = attempts > 0
+          ? { min: Math.min(...windowEntries.map((e) => e.level)), max: Math.max(...windowEntries.map((e) => e.level)) }
+          : { min: liveLevel, max: liveLevel };
+
+        const actionOutcome = {
+          name: c.name,
+          type: c.type,
+          level: liveLevel,
+          governed: actionState.governed,
+          attempts,
+          successes,
+          rankSum,
+          levelSpan,
+          levelSetAtMs: actionState.levelSetAtMs,
+          ceilingLevel: actionState.ceilingLevel,
+          ceilingSetAtMs: actionState.ceilingSetAtMs,
+          hardCeilingLevel: actionState.hardCeilingLevel,
+          hardCeilingSetAtMs: actionState.hardCeilingSetAtMs,
+          regimeResetAppliedAtMs: actionState.regimeResetAppliedAtMs,
+          drops: actionState.drops,
+          governorFailedUntilMs: actionState.governorFailedUntilMs,
+          raiseStreak: actionState.raiseStreak,
+        };
+        const decision = planLevelAdjustment(actionOutcome, {
+          nowMs,
+          regimeEnteredAtMs,
+          cohortCollapsed: cohort.collapsed,
+          minSamples: LEVEL_MIN_SAMPLES,
+          lowerBand: LEVEL_LOWER_BAND,
+          raiseBand: LEVEL_RAISE_BAND,
+          cooldownMs: LEVEL_COOLDOWN_MS,
+          minLevel: LEVEL_FLOOR,
+          ceilingHoldMs: LEVEL_CEILING_HOLD_MS,
+          hardCeilingRetryMs: LEVEL_HARD_CEILING_RETRY_MS,
+          maxRaiseStep: LEVEL_MAX_RAISE_STEP,
+          maxTotalDrop: LEVEL_MAX_TOTAL_DROP,
+          dropBudgetMs: LEVEL_DROP_BUDGET_MS,
+        });
+        actionState.lastDecision = { decision: decision.decision, toLevel: decision.toLevel, successRate: decision.successRate, samples: decision.samples, reason: decision.reason, atMs: nowMs };
+
+        // S8 -- edge-triggered (a `hold` logs only on a reason change) plus a 30-min
+        // heartbeat; a non-hold decision always logs (the crossover-flood lesson).
+        const lastLog = lastLevelGovernLog[c.name];
+        const shouldLog = decision.decision !== "hold" || !lastLog || lastLog.reason !== decision.reason || nowMs - lastLog.atMs >= LEVEL_GOVERN_HEARTBEAT_MS;
+
+        // ---- S3 actuator -- the ONLY code path that calls setActionLevel, and (besides
+        // S5's revert above) one of exactly two that call setActionAutolevel. Every
+        // precondition below is required (S3): mode active, no active yield grant, the
+        // action not quarantined (governorFailed is already folded into `decision` via
+        // planLevelAdjustment's rule 1b), and -- precondition 4 -- either we're at a
+        // completion boundary for THIS action or it isn't the one currently running.
+        const isCurrentlyRunning = verifiedRunningAction && verifiedRunningAction.type === c.type && verifiedRunningAction.name === c.name;
+        const atBoundaryOrIdle = !isCurrentlyRunning || (justSettledAction && justSettledAction.type === c.type && justSettledAction.name === c.name);
+        const canAct = LEVEL_GOVERNOR_MODE === "active"
+          && !activeGrant
+          && !isQuarantined(quarantineState.quarantine, c.name, nowMs)
+          && atBoundaryOrIdle
+          && (decision.decision === "lower" || decision.decision === "raise");
+
+        if (canAct) {
+          if (!actionState.governed) {
+            // Step 1 -- take ownership first; a level set while autolevel is still on
+            // would be undone by the game on the next success.
+            ns.bladeburner.setActionAutolevel(c.type, c.name, false);
+            const autolevelOk = ns.bladeburner.getActionAutolevel(c.type, c.name) === false;
+            if (!autolevelOk) {
+              logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "autolevel-set-failed", type: c.type, name: c.name });
+              actionState = applyLevelDecision(actionState, { decision: "autolevel-set-failed", toLevel: null, reason: "autolevel-set-failed" }, { level: liveLevel, autolevel: true, ok: false }, nowMs);
+              levelGovernorActions[c.name] = actionState;
+              logEntries = appendBbLog(logEntries, {
+                ...ts(), kind: "level-govern", type: c.type, name: c.name, applied: false,
+                decision: decision.decision, toLevel: decision.toLevel, reason: decision.reason,
+                successRate: decision.successRate, samples: decision.samples, levelSpan: decision.levelSpan, cohort,
+              });
+              lastLevelGovernLog[c.name] = { reason: decision.reason, atMs: nowMs };
+              continue;
+            }
+          }
+          // Step 2 -- set the level, read back.
+          ns.bladeburner.setActionLevel(c.type, c.name, decision.toLevel);
+          const readLevel = ns.bladeburner.getActionCurrentLevel(c.type, c.name);
+          // Step 3 -- read-back disagreement handled by direction: a raise reading back
+          // low is a max-level clamp (not an error); a lower reading back wrong is a
+          // genuine anomaly.
+          if (readLevel !== decision.toLevel && decision.decision === "lower") {
+            logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "level-set-failed", type: c.type, name: c.name, toLevel: decision.toLevel, readLevel });
+          }
+          const readBack = { level: readLevel, autolevel: false, ok: readLevel === decision.toLevel };
+          // Step 4 -- fold the applied decision into state.
+          actionState = applyLevelDecision(actionState, decision, readBack, nowMs);
+          levelGovernorActions[c.name] = actionState;
+          logEntries = appendBbLog(logEntries, {
+            ...ts(), kind: "level-govern", type: c.type, name: c.name, applied: true,
+            decision: decision.decision, toLevel: decision.toLevel, reason: decision.reason, readBack,
+            successRate: decision.successRate, samples: decision.samples, levelSpan: decision.levelSpan, cohort,
+          });
+          lastLevelGovernLog[c.name] = { reason: decision.reason, atMs: nowMs };
+          // Step 5 -- force one restart if this is the action currently running, so the
+          // level change takes effect on the next rep (consumed by shouldStartAction
+          // above on the NEXT tick).
+          if (isCurrentlyRunning) forcedRestartAction = { type: c.type, name: c.name, reason: "level-change" };
+        } else if (shouldLog) {
+          logEntries = appendBbLog(logEntries, {
+            ...ts(), kind: "level-govern", type: c.type, name: c.name, applied: false,
+            decision: decision.decision, toLevel: decision.toLevel, reason: decision.reason,
+            successRate: decision.successRate, samples: decision.samples, levelSpan: decision.levelSpan, cohort,
+          });
+          lastLevelGovernLog[c.name] = { reason: decision.reason, atMs: nowMs };
+        }
+      }
     }
 
     // ---- Rep foregone (audit trail) -- only meaningful while yielding to the rep
@@ -1829,6 +2701,7 @@ export async function main(ns) {
             checkpointC3: c3a ?? c3b,
             totals: { ...totals },
             blackOpsDaedalusRank: BLACKOPS_DAEDALUS_RANK,
+            levelGovernor: buildLevelGovernorSnapshot(),
           }),
           null,
           2,
