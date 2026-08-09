@@ -76,6 +76,31 @@ on request — hold to them even when the moment is uncomfortable.
     `bladeburner-state.json` and obvious in the in-game panel. ⚠️ **Do not treat any rank rate
     produced by Phase 38 as evidence** — the engine was mis-tuned three separate ways and the
     objective function it optimised (rank/second) is itself now in question.
+  - **⏸️ PHASE 40 IN PROGRESS — PAUSED 2026-08-08 (session limit), stage 2 complete, stage 3 not
+    started.** `phase-40-autolevel-governor.{features,spec}.md` in the repo root. **Resume by
+    implementing WI1 + WI2 only** (WI3 is live validation and needs Kenneth's in-game run).
+    - **What it fixes, in one line:** `Investigation`'s autolevel ran it to L33 where it fails
+      **99%** of the time and earns **0.23 rank/action** vs ~9–10 at its L26–29 peak; the engine
+      **never manages action levels at all**. Extrapolated **+34%**, ETA ~20 → ~15 days.
+    - **State on pause:** features doc done; spec **Revision 2** done (cold-reviewed by
+      `spec-reviewer`, **11 blockers**, all addressed). **Zero code written** — the implementation
+      agent was stopped before it created its branch or touched `src/`. Working tree clean on
+      `master`; the live engine was healthy at pause (rank 66,927).
+    - **Resume steps:** branch off `master` (`git checkout -b phase-40-autolevel-governor` is safe —
+      it changes no file contents; ⚠️ **never `git checkout` an *existing* branch under the live dev
+      server**), implement WI1+WI2 per the spec, `npm test` (~1246 must stay green), then hand the
+      RAM gate to Kenneth. **Measured baseline R0 = 90.00 GB**; spec gates are **R1a 94.00 GB after
+      WI1**, **R1b 102.00 GB after WI2** (`mem bladeburnermanager.js` over CDP).
+    - 🔴 **TWO OPEN CALLS KENNETH HAS NOT RULED ON — surface these before implementing.** (1) **Q40-12**
+      — the governor **never automatically releases ownership**; once it takes an action, autolevel
+      stays off permanently. The spec author declined half of blocker #4 on the grounds that handing
+      autolevel back re-arms the loop with no self-exit, and addressed the *danger* (cohort guard +
+      a ≤12-levels-per-24h drop budget) rather than the *stickiness*. (2) **S2.3** — with only one
+      action sampled, the cohort guard is **overridden** and a level drop is allowed with a warn,
+      because holding would disable the phase whenever the pool narrows. Both are logged, neither is
+      buried, and both were flagged to Kenneth at pause without a reply.
+    - ⚠️ **WI2 ships INERT** (`LEVEL_GOVERNOR_MODE = "shadow"`) — it logs what it *would* decide and
+      touches nothing. Only WI1's ledger repair changes live behaviour. Activation is WI3.
   - **✅ Phase 39 SHIPPED 2026-08-03** (`docs/phases/phase-39-bladeburner-primary.spec.md` — spec
     drafted, cold review, implemented, live-validated, 1246 tests green; commits 36e788f/7fe288e).
     Its go/no-go deliverable **C2 fired 2026-08-03**. ✅ Docs graduated to `docs/phases/` 2026-08-08.
