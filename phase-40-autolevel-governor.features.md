@@ -267,10 +267,20 @@ cheap (~4%/level); one that sits above the cliff is catastrophic (~100%).
 
 ⚠️ **Two caveats the spec must carry.** (a) These are `Tracking`'s numbers — a **Contract**;
 `Investigation` is an **Operation**, and the level→payout slope is not verified to be identical.
-(b) `Tracking`'s `rankLoss` is **0** at every level, but `Investigation`'s is **0.774** — so for
+(b) ~~`Tracking`'s `rankLoss` is **0** at every level, but `Investigation`'s is **0.774** — so for
 `Investigation` a failure actively *costs* rank, which makes sitting above the cliff worse than
-merely unproductive. The asymmetry argument strengthens; the exact numbers need re-reading for
-Operations.
+merely unproductive. The asymmetry argument strengthens.~~ 🔴 **RETRACTED 2026-08-08, measured.**
+`rankLoss` is **never observed to apply**: across **4,486** consecutive-interval rank deltas there
+are **2,743 positive, 1,777 exactly zero, and ZERO negative**. A failed `Investigation` pays nothing;
+it does not cost rank. **What this changes:** (i) the sub-claim that failures are worse than
+unproductive is **false** — the cost of sitting above the cliff is pure opportunity cost, which is
+still ~100% of the action's yield, so **the main asymmetry argument is unaffected**; (ii) the
+by-level curve in §1.2 carries **no sign error** — the reconstruction's `d < 0` guard never fired, so
+nothing was silently dropped; (iii) the governor never needs to handle a negative `rankDelta`, and
+`success` cannot be inferred from the sign of a rank change — only from `successDelta`.
+⚠️ Raised by the cold spec review as a potential foundation-level defect; measured rather than
+argued. The remaining caveat stands: these level→payout figures are `Tracking`'s (a Contract), and
+`Investigation` is an Operation.
 
 ---
 
