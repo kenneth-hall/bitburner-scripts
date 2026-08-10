@@ -76,9 +76,29 @@ on request — hold to them even when the moment is uncomfortable.
     `bladeburner-state.json` and obvious in the in-game panel. ⚠️ **Do not treat any rank rate
     produced by Phase 38 as evidence** — the engine was mis-tuned three separate ways and the
     objective function it optimised (rank/second) is itself now in question.
-  - **⏸️ PHASE 40 IN PROGRESS — PAUSED 2026-08-08 (session limit), stage 2 complete, stage 3 not
-    started.** `phase-40-autolevel-governor.{features,spec}.md` in the repo root. **Resume by
-    implementing WI1 + WI2 only** (WI3 is live validation and needs Kenneth's in-game run).
+  - **🔄 PHASE 40 IN PROGRESS — NOT SHIPPED. Stage 3 attempted 2026-08-09; WI1's mechanism FAILED
+    live and is being re-specced (Revision 3).** `phase-40-autolevel-governor.{features,spec}.md` in
+    the repo root; code on branch `phase-40-autolevel-governor` (pushed).
+    - ⚠️ **"Is it shipped?" — NO, and the reason it looks shipped is worth knowing.** viteburner
+      pushes the **working tree** regardless of checked-out branch, so the branch's code **has been
+      running live in the game since 2026-08-09** even though `master` is untouched at `972153e` and
+      nothing is merged. What is live is a **broken instrument plus an inert governor** — harmless,
+      but not done. Do not read "the engine is running it" as "the phase landed."
+    - 🔴 **WI1 is DEAD AS DESIGNED — measured in production over ~21h, not inferred.** Zero `complete`
+      records ever produced. The governor logged **1,998 decisions, every one `insufficient-data` /
+      `samples: 0`.** Root cause: `detectActionBoundary` bails on `if (!sameAction)`, and the engine
+      **changes action on 99.3% of consecutive starts** (4,961/4,994 — it strictly alternates
+      `Tracking` ~45s → `Investigation` ~77s), so a timer wrap can essentially never be observed.
+      **Not a coding defect** — the implementation matches the spec; the *mechanism* was wrong, and
+      no unit test could catch it (the pure functions pass; the live loop never feeds them).
+    - ✅ **The replacement, already validated by arithmetic:** `successRate = Δ getActionSuccesses ÷
+      Δ starts`, per action. Already-charged call (**0 GB marginal**), immune to alternation and
+      bonus time, needs no boundary detection, and **deletes `getActionCurrentTime`** → gate drops
+      **102.00 → 98.00 GB**. S1 rejected this originally on the grounds that "failures are invisible"
+      — wrong, because the governor consumes an aggregate *rate*, never individual events.
+    - 🔑 **Durable lesson, and it is the reason to keep shipping features inert:** WI2's shadow mode
+      proved the design broken **in production, on real data, at zero risk**. A phase that shipped
+      "active" would have found this by damaging the run.
     - **What it fixes, in one line:** `Investigation`'s autolevel ran it to L33 where it fails
       **99%** of the time and earns **0.23 rank/action** vs ~9–10 at its L26–29 peak; the engine
       **never manages action levels at all**. Extrapolated **+34%**, ETA ~20 → ~15 days.
