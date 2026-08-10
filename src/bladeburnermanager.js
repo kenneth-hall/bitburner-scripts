@@ -276,7 +276,13 @@ export const LEVEL_MAX_RAISE_STEP = 4;
 export const LEVEL_MAX_TOTAL_DROP = 12;
 export const LEVEL_DROP_BUDGET_MS = 86_400_000; // 24h
 export const LEVEL_SET_RETRY_MS = 1_800_000; // 30 min
-export const LEVEL_UNCERTAIN_WARN_FRACTION = 0.05;
+// Revision 3 (2026-08-10): replaces LEVEL_UNCERTAIN_WARN_FRACTION -- there is no boundary
+// detector left to be uncertain about. SETTLE_MAX_MS is S1.2's single-action-regime
+// fallback (an open run this old is settled in place, estimated); ESTIMATED_SAMPLE_WARN_
+// FRACTION gates the warn when too much of a window is running on that estimate instead
+// of exact subtraction.
+export const SETTLE_MAX_MS = 300_000; // 5 min
+export const ESTIMATED_SAMPLE_WARN_FRACTION = 0.25;
 export const COHORT_MIN_ACTIONS = 2;
 export const LEVEL_OUTCOME_LEVELS_KEPT = 12;
 // S8 -- "edge-triggered only, plus a 30-minute heartbeat" (the crossover-flood lesson).
@@ -1068,38 +1074,69 @@ export function seedAttempts(raw) {
   return parsed.length > BB_ATTEMPTS_MAX_ENTRIES ? parsed.slice(parsed.length - BB_ATTEMPTS_MAX_ENTRIES) : parsed;
 }
 
-/** Pure (S7). Assembles one attempt-ledger record from already-read/computed values -- the caller supplies every field, this just fixes the shape. Unchanged shape (Phase 40 S1): also serves `kind: "complete"` records -- the caller spreads extra top-level fields (`success`/`uncertain`) onto the returned object rather than this function growing new parameters. */
+/** Pure (S7). Assembles one attempt-ledger record from already-read/computed values -- the caller supplies every field, this just fixes the shape. Unchanged shape (Phase 40 S1): also serves `kind: "complete"` records -- the caller spreads extra top-level fields (`attempts`/`success`/`estimated`, Revision 3) onto the returned object rather than this function growing new parameters. */
 export function recordAttempt({ ts, kind, type, name, level, autolevel, startActionReturned, verified, predicted, observed, context }) {
   return { ts, kind, type, name, level, autolevel, startActionReturned, verified, predicted, observed, context };
 }
 
 /**
- * Pure (Phase 40 S1.1). Detects one completed Bladeburner action rep from consecutive
- * `getActionCurrentTime()` readings -- the only documented detector (reference gotcha 13):
- * `startAction` auto-repeats and `getCurrentAction()` never goes null between reps, so a
- * completion shows up as elapsed time WRAPPING from near `actionTimeMs` back down.
+ * Pure (Phase 40 Rev 3, S1.1/S1.2). Settles one open action run by success-count
+ * SUBTRACTION -- replaces `detectActionBoundary`'s time-based wrap detection entirely.
+ * Revision 2's detector required the SAME action across consecutive ticks to observe a
+ * wrap; measured live, the engine changes action on 99.3% of consecutive starts, so that
+ * wrap essentially never occurred (21h live, zero `complete` records). The replacement
+ * needs no boundary at all: the caller settles `openRun` whenever the NEXT verified start
+ * fires (of any action -- the alternation IS the trigger) or, in the single-action regime
+ * where nothing ever switches, after `SETTLE_MAX_MS` (`viaTimeout: true`).
  *
- * `verified`/`sameAction` gate against reading garbage: `getActionCurrentTime()` is
- * documented "undefined behavior when idle" (reference gotcha, Q40-11), so this function
- * never trusts `elapsedMs` unless the caller has already confirmed (via `getCurrentAction`)
- * that the SAME action is genuinely running.
- * @param {{elapsedMs:number, previousElapsedMs:number|null, actionTimeMs:number, verified:boolean, sameAction:boolean}} args
- * @returns {{completed:boolean, uncertain:boolean, reason:string}}
+ * `successDelta < 0` (S1.2's counter-reset guard -- the game's per-action success counter
+ * resetting, e.g. across an install; survival unconfirmed, Q40-16) is NEVER folded: the
+ * caller discards the interval and re-baselines from the current read.
+ *
+ * `viaTimeout: true` is the one place an estimate enters the pipeline: `attempts` is
+ * `max(successDelta, round(actionSec / actionTimeSec))` rather than the exact
+ * `max(1, successDelta)` used on the primary (switch-triggered) path. A non-positive
+ * `actionTimeMs` degrades to `max(1, successDelta)` rather than dividing by it.
+ * @param {{type:string, name:string, level:number, successesBefore:number, rankBefore:number, startAtMs:number}} openRun
+ * @param {{successesNow:number, rankNow:number, nowMs:number, actionTimeMs:number, viaTimeout?:boolean}} args
+ * @returns {{discard:true, reason:"success-counter-reset"}|{discard:false, type:string, name:string, level:number, attempts:number, successes:number, success:boolean, rankDelta:number, actionSec:number, estimated:boolean, atMs:number}}
  */
-export function detectActionBoundary({ elapsedMs, previousElapsedMs, actionTimeMs, verified, sameAction }) {
-  if (verified === false) return { completed: false, uncertain: false, reason: "not-running" };
-  if (!sameAction) return { completed: false, uncertain: false, reason: "action-changed" };
-  if (previousElapsedMs === null || previousElapsedMs === undefined) return { completed: false, uncertain: false, reason: "no-baseline" };
-  if (!(actionTimeMs > 0)) return { completed: false, uncertain: false, reason: "bad-action-time" };
-  const delta = elapsedMs - previousElapsedMs;
-  // Two INDEPENDENT completion signals (S1.2): a normal wrap (the counter dropped -- one
-  // rep, confidently), or a jump forward of more than one action's worth of time in a
-  // single tick without ever being observed to wrap (nextUpdate()'s bonus-time burst, up
-  // to 5x, can straddle more than one rep -- confirmed possible, so this sample's
-  // numerator/denominator are both suspect and it's flagged uncertain rather than dropped).
-  if (delta < 0) return { completed: true, uncertain: false, reason: "wrapped" };
-  if (delta > actionTimeMs) return { completed: true, uncertain: true, reason: "big-jump" };
-  return { completed: false, uncertain: false, reason: "not-completed" };
+export function settleActionRun(openRun, { successesNow, rankNow, nowMs, actionTimeMs, viaTimeout = false }) {
+  const successDelta = successesNow - openRun.successesBefore;
+  if (successDelta < 0) {
+    return { discard: true, reason: "success-counter-reset" };
+  }
+  const rankDelta = Math.max(0, rankNow - openRun.rankBefore); // blocker 11: never negative -- a negative reading is an instrument fault, not a real decrease
+  const actionSec = Math.max(0, (nowMs - openRun.startAtMs) / 1000);
+  let attempts;
+  if (viaTimeout) {
+    if (!(actionTimeMs > 0)) {
+      attempts = Math.max(1, successDelta);
+    } else {
+      const actionTimeSec = actionTimeMs / 1000;
+      attempts = Math.max(successDelta, Math.round(actionSec / actionTimeSec));
+    }
+  } else {
+    // Multi-rep intervals (auto-repeat + bonus time can complete >1 rep before the next
+    // start) can read successDelta > 1 -- attempts = max(1, successDelta) keeps
+    // successes <= attempts by construction. Known, bounded bias (S1.2): an interval with
+    // 2 reps of which 1 failed settles as 1/1 -- overestimates success, bounded because it
+    // requires the engine NOT to switch, which happens 99.3% of the time.
+    attempts = Math.max(1, successDelta);
+  }
+  return {
+    discard: false,
+    type: openRun.type,
+    name: openRun.name,
+    level: openRun.level,
+    attempts,
+    successes: successDelta,
+    success: successDelta >= 1,
+    rankDelta,
+    actionSec,
+    estimated: !!viaTimeout,
+    atMs: nowMs,
+  };
 }
 
 /** Pure (Phase 40 S1.1). A stable per-skill-levels fingerprint for `context.skillLevelsHash` -- a missing skill reads 0, not undefined, so a partial `skillLevels` object still fingerprints deterministically. */
@@ -1148,7 +1185,7 @@ export function buildBbState(fields) {
 // `ns`/candidate object -- D3's guard, structural: `getActionEstimatedSuccessChance`
 // cannot reach the controller because nothing here can call it (V2). --------------------
 
-/** Pure (S2.1). A fresh per-action governor state -- the shape `foldCompletion`/`applyLevelDecision`/`seedLevelGovernor` all operate on. */
+/** Pure (S2.1). A fresh per-action governor state -- the shape `foldSettlement`/`applyLevelDecision`/`seedLevelGovernor` all operate on. */
 export function emptyActionGovernorState(type) {
   return {
     type,
@@ -1166,8 +1203,8 @@ export function emptyActionGovernorState(type) {
     raiseStreak: 0,
     recentWindow: [],
     byLevel: {},
-    completions: 0,
-    uncertainCompletions: 0,
+    settlements: 0,
+    estimatedSettlements: 0,
     lastDecision: null,
   };
 }
@@ -1450,23 +1487,21 @@ export function applyLevelDecision(prior, decision, readBack, nowMs) {
 }
 
 /**
- * Pure (S2.1). Folds one completed action rep into the governor's per-action state --
- * `recentWindow` (evicts oldest-first past `LEVEL_RECENT_WINDOW`) + `byLevel` (keyed by
- * the level AT COMPLETION, not the current level). An uncertain completion changes NO
- * counter except `uncertainCompletions` (S1.2) -- the sample is evidence about the
- * instrument, not about the action.
+ * Pure (S2.1; Revision 3 -- renamed + reshaped from `foldCompletion`). Folds one SETTLED
+ * interval (`settleActionRun`'s non-discarded output) into the governor's per-action
+ * state -- `recentWindow` (evicts oldest-first past `LEVEL_RECENT_WINDOW`) + `byLevel`
+ * (keyed by the level AT COMPLETION, not the current level). `attempts`/`successes` are
+ * SUMS now, not a boolean -- a multi-rep or `estimated` interval can represent more than
+ * one attempt. `settleActionRun`'s `{discard: true}` shape is never passed in here -- the
+ * caller filters it and logs its own warn instead.
  * @param {ReturnType<typeof emptyActionGovernorState>} governorState
- * @param {{name?:string, type?:string, level:number, success:boolean, rankDelta:number, uncertain:boolean, nowMs:number}} completion
+ * @param {{name?:string, type?:string, level:number, attempts:number, successes:number, rankDelta:number, estimated:boolean, atMs:number}} settledOutcome
  */
-export function foldCompletion(governorState, completion) {
-  const prior = governorState ?? emptyActionGovernorState(completion?.type ?? null);
-  const { level, success, rankDelta, uncertain, nowMs } = completion;
+export function foldSettlement(governorState, settledOutcome) {
+  const prior = governorState ?? emptyActionGovernorState(settledOutcome?.type ?? null);
+  const { level, attempts, successes, rankDelta, estimated, atMs } = settledOutcome;
 
-  if (uncertain) {
-    return { ...prior, uncertainCompletions: (prior.uncertainCompletions ?? 0) + 1 };
-  }
-
-  const recentWindow = [...(prior.recentWindow ?? []), { level, success: !!success, rankDelta: rankDelta ?? 0, atMs: nowMs }];
+  const recentWindow = [...(prior.recentWindow ?? []), { level, attempts, successes, rankDelta: rankDelta ?? 0, estimated: !!estimated, atMs }];
   const trimmedWindow = recentWindow.length > LEVEL_RECENT_WINDOW ? recentWindow.slice(recentWindow.length - LEVEL_RECENT_WINDOW) : recentWindow;
 
   const levelKey = String(level);
@@ -1476,8 +1511,8 @@ export function foldCompletion(governorState, completion) {
   const byLevelUnpruned = {
     ...byLevelWithoutKey,
     [levelKey]: {
-      attempts: priorLevelStats.attempts + 1,
-      successes: priorLevelStats.successes + (success ? 1 : 0),
+      attempts: priorLevelStats.attempts + attempts,
+      successes: priorLevelStats.successes + successes,
       rankSum: priorLevelStats.rankSum + (rankDelta ?? 0),
     },
   };
@@ -1486,11 +1521,12 @@ export function foldCompletion(governorState, completion) {
     ...prior,
     recentWindow: trimmedWindow,
     byLevel: pruneLevelOutcomes(byLevelUnpruned, LEVEL_OUTCOME_LEVELS_KEPT),
-    completions: (prior.completions ?? 0) + 1,
+    settlements: (prior.settlements ?? 0) + 1,
+    estimatedSettlements: (prior.estimatedSettlements ?? 0) + (estimated ? 1 : 0),
   };
 }
 
-/** Pure (S8). Drops the least-recently-touched `byLevel` entries past `keep` -- relies on `foldCompletion` re-inserting a touched key so object key order tracks recency. */
+/** Pure (S8). Drops the least-recently-touched `byLevel` entries past `keep` -- relies on `foldSettlement` re-inserting a touched key so object key order tracks recency. */
 export function pruneLevelOutcomes(byLevel, keep = LEVEL_OUTCOME_LEVELS_KEPT) {
   const keys = Object.keys(byLevel ?? {});
   if (keys.length <= keep) return byLevel;
@@ -1504,8 +1540,8 @@ export function pruneLevelOutcomes(byLevel, keep = LEVEL_OUTCOME_LEVELS_KEPT) {
  * bookkeeping (ceilings, drops, byLevel, adoption/failure state) from a parsed
  * `bladeburner-state.json`. Deliberately does NOT restore `recentWindow` -- S4: "a lost
  * state file degrades to re-earn the samples, never to hand back ownership" -- the raw
- * completion ring is not part of the persisted shape (only its derived summary is, for
- * observability); the live loop re-fills it from fresh completions after a restart.
+ * settlement ring is not part of the persisted shape (only its derived summary is, for
+ * observability); the live loop re-fills it from fresh settlements after a restart.
  *
  * Schema guard: a blob missing its own `constants` key is rejected WHOLE, not partially
  * adopted (the Phase 39 `seedTotals` regression, S8).
@@ -1537,8 +1573,8 @@ export function seedLevelGovernor(raw) {
   }
   return {
     actions,
-    completions: Number.isFinite(block.completions) && block.completions >= 0 ? block.completions : 0,
-    uncertainCompletions: Number.isFinite(block.uncertainCompletions) && block.uncertainCompletions >= 0 ? block.uncertainCompletions : 0,
+    settlements: Number.isFinite(block.settlements) && block.settlements >= 0 ? block.settlements : 0,
+    estimatedSettlements: Number.isFinite(block.estimatedSettlements) && block.estimatedSettlements >= 0 ? block.estimatedSettlements : 0,
   };
 }
 
@@ -1652,11 +1688,14 @@ export async function main(ns) {
   let livelockSuspected = null;
 
   // ---- Phase 40 -- autolevel governor + ledger repair state -------------------------
-  let boundaryState = null; // {type, name, level, rankAtBoundary, successesAtBoundary, sinceMs} -- S1.2, discarded (not settled) on any action change
-  let previousElapsedMs = null; // last tick's getActionCurrentTime() reading -- S1.1's wrap detector baseline
+  // Revision 3: `boundaryState`/`previousElapsedMs` are GONE -- there is no time-based
+  // wrap detector left. `openRunState` is the interval currently open for whichever
+  // action is running, settled by subtraction at the NEXT verified start (of any action)
+  // or, in the single-action regime, after SETTLE_MAX_MS.
+  let openRunState = null; // {type, name, level, successesBefore, rankBefore, startAtMs} -- discarded (not settled) on any verification failure
   const seededGovernor = seedLevelGovernor(persistedState); // S8 -- null on a missing/malformed/schema-mismatched blob, never partially adopted
-  let completionsCount = seededGovernor?.completions ?? 0; // levelGovernor.completions (S1.2/S8) -- summed across actions for the state snapshot
-  let uncertainCompletionsCount = seededGovernor?.uncertainCompletions ?? 0;
+  let settlementsCount = seededGovernor?.settlements ?? 0; // levelGovernor.settlements (S1.2/S8) -- summed across actions for the state snapshot
+  let estimatedSettlementsCount = seededGovernor?.estimatedSettlements ?? 0;
   let levelGovernorActions = seededGovernor ? { ...seededGovernor.actions } : {}; // {name: actionState} -- ownership itself is always reconciled live (S4), never trusted from this seed
   let regimeEnteredAtMs = null; // Phase 39's existing regime-enter edge, now also feeding S2.2 rule 2
   let forcedRestartAction = null; // {type, name, reason} -- S3 step 5, consumed by the NEXT tick's shouldStartAction call
@@ -1665,14 +1704,14 @@ export async function main(ns) {
   let singleActionCohortWarnLogged = false;
   let lastCohortReport = { collapsed: false, sampled: 0, belowBand: 0, reason: "no-data" };
   let governorRevertDone = false; // S5 -- fires the revert exactly once per "off" transition, not every tick
-  let uncertaintyWarnLogged = false; // edge-triggers "boundary-uncertainty-high" (S1.2) -- one warn per crossing, not one per tick
+  let estimatedFractionWarnLogged = false; // edge-triggers "estimated-fraction-high" (S1.2) -- one warn per crossing, not one per tick
 
   // Shared by all three state-snapshot write sites (off-marker/interim/held) so
   // `levelGovernor.mode` is always one of the three values, per T2's verify:log check.
   const buildLevelGovernorSnapshot = () => ({
     mode: LEVEL_GOVERNOR_MODE,
-    completions: completionsCount,
-    uncertainCompletions: uncertainCompletionsCount,
+    settlements: settlementsCount,
+    estimatedSettlements: estimatedSettlementsCount,
     cohort: lastCohortReport,
     constants: {
       recentWindow: LEVEL_RECENT_WINDOW,
@@ -1685,6 +1724,8 @@ export async function main(ns) {
       maxRaiseStep: LEVEL_MAX_RAISE_STEP,
       maxTotalDrop: LEVEL_MAX_TOTAL_DROP,
       dropBudgetMs: LEVEL_DROP_BUDGET_MS,
+      settleMaxMs: SETTLE_MAX_MS,
+      estimatedWarnFraction: ESTIMATED_SAMPLE_WARN_FRACTION,
     },
     actions: Object.fromEntries(
       Object.entries(levelGovernorActions).map(([name, a]) => [
@@ -1695,8 +1736,8 @@ export async function main(ns) {
           governed: a.governed,
           adopted: a.adopted,
           governorFailedUntilMs: a.governorFailedUntilMs,
-          attempts: a.recentWindow.length,
-          successes: a.recentWindow.filter((e) => e.success).length,
+          attempts: a.recentWindow.reduce((sum, e) => sum + (e.attempts ?? 0), 0),
+          successes: a.recentWindow.reduce((sum, e) => sum + (e.successes ?? 0), 0),
           rankSum: a.recentWindow.reduce((sum, e) => sum + (e.rankDelta ?? 0), 0),
           levelSpan: a.recentWindow.length > 0
             ? { min: Math.min(...a.recentWindow.map((e) => e.level)), max: Math.max(...a.recentWindow.map((e) => e.level)) }
@@ -2106,7 +2147,7 @@ export async function main(ns) {
 
     // ---- WI1 hoist (fixes blocker 9): city/team/skill reads moved up from after the
     // start block (their original position) to here, before candidate selection, so the
-    // attempt-context correlates (S1.3) and the completion-boundary settlement below can
+    // attempt-context correlates (S1.3) and the settlement-by-subtraction block below can
     // both read them without any new RAM -- nothing in this block reads `chosenAction`,
     // verified against every downstream consumer, so the move is behaviour-preserving.
     // The Stage-B team assignment (which DOES read chosenAction) stays at its original
@@ -2165,116 +2206,105 @@ export async function main(ns) {
     const points = ns.bladeburner.getSkillPoints();
     const skillLevelsHash = skillLevelsFingerprint(skillLevels, SKILL_BUY_ORDER);
 
-    // ---- WI1 S1.1/S1.2 -- completion-boundary detection, settling the action started
-    // (and possibly already completed several reps) since the LAST tick. A preempted rep
-    // is discarded, not settled (S1.2): attributing an interval spanning two different
-    // actions would manufacture exactly the contaminated sample the Diplomacy code
-    // already guards against elsewhere in this file. -----------------------------------
-    const currentElapsedMs = ns.bladeburner.getActionCurrentTime(); // the one new read this phase adds (S1.1)
+    // ---- WI1 S1.1/S1.2 (Revision 3) -- settlement by success-count SUBTRACTION,
+    // triggered by the NEXT verified start (of any action -- the engine's own 99.3%
+    // alternation IS the trigger, not an obstacle) or, in the single-action regime, by
+    // SETTLE_MAX_MS. No boundary detection, no `getActionCurrentTime` read: both are
+    // deleted along with `detectActionBoundary`, whose SAME-action wrap detector
+    // essentially never fired live (21h, zero `complete` records -- the engine changes
+    // action on 99.3% of consecutive starts). A preempted/unverified interval is
+    // discarded, not settled: attributing an interval spanning two different actions
+    // would manufacture exactly the contaminated sample the Diplomacy code already
+    // guards against elsewhere in this file. --------------------------------------------
     const trackable = verified && intendedAction && intendedAction.type !== "General";
-    const sameBoundaryAction = trackable && boundaryState !== null && boundaryState.type === intendedAction.type && boundaryState.name === intendedAction.name;
-    let justSettledAction = null; // {type, name} -- feeds S3 precondition 4 (acting only at a boundary, or on an idle action)
+    const sameOpenAction = trackable && openRunState !== null && openRunState.type === intendedAction.type && openRunState.name === intendedAction.name;
+    let justSettledAction = null; // {type, name} -- feeds S3 precondition 4 (acting only at a settlement point, or on an idle action)
+
+    // Settles `openRunState` (captured locally before any reassignment) via subtraction,
+    // folds it into the ledger + governor state, or -- on a counter reset (S1.2) --
+    // discards it and logs a warn instead. Never call with `openRunState === null`.
+    const settleOpenRun = (viaTimeout) => {
+      // Deliberately NOT named `run` -- a billed identifier (`ns.run`, CLAUDE.md's
+      // hygiene list). Same reason `openRunState` isn't shortened to `run` (S9).
+      const closingRun = openRunState;
+      const successesNow = ns.bladeburner.getActionSuccesses(closingRun.type, closingRun.name);
+      const actionTimeMs = ns.bladeburner.getActionTime(closingRun.type, closingRun.name);
+      const settled = settleActionRun(closingRun, { successesNow, rankNow, nowMs, actionTimeMs, viaTimeout });
+      if (settled.discard) {
+        logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "success-counter-reset", type: closingRun.type, name: closingRun.name });
+        return;
+      }
+      settlementsCount += 1;
+      if (settled.estimated) estimatedSettlementsCount += 1;
+
+      attemptEntries = appendAttempt(attemptEntries, {
+        ...recordAttempt({
+          ts: nowMs,
+          kind: "complete",
+          type: settled.type,
+          name: settled.name,
+          level: settled.level,
+          autolevel: null,
+          startActionReturned: null,
+          verified: true,
+          predicted: null,
+          observed: { rankDelta: settled.rankDelta, actionSec: settled.actionSec, successDelta: settled.successes },
+          context: {
+            rank: rankNow,
+            staminaCurrent: staminaCur,
+            staminaMax,
+            staminaFraction,
+            hpFraction,
+            cityName,
+            cityChaos: chaos,
+            countRemaining: ns.bladeburner.getActionCountRemaining(settled.type, settled.name),
+            skillLevelsHash,
+            teamSize,
+          },
+        }),
+        attempts: settled.attempts,
+        success: settled.success,
+        estimated: settled.estimated,
+      });
+
+      if (rankNow - closingRun.rankBefore < 0) {
+        logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "negative-rank-delta", type: closingRun.type, name: closingRun.name, rankBefore: closingRun.rankBefore, rankAfter: rankNow });
+      }
+
+      const priorActionState = levelGovernorActions[settled.name] ?? emptyActionGovernorState(settled.type);
+      levelGovernorActions[settled.name] = foldSettlement(priorActionState, settled);
+      justSettledAction = { type: settled.type, name: settled.name };
+    };
+
+    const openFreshRun = (type, name) => ({
+      type,
+      name,
+      level: ns.bladeburner.getActionCurrentLevel(type, name),
+      successesBefore: ns.bladeburner.getActionSuccesses(type, name),
+      rankBefore: rankNow,
+      startAtMs: nowMs,
+    });
 
     if (!trackable) {
-      boundaryState = null;
-      previousElapsedMs = null;
-    } else if (!sameBoundaryAction) {
-      // No open interval, or the running action changed underneath us -- open a fresh one.
-      boundaryState = {
-        type: intendedAction.type,
-        name: intendedAction.name,
-        level: ns.bladeburner.getActionCurrentLevel(intendedAction.type, intendedAction.name),
-        rankAtBoundary: rankNow,
-        successesAtBoundary: ns.bladeburner.getActionSuccesses(intendedAction.type, intendedAction.name),
-        sinceMs: nowMs,
-      };
-      previousElapsedMs = currentElapsedMs;
-    } else {
-      const boundary = detectActionBoundary({
-        elapsedMs: currentElapsedMs,
-        previousElapsedMs,
-        actionTimeMs: ns.bladeburner.getActionTime(intendedAction.type, intendedAction.name),
-        verified: true,
-        sameAction: true,
-      });
-      if (boundary.completed) {
-        const successesAtSettle = ns.bladeburner.getActionSuccesses(intendedAction.type, intendedAction.name);
-        const successDelta = successesAtSettle - boundaryState.successesAtBoundary;
-        const rankDeltaSinceBoundary = Math.max(0, rankNow - boundaryState.rankAtBoundary); // blocker 11: never negative -- a negative reading is an instrument fault (S1.3)
-        const actionSecSinceBoundary = (nowMs - boundaryState.sinceMs) / 1000;
-        // S1.2: uncertain on EITHER the time-detector's own flag OR successDelta > 1 (an
-        // independent signal that the time-based detector missed a boundary).
-        const uncertain = boundary.uncertain || successDelta > 1;
-        const success = successDelta >= 1;
-
-        completionsCount += 1;
-        if (uncertain) uncertainCompletionsCount += 1;
-
-        attemptEntries = appendAttempt(attemptEntries, {
-          ...recordAttempt({
-            ts: nowMs,
-            kind: "complete",
-            type: intendedAction.type,
-            name: intendedAction.name,
-            level: boundaryState.level,
-            autolevel: null,
-            startActionReturned: null,
-            verified: true,
-            predicted: null,
-            observed: { rankDelta: rankDeltaSinceBoundary, actionSec: actionSecSinceBoundary, successDelta },
-            context: {
-              rank: rankNow,
-              staminaCurrent: staminaCur,
-              staminaMax,
-              staminaFraction,
-              hpFraction,
-              cityName,
-              cityChaos: chaos,
-              countRemaining: ns.bladeburner.getActionCountRemaining(intendedAction.type, intendedAction.name),
-              skillLevelsHash,
-              teamSize,
-            },
-          }),
-          success,
-          uncertain,
-        });
-
-        if (rankNow - boundaryState.rankAtBoundary < 0) {
-          logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "negative-rank-delta", type: intendedAction.type, name: intendedAction.name, rankBefore: boundaryState.rankAtBoundary, rankAfter: rankNow });
-        }
-
-        const priorActionState = levelGovernorActions[intendedAction.name] ?? emptyActionGovernorState(intendedAction.type);
-        levelGovernorActions[intendedAction.name] = foldCompletion(priorActionState, {
-          name: intendedAction.name,
-          type: intendedAction.type,
-          level: boundaryState.level,
-          success,
-          rankDelta: rankDeltaSinceBoundary,
-          uncertain,
-          nowMs,
-        });
-        justSettledAction = { type: intendedAction.type, name: intendedAction.name };
-
-        // Re-open the boundary for the next rep (its level may already have moved if the
-        // governor acted on the settle above -- re-read rather than assume it's unchanged).
-        boundaryState = {
-          type: intendedAction.type,
-          name: intendedAction.name,
-          level: ns.bladeburner.getActionCurrentLevel(intendedAction.type, intendedAction.name),
-          rankAtBoundary: rankNow,
-          successesAtBoundary: successesAtSettle,
-          sinceMs: nowMs,
-        };
-      }
-      previousElapsedMs = currentElapsedMs;
+      openRunState = null;
+    } else if (!sameOpenAction) {
+      // No open interval, or the running action changed underneath us. A real switch
+      // settles the OLD run (exact subtraction); a fresh cold-start has nothing to settle.
+      if (openRunState !== null) settleOpenRun(false);
+      openRunState = openFreshRun(intendedAction.type, intendedAction.name);
+    } else if (nowMs - openRunState.startAtMs >= SETTLE_MAX_MS) {
+      // S1.2's single-action-regime fallback: nothing has switched in SETTLE_MAX_MS (the
+      // ONE place an estimate enters the pipeline) -- settle in place and re-baseline.
+      settleOpenRun(true);
+      openRunState = openFreshRun(intendedAction.type, intendedAction.name);
     }
 
-    const uncertaintyHigh = completionsCount > 0 && uncertainCompletionsCount / completionsCount > LEVEL_UNCERTAIN_WARN_FRACTION;
-    if (uncertaintyHigh && !uncertaintyWarnLogged) {
-      logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "boundary-uncertainty-high", completions: completionsCount, uncertainCompletions: uncertainCompletionsCount });
-      uncertaintyWarnLogged = true;
-    } else if (!uncertaintyHigh) {
-      uncertaintyWarnLogged = false;
+    const estimatedFractionHigh = settlementsCount > 0 && estimatedSettlementsCount / settlementsCount > ESTIMATED_SAMPLE_WARN_FRACTION;
+    if (estimatedFractionHigh && !estimatedFractionWarnLogged) {
+      logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "estimated-fraction-high", settlements: settlementsCount, estimatedSettlements: estimatedSettlementsCount });
+      estimatedFractionWarnLogged = true;
+    } else if (!estimatedFractionHigh) {
+      estimatedFractionWarnLogged = false;
     }
 
     // ---- Candidate selection: buildCandidates (ungated) -> applyStageGate (the ONLY
@@ -2465,12 +2495,18 @@ export async function main(ns) {
       const governedScope = gatedPool.map((c) => ({ type: c.type, name: c.name }));
 
       // S2.3 -- is the whole sampled cohort down, or just one action? Computed from each
-      // action's OWN recentWindow (not the estimator -- D3/V2).
+      // action's OWN recentWindow (not the estimator -- D3/V2). Revision 3: `attempts`/
+      // `successes` are SUMS over the settled entries, not entry counts -- a multi-rep or
+      // estimated interval can represent more than one attempt (S2.1).
       const outcomesForCohort = governedScope.map((c) => {
         const priorState = levelGovernorActions[c.name] ?? emptyActionGovernorState(c.type);
         levelGovernorActions[c.name] = priorState;
         const windowEntries = priorState.recentWindow;
-        return { name: c.name, attempts: windowEntries.length, successes: windowEntries.filter((e) => e.success).length };
+        return {
+          name: c.name,
+          attempts: windowEntries.reduce((sum, e) => sum + (e.attempts ?? 0), 0),
+          successes: windowEntries.reduce((sum, e) => sum + (e.successes ?? 0), 0),
+        };
       });
       const cohort = classifyCohort(outcomesForCohort, { minSamples: LEVEL_MIN_SAMPLES, lowerBand: LEVEL_LOWER_BAND, minActions: COHORT_MIN_ACTIONS });
       lastCohortReport = cohort;
@@ -2510,11 +2546,15 @@ export async function main(ns) {
         }
         levelGovernorActions[c.name] = actionState;
 
+        // Revision 3: sums over settled interval entries, not entry counts (S2.1) --
+        // `minSamples` measures evidence (attempts), not how many settlements produced it.
         const windowEntries = actionState.recentWindow;
-        const attempts = windowEntries.length;
-        const successes = windowEntries.filter((e) => e.success).length;
+        const attempts = windowEntries.reduce((sum, e) => sum + (e.attempts ?? 0), 0);
+        const successes = windowEntries.reduce((sum, e) => sum + (e.successes ?? 0), 0);
         const rankSum = windowEntries.reduce((sum, e) => sum + (e.rankDelta ?? 0), 0);
-        const levelSpan = attempts > 0
+        const estimatedCount = windowEntries.filter((e) => e.estimated).length;
+        const estimatedFraction = windowEntries.length > 0 ? estimatedCount / windowEntries.length : 0;
+        const levelSpan = windowEntries.length > 0
           ? { min: Math.min(...windowEntries.map((e) => e.level)), max: Math.max(...windowEntries.map((e) => e.level)) }
           : { min: liveLevel, max: liveLevel };
 
@@ -2564,13 +2604,13 @@ export async function main(ns) {
         // precondition below is required (S3): mode active, no active yield grant, the
         // action not quarantined (governorFailed is already folded into `decision` via
         // planLevelAdjustment's rule 1b), and -- precondition 4 -- either we're at a
-        // completion boundary for THIS action or it isn't the one currently running.
+        // settlement point for THIS action or it isn't the one currently running.
         const isCurrentlyRunning = verifiedRunningAction && verifiedRunningAction.type === c.type && verifiedRunningAction.name === c.name;
-        const atBoundaryOrIdle = !isCurrentlyRunning || (justSettledAction && justSettledAction.type === c.type && justSettledAction.name === c.name);
+        const atSettlementOrIdle = !isCurrentlyRunning || (justSettledAction && justSettledAction.type === c.type && justSettledAction.name === c.name);
         const canAct = LEVEL_GOVERNOR_MODE === "active"
           && !activeGrant
           && !isQuarantined(quarantineState.quarantine, c.name, nowMs)
-          && atBoundaryOrIdle
+          && atSettlementOrIdle
           && (decision.decision === "lower" || decision.decision === "raise");
 
         if (canAct) {
@@ -2586,7 +2626,7 @@ export async function main(ns) {
               logEntries = appendBbLog(logEntries, {
                 ...ts(), kind: "level-govern", type: c.type, name: c.name, applied: false,
                 decision: decision.decision, toLevel: decision.toLevel, reason: decision.reason,
-                successRate: decision.successRate, samples: decision.samples, levelSpan: decision.levelSpan, cohort,
+                successRate: decision.successRate, samples: decision.samples, levelSpan: decision.levelSpan, estimatedFraction, cohort,
               });
               lastLevelGovernLog[c.name] = { reason: decision.reason, atMs: nowMs };
               continue;
@@ -2608,7 +2648,7 @@ export async function main(ns) {
           logEntries = appendBbLog(logEntries, {
             ...ts(), kind: "level-govern", type: c.type, name: c.name, applied: true,
             decision: decision.decision, toLevel: decision.toLevel, reason: decision.reason, readBack,
-            successRate: decision.successRate, samples: decision.samples, levelSpan: decision.levelSpan, cohort,
+            successRate: decision.successRate, samples: decision.samples, levelSpan: decision.levelSpan, estimatedFraction, cohort,
           });
           lastLevelGovernLog[c.name] = { reason: decision.reason, atMs: nowMs };
           // Step 5 -- force one restart if this is the action currently running, so the
@@ -2619,7 +2659,7 @@ export async function main(ns) {
           logEntries = appendBbLog(logEntries, {
             ...ts(), kind: "level-govern", type: c.type, name: c.name, applied: false,
             decision: decision.decision, toLevel: decision.toLevel, reason: decision.reason,
-            successRate: decision.successRate, samples: decision.samples, levelSpan: decision.levelSpan, cohort,
+            successRate: decision.successRate, samples: decision.samples, levelSpan: decision.levelSpan, estimatedFraction, cohort,
           });
           lastLevelGovernLog[c.name] = { reason: decision.reason, atMs: nowMs };
         }

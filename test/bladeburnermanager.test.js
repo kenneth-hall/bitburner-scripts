@@ -92,15 +92,17 @@ import {
   STAMINA_RESUME_FRACTION,
   updateHpRecovering,
   HP_RESUME_FRACTION,
-  // Phase 40 -- ledger repair (WI1)
-  detectActionBoundary,
+  // Phase 40 -- ledger repair (WI1; Revision 3 -- settlement by subtraction)
+  settleActionRun,
   skillLevelsFingerprint,
+  SETTLE_MAX_MS,
+  ESTIMATED_SAMPLE_WARN_FRACTION,
   // Phase 40 -- the autolevel governor (WI2)
   planLevelAdjustment,
   applyLevelDecision,
   classifyCohort,
   levelDropsInWindow,
-  foldCompletion,
+  foldSettlement,
   pruneLevelOutcomes,
   seedLevelGovernor,
   emptyActionGovernorState,
@@ -1661,50 +1663,135 @@ describe('shouldStartAction', () => {
 // phase-40-autolevel-governor.spec.md
 // =====================================================================================
 
-// --- detectActionBoundary (S1.1) ----------------------------------------------------
+// --- settleActionRun (S1.1/S1.2, Revision 3 -- replaces detectActionBoundary) -------
 
-describe('detectActionBoundary', () => {
-  const base = { actionTimeMs: 9000, verified: true, sameAction: true };
-
-  it('wrap detected: elapsed dropped -> one completed rep', () => {
-    const d = detectActionBoundary({ ...base, elapsedMs: 500, previousElapsedMs: 8600 });
-    expect(d.completed).toBe(true);
-    expect(d.uncertain).toBe(false);
+describe('settleActionRun', () => {
+  const NOW = 500_000_000;
+  const openRun = (overrides = {}) => ({
+    type: 'Operations',
+    name: 'Investigation',
+    level: 30,
+    successesBefore: 10,
+    rankBefore: 1000,
+    startAtMs: NOW - 45_000,
+    ...overrides,
   });
 
-  it('monotonic elapsed (no wrap, no big jump) is NOT a completion', () => {
-    const d = detectActionBoundary({ ...base, elapsedMs: 5000, previousElapsedMs: 3000 });
-    expect(d.completed).toBe(false);
+  it('a normal 1-success interval settles exactly 1 attempt, 1 success', () => {
+    const settled = settleActionRun(openRun(), { successesNow: 11, rankNow: 1040, nowMs: NOW, actionTimeMs: 45_000 });
+    expect(settled.discard).toBe(false);
+    expect(settled.attempts).toBe(1);
+    expect(settled.successes).toBe(1);
+    expect(settled.success).toBe(true);
+    expect(settled.rankDelta).toBe(40);
+    expect(settled.estimated).toBe(false);
   });
 
-  it('previousElapsedMs: null -> "no-baseline"', () => {
-    const d = detectActionBoundary({ ...base, elapsedMs: 500, previousElapsedMs: null });
-    expect(d.completed).toBe(false);
-    expect(d.reason).toBe('no-baseline');
+  it('a 0-success interval settles attempts = max(1, 0) = 1, 0 successes', () => {
+    const settled = settleActionRun(openRun(), { successesNow: 10, rankNow: 1000, nowMs: NOW, actionTimeMs: 77_000 });
+    expect(settled.attempts).toBe(1);
+    expect(settled.successes).toBe(0);
+    expect(settled.success).toBe(false);
+    expect(settled.rankDelta).toBe(0);
   });
 
-  it('verified: false -> "not-running", regardless of the readings', () => {
-    const d = detectActionBoundary({ ...base, elapsedMs: 500, previousElapsedMs: 8600, verified: false });
-    expect(d.completed).toBe(false);
-    expect(d.reason).toBe('not-running');
+  it('a multi-rep (bonus-time) interval reads attempts = successes = successDelta -- a 3-success interval reads 3/3', () => {
+    const settled = settleActionRun(openRun(), { successesNow: 13, rankNow: 1120, nowMs: NOW, actionTimeMs: 45_000 });
+    expect(settled.attempts).toBe(3);
+    expect(settled.successes).toBe(3);
   });
 
-  it('sameAction: false -> "action-changed" -- a preempted rep is discarded, not settled', () => {
-    const d = detectActionBoundary({ ...base, elapsedMs: 500, previousElapsedMs: 8600, sameAction: false });
-    expect(d.completed).toBe(false);
-    expect(d.reason).toBe('action-changed');
+  it('successDelta < 0 (a success-counter reset) discards -- {discard: true, reason: "success-counter-reset"}, never a negative record', () => {
+    const settled = settleActionRun(openRun({ successesBefore: 50 }), { successesNow: 10, rankNow: 1000, nowMs: NOW, actionTimeMs: 45_000 });
+    expect(settled).toEqual({ discard: true, reason: 'success-counter-reset' });
   });
 
-  it('a jump exceeding actionTimeMs (no wrap observed) -> completed AND uncertain -- nextUpdate()\'s bonus-time burst straddled more than one rep', () => {
-    const d = detectActionBoundary({ ...base, elapsedMs: 15_000, previousElapsedMs: 1000 });
-    expect(d.completed).toBe(true);
-    expect(d.uncertain).toBe(true);
+  it('rankDelta is never negative (blocker 11) -- a raw decrease clamps to 0, an instrument fault not a real decrease', () => {
+    const settled = settleActionRun(openRun({ rankBefore: 2000 }), { successesNow: 11, rankNow: 1999, nowMs: NOW, actionTimeMs: 45_000 });
+    expect(settled.rankDelta).toBe(0);
   });
 
-  it('actionTimeMs: 0 -> "bad-action-time"', () => {
-    const d = detectActionBoundary({ elapsedMs: 500, previousElapsedMs: 8600, actionTimeMs: 0, verified: true, sameAction: true });
-    expect(d.completed).toBe(false);
-    expect(d.reason).toBe('bad-action-time');
+  it('viaTimeout: estimated=true, attempts = max(successDelta, round(actionSec/actionTimeSec))', () => {
+    const run = openRun({ startAtMs: NOW - 300_000, successesBefore: 10 }); // 300s open
+    // round(300/77) = 4; successDelta 1 -> attempts = max(1, 4) = 4
+    const settled = settleActionRun(run, { successesNow: 11, rankNow: 1020, nowMs: NOW, actionTimeMs: 77_000, viaTimeout: true });
+    expect(settled.estimated).toBe(true);
+    expect(settled.attempts).toBe(4);
+    expect(settled.successes).toBe(1);
+  });
+
+  it('viaTimeout with a non-positive actionTimeMs degrades to attempts = max(1, successDelta) rather than dividing by it', () => {
+    const run = openRun({ startAtMs: NOW - 300_000, successesBefore: 10 });
+    const zero = settleActionRun(run, { successesNow: 12, rankNow: 1030, nowMs: NOW, actionTimeMs: 0, viaTimeout: true });
+    expect(zero.estimated).toBe(true);
+    expect(zero.attempts).toBe(2); // max(1, successDelta=2)
+    const negative = settleActionRun(run, { successesNow: 10, rankNow: 1000, nowMs: NOW, actionTimeMs: -5, viaTimeout: true });
+    expect(negative.attempts).toBe(1); // max(1, successDelta=0)
+  });
+});
+
+// --- The mechanism-feed test (Revision 3's fifth method rule: "a tested function is not
+// a tested mechanism") ----------------------------------------------------------------
+//
+// Revision 2 passed every unit test for `detectActionBoundary` while producing ZERO
+// `complete` records live for 21 hours, because nothing in its test surface encoded the
+// engine's actual switching behaviour (99.3% of consecutive starts change action). This
+// fixture replays that MEASURED alternating pattern -- Tracking (~45s, ~100% success) <->
+// Investigation (~77s, ~0% success) -- through `settleActionRun` + `foldSettlement`
+// exactly as the main loop wires them, and asserts settlements actually accumulate.
+
+describe("the alternating-start mechanism (Revision 3's fifth method rule)", () => {
+  it('replays the measured live alternating pattern and asserts settlements accumulate', () => {
+    const actionTimeMs = { Tracking: 45_000, Investigation: 77_000 };
+    const type = { Tracking: 'Contracts', Investigation: 'Operations' };
+    const succeeds = { Tracking: true, Investigation: false }; // the measured 0%/100% split
+
+    let governor = { Tracking: emptyActionGovernorState('Contracts'), Investigation: emptyActionGovernorState('Operations') };
+    let openRun = null;
+    let settledCount = 0;
+    let nowMs = 1_000_000;
+    const successesTotal = { Tracking: 0, Investigation: 0 };
+    let rank = 0;
+
+    const REPS = 40; // strict alternation -- the measured 99.3% pattern
+    for (let i = 0; i < REPS; i++) {
+      const name = i % 2 === 0 ? 'Tracking' : 'Investigation';
+      nowMs += actionTimeMs[name];
+
+      if (openRun !== null) {
+        // The run that was open just finished one rep.
+        if (succeeds[openRun.name]) {
+          successesTotal[openRun.name] += 1;
+          rank += 20;
+        }
+        const settled = settleActionRun(openRun, {
+          successesNow: successesTotal[openRun.name],
+          rankNow: rank,
+          nowMs,
+          actionTimeMs: actionTimeMs[openRun.name],
+        });
+        expect(settled.discard).toBe(false);
+        settledCount += 1;
+        governor[openRun.name] = foldSettlement(governor[openRun.name], settled);
+      }
+
+      openRun = { type: type[name], name, level: 30, successesBefore: successesTotal[name], rankBefore: rank, startAtMs: nowMs };
+    }
+
+    // One settlement per switch -- the very first start has nothing open yet to settle.
+    expect(settledCount).toBe(REPS - 1);
+    expect(governor.Tracking.settlements).toBeGreaterThan(0);
+    expect(governor.Investigation.settlements).toBeGreaterThan(0);
+    expect(governor.Tracking.recentWindow.length).toBeGreaterThan(0);
+    expect(governor.Investigation.recentWindow.length).toBeGreaterThan(0);
+
+    const rate = (state) => {
+      const attempts = state.recentWindow.reduce((s, e) => s + e.attempts, 0);
+      const successes = state.recentWindow.reduce((s, e) => s + e.successes, 0);
+      return successes / attempts;
+    };
+    expect(rate(governor.Tracking)).toBe(1);
+    expect(rate(governor.Investigation)).toBe(0);
   });
 });
 
@@ -2024,10 +2111,10 @@ describe('applyLevelDecision', () => {
     regimeResetAppliedAtMs: null,
     drops: [],
     raiseStreak: 0,
-    recentWindow: [{ level: 33, success: false, rankDelta: 0, atMs: NOW - 1000 }],
+    recentWindow: [{ level: 33, attempts: 1, successes: 0, rankDelta: 0, estimated: false, atMs: NOW - 1000 }],
     byLevel: {},
-    completions: 5,
-    uncertainCompletions: 0,
+    settlements: 5,
+    estimatedSettlements: 0,
     lastDecision: null,
     ...overrides,
   });
@@ -2138,56 +2225,56 @@ describe('applyLevelDecision', () => {
   });
 });
 
-// --- foldCompletion (S2.1, fixes blocker 6) -----------------------------------------
+// --- foldSettlement (S2.1; Revision 3 -- renamed + reshaped from foldCompletion) ----
 
-describe('foldCompletion', () => {
+describe('foldSettlement', () => {
   const NOW = 300_000_000;
 
-  it('a success and a failure fold into the right counters', () => {
+  it('a success and a failure fold into the right sums', () => {
     let state = emptyActionGovernorState('Operations');
-    state = foldCompletion(state, { level: 30, success: true, rankDelta: 5, uncertain: false, nowMs: NOW });
-    state = foldCompletion(state, { level: 30, success: false, rankDelta: 0, uncertain: false, nowMs: NOW + 1000 });
+    state = foldSettlement(state, { level: 30, attempts: 1, successes: 1, rankDelta: 5, estimated: false, atMs: NOW });
+    state = foldSettlement(state, { level: 30, attempts: 1, successes: 0, rankDelta: 0, estimated: false, atMs: NOW + 1000 });
     expect(state.recentWindow.length).toBe(2);
-    expect(state.recentWindow.filter((e) => e.success).length).toBe(1);
+    expect(state.recentWindow.reduce((s, e) => s + e.successes, 0)).toBe(1);
     expect(state.byLevel['30'].attempts).toBe(2);
     expect(state.byLevel['30'].successes).toBe(1);
     expect(state.byLevel['30'].rankSum).toBe(5);
-    expect(state.completions).toBe(2);
+    expect(state.settlements).toBe(2);
   });
 
-  it('an uncertain completion changes NO counter and increments uncertainCompletions ONLY', () => {
+  it('an estimated settlement FOLDS (the governor must not go blind in the single-action regime) and increments estimatedSettlements', () => {
     let state = emptyActionGovernorState('Operations');
-    state = foldCompletion(state, { level: 30, success: true, rankDelta: 5, uncertain: false, nowMs: NOW });
+    state = foldSettlement(state, { level: 30, attempts: 1, successes: 1, rankDelta: 5, estimated: false, atMs: NOW });
     const before = { ...state };
-    state = foldCompletion(state, { level: 31, success: true, rankDelta: 9, uncertain: true, nowMs: NOW + 1000 });
-    expect(state.recentWindow).toEqual(before.recentWindow);
-    expect(state.byLevel).toEqual(before.byLevel);
-    expect(state.completions).toBe(before.completions);
-    expect(state.uncertainCompletions).toBe(before.uncertainCompletions + 1);
+    state = foldSettlement(state, { level: 31, attempts: 4, successes: 1, rankDelta: 9, estimated: true, atMs: NOW + 1000 });
+    expect(state.recentWindow.length).toBe(before.recentWindow.length + 1); // folded, NOT skipped -- unlike Rev 2's `uncertain` branch
+    expect(state.byLevel['31']).toEqual({ attempts: 4, successes: 1, rankSum: 9 });
+    expect(state.settlements).toBe(before.settlements + 1);
+    expect(state.estimatedSettlements).toBe(before.estimatedSettlements + 1);
   });
 
   it('recentWindow caps at LEVEL_RECENT_WINDOW and evicts oldest-first', () => {
     let state = emptyActionGovernorState('Operations');
     for (let i = 0; i < LEVEL_RECENT_WINDOW + 5; i++) {
-      state = foldCompletion(state, { level: 30, success: true, rankDelta: i, uncertain: false, nowMs: NOW + i });
+      state = foldSettlement(state, { level: 30, attempts: 1, successes: 1, rankDelta: i, estimated: false, atMs: NOW + i });
     }
     expect(state.recentWindow.length).toBe(LEVEL_RECENT_WINDOW);
     expect(state.recentWindow[0].rankDelta).toBe(5); // the oldest 5 were evicted
     expect(state.recentWindow[state.recentWindow.length - 1].rankDelta).toBe(LEVEL_RECENT_WINDOW + 4);
   });
 
-  it('byLevel is keyed by the level AT COMPLETION, not the current/final level', () => {
+  it('byLevel is keyed by the level AT COMPLETION, not the current/final level, and SUMS attempts (not entry counts)', () => {
     let state = emptyActionGovernorState('Operations');
-    state = foldCompletion(state, { level: 20, success: true, rankDelta: 1, uncertain: false, nowMs: NOW });
-    state = foldCompletion(state, { level: 25, success: true, rankDelta: 1, uncertain: false, nowMs: NOW + 1000 });
-    expect(state.byLevel['20'].attempts).toBe(1);
+    state = foldSettlement(state, { level: 20, attempts: 3, successes: 1, rankDelta: 1, estimated: false, atMs: NOW });
+    state = foldSettlement(state, { level: 25, attempts: 1, successes: 1, rankDelta: 1, estimated: false, atMs: NOW + 1000 });
+    expect(state.byLevel['20'].attempts).toBe(3);
     expect(state.byLevel['25'].attempts).toBe(1);
   });
 
   it('a game-driven level change does NOT clear recentWindow (blocker 2\'s invariant)', () => {
     let state = emptyActionGovernorState('Operations');
-    state = foldCompletion(state, { level: 108, success: true, rankDelta: 1, uncertain: false, nowMs: NOW });
-    state = foldCompletion(state, { level: 112, success: true, rankDelta: 1, uncertain: false, nowMs: NOW + 1000 }); // the level moved underneath us -- ungoverned, autolevel-driven
+    state = foldSettlement(state, { level: 108, attempts: 1, successes: 1, rankDelta: 1, estimated: false, atMs: NOW });
+    state = foldSettlement(state, { level: 112, attempts: 1, successes: 1, rankDelta: 1, estimated: false, atMs: NOW + 1000 }); // the level moved underneath us -- ungoverned, autolevel-driven
     expect(state.recentWindow.length).toBe(2); // NOT reset -- only applyLevelDecision's transitions ever clear it
   });
 });
@@ -2217,8 +2304,8 @@ describe('seedLevelGovernor', () => {
     const raw = {
       levelGovernor: {
         mode: 'shadow',
-        completions: 42,
-        uncertainCompletions: 1,
+        settlements: 42,
+        estimatedSettlements: 1,
         cohort: { collapsed: false, sampled: 2, belowBand: 0, reason: 'not-collapsed' },
         constants: { recentWindow: 30, minSamples: 20 },
         actions: {
@@ -2241,8 +2328,8 @@ describe('seedLevelGovernor', () => {
       },
     };
     const seeded = seedLevelGovernor(raw);
-    expect(seeded.completions).toBe(42);
-    expect(seeded.uncertainCompletions).toBe(1);
+    expect(seeded.settlements).toBe(42);
+    expect(seeded.estimatedSettlements).toBe(1);
     expect(seeded.actions.Investigation.drops).toEqual([{ atMs: 1000, levels: 4 }]);
     expect(seeded.actions.Investigation.byLevel).toEqual({ 29: { attempts: 10, successes: 8, rankSum: 40 } });
     expect(seeded.actions.Investigation.ceilingLevel).toBe(30);
@@ -2278,6 +2365,7 @@ describe('emptyActionGovernorState', () => {
     expect(state.recentWindow).toBe(state.recentWindow); // sanity: same reference within one call
     expect(state.recentWindow).toEqual([]);
     expect(state.byLevel).toEqual({});
-    expect(state.completions).toBe(0);
+    expect(state.settlements).toBe(0);
+    expect(state.estimatedSettlements).toBe(0);
   });
 });
