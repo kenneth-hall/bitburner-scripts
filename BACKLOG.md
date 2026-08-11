@@ -540,6 +540,12 @@ do, and what's broken?*
   a whole city is recovered. ⚠️ Needs the action slot — note that standing the engine down *releases*
   `backdoorfactions.js`/`backdoorwd.js` to grab it (they yield to the engine's hold marker), so the
   naive quiesce is backwards.
+  - **⛔ MOOT 2026-08-11 — do not run this probe.** It was only ever worth the action-slot cost as a
+    gate on Stage B, and Stage B closed on measurement the same day: `Raid`'s 47.03 rank/action comes
+    from an estimator caught predicting **`pMin` 1.0000** for `Investigation` — a *sibling Operation* —
+    against a realised **2/270 (0.74%)**. Recovering Volhaven buys access to a lever whose only number
+    is untrustworthy in the same action class. Keep the entry for the **mechanic** (scouting narrows a
+    `[0,1]` spread — that is still true and still unproven here), not for the Stage B rationale.
 - **The engine does not rotate cities autonomously — `CITY_ROTATION_ENABLED` is `false`, deliberately.**
   Re-filed 2026-08-08 from the resolved 2026-08-03 chaos entry, where it was the one open item buried
   in a closed bug. The *mechanic* is measured and cheap (the one-off `src/switchbbcity.js` move took

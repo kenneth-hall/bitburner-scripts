@@ -164,6 +164,23 @@ on request — hold to them even when the moment is uncomfortable.
       3.5h, **no cap observed through 110**) · `Investigation` **33** · Ishima chaos **66.34**
       (**4.2× in 35h**, was 15.68) · duty cycle **99.4%** · rate **0.1952 rank/s = 703 rank/h,
       FLAT** (hourly buckets 625–806, no trend) · ETA **~20.2 days**.
+    - *Stamped 2026-08-11 ~12:25 UTC* (`logs/bladeburner-state.json`, 12 s old at read): rank
+      **132,077** / 400,000 · skill points **41,615** idle · `Tracking` **L127** · `Investigation`
+      **L21** (governed down from 33) · duty cycle **1.0** (24h 0.99999997) · rate **0.3986
+      rank/wall-sec = 1,435 rank/h** (1h; 24h reads 0.3818). 🔴 **Do NOT credit the doubling since
+      08-08 to Phase 40's governor** — it is `Tracking`'s **ungoverned autolevel** climb
+      (L110→L127, realised **19.77 → 47.56 rank/action**), which is exactly the attribution the
+      spec's Rev 3 anti-claim list forbids. The governor's own measured effect is `Investigation`
+      **0.00 → 0.061 rank/action**: real, and immaterial.
+    - 🔑 **The model still closes, and the closure is now damning: `Tracking` alone accounts for
+      100.4% of the measured rate.** `Tracking` 30.3 starts/h × 47.56 = **1,441 rank/h** vs **1,435
+      measured**. `Investigation` runs the *other half of every action the engine takes* (30.3
+      starts/h, a 50/50 alternation) and contributes **1.8 rank/h — 0.13%**. ⚠️ Still **not** an
+      argument to drop it (§11.4's supply cap holds — `Tracking` is dry at 30.3/h of ~60/h
+      capacity); it is an argument that the **filler slot is unpriced**. `Bounty Hunter` estimates
+      **1.25 rank/action** and has **never been run once** (0 attempts, ever) — 20× `Investigation`'s
+      realised, worth ~**+2.5%** of rate. Small in rank; the reason it matters is *why* the engine
+      picks `Investigation` — see the estimator finding below.
     - 🔑 **The throughput model now CLOSES (§11.4), and it changes what the levers are.** Measured
       realised rank/action: `Tracking` **19.77** (n=965, zero failures) vs `Investigation` **4.27**
       (n=960, median **0.00**, 68.9% pay nothing, and **decaying — 9.75 → 0.88** across the window).
@@ -177,6 +194,22 @@ on request — hold to them even when the moment is uncomfortable.
       ⚠️ **Checkpoint C2 ("operations lead contracts", fired 2026-08-03) and `Raid`'s 45.72/action
       both come from this same estimator and have NEVER been realised.** Do not quote 45.72 as a
       measurement; it is the strongest lever on the table *and* the least trustworthy number.
+    - 🔴 **SUPERSEDED 2026-08-11 — "biased high" was too kind, and "17% hot on `Tracking`" has
+      REVERSED SIGN. Do not quote either.** The estimator's error is neither small nor
+      signed-consistent, so it **cannot be corrected for**:
+      · `Investigation` L21 predicts **`pMin` 1.0000** — a *converged* `[1.0, 1.0]`, maximum
+      confidence — and realises **2/270 = 0.74%**. Wrong by ~**135×**, while reporting certainty.
+      · `Tracking` L127 predicts **42.85** rank/action and realises **47.56** — now ~**10% COLD**,
+      where 08-08 measured it 17% *hot*.
+      🔑 **The consequence that matters: the failure is on an OPERATION.** `Investigation` and
+      `Raid` are the same action class, so `Raid`'s **47.03 rank/action** is not "an estimate to
+      treat with caution" — it is output from a function caught, live, claiming certainty about a
+      sibling Operation it had wrong by two orders of magnitude. **C2 is void as evidence**, not
+      merely suspect. This is what closes Stage B on measurement (see the Stage B bullet).
+      ⚠️ **And it is a live selection defect, not just a reporting one:** the engine picks
+      `Investigation` (est. **8.51**/action, realised **0.061**) over `Bounty Hunter` (est. **1.25**,
+      never run) — because selection reads the estimator while Phase 40's ledger now holds the
+      *realised* number and is not consulted for it. → Q40-17 / the `objectiveMode` phase.
     - 🔴 **ENGINE DEFECT, real — but CORRECTED 2026-08-08 (evening): `Diplomacy` HAS run, and
       `effect.runs: 0` is NOT a cumulative count.** ~~"`Diplomacy` has never run … `effect.runs: 0`
       cumulative"~~ was wrong on both halves. `bladeburner-log.json` holds **two** `diplomacy-effect`
@@ -252,6 +285,21 @@ on request — hold to them even when the moment is uncomfortable.
       Ishima (commit `fff3849`). **What it costs if wrong:** we forgo the largest single lever for a
       week against a ~20-day Stage A ETA. **What reopens it early:** a positive Q14 (see the Ideas
       entry in `BACKLOG.md`), nothing else.
+    - **✅ RESOLVED EARLY 2026-08-11 — Stage B closes on MEASUREMENT, not on the default expiring.**
+      The 08-15 date can simply pass; nothing needs to be run, and **Q14 is moot** (we do not need
+      Volhaven). The estimator that produces Raid's headline number was measured live against the
+      only Operation the engine actually runs, and it did not merely read high — **it reported
+      certainty and was wrong by ~135×**: `Investigation` at L21 predicts **`pMin` 1.0000**
+      (a converged `[1.0, 1.0]`, maximum confidence) and realises **2 successes in 270 attempts
+      (0.74%)**. 🔑 **Same action class.** `Investigation` and `Raid` are both Operations, so this is
+      not a generic caveat about estimates — it is a same-class, live falsification of the exact
+      function whose output (`Raid` **47.03 rank/action**) is Stage B's entire case, and Raid spends
+      a city **irreversibly** on that say-so. ⚠️ Note the bias is **not a consistent direction** and
+      so cannot be corrected for: on `Tracking` the same estimator reads **~10% cold** (predicts
+      42.85, realises 47.56). 🔴 **By the same argument, checkpoint C2 — which fired 2026-08-03 on
+      `operationLeadsPerAction` — is void as evidence, not merely suspect.** It is still reading
+      `true` today, computed from `Raid` 47.03 vs a `bestContract` that reads **1.25** whenever
+      `Tracking`'s supply is dry.
   - **📌 The method rule this cost three commits to learn: an ESTIMATE is not a MEASUREMENT.** Any
     `ns.bladeburner` value whose name contains `Estimated` must be read as a **range**; a
     single-point read of one is not evidence. Three successive wrong conclusions were each
