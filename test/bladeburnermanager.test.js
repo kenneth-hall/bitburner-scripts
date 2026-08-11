@@ -92,6 +92,35 @@ import {
   STAMINA_RESUME_FRACTION,
   updateHpRecovering,
   HP_RESUME_FRACTION,
+  // Phase 40 -- ledger repair (WI1; Revision 3 -- settlement by subtraction)
+  settleActionRun,
+  skillLevelsFingerprint,
+  SETTLE_MAX_MS,
+  ESTIMATED_SAMPLE_WARN_FRACTION,
+  // Phase 40 -- the autolevel governor (WI2)
+  planLevelAdjustment,
+  applyLevelDecision,
+  classifyCohort,
+  levelDropsInWindow,
+  foldSettlement,
+  pruneLevelOutcomes,
+  seedLevelGovernor,
+  emptyActionGovernorState,
+  LEVEL_GOVERNOR_MODE,
+  LEVEL_RECENT_WINDOW,
+  LEVEL_MIN_SAMPLES,
+  LEVEL_LOWER_BAND,
+  LEVEL_RAISE_BAND,
+  LEVEL_COOLDOWN_MS,
+  LEVEL_FLOOR,
+  LEVEL_CEILING_HOLD_MS,
+  LEVEL_HARD_CEILING_RETRY_MS,
+  LEVEL_MAX_RAISE_STEP,
+  LEVEL_MAX_TOTAL_DROP,
+  LEVEL_DROP_BUDGET_MS,
+  LEVEL_SET_RETRY_MS,
+  LEVEL_OUTCOME_LEVELS_KEPT,
+  COHORT_MIN_ACTIONS,
 } from '../src/bladeburnermanager.js';
 
 // --- expectedRankPerSec / scoreCandidate (S8) -------------------------------
@@ -1605,5 +1634,738 @@ describe('shouldStartAction', () => {
         else expect(d.start).toBe(false); // must not restart and reset progress
       }
     }
+  });
+
+  // --- Phase 40 S3 step 5 -- forceRestartReason (new optional parameter) -------------
+
+  it('Phase 40: forceRestartReason overrides ONLY the running-desired early return', () => {
+    const d = shouldStartAction({ chosenAction: tracking, intendedAction: tracking, liveActionName: 'Tracking', nowMs: NOW, lastGeneralRecheckMs: 0, forceRestartReason: 'level-change' });
+    expect(d.start).toBe(true);
+    expect(d.reason).toBe('level-change');
+  });
+
+  it('Phase 40: with the parameter absent, the same fixture still returns running-desired (every existing test passes unchanged)', () => {
+    const d = shouldStartAction({ chosenAction: tracking, intendedAction: tracking, liveActionName: 'Tracking', nowMs: NOW, lastGeneralRecheckMs: 0 });
+    expect(d.start).toBe(false);
+    expect(d.reason).toBe('running-desired');
+  });
+
+  it('Phase 40: forceRestartReason has no effect when the game is already idle/switching (only the running-desired branch is overridden)', () => {
+    const cold = shouldStartAction({ chosenAction: tracking, intendedAction: null, liveActionName: null, nowMs: NOW, forceRestartReason: 'level-change' });
+    expect(cold.reason).toBe('switch-idle');
+    const switching = shouldStartAction({ chosenAction: tracking, intendedAction: hrc, liveActionName: 'Hyperbolic Regeneration Chamber', nowMs: NOW, forceRestartReason: 'level-change' });
+    expect(switching.reason).toBe('switch');
+  });
+});
+
+// =====================================================================================
+// Phase 40 -- ledger repair (WI1) + the autolevel governor (WI2)
+// phase-40-autolevel-governor.spec.md
+// =====================================================================================
+
+// --- settleActionRun (S1.1/S1.2, Revision 3 -- replaces detectActionBoundary) -------
+
+describe('settleActionRun', () => {
+  const NOW = 500_000_000;
+  const openRun = (overrides = {}) => ({
+    type: 'Operations',
+    name: 'Investigation',
+    level: 30,
+    successesBefore: 10,
+    rankBefore: 1000,
+    startAtMs: NOW - 45_000,
+    ...overrides,
+  });
+
+  it('a normal 1-success interval settles exactly 1 attempt, 1 success', () => {
+    const settled = settleActionRun(openRun(), { successesNow: 11, rankNow: 1040, nowMs: NOW, actionTimeMs: 45_000 });
+    expect(settled.discard).toBe(false);
+    expect(settled.attempts).toBe(1);
+    expect(settled.successes).toBe(1);
+    expect(settled.success).toBe(true);
+    expect(settled.rankDelta).toBe(40);
+    expect(settled.estimated).toBe(false);
+  });
+
+  it('a 0-success interval settles attempts = max(1, 0) = 1, 0 successes', () => {
+    const settled = settleActionRun(openRun(), { successesNow: 10, rankNow: 1000, nowMs: NOW, actionTimeMs: 77_000 });
+    expect(settled.attempts).toBe(1);
+    expect(settled.successes).toBe(0);
+    expect(settled.success).toBe(false);
+    expect(settled.rankDelta).toBe(0);
+  });
+
+  it('a multi-rep (bonus-time) interval reads attempts = successes = successDelta -- a 3-success interval reads 3/3', () => {
+    const settled = settleActionRun(openRun(), { successesNow: 13, rankNow: 1120, nowMs: NOW, actionTimeMs: 45_000 });
+    expect(settled.attempts).toBe(3);
+    expect(settled.successes).toBe(3);
+  });
+
+  it('successDelta < 0 (a success-counter reset) discards -- {discard: true, reason: "success-counter-reset"}, never a negative record', () => {
+    const settled = settleActionRun(openRun({ successesBefore: 50 }), { successesNow: 10, rankNow: 1000, nowMs: NOW, actionTimeMs: 45_000 });
+    expect(settled).toEqual({ discard: true, reason: 'success-counter-reset' });
+  });
+
+  it('rankDelta is never negative (blocker 11) -- a raw decrease clamps to 0, an instrument fault not a real decrease', () => {
+    const settled = settleActionRun(openRun({ rankBefore: 2000 }), { successesNow: 11, rankNow: 1999, nowMs: NOW, actionTimeMs: 45_000 });
+    expect(settled.rankDelta).toBe(0);
+  });
+
+  it('viaTimeout: estimated=true, attempts = max(successDelta, round(actionSec/actionTimeSec))', () => {
+    const run = openRun({ startAtMs: NOW - 300_000, successesBefore: 10 }); // 300s open
+    // round(300/77) = 4; successDelta 1 -> attempts = max(1, 4) = 4
+    const settled = settleActionRun(run, { successesNow: 11, rankNow: 1020, nowMs: NOW, actionTimeMs: 77_000, viaTimeout: true });
+    expect(settled.estimated).toBe(true);
+    expect(settled.attempts).toBe(4);
+    expect(settled.successes).toBe(1);
+  });
+
+  it('viaTimeout with a non-positive actionTimeMs degrades to attempts = max(1, successDelta) rather than dividing by it', () => {
+    const run = openRun({ startAtMs: NOW - 300_000, successesBefore: 10 });
+    const zero = settleActionRun(run, { successesNow: 12, rankNow: 1030, nowMs: NOW, actionTimeMs: 0, viaTimeout: true });
+    expect(zero.estimated).toBe(true);
+    expect(zero.attempts).toBe(2); // max(1, successDelta=2)
+    const negative = settleActionRun(run, { successesNow: 10, rankNow: 1000, nowMs: NOW, actionTimeMs: -5, viaTimeout: true });
+    expect(negative.attempts).toBe(1); // max(1, successDelta=0)
+  });
+});
+
+// --- The mechanism-feed test (Revision 3's fifth method rule: "a tested function is not
+// a tested mechanism") ----------------------------------------------------------------
+//
+// Revision 2 passed every unit test for `detectActionBoundary` while producing ZERO
+// `complete` records live for 21 hours, because nothing in its test surface encoded the
+// engine's actual switching behaviour (99.3% of consecutive starts change action). This
+// fixture replays that MEASURED alternating pattern -- Tracking (~45s, ~100% success) <->
+// Investigation (~77s, ~0% success) -- through `settleActionRun` + `foldSettlement`
+// exactly as the main loop wires them, and asserts settlements actually accumulate.
+
+describe("the alternating-start mechanism (Revision 3's fifth method rule)", () => {
+  it('replays the measured live alternating pattern and asserts settlements accumulate', () => {
+    const actionTimeMs = { Tracking: 45_000, Investigation: 77_000 };
+    const type = { Tracking: 'Contracts', Investigation: 'Operations' };
+    const succeeds = { Tracking: true, Investigation: false }; // the measured 0%/100% split
+
+    let governor = { Tracking: emptyActionGovernorState('Contracts'), Investigation: emptyActionGovernorState('Operations') };
+    let openRun = null;
+    let settledCount = 0;
+    let nowMs = 1_000_000;
+    const successesTotal = { Tracking: 0, Investigation: 0 };
+    let rank = 0;
+
+    const REPS = 40; // strict alternation -- the measured 99.3% pattern
+    for (let i = 0; i < REPS; i++) {
+      const name = i % 2 === 0 ? 'Tracking' : 'Investigation';
+      nowMs += actionTimeMs[name];
+
+      if (openRun !== null) {
+        // The run that was open just finished one rep.
+        if (succeeds[openRun.name]) {
+          successesTotal[openRun.name] += 1;
+          rank += 20;
+        }
+        const settled = settleActionRun(openRun, {
+          successesNow: successesTotal[openRun.name],
+          rankNow: rank,
+          nowMs,
+          actionTimeMs: actionTimeMs[openRun.name],
+        });
+        expect(settled.discard).toBe(false);
+        settledCount += 1;
+        governor[openRun.name] = foldSettlement(governor[openRun.name], settled);
+      }
+
+      openRun = { type: type[name], name, level: 30, successesBefore: successesTotal[name], rankBefore: rank, startAtMs: nowMs };
+    }
+
+    // One settlement per switch -- the very first start has nothing open yet to settle.
+    expect(settledCount).toBe(REPS - 1);
+    expect(governor.Tracking.settlements).toBeGreaterThan(0);
+    expect(governor.Investigation.settlements).toBeGreaterThan(0);
+    expect(governor.Tracking.recentWindow.length).toBeGreaterThan(0);
+    expect(governor.Investigation.recentWindow.length).toBeGreaterThan(0);
+
+    const rate = (state) => {
+      const attempts = state.recentWindow.reduce((s, e) => s + e.attempts, 0);
+      const successes = state.recentWindow.reduce((s, e) => s + e.successes, 0);
+      return successes / attempts;
+    };
+    expect(rate(governor.Tracking)).toBe(1);
+    expect(rate(governor.Investigation)).toBe(0);
+  });
+});
+
+// --- skillLevelsFingerprint (S1.1) --------------------------------------------------
+
+describe('skillLevelsFingerprint', () => {
+  const order = ["Blade's Intuition", 'Tracer', 'Overclock'];
+
+  it('is stable for equal inputs', () => {
+    const levels = { "Blade's Intuition": 25, Tracer: 10, Overclock: 17 };
+    expect(skillLevelsFingerprint(levels, order)).toBe(skillLevelsFingerprint({ ...levels }, order));
+  });
+
+  it('changes on any level change', () => {
+    const a = skillLevelsFingerprint({ "Blade's Intuition": 25, Tracer: 10, Overclock: 17 }, order);
+    const b = skillLevelsFingerprint({ "Blade's Intuition": 25, Tracer: 11, Overclock: 17 }, order);
+    expect(a).not.toBe(b);
+  });
+
+  it('a missing skill reads 0, not undefined', () => {
+    expect(skillLevelsFingerprint({ "Blade's Intuition": 25 }, order)).toBe('25/0/0');
+  });
+});
+
+// --- buildCandidates: Phase 40's countRemaining/pMax additions ---------------------
+
+describe('buildCandidates (Phase 40 S1.3 additions)', () => {
+  it('carries countRemaining and pMax, both present and finite', () => {
+    const ns = fakeNs(FULL_COUNTS, { Tracking: [0.9, 0.99] });
+    const candidates = buildCandidates(ns);
+    for (const c of candidates) {
+      expect(Number.isFinite(c.countRemaining)).toBe(true);
+      expect(Number.isFinite(c.pMax)).toBe(true);
+    }
+    const tracking = candidates.find((c) => c.name === 'Tracking');
+    expect(tracking.pMax).toBeCloseTo(0.99, 10);
+    expect(tracking.countRemaining).toBe(FULL_COUNTS.Tracking);
+  });
+});
+
+// --- planLevelAdjustment (S2.2) -- one test per behaviour-table row ----------------
+
+describe('planLevelAdjustment', () => {
+  const NOW = 100_000_000;
+  const baseOutcome = (overrides = {}) => ({
+    level: 33,
+    governed: true,
+    attempts: 30,
+    successes: 27, // 0.90 -- comfortably above the raise band unless overridden
+    rankSum: 100,
+    levelSpan: { min: 33, max: 33 },
+    levelSetAtMs: null,
+    ceilingLevel: null,
+    ceilingSetAtMs: null,
+    hardCeilingLevel: null,
+    hardCeilingSetAtMs: null,
+    regimeResetAppliedAtMs: null,
+    drops: [],
+    governorFailedUntilMs: null,
+    raiseStreak: 0,
+    ...overrides,
+  });
+  const plan = (overrides, opts = {}) => planLevelAdjustment(baseOutcome(overrides), { nowMs: NOW, ...opts });
+
+  it('rule 1 -- bad input: successes > attempts', () => {
+    const d = plan({ attempts: 10, successes: 11 });
+    expect(d.decision).toBe('insufficient-data');
+    expect(d.toLevel).toBeNull();
+    expect(d.reason).toBe('bad-input');
+  });
+
+  it('rule 1 -- bad input: NaN level', () => {
+    expect(plan({ level: NaN }).reason).toBe('bad-input');
+  });
+
+  it('rule 1 -- bad input: negative attempts', () => {
+    expect(plan({ attempts: -1, successes: 0 }).reason).toBe('bad-input');
+  });
+
+  it('rule 1b -- a setter that did not take is not retried before governorFailedUntilMs', () => {
+    const d = plan({ governorFailedUntilMs: NOW + 1000 });
+    expect(d.decision).toBe('hold');
+    expect(d.reason).toBe('governor-failed');
+  });
+
+  it('rule 1b does not fire once governorFailedUntilMs has passed', () => {
+    const d = plan({ governorFailedUntilMs: NOW - 1 });
+    expect(d.reason).not.toBe('governor-failed');
+  });
+
+  it('rule 2 -- post-install reset: governed, armed regime -> lower to floor(level/2), bypassing minSamples/cooldown', () => {
+    const d = plan(
+      { level: 33, governed: true, attempts: 0, successes: 0, levelSetAtMs: NOW, regimeResetAppliedAtMs: null },
+      { regimeEnteredAtMs: NOW - 1000 },
+    );
+    expect(d.decision).toBe('lower');
+    expect(d.toLevel).toBe(16); // floor(33/2)
+    expect(d.reason).toBe('post-install-reset');
+  });
+
+  it('rule 2 is a LATCH -- fires exactly once per regime entry, called twice in succession', () => {
+    const opts = { regimeEnteredAtMs: NOW - 1000 };
+    const first = plan({ level: 33, governed: true, attempts: 0, successes: 0, regimeResetAppliedAtMs: null }, opts);
+    expect(first.decision).toBe('lower');
+    // The reducer would set regimeResetAppliedAtMs = NOW on that lower (S2.5) -- feed that
+    // forward and call again with the identical fixture otherwise.
+    const second = plan({ level: 16, governed: true, attempts: 0, successes: 0, regimeResetAppliedAtMs: NOW }, opts);
+    expect(second.decision).not.toBe('lower'); // it fires exactly once -- never a second post-install-reset
+  });
+
+  it('rule 3 -- ungoverned during an armed regime is left alone', () => {
+    const d = plan({ governed: false, attempts: 30, successes: 27 }, { regimeEnteredAtMs: NOW - 1000 });
+    expect(d.decision).toBe('hold');
+    expect(d.reason).toBe('ungoverned-regime');
+  });
+
+  it('rule 4 -- sample floor: below minSamples is insufficient-data, not acted on', () => {
+    const d = plan({ attempts: 19, successes: 0 });
+    expect(d.decision).toBe('insufficient-data');
+    expect(d.toLevel).toBeNull();
+    expect(d.reason).toBe('samples');
+  });
+
+  it('rule 5 -- cooldown: a recent level-set holds even with enough samples', () => {
+    const d = plan({ attempts: 30, successes: 0, levelSetAtMs: NOW - 1000 });
+    expect(d.decision).toBe('hold');
+    expect(d.reason).toBe('cooldown');
+  });
+
+  it('rule 5b -- cohort collapse guard blocks a lower that would otherwise fire', () => {
+    const d = plan({ attempts: 30, successes: 3, level: 112 }, { cohortCollapsed: true }); // 0.10, Tracking-shaped
+    expect(d.decision).toBe('hold');
+    expect(d.toLevel).toBeNull();
+    expect(d.reason).toBe('cohort-collapse');
+  });
+
+  it('rule 6 -- the Investigation fixture, from live numbers: L33, 0/30 -> lower to 29, take-ownership', () => {
+    const d = plan({ level: 33, governed: false, attempts: 30, successes: 0 });
+    expect(d.decision).toBe('lower');
+    expect(d.toLevel).toBe(29); // step 4 at successRate < 0.20
+    expect(d.reason).toBe('take-ownership');
+  });
+
+  it('rule 6 -- below-band reason when already governed', () => {
+    const d = plan({ level: 33, governed: true, attempts: 30, successes: 0 });
+    expect(d.reason).toBe('below-band');
+  });
+
+  it('rule 6 -- step sizing is asymmetric: <0.20 -> 4, <0.40 -> 2, else (still <lowerBand) -> 1', () => {
+    expect(plan({ level: 50, attempts: 30, successes: 3 }).toLevel).toBe(46); // 0.10 -> step 4
+    expect(plan({ level: 50, attempts: 30, successes: 9 }).toLevel).toBe(48); // 0.30 -> step 2
+    expect(plan({ level: 50, attempts: 30, successes: 15 }).toLevel).toBe(49); // 0.50 -> step 1
+  });
+
+  it('rule 6 floor-degrade: at the floor, a would-be lower degrades to hold/at-floor (not cohort-collapse-eligible)', () => {
+    const d = plan({ level: 1, attempts: 30, successes: 0 });
+    expect(d.decision).toBe('hold');
+    expect(d.toLevel).toBeNull();
+    expect(d.reason).toBe('at-floor');
+  });
+
+  it('floor clamp: level 2 at successRate 0 -> toLevel 1; level 1 -> hold/at-floor', () => {
+    expect(plan({ level: 2, attempts: 30, successes: 0 }).toLevel).toBe(1);
+    expect(plan({ level: 1, attempts: 30, successes: 0 }).reason).toBe('at-floor');
+  });
+
+  it('rule 6c -- drop budget clamps the step: 10 already spent + a step-4 lower -> clamped to 2', () => {
+    const drops = [{ atMs: NOW - 1000, levels: 10 }];
+    const d = plan({ level: 50, attempts: 30, successes: 3, drops }); // 0.10 -> wants step 4
+    expect(d.decision).toBe('lower');
+    expect(d.toLevel).toBe(48); // 50 - 2
+  });
+
+  it('rule 6c -- drop budget exhausted (12 spent) -> hold/drop-budget', () => {
+    const drops = [{ atMs: NOW - 1000, levels: 12 }];
+    const d = plan({ level: 50, attempts: 30, successes: 3, drops });
+    expect(d.decision).toBe('hold');
+    expect(d.toLevel).toBeNull();
+    expect(d.reason).toBe('drop-budget');
+  });
+
+  it('rule 6c -- a drops entry outside the 24h window is not counted', () => {
+    const drops = [{ atMs: NOW - LEVEL_DROP_BUDGET_MS - 1000, levels: 12 }];
+    const d = plan({ level: 50, attempts: 30, successes: 3, drops });
+    expect(d.decision).toBe('lower'); // the old drop doesn't count against the budget
+    expect(d.toLevel).toBe(46);
+  });
+
+  it('rule 7 -- D5 no-op guarantee: ungoverned + healthy -> hold/autolevel-healthy, never touched', () => {
+    const d = plan({ governed: false, attempts: 30, successes: 30 }); // Tracking-shaped, 100%
+    expect(d.decision).toBe('hold');
+    expect(d.toLevel).toBeNull();
+    expect(d.reason).toBe('autolevel-healthy');
+  });
+
+  it('rule 7 -- blocker 2 reachability: a mixed-level window (levelSpan min!=max) still gets rule 7 EVALUATED, not short-circuited', () => {
+    const d = plan({ governed: false, attempts: 30, successes: 30, level: 112, levelSpan: { min: 108, max: 112 } });
+    expect(d.decision).toBe('hold');
+    expect(d.reason).toBe('autolevel-healthy');
+    expect(d.samples).toBe(30); // proves rule 4 (samples) was cleared and rule 7 was reached
+  });
+
+  it('blocker 2 mirror -- an ungoverned action mid-slide (0.30, below lowerBand) engages -- the reachability the old per-level model made impossible', () => {
+    const d = plan({ governed: false, attempts: 30, successes: 9 }); // 0.30
+    expect(d.decision).toBe('lower');
+    expect(d.reason).toBe('take-ownership');
+  });
+
+  it('rule 8 -- raise: streak-accelerated step, capped at maxRaiseStep', () => {
+    expect(plan({ level: 20, attempts: 30, successes: 30, raiseStreak: 0 }).toLevel).toBe(21); // step 1
+    expect(plan({ level: 20, attempts: 30, successes: 30, raiseStreak: 1 }).toLevel).toBe(22); // step 2
+    expect(plan({ level: 20, attempts: 30, successes: 30, raiseStreak: 2 }).toLevel).toBe(23); // step 3
+    expect(plan({ level: 20, attempts: 30, successes: 30, raiseStreak: 5 }).toLevel).toBe(24); // capped at 4
+  });
+
+  it('rule 8 -- ceiling clamps the raise while it holds (1h in, released by 7h)', () => {
+    // raiseStreak: 3 -> an unclamped step of 4 (level 24), so the ceiling's effect is
+    // visible in toLevel whether it's still holding or has expired.
+    const held = plan({ level: 20, attempts: 30, successes: 30, raiseStreak: 3, ceilingLevel: 22, ceilingSetAtMs: NOW - 3_600_000 });
+    expect(held.decision).toBe('raise');
+    expect(held.toLevel).toBe(21); // clamped to ceilingLevel - 1
+    const released = plan({ level: 20, attempts: 30, successes: 30, raiseStreak: 3, ceilingLevel: 22, ceilingSetAtMs: NOW - 7 * 3_600_000 });
+    expect(released.decision).toBe('raise');
+    expect(released.toLevel).toBe(24); // ceiling expired (> LEVEL_CEILING_HOLD_MS) -> unclamped step-4 raise
+  });
+
+  it('rule 8 -- hardCeilingLevel clamps at 1h and ages out at 5h for exactly one attempt to hardCeilingLevel+1', () => {
+    const held = plan({ level: 20, attempts: 30, successes: 30, raiseStreak: 3, hardCeilingLevel: 20, hardCeilingSetAtMs: NOW - 3_600_000 });
+    expect(held.decision).toBe('hold'); // clamped to hardCeilingLevel(20) == level(20) -> rule 9
+    expect(held.reason).toBe('ceiling');
+    const agedOut = plan({ level: 20, attempts: 30, successes: 30, raiseStreak: 0, hardCeilingLevel: 20, hardCeilingSetAtMs: NOW - 5 * 3_600_000 });
+    expect(agedOut.decision).toBe('raise');
+    expect(agedOut.toLevel).toBe(21); // hardCeilingLevel + 1, exactly one attempt past it
+  });
+
+  it('rule 9 -- a clamp that eats the whole step degrades to hold/ceiling', () => {
+    const d = plan({ level: 20, attempts: 30, successes: 30, ceilingLevel: 20, ceilingSetAtMs: NOW - 1000 });
+    expect(d.decision).toBe('hold');
+    expect(d.reason).toBe('ceiling');
+  });
+
+  it('rule 10 -- in-band is the intended steady state', () => {
+    const d = plan({ attempts: 30, successes: 24 }); // 0.80, between 0.60 and 0.95
+    expect(d.decision).toBe('hold');
+    expect(d.reason).toBe('in-band');
+  });
+
+  it('D3 guard: takes no ns and no candidate object -- the estimator is structurally unreachable', () => {
+    expect(planLevelAdjustment.length).toBeLessThanOrEqual(2);
+    expect(planLevelAdjustment.toString()).not.toMatch(/getActionEstimatedSuccessChance/);
+  });
+});
+
+// --- classifyCohort (S2.3, fixes blocker 4) -----------------------------------------
+
+describe('classifyCohort', () => {
+  it('two sampled actions both below band -> collapsed', () => {
+    const outcomes = [{ name: 'Tracking', attempts: 30, successes: 3 }, { name: 'Investigation', attempts: 30, successes: 0 }];
+    expect(classifyCohort(outcomes, { minSamples: 20, lowerBand: 0.6 }).collapsed).toBe(true);
+  });
+
+  it('one below, one above -> not collapsed', () => {
+    const outcomes = [{ name: 'Tracking', attempts: 30, successes: 30 }, { name: 'Investigation', attempts: 30, successes: 0 }];
+    expect(classifyCohort(outcomes, { minSamples: 20, lowerBand: 0.6 }).collapsed).toBe(false);
+  });
+
+  it('one sampled action below band -> NOT collapsed (the lower IS allowed), reason single-action-cohort', () => {
+    const outcomes = [{ name: 'Investigation', attempts: 30, successes: 0 }];
+    const r = classifyCohort(outcomes, { minSamples: 20, lowerBand: 0.6, minActions: 2 });
+    expect(r.collapsed).toBe(false);
+    expect(r.reason).toBe('single-action-cohort');
+  });
+
+  it('actions under minSamples are not counted in `sampled`', () => {
+    const outcomes = [{ name: 'A', attempts: 5, successes: 0 }, { name: 'B', attempts: 30, successes: 0 }];
+    const r = classifyCohort(outcomes, { minSamples: 20, lowerBand: 0.6, minActions: 2 });
+    expect(r.sampled).toBe(1);
+    expect(r.collapsed).toBe(false); // sampled < minActions
+  });
+});
+
+// --- levelDropsInWindow --------------------------------------------------------------
+
+describe('levelDropsInWindow', () => {
+  const NOW = 100_000_000;
+
+  it('sums entries inside the window', () => {
+    const drops = [{ atMs: NOW - 1000, levels: 4 }, { atMs: NOW - 2000, levels: 2 }];
+    expect(levelDropsInWindow(drops, NOW, 86_400_000)).toBe(6);
+  });
+
+  it('excludes entries outside the window', () => {
+    const drops = [{ atMs: NOW - 86_400_000 - 1, levels: 4 }];
+    expect(levelDropsInWindow(drops, NOW, 86_400_000)).toBe(0);
+  });
+
+  it('empty drops -> 0', () => {
+    expect(levelDropsInWindow([], NOW, 86_400_000)).toBe(0);
+  });
+});
+
+// --- applyLevelDecision (S2.5) -- one test per transition row ----------------------
+
+describe('applyLevelDecision', () => {
+  const NOW = 200_000_000;
+  const priorState = (overrides = {}) => ({
+    type: 'Operations',
+    level: 33,
+    governed: false,
+    adopted: false,
+    governorFailedUntilMs: null,
+    levelSetAtMs: null,
+    ceilingLevel: null,
+    ceilingSetAtMs: null,
+    hardCeilingLevel: null,
+    hardCeilingSetAtMs: null,
+    regimeResetAppliedAtMs: null,
+    drops: [],
+    raiseStreak: 0,
+    recentWindow: [{ level: 33, attempts: 1, successes: 0, rankDelta: 0, estimated: false, atMs: NOW - 1000 }],
+    byLevel: {},
+    settlements: 5,
+    estimatedSettlements: 0,
+    lastDecision: null,
+    ...overrides,
+  });
+
+  it('hold is the IDENTITY -- a decision that does nothing changes nothing', () => {
+    const prior = priorState({ governed: true, level: 20 });
+    const next = applyLevelDecision(prior, { decision: 'hold', toLevel: null, reason: 'in-band' }, { level: 20, autolevel: false, ok: true }, NOW);
+    expect(next).toEqual(prior);
+  });
+
+  it('insufficient-data is also the IDENTITY', () => {
+    const prior = priorState();
+    const next = applyLevelDecision(prior, { decision: 'insufficient-data', toLevel: null, reason: 'samples' }, { level: 33, autolevel: true, ok: true }, NOW);
+    expect(next).toEqual(prior);
+  });
+
+  it('lower applied, read-back == toLevel: takes ownership, clears recentWindow, charges the drop', () => {
+    const prior = priorState({ governed: true, level: 33 });
+    const next = applyLevelDecision(prior, { decision: 'lower', toLevel: 29, reason: 'below-band' }, { level: 29, autolevel: false, ok: true }, NOW);
+    expect(next.level).toBe(29);
+    expect(next.governed).toBe(true);
+    expect(next.levelSetAtMs).toBe(NOW);
+    expect(next.recentWindow).toEqual([]);
+    expect(next.raiseStreak).toBe(0);
+    expect(next.drops).toEqual([{ atMs: NOW, levels: 4 }]);
+  });
+
+  it('lower applied, read-back != toLevel: the game is the truth, governorFailedUntilMs set, NO ceiling/drop update', () => {
+    const prior = priorState({ governed: true, level: 33, drops: [] });
+    const next = applyLevelDecision(prior, { decision: 'lower', toLevel: 29, reason: 'below-band' }, { level: 31, autolevel: false, ok: false }, NOW);
+    expect(next.level).toBe(31); // the game's truth, not toLevel
+    expect(next.governorFailedUntilMs).toBe(NOW + LEVEL_SET_RETRY_MS);
+    expect(next.recentWindow).toEqual([]);
+    expect(next.drops).toEqual([]); // no drop charged on a failed lower
+    expect(next.ceilingLevel).toBeNull();
+  });
+
+  it('ceilingLevel is replaced ONLY when the new lower fires from a level BELOW the recorded ceiling', () => {
+    const priorHigherCeiling = priorState({ governed: true, level: 20, ceilingLevel: 25 });
+    const replaced = applyLevelDecision(priorHigherCeiling, { decision: 'lower', toLevel: 18, reason: 'below-band' }, { level: 18, autolevel: false, ok: true }, NOW);
+    expect(replaced.ceilingLevel).toBe(20); // 20 < 25 -> replaced
+
+    const priorLowerCeiling = priorState({ governed: true, level: 20, ceilingLevel: 15 });
+    const kept = applyLevelDecision(priorLowerCeiling, { decision: 'lower', toLevel: 18, reason: 'below-band' }, { level: 18, autolevel: false, ok: true }, NOW);
+    expect(kept.ceilingLevel).toBe(15); // 20 is NOT below 15 -> unchanged
+  });
+
+  it('raise applied, read-back == toLevel: raiseStreak increments, level updates', () => {
+    const prior = priorState({ governed: true, level: 20, raiseStreak: 1 });
+    const next = applyLevelDecision(prior, { decision: 'raise', toLevel: 22, reason: 'above-band' }, { level: 22, autolevel: false, ok: true }, NOW);
+    expect(next.level).toBe(22);
+    expect(next.raiseStreak).toBe(2);
+    expect(next.levelSetAtMs).toBe(NOW);
+    expect(next.recentWindow).toEqual([]);
+  });
+
+  it('raise CLAMPED (read-back < toLevel): sets hardCeilingLevel, zeroes raiseStreak', () => {
+    const prior = priorState({ governed: true, level: 20, raiseStreak: 3 });
+    const next = applyLevelDecision(prior, { decision: 'raise', toLevel: 24, reason: 'above-band' }, { level: 21, autolevel: false, ok: false }, NOW);
+    expect(next.level).toBe(21);
+    expect(next.hardCeilingLevel).toBe(21);
+    expect(next.hardCeilingSetAtMs).toBe(NOW);
+    expect(next.raiseStreak).toBe(0);
+  });
+
+  it('lower with reason post-install-reset: clears ceilingLevel but NOT hardCeilingLevel, and charges NO drop', () => {
+    const prior = priorState({ governed: true, level: 33, ceilingLevel: 25, hardCeilingLevel: 40, drops: [{ atMs: NOW - 1000, levels: 2 }] });
+    const next = applyLevelDecision(prior, { decision: 'lower', toLevel: 16, reason: 'post-install-reset' }, { level: 16, autolevel: false, ok: true }, NOW);
+    expect(next.level).toBe(16);
+    expect(next.governed).toBe(true);
+    expect(next.regimeResetAppliedAtMs).toBe(NOW);
+    expect(next.ceilingLevel).toBeNull();
+    expect(next.ceilingSetAtMs).toBeNull();
+    expect(next.hardCeilingLevel).toBe(40); // untouched
+    expect(next.drops).toEqual([{ atMs: NOW - 1000, levels: 2 }]); // no NEW drop charged
+  });
+
+  it('autolevel read-back failed (actuator step 1): governorFailedUntilMs set, governed STAYS false, nothing else mutates', () => {
+    const prior = priorState({ governed: false, level: 33 });
+    const next = applyLevelDecision(prior, { decision: 'autolevel-set-failed', toLevel: null, reason: 'autolevel-set-failed' }, { level: 33, autolevel: true, ok: false }, NOW);
+    expect(next.governed).toBe(false);
+    expect(next.governorFailedUntilMs).toBe(NOW + LEVEL_SET_RETRY_MS);
+    expect(next.level).toBe(prior.level);
+    expect(next.recentWindow).toEqual(prior.recentWindow);
+  });
+
+  it('ownership released (S5 revert): governed=false, ceilings/streak/drops/levelSetAtMs cleared, recentWindow=[]', () => {
+    const prior = priorState({ governed: true, level: 20, ceilingLevel: 18, hardCeilingLevel: 25, raiseStreak: 3, drops: [{ atMs: NOW, levels: 2 }], levelSetAtMs: NOW - 1000 });
+    const next = applyLevelDecision(prior, { decision: 'release', toLevel: null, reason: 'revert' }, { level: 20, autolevel: true, ok: true }, NOW);
+    expect(next.governed).toBe(false);
+    expect(next.ceilingLevel).toBeNull();
+    expect(next.ceilingSetAtMs).toBeNull();
+    expect(next.hardCeilingLevel).toBeNull();
+    expect(next.hardCeilingSetAtMs).toBeNull();
+    expect(next.raiseStreak).toBe(0);
+    expect(next.drops).toEqual([]);
+    expect(next.levelSetAtMs).toBeNull();
+    expect(next.recentWindow).toEqual([]);
+  });
+
+  it('raiseStreak resets on: any lower, any clamp, any read-back failure, and release -- increments ONLY on a clean raise', () => {
+    const base = priorState({ governed: true, level: 20, raiseStreak: 3 });
+    expect(applyLevelDecision(base, { decision: 'lower', toLevel: 18, reason: 'below-band' }, { level: 18, autolevel: false, ok: true }, NOW).raiseStreak).toBe(0);
+    expect(applyLevelDecision(base, { decision: 'raise', toLevel: 24, reason: 'above-band' }, { level: 21, autolevel: false, ok: false }, NOW).raiseStreak).toBe(0); // clamp
+    expect(applyLevelDecision(base, { decision: 'lower', toLevel: 18, reason: 'below-band' }, { level: 19, autolevel: false, ok: false }, NOW).raiseStreak).toBe(3); // read-back failure -- unspecified field, unchanged
+    expect(applyLevelDecision(base, { decision: 'release', toLevel: null, reason: 'revert' }, { level: 20, autolevel: true, ok: true }, NOW).raiseStreak).toBe(0);
+    expect(applyLevelDecision(base, { decision: 'raise', toLevel: 21, reason: 'above-band' }, { level: 21, autolevel: false, ok: true }, NOW).raiseStreak).toBe(4); // clean raise -- ONLY increment path
+  });
+});
+
+// --- foldSettlement (S2.1; Revision 3 -- renamed + reshaped from foldCompletion) ----
+
+describe('foldSettlement', () => {
+  const NOW = 300_000_000;
+
+  it('a success and a failure fold into the right sums', () => {
+    let state = emptyActionGovernorState('Operations');
+    state = foldSettlement(state, { level: 30, attempts: 1, successes: 1, rankDelta: 5, estimated: false, atMs: NOW });
+    state = foldSettlement(state, { level: 30, attempts: 1, successes: 0, rankDelta: 0, estimated: false, atMs: NOW + 1000 });
+    expect(state.recentWindow.length).toBe(2);
+    expect(state.recentWindow.reduce((s, e) => s + e.successes, 0)).toBe(1);
+    expect(state.byLevel['30'].attempts).toBe(2);
+    expect(state.byLevel['30'].successes).toBe(1);
+    expect(state.byLevel['30'].rankSum).toBe(5);
+    expect(state.settlements).toBe(2);
+  });
+
+  it('an estimated settlement FOLDS (the governor must not go blind in the single-action regime) and increments estimatedSettlements', () => {
+    let state = emptyActionGovernorState('Operations');
+    state = foldSettlement(state, { level: 30, attempts: 1, successes: 1, rankDelta: 5, estimated: false, atMs: NOW });
+    const before = { ...state };
+    state = foldSettlement(state, { level: 31, attempts: 4, successes: 1, rankDelta: 9, estimated: true, atMs: NOW + 1000 });
+    expect(state.recentWindow.length).toBe(before.recentWindow.length + 1); // folded, NOT skipped -- unlike Rev 2's `uncertain` branch
+    expect(state.byLevel['31']).toEqual({ attempts: 4, successes: 1, rankSum: 9 });
+    expect(state.settlements).toBe(before.settlements + 1);
+    expect(state.estimatedSettlements).toBe(before.estimatedSettlements + 1);
+  });
+
+  it('recentWindow caps at LEVEL_RECENT_WINDOW and evicts oldest-first', () => {
+    let state = emptyActionGovernorState('Operations');
+    for (let i = 0; i < LEVEL_RECENT_WINDOW + 5; i++) {
+      state = foldSettlement(state, { level: 30, attempts: 1, successes: 1, rankDelta: i, estimated: false, atMs: NOW + i });
+    }
+    expect(state.recentWindow.length).toBe(LEVEL_RECENT_WINDOW);
+    expect(state.recentWindow[0].rankDelta).toBe(5); // the oldest 5 were evicted
+    expect(state.recentWindow[state.recentWindow.length - 1].rankDelta).toBe(LEVEL_RECENT_WINDOW + 4);
+  });
+
+  it('byLevel is keyed by the level AT COMPLETION, not the current/final level, and SUMS attempts (not entry counts)', () => {
+    let state = emptyActionGovernorState('Operations');
+    state = foldSettlement(state, { level: 20, attempts: 3, successes: 1, rankDelta: 1, estimated: false, atMs: NOW });
+    state = foldSettlement(state, { level: 25, attempts: 1, successes: 1, rankDelta: 1, estimated: false, atMs: NOW + 1000 });
+    expect(state.byLevel['20'].attempts).toBe(3);
+    expect(state.byLevel['25'].attempts).toBe(1);
+  });
+
+  it('a game-driven level change does NOT clear recentWindow (blocker 2\'s invariant)', () => {
+    let state = emptyActionGovernorState('Operations');
+    state = foldSettlement(state, { level: 108, attempts: 1, successes: 1, rankDelta: 1, estimated: false, atMs: NOW });
+    state = foldSettlement(state, { level: 112, attempts: 1, successes: 1, rankDelta: 1, estimated: false, atMs: NOW + 1000 }); // the level moved underneath us -- ungoverned, autolevel-driven
+    expect(state.recentWindow.length).toBe(2); // NOT reset -- only applyLevelDecision's transitions ever clear it
+  });
+});
+
+// --- pruneLevelOutcomes ---------------------------------------------------------------
+
+describe('pruneLevelOutcomes', () => {
+  it('drops the least-recently-touched entries past `keep`', () => {
+    let byLevel = {};
+    for (let i = 1; i <= LEVEL_OUTCOME_LEVELS_KEPT + 3; i++) byLevel[String(i)] = { attempts: 1, successes: 1, rankSum: 1 };
+    const pruned = pruneLevelOutcomes(byLevel, LEVEL_OUTCOME_LEVELS_KEPT);
+    expect(Object.keys(pruned).length).toBe(LEVEL_OUTCOME_LEVELS_KEPT);
+    expect(pruned['1']).toBeUndefined(); // oldest-inserted, dropped first
+    expect(pruned[String(LEVEL_OUTCOME_LEVELS_KEPT + 3)]).toBeDefined();
+  });
+
+  it('is a no-op under the cap', () => {
+    const byLevel = { '1': { attempts: 1, successes: 1, rankSum: 1 } };
+    expect(pruneLevelOutcomes(byLevel, LEVEL_OUTCOME_LEVELS_KEPT)).toEqual(byLevel);
+  });
+});
+
+// --- seedLevelGovernor (S8) ----------------------------------------------------------
+
+describe('seedLevelGovernor', () => {
+  it('round-trip: a blob written with a schema-complete levelGovernor block reseeds identical byLevel/drops', () => {
+    const raw = {
+      levelGovernor: {
+        mode: 'shadow',
+        settlements: 42,
+        estimatedSettlements: 1,
+        cohort: { collapsed: false, sampled: 2, belowBand: 0, reason: 'not-collapsed' },
+        constants: { recentWindow: 30, minSamples: 20 },
+        actions: {
+          Investigation: {
+            type: 'Operations',
+            level: 29,
+            governed: true,
+            adopted: false,
+            governorFailedUntilMs: null,
+            drops: [{ atMs: 1000, levels: 4 }],
+            raiseStreak: 2,
+            byLevel: { 29: { attempts: 10, successes: 8, rankSum: 40 } },
+            ceilingLevel: 30,
+            ceilingSetAtMs: 900,
+            hardCeilingLevel: null,
+            hardCeilingSetAtMs: null,
+            regimeResetAppliedAtMs: null,
+          },
+        },
+      },
+    };
+    const seeded = seedLevelGovernor(raw);
+    expect(seeded.settlements).toBe(42);
+    expect(seeded.estimatedSettlements).toBe(1);
+    expect(seeded.actions.Investigation.drops).toEqual([{ atMs: 1000, levels: 4 }]);
+    expect(seeded.actions.Investigation.byLevel).toEqual({ 29: { attempts: 10, successes: 8, rankSum: 40 } });
+    expect(seeded.actions.Investigation.ceilingLevel).toBe(30);
+    expect(seeded.actions.Investigation.raiseStreak).toBe(2);
+    // recentWindow is deliberately NOT restored (S4: "degrades to re-earn the samples") --
+    // only its derived summary is persisted.
+    expect(seeded.actions.Investigation.recentWindow).toEqual([]);
+  });
+
+  it('schema guard: a blob missing `constants` is rejected WHOLE, not partially adopted', () => {
+    const raw = { levelGovernor: { mode: 'shadow', actions: { Investigation: { level: 29 } } } };
+    expect(seedLevelGovernor(raw)).toBeNull();
+  });
+
+  it('a missing levelGovernor block seeds null (fresh start)', () => {
+    expect(seedLevelGovernor(null)).toBeNull();
+    expect(seedLevelGovernor({})).toBeNull();
+  });
+
+  it('a malformed drops entry is dropped rather than poisoning the array', () => {
+    const raw = { levelGovernor: { constants: {}, actions: { X: { type: 'Contracts', drops: [{ atMs: 'nope', levels: 2 }, { atMs: 500, levels: 3 }] } } } };
+    const seeded = seedLevelGovernor(raw);
+    expect(seeded.actions.X.drops).toEqual([{ atMs: 500, levels: 3 }]);
+  });
+});
+
+// --- emptyActionGovernorState ---------------------------------------------------------
+
+describe('emptyActionGovernorState', () => {
+  it('a fresh action state is ungoverned with empty accumulators', () => {
+    const state = emptyActionGovernorState('Operations');
+    expect(state.governed).toBe(false);
+    expect(state.recentWindow).toBe(state.recentWindow); // sanity: same reference within one call
+    expect(state.recentWindow).toEqual([]);
+    expect(state.byLevel).toEqual({});
+    expect(state.settlements).toBe(0);
+    expect(state.estimatedSettlements).toBe(0);
   });
 });

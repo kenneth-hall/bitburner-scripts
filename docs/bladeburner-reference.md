@@ -647,6 +647,62 @@ cost-based one it was originally argued from.
   which is why `bladeburnermanager.js`'s `STAMINA_RESUME_FRACTION` moved from Phase 38's 0.8 down to
   **0.55** (Phase 39 S16.4) — every second spent recovering above the 50% floor buys nothing.
 
+### 🔑 The in-game Bladeburner CONSOLE is ground truth — and there is NO API to read it (2026-08-09)
+
+The Bladeburner screen carries a **console panel** that logs every completed action, and it is the
+single most authoritative outcome source in the whole subsystem — better than anything the API
+returns, because it reports the **realised** result rather than an estimate:
+
+```
+[2026-08-09 06:03:48] Player: Tracking contract successfully completed! Gained 27.328 rank and $26.836m.
+```
+
+Per-line: timestamp · action · type · outcome · **exact rank** · money. It also carries world events
+(Synthoid migrations, "riots in <city>! Chaos increased", population changes).
+
+🔴 **It cannot be read from a script. Verified four ways, do not re-derive:** (1) the complete local
+`ns.bladeburner` surface is **41 methods** with nothing log-related; (2) `ns.ui`/UserInterface is
+tails/themes/`clearTerminal` only — all writes or cosmetics; (3) `ns`'s log methods
+(`getScriptLogs`, `getRecentScripts`, `isLogEnabled`, `toast`) are scoped to *script* logs and
+`toast` only writes; (4) the **official upstream repo lists the identical 41 methods** — so this is
+not something our fork removed, it has never existed. Upstream changelog entries treat console text
+as display polish ("Log info for field analysis now displays actual rank gained"), i.e. a UX surface,
+never an API one.
+
+⚠️ **`ns.bladeburner.nextUpdate()` does NOT report what happened** — it returns only a *number*, the
+ms of Bladeburner time processed in the last update (1000–5000, more under bonus time). 0 GB. Useful
+as a tick source, useless as an outcome source.
+
+**So the correct posture is:** read the console over CDP (`cli.mjs goto "Bladeburner"` → `body`) as
+an **independent validation instrument**, and derive the same signal in-script from
+**`getActionSuccesses` deltas against the engine's own start count** (`successRate = Δsuccesses ÷
+Δstarts`) — per-action, already charged, immune to bonus time. Validated 2026-08-09: 82 console
+completions over 2.69 h gave **29.79 rank/completion · 30.5 completions/h · 909 rank/h**, against a
+`context.rank`-differencing reconstruction of **28.21** and the engine's own `rates['1h']` of
+**902 rank/h** — three independent instruments agreeing, and an exact match to §11.4's predicted
+"`Tracking` is supply-capped at ~30 actions/h."
+
+⚠️ **Only successes appear.** Across 2.69 h there were **zero** `Investigation` lines and **zero**
+failure lines, while `Investigation` was demonstrably being started every ~77 s. Either failures are
+not logged at all or operation logging is off; **unresolved**, and it is why the failure rate must
+come from subtraction rather than from counting console lines.
+
+🔴 **The buffer is a hard 100-entry FIFO ring, and scrolling reveals NOTHING more.** Measured
+2026-08-09 with a read-only scroll probe: the panel *is* scrollable (`scrollHeight` 2416 vs
+`clientHeight` 844), but after scrolling fully to the top the DOM still held **exactly 100 lines with
+the same first entry** — no virtualisation, no lazy-load. `body` already returns the entire buffer.
+**Don't re-test this.**
+
+⚠️ **Retention is entry-count based, so the window SHRINKS as the engine gets faster.** At the
+2026-08-09 rate (~30.5 completions/h + ~6.7 world events/h ≈ **37 entries/h**) 100 entries ≈
+**2.7 h** — the model predicted 2.69 h and the observed span was 2.69 h. Restore `Investigation` to
+~26 completions/h and the window falls to **~1.6 h**. **Snapshot before you need it**; there is no
+way back. Two line classes only: player action completions, and world events (Synthoid
+migration/population, chaos riots by city).
+
+**Tooling recipe** (`cli.mjs goto "Bladeburner"` → `body` → `grep -E '^\[20'`) and the operational
+caveats live in [`tools/bb/README.md`](../tools/bb/README.md) — keep the two in step.
+
 **Revised design conclusion — the gang comparison was drawn wrongly.** The old text argued that,
 unlike gangs (where `GangTaskStats` + `ns.formulas.gang.*` exposed every yield), Bladeburner was
 genuinely empirical and so "observe-and-measure" was correct. **That framing survives only in part.**
