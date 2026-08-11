@@ -121,6 +121,7 @@ import {
   LEVEL_SET_RETRY_MS,
   LEVEL_OUTCOME_LEVELS_KEPT,
   COHORT_MIN_ACTIONS,
+  planSettlementStep,
 } from '../src/bladeburnermanager.js';
 
 // --- expectedRankPerSec / scoreCandidate (S8) -------------------------------
@@ -1664,6 +1665,77 @@ describe('shouldStartAction', () => {
 // =====================================================================================
 
 // --- settleActionRun (S1.1/S1.2, Revision 3 -- replaces detectActionBoundary) -------
+
+
+describe('planSettlementStep -- the gate that decides whether settlement is REACHED', () => {
+  const TRACK = { type: 'Contracts', name: 'Tracking' };
+  const INVEST = { type: 'Operations', name: 'Investigation' };
+  const NOW = 1_000_000;
+  const openAt = (a, atMs) => ({ type: a.type, name: a.name, startAtMs: atMs });
+
+  it('cold start: nothing open, something running -> open, settle nothing', () => {
+    const p = planSettlementStep({ liveAction: TRACK, openRun: null, nowMs: NOW });
+    expect(p.settle).toBeNull();
+    expect(p.open).toEqual(TRACK);
+    expect(p.discard).toBe(false);
+  });
+
+  it('switch: settles the OLD interval exactly and re-baselines on the new action', () => {
+    const p = planSettlementStep({ liveAction: INVEST, openRun: openAt(TRACK, NOW - 45_000), nowMs: NOW });
+    expect(p.settle).toEqual({ viaTimeout: false });
+    expect(p.open).toEqual(INVEST);
+  });
+
+  it('same action, inside the window -> hold (no settle, no re-open)', () => {
+    const p = planSettlementStep({ liveAction: TRACK, openRun: openAt(TRACK, NOW - 10_000), nowMs: NOW });
+    expect(p.settle).toBeNull();
+    expect(p.open).toBeNull();
+    expect(p.discard).toBe(false);
+  });
+
+  it('nothing running -> discard the open interval, never settle across a gap', () => {
+    const p = planSettlementStep({ liveAction: null, openRun: openAt(TRACK, NOW - 10_000), nowMs: NOW });
+    expect(p.discard).toBe(true);
+    expect(p.settle).toBeNull();
+  });
+
+  it('General actions are out of scope -> discard', () => {
+    const p = planSettlementStep({ liveAction: { type: 'General', name: 'Diplomacy' }, openRun: null, nowMs: NOW });
+    expect(p.discard).toBe(true);
+  });
+
+  // 🔴 THE REGRESSION TEST. Replays the measured 2026-08-10 live park: the engine stops
+  // calling startAction (correct -- shouldStartAction must not restart what is already
+  // running), so `intendedAction` goes stale while ONE action auto-repeats. The previous
+  // inline gate keyed off that intent and starved: 15+ minutes, zero settlements, 408
+  // governor decisions all reading samples: 0. Keyed off the game's live action instead,
+  // the SETTLE_MAX_MS fallback fires and the governor keeps being fed.
+  it('PARK: one action auto-repeating with no further starts still settles via timeout', () => {
+    let openRun = openAt(TRACK, NOW);
+    let settlements = 0;
+    let timeoutSettlements = 0;
+    // 30 minutes of ticks at 10s, liveAction never changes and no start ever fires.
+    for (let t = NOW; t <= NOW + 30 * 60_000; t += 10_000) {
+      const p = planSettlementStep({ liveAction: TRACK, openRun, nowMs: t });
+      if (p.settle) {
+        settlements += 1;
+        if (p.settle.viaTimeout) timeoutSettlements += 1;
+      }
+      if (p.open) openRun = openAt(p.open, t);
+      else if (p.discard) openRun = null;
+    }
+    // SETTLE_MAX_MS is 5 min, so a 30-minute park yields ~6 settlements -- not zero.
+    expect(settlements).toBeGreaterThanOrEqual(5);
+    expect(timeoutSettlements).toBe(settlements);
+    expect(openRun).not.toBeNull();
+  });
+
+  it('PARK ends: the first real switch after a park settles exactly, not by timeout', () => {
+    const openRun = openAt(TRACK, NOW - 60_000);
+    const p = planSettlementStep({ liveAction: INVEST, openRun, nowMs: NOW });
+    expect(p.settle).toEqual({ viaTimeout: false });
+  });
+});
 
 describe('settleActionRun', () => {
   const NOW = 500_000_000;

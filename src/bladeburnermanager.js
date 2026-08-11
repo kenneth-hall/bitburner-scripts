@@ -1101,6 +1101,54 @@ export function recordAttempt({ ts, kind, type, name, level, autolevel, startAct
  * @param {{successesNow:number, rankNow:number, nowMs:number, actionTimeMs:number, viaTimeout?:boolean}} args
  * @returns {{discard:true, reason:"success-counter-reset"}|{discard:false, type:string, name:string, level:number, attempts:number, successes:number, success:boolean, rankDelta:number, actionSec:number, estimated:boolean, atMs:number}}
  */
+/**
+ * Pure (S1.2, rewritten 2026-08-10). Decides what the settlement pipeline does this
+ * tick: settle the open interval, open a fresh one, or discard.
+ *
+ * 🔴 **WHY THIS EXISTS, AND WHY IT KEYS OFF THE GAME.** The first version of this gate
+ * lived inline and read `trackable = verified && intendedAction && ...`, i.e. it keyed
+ * off **the engine's own intent** — a variable set only when `startAction` fires.
+ * Measured live: the engine parked on a single auto-repeating `Tracking` (correct
+ * behaviour — `shouldStartAction` must not restart what is already running), so no
+ * start fired, `intendedAction` went stale, `trackable` went false, and **settlement
+ * stopped for 15+ minutes**. The `SETTLE_MAX_MS` fallback written *precisely* for the
+ * single-action regime was gated behind the SAME flag, so it could never fire in the
+ * one regime it exists to serve. Symptom: 408 governor decisions all reading
+ * `samples: 0` while rank climbed normally at ~1,150/h.
+ *
+ * That is Phase 39's own rule broken one layer up — *no field may be derived from the
+ * engine's own intent* — and it is why this is a **pure, tested** function now: six
+ * unit tests covered `settleActionRun` (the arithmetic) while the gate deciding whether
+ * it was ever REACHED had zero. A tested function is not a tested mechanism.
+ *
+ * `liveAction` is `ns.bladeburner.getCurrentAction()`'s `{type, name} | null` — the
+ * game's answer, which stays correct across auto-repeats, parks, and missed starts.
+ * @param {{type?:string,name?:string}|null} liveAction
+ * @param {{type:string,name:string,startAtMs:number}|null} openRun
+ * @param {number} nowMs
+ * @param {number} [settleMaxMs]
+ * @returns {{settle:{viaTimeout:boolean}|null, open:{type:string,name:string}|null, discard:boolean}}
+ */
+export function planSettlementStep({ liveAction, openRun, nowMs, settleMaxMs = SETTLE_MAX_MS }) {
+  // General actions are not levelable and never settle (S6 scope).
+  const trackable = !!(liveAction && liveAction.name && liveAction.type && liveAction.type !== "General");
+  // Nothing trackable is running: drop any open interval rather than attributing it
+  // across a gap. Never settle here -- the interval's end is unknown.
+  if (!trackable) return { settle: null, open: null, discard: true };
+  const same = openRun !== null && openRun.type === liveAction.type && openRun.name === liveAction.name;
+  // A switch (or a cold start) -- settle the OLD interval by exact subtraction, then
+  // re-baseline on what is running now.
+  if (!same) {
+    return { settle: openRun !== null ? { viaTimeout: false } : null, open: { type: liveAction.type, name: liveAction.name }, discard: false };
+  }
+  // Same action still running. The single-action-regime fallback: settle in place once
+  // the interval has run long enough that waiting for a switch is starving the governor.
+  if (nowMs - openRun.startAtMs >= settleMaxMs) {
+    return { settle: { viaTimeout: true }, open: { type: liveAction.type, name: liveAction.name }, discard: false };
+  }
+  return { settle: null, open: null, discard: false };
+}
+
 export function settleActionRun(openRun, { successesNow, rankNow, nowMs, actionTimeMs, viaTimeout = false }) {
   const successDelta = successesNow - openRun.successesBefore;
   if (successDelta < 0) {
@@ -2285,19 +2333,12 @@ export async function main(ns) {
       startAtMs: nowMs,
     });
 
-    if (!trackable) {
-      openRunState = null;
-    } else if (!sameOpenAction) {
-      // No open interval, or the running action changed underneath us. A real switch
-      // settles the OLD run (exact subtraction); a fresh cold-start has nothing to settle.
-      if (openRunState !== null) settleOpenRun(false);
-      openRunState = openFreshRun(intendedAction.type, intendedAction.name);
-    } else if (nowMs - openRunState.startAtMs >= SETTLE_MAX_MS) {
-      // S1.2's single-action-regime fallback: nothing has switched in SETTLE_MAX_MS (the
-      // ONE place an estimate enters the pipeline) -- settle in place and re-baseline.
-      settleOpenRun(true);
-      openRunState = openFreshRun(intendedAction.type, intendedAction.name);
-    }
+    // 🔴 Keyed off `liveAction` (the GAME's answer), NOT `intendedAction` (ours). Fixed
+    // 2026-08-10 after a measured live park -- see planSettlementStep's doc comment.
+    const settlePlan = planSettlementStep({ liveAction, openRun: openRunState, nowMs });
+    if (settlePlan.settle) settleOpenRun(settlePlan.settle.viaTimeout);
+    if (settlePlan.open) openRunState = openFreshRun(settlePlan.open.type, settlePlan.open.name);
+    else if (settlePlan.discard) openRunState = null;
 
     const estimatedFractionHigh = settlementsCount > 0 && estimatedSettlementsCount / settlementsCount > ESTIMATED_SAMPLE_WARN_FRACTION;
     if (estimatedFractionHigh && !estimatedFractionWarnLogged) {

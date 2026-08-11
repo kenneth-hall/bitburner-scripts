@@ -8,6 +8,27 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-08-10
 
+- **🔴 FIXED — settlement starved whenever the engine parked on one action, and the attribution
+  was wrong.** Filed as *"`LEVEL_GOVERNOR_MODE = "active"` parks the engine"*; **activation was not
+  the cause.** `LEVEL_GOVERNOR_MODE` is read in three places, and with **zero applied decisions**
+  the active and shadow paths are identical — so the park had to be something else. It was: the
+  engine stopped calling `startAction`, which is **correct** (`shouldStartAction` must never restart
+  what is already running), so one `Tracking` auto-repeated. But settlement's gate read
+  `trackable = verified && intendedAction && …` — keyed off **the engine's own intent**, set only
+  when a start fires. Intent went stale, the gate closed, and settlement stopped for 15+ minutes:
+  **408 governor decisions all reading `samples: 0`** while rank climbed normally at ~1,150/h. The
+  `SETTLE_MAX_MS` fallback written *precisely* for the single-action regime sat behind the **same
+  flag**, so it could never fire in the one regime it exists to serve.
+  🔑 **This is Phase 39's own rule broken one layer up** — *no field may be derived from the
+  engine's own intent* — and the test surface shows exactly how it hid: `settleActionRun` (the
+  arithmetic) had **6** unit tests; the gate deciding whether it was ever *reached* had **0**,
+  because it lived loop-inline. *A tested function is not a tested mechanism*, again.
+  **Fix:** new pure `planSettlementStep`, keyed off `getCurrentAction()` — the game's answer, which
+  stays correct across auto-repeats, parks and missed starts — with **7 tests including a replay of
+  the measured park** (30 min, no starts, one action repeating) asserting ~6 timeout settlements
+  instead of zero. Validated live in shadow: settlements resumed, `Tracking` 4/4, `Investigation`
+  0/1, duty 1.000. 1395 tests green.
+
 - **✅ RESOLVED — the dashboard's "no-scroll guarantee looks broken" bug. It was never sizing.**
   The cause is the in-game **Options → "Netscript log size"** setting, which caps a script's tail
   log and evicts the **oldest** entries. At the default **50**, `dashboard.js` emitted 54 lines per
