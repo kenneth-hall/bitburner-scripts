@@ -22,6 +22,26 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🔴 NEW 2026-08-10 — Phase 40's `LEVEL_GOVERNOR_MODE = "active"` parks the engine on ONE
+  auto-repeating action. Reverted to `"shadow"`; do not re-activate until diagnosed.** Measured
+  live: after flipping to active and restarting, `bladeburner-attempts.json` **stopped advancing
+  for 15+ min** (while still being rewritten), `duty1h` read **0.0000** and `intendedAction` read
+  **null** — yet rank kept climbing ~1,150/h in ~43-rank steps every ~2 min. That combination means
+  `startAction` was no longer being called and **`Tracking` was auto-repeating**. Revision 3 settles
+  on *the next verified start*, so no start ⇒ no settlement ⇒ `samples` pinned at **0 across 408
+  decisions**, with `byLevel`/`settlements` being seed values rather than new data.
+  **Revert verified working:** back to `shadow` + restart restored the ledger (15 min stale →
+  0.2 min), duty (0.000 → 0.999), `intendedAction` (null → `Tracking`), and settlement folding
+  (`Tracking` 3/3, `Investigation` 0/3). Rate 1,254 rank/h vs the 1,193 pre-flip baseline — the run
+  never approached the −10% tripwire, so **no harm was done**.
+  ⚠️ **This is the Phase 39 failure shape repeating** (the loop parks on one action while telemetry
+  reads healthy). New wrinkle worth keeping: **duty cycle is untrustworthy in BOTH directions during
+  a park** — Phase 39 saw `dutyCycle: 1` while stalled; here it read `0.000` while genuinely earning.
+  **Next action:** active mode shares the decision path with shadow, and the actuator (the only
+  active-only code) **never fired** — zero applied decisions. So the suspect is the
+  `forcedRestartAction` / `justSettledAction` interaction with `shouldStartAction`, not the setters.
+  Evidence (state, attempts, last 600 log entries at park time) preserved in the session scratchpad.
+
 - **🟡 The dashboard's no-scroll guarantee looks broken — measured, not diagnosed.** `ROW_BUDGET` is
   **63** and `DASHBOARD_H` (1372px) is documented as sized to hold exactly that many no-wrap rows, but
   the live window only surfaces about **42** rows: `renderAll` produced **50** rows against the real
