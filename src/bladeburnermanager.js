@@ -263,7 +263,7 @@ export const SAMPLE_HARD_CAP = 120_000;
 // ---- Phase 40 -- autolevel governor tuning (phase-40-autolevel-governor.spec.md S2.2) --
 // Shipped INERT: "shadow" computes and logs decisions but never calls a setter (S7). Flip
 // to "active" only per S5/S7's staged gate (WI3, out of scope for this implementation).
-export const LEVEL_GOVERNOR_MODE = "active"; // "off" | "shadow" | "active"
+export const LEVEL_GOVERNOR_MODE = "shadow"; // "off" | "shadow" | "active"
 export const LEVEL_RECENT_WINDOW = 30;
 export const LEVEL_MIN_SAMPLES = 20;
 export const LEVEL_LOWER_BAND = 0.6;
