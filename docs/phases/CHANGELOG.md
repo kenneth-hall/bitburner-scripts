@@ -6,6 +6,29 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-10
+
+- **✅ RESOLVED — the dashboard's "no-scroll guarantee looks broken" bug. It was never sizing.**
+  The cause is the in-game **Options → "Netscript log size"** setting, which caps a script's tail
+  log and evicts the **oldest** entries. At the default **50**, `dashboard.js` emitted 54 lines per
+  render, so the first 4 were deleted every cycle — the entire top of the GOAL panel: its title, the
+  `rank .../400.00k (Op Daedalus)` **win-condition line**, and `goalposts:`. The single most
+  important readout in the window had been invisible for weeks, and the filed symptom
+  ("`ROW_BUDGET` is 63 but only ~42 rows surface") sent every prior look hunting a wrap/height
+  problem. Proven over CDP: there is **no scrollable element in the tail at all**, and the blank
+  space above the content is the same bug's other half — the tail bottom-anchors, so a window sized
+  for 63 rows showing 41 leaves the rest empty. Setting raised to **200** (recorded in
+  [`docs/user-settings.md`](../user-settings.md) with the tell, since the default returns on any
+  fresh install). Also shipped: `panelAbsent` skips a panel whose subsystem has been silent >1h, so
+  the **GANG** panel — rendering `STALE 1573108s` (**18.2 days**) in BN6 — is gone until a node
+  actually has a gang; blank separators removed for good after screenshots proved `ns.print("")`
+  renders at **zero height** (a log entry spent for no visible gap); and `DASHBOARD_H`/`ROW_BUDGET`
+  re-derived 1372/63 → **1133/52**, the measured worst case `renderAll` can emit, so the window is
+  sized to what the code produces instead of to an aspirational budget. 1388 tests green.
+  🔑 **Method note:** the first two diagnoses this session ("clipped by scrolling", "hard 41-row tail
+  cap") were both wrong and both were *reasoned*; the answer came from measuring the DOM and then
+  reading the game's own Options screen — the "game UI is part of the interface" rule again.
+
 ## 2026-08-08
 
 - **🔴 CORRECTION — "`Diplomacy` has never run" was WRONG, and the real defect is a different one.**

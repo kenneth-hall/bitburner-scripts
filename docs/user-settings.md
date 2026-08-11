@@ -29,6 +29,29 @@ invites always persist on the **Factions** page (and via `checkFactionInvitation
 Claude: don't expect an invite popup as a signal that a faction became reachable; read
 `augfarmer-state.json` / `augfarmer-catalog.json` or the Factions page instead.
 
+## Netscript log size — **200** (was the 50 default; changed 2026-08-10, verified via CDP)
+
+Options → *Netscript log size*. Caps how many log entries **each script's tail window** retains;
+past the cap it evicts the **oldest**, so a script printing more than the cap silently loses the
+**top** of its output — no scroll, no wrap, no warning.
+
+**Why it was raised.** At the default **50**, `dashboard.js` emitted 54 lines per render, so the
+first 4 were evicted every cycle — which happened to be the entire top of the GOAL panel: its
+title, the `rank .../400.00k (Op Daedalus)` win-condition line, and `goalposts:`. The single most
+important readout in the window was invisible for weeks, and the symptom was misfiled as a
+sizing/no-scroll bug ("`ROW_BUDGET` is 63 but only ~42 rows surface"). It was never sizing: the
+window had ~478px of unused space the whole time, because the tail **bottom-anchors** its content.
+
+**Implications for Claude:**
+- **`dashboard.js`'s `ROW_BUDGET` (63) is only valid while this setting is ≥ ~63.** On a fresh
+  install, another machine, or a settings reset, the default 50 silently truncates the GOAL panel
+  again. `src/dashboard.js` carries `TAIL_LOG_SIZE_ASSUMED = 200` as the paired assumption.
+- **The tell:** the top of the dashboard is missing and there is blank space above the content.
+  Check this setting *first* — do not re-diagnose it as a wrap/height problem.
+- It applies to **every** script's tail, not just the dashboard, so any long-printing script
+  benefits. Cost is memory per script; 200 is modest and Kenneth has said he is willing to go
+  higher if a future panel needs it.
+
 ## Related idea (not yet built)
 
 Because Suppress Messages makes new `.msg` arrive silently, the clean replacement for the CDP

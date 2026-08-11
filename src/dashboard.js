@@ -57,7 +57,15 @@ export const DASHBOARD_W = 891;
 // (unchanged since the 2026-07-23 reading) -- the new bottom at 1393 is 1px
 // over that ceiling, effectively the last row this window can hold before a
 // real trim (not just a cap tweak) is needed.
-export const DASHBOARD_H = 1372;
+// Lowered 1372 -> 1133 (63 -> 52 rows at the same 21.78px/row) 2026-08-10, in lockstep
+// with ROW_BUDGET, once the "Netscript log size" discovery (see ROW_BUDGET's comment)
+// showed the window had been sized for 63 rows while the game only ever retained ~41.
+// 52 is the measured worst case `renderAll` can emit with every panel present INCLUDING
+// GANG, so the window is now sized to what the code can actually produce rather than to
+// an aspirational budget. In BN6 (GANG absent, blank separators removed) real content is
+// ~41 rows, so ~11 rows of slack remain -- deliberate headroom for a panel gaining a
+// line, not wasted space. Shrinking further would clip a gang node.
+export const DASHBOARD_H = 1133;
 export const DASHBOARD_FONT = 16;
 export const DASHBOARD_X = 1653; // live daemon-tail anchor, confirmed via CDP 2026-07-14
 export const DASHBOARD_Y = 21;
@@ -67,7 +75,30 @@ export const DASHBOARD_Y = 21;
 // (92*9.6001=883.2px) while the 96-char ruler line rendered clipped to the
 // same width as the 92-char one, proving 93-96 get cut off, not wrapped.
 export const COLUMN_BUDGET = 92;
-export const ROW_BUDGET = 63; // paired with DASHBOARD_H -- see its comment above
+// 🔑 SECOND CONSTRAINT, found 2026-08-10 — the in-game **Options → "Netscript log
+// size"** setting, which caps how many log entries a script's tail retains. It evicts
+// the OLDEST, so exceeding it silently deletes the TOP of the output rather than
+// scrolling or wrapping.
+//
+// This is the true explanation of the long-standing "ROW_BUDGET is 63 but only ~42
+// rows surface" bug, which had been filed for weeks as a sizing/wrap mystery. It is
+// neither: measured over CDP, `renderAll` emitted 54 lines against the **default cap
+// of 50**, so the first 4 were evicted — the GOAL panel's title, its
+// `rank .../400.00k` line, `goalposts:`, and one separator — leaving the 41 non-blank
+// rows that were visible. There is no scrollable element in the tail at all.
+// ⚠️ The blank space above the content is the same bug's other half: the tail
+// bottom-anchors, so a window sized for 63 rows showing only ~41 leaves the rest empty.
+//
+// **Kenneth raised the setting to 200 on 2026-08-10** (recorded in
+// `docs/user-settings.md`), so the pixel budget binds again and ROW_BUDGET is back to
+// its DASHBOARD_H-derived value. ⚠️ **On a fresh install / another machine the default
+// is 50 and the top of the GOAL panel will silently vanish again** — that is the tell,
+// and this is the first thing to check when it happens.
+export const TAIL_LOG_SIZE_ASSUMED = 200; // in-game Options -> "Netscript log size"
+// A subsystem silent this long is treated as ABSENT (previous node) rather than stale.
+// 1h is far past every STALE_MS threshold (worst is 390s) and far short of a node.
+export const PANEL_ABSENT_MS = 3_600_000;
+export const ROW_BUDGET = 52; // paired with DASHBOARD_H -- the measured worst case renderAll can emit
 export const POLL_MS = 1000;
 export const RULER_FLAG = "dashboard-ruler.txt";
 export const PANEL_ENTRY_CAP = 3;
@@ -153,6 +184,30 @@ export const PARSE_FAILED = "PARSE_FAILED";
  * string longer than budget, by construction, regardless of what a
  * formatter produces (hostile data included).
  */
+/**
+ * Pure (2026-08-10). True when a panel's subsystem is not present in this BitNode at
+ * all, so the panel should be skipped rather than rendered as stale telemetry.
+ *
+ * The distinction that matters: `staleSuffix` marks a LIVE subsystem that missed a
+ * beat (seconds-to-minutes -- worth shouting about). This marks a subsystem that has
+ * not written in `PANEL_ABSENT_MS`, which in practice means it belongs to a previous
+ * node. Concrete case this was written for: the GANG panel rendered
+ * `STALE 1573108s` -- **18.2 days** -- in BN6, burning 5 of the ~41 rows the tail
+ * retains on a gang that closed out with BN2 on 2026-07-23.
+ *
+ * Deliberately NOT applied to every panel: a genuinely broken live subsystem must stay
+ * visible and loud, and silently hiding it is the opposite of what this window is for.
+ * Opt in per panel via `absentIf`.
+ * @param {{timestamp?: number}|null} state
+ * @param {number} now
+ */
+export function panelAbsent(state, now) {
+  if (state === null || state === undefined) return true;
+  const stamp = state.timestamp;
+  if (typeof stamp !== "number") return false; // unreadable/parse-failed -> let the panel say so
+  return now - stamp > PANEL_ABSENT_MS;
+}
+
 export function clampLine(line, budget) {
   if (line.length <= budget) return line;
   if (budget <= 0) return "";
@@ -786,7 +841,7 @@ export function renderAll(states, now) {
   const panelSpecs = [
     { name: "GOAL", fn: goalPanel, state: states.goal },
     { name: "DAEMON", fn: daemonPanel, state: states.daemon },
-    { name: "GANG", fn: (s, n) => gangPanel(s, states.gangTrend ?? null, n), state: states.gangState },
+    { name: "GANG", fn: (s, n) => gangPanel(s, states.gangTrend ?? null, n), state: states.gangState, absentIf: panelAbsent },
     { name: "TARGETS", fn: targetsPanel, state: states.targets },
     { name: "BLADEBURNER", fn: bladeburnerPanel, state: states.bladeburner },
     { name: "XP FARM", fn: xpPanel, state: states.xp },
@@ -797,6 +852,9 @@ export function renderAll(states, now) {
   ];
 
   for (const spec of panelSpecs) {
+    // 2026-08-10: a panel whose subsystem does not exist in this BitNode is skipped
+    // entirely rather than rendered as stale telemetry. See `panelAbsent`.
+    if (spec.absentIf && spec.absentIf(spec.state, now)) continue;
     let panelLines;
     try {
       panelLines = spec.fn(spec.state, now);
@@ -805,7 +863,12 @@ export function renderAll(states, now) {
       panelLines = [`-- ${spec.name} --`, "unreadable"];
     }
     for (const line of panelLines) lines.push(clampLine(String(line), COLUMN_BUDGET));
-    lines.push("");
+    // NO blank separator (2026-08-10, and this one is settled by observation rather
+    // than taste). `ns.print("")` renders as **zero height** in a tail window -- it is
+    // not a visible gap. Confirmed twice on screenshots: `-- DAEMON --` sits flush
+    // under the GOAL panel's last line both before and after they were restored. So a
+    // separator costs one log entry against "Netscript log size" and buys nothing at
+    // all. The `-- PANEL --` headers are the real separator.
   }
 
   return lines;
