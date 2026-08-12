@@ -179,6 +179,23 @@ on request — hold to them even when the moment is uncomfortable.
       **1.25 rank/action** and has **never been run once** (0 attempts, ever) — 20× `Investigation`'s
       realised, worth ~**+2.5%** of rate. Small in rank; the reason it matters is *why* the engine
       picks `Investigation` — see the estimator finding below.
+    - 🔑 **The trajectory is SELF-IMPROVING, and the ETA is therefore conservative** (measured
+      2026-08-11, `logs/bladeburner-attempts.json`). Two rates govern everything:
+      · `Tracking` **yield** grows **+4.03%/level** (multiplicative, L121→127).
+      · `Tracking` **action time** grows **~1.78 s/level, linear** (84 s @ L121 → 100 s @ L130).
+      Multiplicative beats linear, so **rank/hour rises ~2.2%/level and accelerates**. There is no
+      cliff ahead. ⚠️ **`Tracking` is supply-capped for real** — `countRemaining` is **pinned at
+      1.00** (never above 1.01, n=200) against `Investigation`'s ~4,600 banked, so it is
+      *regeneration*-limited at **~30 actions/h** and cannot simply be run more.
+    - **Predicted, not yet observed — worth recognising rather than re-diagnosing when it happens:**
+      at ~30 actions/h, `Tracking` currently consumes **83%** of the hour (100 s × 30). It fills
+      **100%** at ~**120 s ⇒ ~L141** (~1.6 days at the observed ~6.7 levels/day). At that point
+      `Investigation` is **squeezed out naturally, with no code change** — the filler slot closes
+      itself. Past L141 `Tracking` becomes *time*-capped rather than supply-capped and actions/h
+      starts falling, but yield still outruns it. **Do not read the disappearance of `Investigation`
+      as a governor action or a bug.**
+    - ⚠️ *Data note:* `Tracking` L123 reads a 300 s median action time against smooth 86 s/89 s
+      neighbours — that is the 2026-08-10 settlement park, not a level effect. Exclude it.
     - 🔑 **The throughput model now CLOSES (§11.4), and it changes what the levers are.** Measured
       realised rank/action: `Tracking` **19.77** (n=965, zero failures) vs `Investigation` **4.27**
       (n=960, median **0.00**, 68.9% pay nothing, and **decaying — 9.75 → 0.88** across the window).
