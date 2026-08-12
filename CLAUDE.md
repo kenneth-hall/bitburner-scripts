@@ -76,42 +76,34 @@ on request — hold to them even when the moment is uncomfortable.
     `bladeburner-state.json` and obvious in the in-game panel. ⚠️ **Do not treat any rank rate
     produced by Phase 38 as evidence** — the engine was mis-tuned three separate ways and the
     objective function it optimised (rank/second) is itself now in question.
-  - **🔄 PHASE 40 IN PROGRESS — NOT SHIPPED. Stage 3 attempted 2026-08-09; WI1's mechanism FAILED
-    live and is being re-specced (Revision 3).** `phase-40-autolevel-governor.{features,spec}.md` in
-    the repo root; code on branch `phase-40-autolevel-governor` (pushed).
-    - ⚠️ **"Is it shipped?" — NO, and the reason it looks shipped is worth knowing.** viteburner
-      pushes the **working tree** regardless of checked-out branch, so the branch's code **has been
-      running live in the game since 2026-08-09** even though `master` is untouched at `972153e` and
-      nothing is merged. What is live is a **broken instrument plus an inert governor** — harmless,
-      but not done. Do not read "the engine is running it" as "the phase landed."
-    - 🔴 **WI1 is DEAD AS DESIGNED — measured in production over ~21h, not inferred.** Zero `complete`
-      records ever produced. The governor logged **1,998 decisions, every one `insufficient-data` /
-      `samples: 0`.** Root cause: `detectActionBoundary` bails on `if (!sameAction)`, and the engine
-      **changes action on 99.3% of consecutive starts** (4,961/4,994 — it strictly alternates
-      `Tracking` ~45s → `Investigation` ~77s), so a timer wrap can essentially never be observed.
-      **Not a coding defect** — the implementation matches the spec; the *mechanism* was wrong, and
-      no unit test could catch it (the pure functions pass; the live loop never feeds them).
-    - ✅ **The replacement, already validated by arithmetic:** `successRate = Δ getActionSuccesses ÷
-      Δ starts`, per action. Already-charged call (**0 GB marginal**), immune to alternation and
-      bonus time, needs no boundary detection, and **deletes `getActionCurrentTime`** → gate drops
-      **102.00 → 98.00 GB**. S1 rejected this originally on the grounds that "failures are invisible"
-      — wrong, because the governor consumes an aggregate *rate*, never individual events.
-    - 🔑 **Durable lesson, and it is the reason to keep shipping features inert:** WI2's shadow mode
-      proved the design broken **in production, on real data, at zero risk**. A phase that shipped
-      "active" would have found this by damaging the run.
-    - **What it fixes, in one line:** `Investigation`'s autolevel ran it to L33 where it fails
-      **99%** of the time and earns **0.23 rank/action** vs ~9–10 at its L26–29 peak; the engine
-      **never manages action levels at all**. Extrapolated **+34%**, ETA ~20 → ~15 days.
-    - **State on pause:** features doc done; spec **Revision 2** done (cold-reviewed by
-      `spec-reviewer`, **11 blockers**, all addressed). **Zero code written** — the implementation
-      agent was stopped before it created its branch or touched `src/`. Working tree clean on
-      `master`; the live engine was healthy at pause (rank 66,927).
-    - **Resume steps:** branch off `master` (`git checkout -b phase-40-autolevel-governor` is safe —
-      it changes no file contents; ⚠️ **never `git checkout` an *existing* branch under the live dev
-      server**), implement WI1+WI2 per the spec, `npm test` (~1246 must stay green), then hand the
-      RAM gate to Kenneth. **Measured baseline R0 = 90.00 GB**; spec gates are **R1a 94.00 GB after
-      WI1**, **R1b 102.00 GB after WI2** (`mem bladeburnermanager.js` over CDP).
-    - ✅ **TWO CALLS — RULED BY KENNETH 2026-08-08. Implement as specced; do NOT reopen either.**
+  - **✅ PHASE 40 SHIPPED 2026-08-11 — all three work items landed and live-validated. Its verdict
+    is a FALSIFICATION, and that is worth more than the feature.** WI1 (Revision 3 instrument), WI2
+    (governor) and **WI3 (activation, `7ac604f`)** are all on `master`; `npm test` **1395 green**.
+    Docs graduated to `docs/phases/`.
+    - 🔴 **WHAT IT ACTUALLY DELIVERED — the premise it was built on is FALSE. Do not re-derive the
+      phase's own pitch as if it were still true.** The dose-response curve that justified Phase 40
+      put `Investigation`'s peak at **L26–29 ≈ 9–10 rank/action**. The governor drove it there and
+      measured: **L29 → 0/20 · L25 → 0/20 · L33 → 0/258 · L21 → 2/682**. The peak is *absent where
+      it was predicted*. `Investigation` is **not rescuable by levelling** at any level tested. This
+      is logged dropped-objection #1 landing ("the phase rests on a curve reconstructed from a broken
+      instrument"). Tracked as **Q40-17**, open, Kenneth's call.
+    - 🔴 **DO NOT CREDIT THE RATE CLIMB TO THIS PHASE** (the spec's own Rev 3 anti-claim list forbids
+      it, and it is the easiest mistake to make here). The rate did roughly double, but that is
+      `Tracking`'s **ungoverned autolevel** (L110→L130, **19.77 → 47.56** realised rank/action). The
+      governor's *own* measured effect is `Investigation` **0.00 → 0.061 rank/action** — real, and
+      immaterial (0.13% of rank). ⚠️ The phase's pitched "+34%, ETA ~20 → ~15 days" was an
+      extrapolation off the false curve; **never restate it**.
+    - 🔑 **THE DURABLE LESSON, and it is why features ship inert:** WI2's shadow mode proved its own
+      design broken **in production, on real data, at zero risk** — and then the *replacement* got
+      its premise falsified the same way. A phase that shipped "active" on either would have found
+      this by damaging the run. ⚠️ Sibling lesson from WI1's death: **the implementation matched the
+      spec and no unit test could have caught it** — `detectActionBoundary` bailed on `!sameAction`
+      while the engine alternates on **99.3%** of consecutive starts, so the pure functions passed
+      and the live loop never fed them. **A mechanism can be wrong while the code is right.**
+    - **Left running deliberately:** the governor will walk `Investigation` to `LEVEL_FLOOR = 1` at
+      ≤12 levels/24h, finding nothing. Harmless, and it completes the **L33→L1 sweep** that settles
+      Q40-17 by measurement rather than argument.
+    - ✅ **TWO CALLS — RULED BY KENNETH 2026-08-08. Shipped as specced; do NOT reopen either.**
       (1) **Q40-12** — the governor **never automatically releases ownership**; once it takes an
       action, autolevel stays off permanently. Rationale: handing autolevel back re-arms the exact
       loop being fixed, with no self-exit. The *danger* is addressed instead, via the cohort guard +
@@ -121,8 +113,14 @@ on request — hold to them even when the moment is uncomfortable.
       holding would disable the phase entirely whenever the pool narrows to one. Cost accepted: a
       wrongly-lowered healthy action in a rare degraded state. **Both are bounded and reversible,
       both carry expiry dates, and both are Kenneth's call — not the spec author's default.**
-    - ⚠️ **WI2 ships INERT** (`LEVEL_GOVERNOR_MODE = "shadow"`) — it logs what it *would* decide and
-      touches nothing. Only WI1's ledger repair changes live behaviour. Activation is WI3.
+    - ⚠️ **WI3 activation was reverted once (`8c2cd99`) and re-landed (`7ac604f`) — know which state
+      you are reading.** The revert was because active mode **parked the engine on one action**;
+      `5b259d2` fixed the settlement starvation underneath it. Re-landed on live evidence: duty cycle
+      **1.0** (24h 0.99999997), **50/50 alternation** over 300 starts, 3 forced `setActionLevel`
+      restarts costing nothing measurable. 🔴 **Landmine that caused the confusion and will again:**
+      viteburner pushes the **working tree**, so `active` ran live in the game for over a day while
+      `master` still said `shadow`. **Git and the running game can disagree silently — check
+      `git status`, not just the log, before believing either.**
   - **✅ Phase 39 SHIPPED 2026-08-03** (`docs/phases/phase-39-bladeburner-primary.spec.md` — spec
     drafted, cold review, implemented, live-validated, 1246 tests green; commits 36e788f/7fe288e).
     Its go/no-go deliverable **C2 fired 2026-08-03**. ✅ Docs graduated to `docs/phases/` 2026-08-08.

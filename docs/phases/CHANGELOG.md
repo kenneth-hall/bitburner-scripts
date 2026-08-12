@@ -6,6 +6,37 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-11
+
+- **✅ Phase 40 — autolevel governor SHIPPED, and its verdict is that its own premise was false.**
+  ([`phase-40-autolevel-governor.spec.md`](phase-40-autolevel-governor.spec.md) · WI1+WI2 `52cb17e`,
+  WI3 activation `7ac604f` after one revert `8c2cd99` + fix `5b259d2` · 1395 tests green.) The engine
+  now manages action levels, which it never did before. **What it found is worth more than what it
+  built:** the dose-response curve that justified the phase put `Investigation`'s peak at **L26–29
+  ≈ 9–10 rank/action**; driven there and measured, it reads **L29 0/20 · L25 0/20 · L33 0/258 ·
+  L21 2/682**. The peak is absent where predicted — `Investigation` is not rescuable by levelling.
+  Logged dropped-objection #1 landing. 🔴 **The rate did roughly double, and none of it is the
+  governor's:** that is `Tracking`'s *ungoverned* autolevel (L110→130, 19.77→47.56 realised
+  rank/action); the governor's own effect is `Investigation` 0.00→0.061 rank/action, i.e. 0.13% of
+  rank. Tracked open as **Q40-17**.
+- **Four dated Phase 40 questions answered off the ledger, no probe run** (`b09a0a9`). **Q40-6**
+  keep the band (`Tracking` 725 attempts / 7 levels, yield monotone 37.53→47.56 at 100% success, so
+  band and hill-climb agree — but only over a monotone span, no peak seen through L127). **Q40-7**
+  3 real forced restarts cost nothing measurable (duty 1.0). **Q40-14** `Tracking` settled 723/725 =
+  99.72%, phantom contamination ≤0.28% vs a forecast 1–2%. **Q40-8 VOID** — three of
+  `Investigation`'s four sampled levels have `rankSum` exactly 0, so there is no Operations payout
+  slope to measure. Q40-13's trigger fired but the drop budget is not the binding problem, so it is
+  held rather than retuned.
+- **🔴 Stage B CLOSED on measurement, four days before its default expired — and C2 is void as
+  evidence, not merely suspect.** `getActionEstimatedSuccessChance` was caught predicting **`pMin`
+  1.0000** — a *converged* `[1.0, 1.0]`, maximum confidence — for `Investigation` against a realised
+  **2/682**. Wrong by ~135× while reporting certainty, and **on an Operation** — the same action
+  class as `Raid`, whose 47.03 rank/action is Stage B's entire case and would spend a city
+  irreversibly. The error is also **not sign-stable** (~10% *cold* on `Tracking`, where 08-08
+  measured 17% hot), so it cannot be corrected for. **Q14 is moot; no probe needed.**
+
+---
+
 ## 2026-08-10
 
 - **🔴 FIXED — settlement starved whenever the engine parked on one action, and the attribution
