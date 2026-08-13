@@ -225,6 +225,30 @@ on request — hold to them even when the moment is uncomfortable.
       `Investigation` (est. **8.51**/action, realised **0.061**) over `Bounty Hunter` (est. **1.25**,
       never run) — because selection reads the estimator while Phase 40's ledger now holds the
       *realised* number and is not consulted for it. → Q40-17 / the `objectiveMode` phase.
+    - 🚨 **THE SELECTION DEFECT NOW HAS A DATE, AND IT LANDS BEFORE THE CLEAR (measured
+      2026-08-13).** This is no longer a latent design smell — it is a projected run-killer inside
+      the ETA window. `Tracking`'s **estimated** `pMin` is collapsing while its **realised** success
+      stays **100%**: `pMin` 0.8884 @ L126 → **0.2505 @ L136** (n=1,250), against 723/725 realised
+      and rising yield. Selection (`pickRankAction`, `bladeburnermanager.js:452`) takes the **strict
+      max** of the estimator's score and **drops any candidate scoring `<= 0`** (line 460). Fitting
+      the decay at **−0.0268 `pMin`/level**:
+      · **~L143 (~1.2 days):** `Tracking`'s est. `evPerSec` (0.048) falls **below `Investigation`'s**
+        (0.058) → the engine switches to the action realising **0.061 rank/action** over the one
+        realising **68.14**. Rate collapse ~99%.
+      · **~L145.5 (~1.7 days):** `pMin` reaches 0 → `Tracking` is **dropped from the pool entirely**.
+      ⚠️ **The clear needs ~3.2 days, so both dates land inside the window.** ⚠️ **Do not "fix" this
+      by flipping `objectiveMode` to `per-action`** — `evPerAction` decays too (17.06 → 0); the
+      per-second/per-action axis is orthogonal to this failure.
+      🔑 **Driver is CONFOUNDED and I could not separate it — do not assert either cause.** Ishima
+      chaos rose **278% in 42h** (72.8 → 274.9, doubling every ~21.9h) while `Tracking` climbed
+      L126→L136. The two are collinear, so both fit: `corr(pMin, level) = −0.95`,
+      `corr(pMin, log chaos) = −0.97`. It matters only for *which* fix applies (Diplomacy vs a level
+      ceiling); the risk is identical either way. ⚠️ Note chaos is **falsified as a driver of
+      *realised* yield** (2026-08-08) — so this is an estimate-only effect, which is exactly why it
+      is dangerous: **nothing is actually wrong with `Tracking`.**
+      ⚠️ **Diplomacy still cannot fire** (chaos 274.9 vs `CHAOS_TARGET` 50, `runs: 0`): 24h
+      `rankProducingSec == actionSec` (85,607 == 85,607), so `pickRankAction` never returns `null`
+      and `pickOverheadAction` is never reached. The starvation documented 2026-08-08 is unchanged.
     - 🔴 **ENGINE DEFECT, real — but CORRECTED 2026-08-08 (evening): `Diplomacy` HAS run, and
       `effect.runs: 0` is NOT a cumulative count.** ~~"`Diplomacy` has never run … `effect.runs: 0`
       cumulative"~~ was wrong on both halves. `bladeburner-log.json` holds **two** `diplomacy-effect`

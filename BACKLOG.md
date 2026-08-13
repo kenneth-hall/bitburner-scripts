@@ -22,6 +22,28 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🚨 PROJECTED RUN-KILLER, ~1.2 days out: selection will abandon `Tracking` on a number measured
+  to be 4× wrong.** (Measured 2026-08-13; full record in `CLAUDE.md`'s standing-section estimator
+  bullet.) `Tracking` realises **100% success / 68.14 rank/action** and is **100.4% of the measured
+  rank rate**, but its *estimated* `pMin` is collapsing — **0.8884 @ L126 → 0.2505 @ L136**
+  (n=1,250), decaying **−0.0268/level**. `pickRankAction` (`src/bladeburnermanager.js:452`) picks
+  the **strict max** estimator score and **drops any candidate scoring `<= 0`** (line 460), so:
+  **~L143 (~1.2 d)** `Tracking` scores below `Investigation` (0.048 vs 0.058) and the engine
+  switches to the action realising **0.061 rank/action** → ~99% rate collapse; **~L145.5 (~1.7 d)**
+  `Tracking` is dropped from the pool outright. **The clear needs ~3.2 days — both land inside the
+  window.**
+  - ⚠️ **`objectiveMode: "per-action"` is NOT the fix** — `evPerAction` decays to 0 as well. The
+    fix is making selection consult Phase 40's **realised** ledger (which already holds the right
+    number) instead of the estimator, i.e. the `objectiveMode` phase proper.
+  - ⚠️ **Driver is confounded — do not assert a cause.** Chaos rose **278% in 42h** while the level
+    climbed L126→L136; they are collinear (`corr(pMin, level) −0.95`, `corr(pMin, log chaos) −0.97`).
+    Chaos is separately **falsified as a driver of realised yield**, so this is an *estimate-only*
+    effect — nothing is actually wrong with `Tracking`, which is what makes it dangerous.
+  - **Cheapest mitigations if it fires (unvalidated, in rising cost):** a `Tracking` level ceiling
+    via the governor; a `Diplomacy` forcing path (currently unreachable — 24h
+    `rankProducingSec == actionSec`, so `pickOverheadAction` is never called); city rotation.
+  - **Next action:** decide before ~L143 whether to intervene or let it fire and watch. **Wake
+    condition:** `Tracking` reaching **L142**, or any drop in `Tracking` starts/h below ~28.
 - **🟡 Four-way player-action-slot contention has no arbiter.** `bladeburnermanager.js`,
   `augfarmer.js` (faction work), `backdoorfactions.js` and `backdoorwd.js` (`installBackdoor`) all
   claim the single player-action slot. Only the bladeburner<->augfarmer pair cooperates (via
