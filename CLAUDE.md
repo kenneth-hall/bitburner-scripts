@@ -249,6 +249,33 @@ on request — hold to them even when the moment is uncomfortable.
       ⚠️ **Diplomacy still cannot fire** (chaos 274.9 vs `CHAOS_TARGET` 50, `runs: 0`): 24h
       `rankProducingSec == actionSec` (85,607 == 85,607), so `pickRankAction` never returns `null`
       and `pickOverheadAction` is never reached. The starvation documented 2026-08-08 is unchanged.
+    - **✅ CAUSE FOUND AND FIXED, SAME DAY (2026-08-13) — it was LOST INTEL, not decline, and the
+      tell was sitting in the data the whole time.** 🔑 **The estimate's UPPER bound never moved off
+      `1.0000`** while the lower bound collapsed 0.89 → 0.25. The range was **widening**, not
+      shifting down — the game was reporting *"I am less sure"*, never *"this got worse"*, and the
+      truth (100%) sat inside the range at the top the entire time. Because scoring reads the
+      **pessimistic** bound, "uncertain" and "bad" are **indistinguishable at the call site**.
+      📌 **Durable rule: read `getActionEstimatedSuccessChance` as a PAIR. A widening `[pMin, pMax]`
+      is an intelligence problem; only a falling `pMax` is a real decline.**
+      - **Measured counter** (`src/fieldanalysisprobe.js`, `logs/fieldanalysisprobe-*.json`):
+        `Field Analysis` restores `pMin` at **+0.684/hour**, monotonic over 8 min with zero
+        reversals, **while city chaos stayed pinned at 274.8** — so it rebuilds the population
+        estimate and is **not** a chaos lever. Decay is **0.158/day**, so steady state costs
+        **~14 min/day (~1% of wall time)**; a full 0.25 → 0.89 restore takes **~1 hour**.
+      - ⚠️ **It raises EVERY action's estimate, including worthless ones** (`Investigation` gained
+        *more* `pMin` than `Tracking`). It only nets out because `Tracking`'s `rankGain` is ~50×
+        larger. **Field Analysis restores PRECISION, not ACCURACY** — it does not make the
+        estimator trustworthy.
+      - **✅ SHIPPED — S-RF, the realised-evidence floor.** `pickRankAction` now takes
+        `max(estimated, realised)` for any action with **≥50 attempts at its current level and ≥90%
+        realised success**, reading Phase 40's ledger. **Strictly one-directional**: it can only
+        *raise* a proven action, never lowers anything, never promotes an unproven one, and with no
+        ledger passed it is byte-for-byte the old behaviour. This makes selection immune to the
+        estimator in **both** its failure directions. 9 tests, incl. a replay of the measured cliff.
+      - 🔴 **STILL OPEN — the engine cannot self-heal its intel.** `Field Analysis` is *still* not in
+        the action pool, so `pMin` keeps decaying; S-RF makes selection immune, but nothing restores
+        the estimate on its own. Wiring it in is a **spec question** (trigger threshold, duty
+        budget), not a constant tweak. → `BACKLOG.md`.
     - 🔴 **ENGINE DEFECT, real — but CORRECTED 2026-08-08 (evening): `Diplomacy` HAS run, and
       `effect.runs: 0` is NOT a cumulative count.** ~~"`Diplomacy` has never run … `effect.runs: 0`
       cumulative"~~ was wrong on both halves. `bladeburner-log.json` holds **two** `diplomacy-effect`

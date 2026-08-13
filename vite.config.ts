@@ -120,6 +120,7 @@ export default defineConfig({
         if (/^bladeburnerskillprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bladeburnerskillprobe.js -- per-skill cost/level sweep, one file per run
         if (/^slotconflictprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/slotconflictprobe.js -- Phase 38 blocker: does a bladeburner action occupy augfarmer's player-work slot, one file per run
         if (/^q10probe-\d+\.json$/.test(file)) return `logs/${file}`; // src/q10probe.js -- Q10: is stamina spent per action or per second (gates Overclock), one file per run
+        if (/^fieldanalysisprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/fieldanalysisprobe.js -- full action inventory + does Field Analysis reopen a collapsed estimate range, one file per run
         if (/^leverprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/leverprobe.js -- action-level cap + stamina-regen scaling (gates Cyber's Edge) + chaos, one file per run
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';

@@ -12,6 +12,7 @@ import {
   isQuarantined,
   updateQuarantine,
   pickRankAction,
+  realisedFloorScore,
   planSkillBuy,
   SKILL_BUY_ORDER,
   SKILL_LEVEL_CAP,
@@ -397,6 +398,98 @@ describe('pickRankAction', () => {
   it('returns null when every candidate is quarantined', () => {
     const quarantine = { Tracking: 999_999, 'Bounty Hunter': 999_999 };
     expect(pickRankAction([highEv, lowEv], { quarantine, nowMs: 1000 })).toBeNull();
+  });
+
+  // --- S-RF: the realised-evidence floor -------------------------------------------
+  // Replays the MEASURED 2026-08-13 state that projected a run-killing switch. Every
+  // number below is live data, not invented: Tracking L136 realised 68.14 rank/action at
+  // 100% over 1,499 attempts while the estimator read pMin 0.2507 and kept falling;
+  // Investigation L1 predicted a CONVERGED pMin 1.0000 and realised 0.01.
+  describe('realised-evidence floor (S-RF)', () => {
+    const trackingLedger = {
+      Tracking: { level: 143, byLevel: { 143: { attempts: 1499, successes: 1499, rankSum: 1499 * 68.14 } } },
+      Investigation: { level: 1, byLevel: { 1: { attempts: 1695, successes: 3, rankSum: 1695 * 0.01 } } },
+    };
+    // Tracking at the projected L143 cliff: estimator has decayed under Investigation's.
+    const trackingAtCliff = { type: 'Contracts', name: 'Tracking', pMin: 0.067, rankGain: 81, rankLoss: 0, timeMs: 125_000 };
+    const investigationInflated = { type: 'Operations', name: 'Investigation', pMin: 1.0, rankGain: 1.61, rankLoss: 0, timeMs: 28_000 };
+
+    it('WITHOUT the ledger, selection abandons Tracking -- the projected failure', () => {
+      const picked = pickRankAction([trackingAtCliff, investigationInflated], {});
+      expect(picked.name).toBe('Investigation');
+    });
+
+    it('WITH the ledger, Tracking is retained at the cliff', () => {
+      const picked = pickRankAction([trackingAtCliff, investigationInflated], { ledger: trackingLedger });
+      expect(picked.name).toBe('Tracking');
+    });
+
+    it('retains Tracking even when the estimator has collapsed to zero (the ~L145.5 drop)', () => {
+      const collapsed = { ...trackingAtCliff, pMin: 0 };
+      const picked = pickRankAction([collapsed, investigationInflated], { ledger: trackingLedger });
+      expect(picked.name).toBe('Tracking');
+    });
+
+    it('is one-directional -- never lowers a candidate whose estimate beats its ledger', () => {
+      // Realised 1.0 rank/action, but the estimator says 10. The estimate must survive.
+      const ledger = { Tracking: { level: 5, byLevel: { 5: { attempts: 500, successes: 500, rankSum: 500 } } } };
+      const strong = { type: 'Contracts', name: 'Tracking', pMin: 1, rankGain: 10, rankLoss: 0, timeMs: 1000 };
+      const withLedger = pickRankAction([strong], { ledger });
+      const without = pickRankAction([strong], {});
+      expect(withLedger).toEqual(without);
+    });
+
+    it('never promotes an action whose realised success rate is poor', () => {
+      // Investigation has 1,695 attempts but a 0.2% success rate -- no floor for it.
+      expect(realisedFloorScore(trackingLedger.Investigation, 28_000)).toBeNull();
+    });
+
+    it('ignores thin evidence below the attempts threshold', () => {
+      // Bounty Hunter's real record: 20 attempts, 0 successes.
+      const thin = { level: 1, byLevel: { 1: { attempts: 20, successes: 0, rankSum: 0 } } };
+      expect(realisedFloorScore(thin, 19_000)).toBeNull();
+    });
+
+    // The level-up deadlock, caught before shipping. Keying strictly on the CURRENT level
+    // self-locks: on level-up byLevel[new] is empty -> floor null -> the estimator (which
+    // by then ranks Tracking last) picks something else -> Tracking never runs -> never
+    // reaches 50 attempts -> the floor never re-arms.
+    it('survives a level-up: falls back to the highest proven level at or below current', () => {
+      const justLevelled = {
+        level: 144, // brand new, zero attempts logged yet
+        byLevel: {
+          143: { attempts: 1499, successes: 1499, rankSum: 1499 * 68.14 },
+          144: { attempts: 2, successes: 2, rankSum: 140 },
+        },
+      };
+      const floor = realisedFloorScore(justLevelled, 125_000);
+      expect(floor).not.toBeNull();
+      expect(floor).toBeCloseTo(68.14 / 125, 5); // L143's yield, conservatively
+    });
+
+    it('retains Tracking through a level-up at the cliff -- the deadlock regression', () => {
+      const justLevelled = {
+        Tracking: { level: 144, byLevel: { 143: { attempts: 1499, successes: 1499, rankSum: 1499 * 68.14 } } },
+      };
+      const picked = pickRankAction([{ ...trackingAtCliff, pMin: 0 }, investigationInflated], { ledger: justLevelled });
+      expect(picked.name).toBe('Tracking');
+    });
+
+    it('ignores levels ABOVE the current one -- a governor drop must not keep the old high yield', () => {
+      const dropped = { level: 21, byLevel: { 136: { attempts: 1499, successes: 1499, rankSum: 1499 * 68.14 } } };
+      expect(realisedFloorScore(dropped, 125_000)).toBeNull();
+    });
+
+    it('returns null on missing/empty ledger entries rather than throwing', () => {
+      expect(realisedFloorScore(undefined, 1000)).toBeNull();
+      expect(realisedFloorScore({}, 1000)).toBeNull();
+      expect(realisedFloorScore({ level: 1, byLevel: {} }, 1000)).toBeNull();
+    });
+
+    it('computes per-action mode without dividing by time', () => {
+      const s = realisedFloorScore(trackingLedger.Tracking, 125_000, 'per-action');
+      expect(s).toBeCloseTo(68.14, 5);
+    });
   });
 
   it('returns null on an empty candidate list', () => {

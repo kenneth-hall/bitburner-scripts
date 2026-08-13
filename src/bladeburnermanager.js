@@ -450,20 +450,94 @@ export function updateQuarantine(state, name, verified, nowMs) {
  * @param {{hpRecovering?:boolean, staminaRecovering?:boolean, quarantine?:Record<string,number>, nowMs?:number, mode?:string}} opts
  */
 export function pickRankAction(candidates, opts = {}) {
-  const { hpRecovering = false, staminaRecovering = false, quarantine = {}, nowMs = 0, mode = OBJECTIVE_MODE } = opts;
+  const { hpRecovering = false, staminaRecovering = false, quarantine = {}, nowMs = 0, mode = OBJECTIVE_MODE, ledger = null } = opts;
   if (hpRecovering || staminaRecovering) return null;
   let best = null;
   let bestScore = -Infinity;
   for (const c of candidates) {
     if (isQuarantined(quarantine, c.name, nowMs)) continue;
     const { score } = scoreCandidate(c, mode);
-    if (score <= 0) continue; // hard net-negative floor, both modes (sign is time-invariant)
-    if (score > bestScore) {
-      bestScore = score;
+    // Realised-evidence floor (S-RF). One-directional: `Math.max` can only RAISE a
+    // proven action, so with `ledger` absent this is byte-for-byte the old behaviour.
+    const floor = ledger ? realisedFloorScore(ledger[c.name], c.timeMs, mode) : null;
+    const effective = floor !== null && floor > score ? floor : score;
+    if (effective <= 0) continue; // hard net-negative floor, both modes (sign is time-invariant)
+    if (effective > bestScore) {
+      bestScore = effective;
       best = c;
     }
   }
   return best;
+}
+
+// ---- Realised-evidence score floor (S-RF, 2026-08-13) -------------------------------
+// WHY: the estimator was measured wrong in BOTH directions on the SAME day, so its error
+// cannot be corrected for -- only bypassed where hard evidence exists.
+//   `Investigation` L21   predicted a CONVERGED pMin 1.0000 -> realised    2/270 (0.74%)
+//   `Bounty Hunter` L1    predicted a CONVERGED pMin 1.0000 -> realised     0/20 (0%)
+//   `Tracking`      L136  predicted           pMin 0.2507  -> realised 1499/1499 (100%)
+// Selection reads the estimator, so `Tracking`'s score was projected to fall below
+// `Investigation`'s at ~L143 and to hit `pickRankAction`'s `<= 0` drop at ~L145.5 -- the
+// engine would have abandoned the action producing 100.4% of the entire rank rate, on a
+// number contradicted by 1,499 of its own logged attempts.
+//
+// The estimate's HIGH bound never moved off 1.0000 while the low bound collapsed, i.e.
+// the game was reporting GROWING UNCERTAINTY, not a real decline -- and `pickRankAction`
+// scores on the pessimistic bound, which makes those two indistinguishable.
+//
+// DELIBERATELY ONE-DIRECTIONAL. This never lowers a score and never promotes an unproven
+// action: no ledger, thin evidence, a poor realised success rate, or a non-positive
+// realised yield all fall through to the estimator exactly as before. The worst case is
+// that a genuinely-decaying action keeps running one cycle longer than the estimator
+// wanted -- against Phase 40's governor, which independently lowers levels on REALISED
+// failure and is the mechanism that would catch a real decline.
+export const REALISED_FLOOR_MIN_ATTEMPTS = 50;
+export const REALISED_FLOOR_MIN_SUCCESS = 0.9;
+
+/**
+ * Pure (S-RF). The realised score for an action, or `null` when no level has evidence
+ * strong enough to override the estimator.
+ *
+ * 🔴 Uses the HIGHEST PROVEN LEVEL AT OR BELOW the current one -- NOT the current level
+ * alone. Keying strictly on the current level looks tighter and is a SELF-LOCKING
+ * DEADLOCK: an action levels up (~136 attempts for `Tracking`), `byLevel[newLevel]` does
+ * not exist yet, the floor returns `null`, selection falls back to the very estimator
+ * this exists to bypass -- and if that estimator now ranks the action last, it never runs
+ * again, so it never accumulates the attempts that would re-arm the floor. Caught before
+ * shipping, by walking the level-up path rather than the steady state.
+ *
+ * Falling back DOWN is safe because it is conservative: realised yield GROWS with level
+ * (+4.03%/level measured), so an older level's yield understates the current one, and
+ * this is a floor. Levels ABOVE the current one are ignored -- after a governor drop
+ * those would overstate.
+ * @param {{level?:number, byLevel?:Record<string,{attempts:number,successes:number,rankSum:number}>}} [actionState]
+ * @param {number} timeMs
+ * @param {"per-second"|"per-action"} [mode]
+ * @returns {number|null}
+ */
+export function realisedFloorScore(actionState, timeMs, mode = OBJECTIVE_MODE) {
+  const byLevel = actionState?.byLevel;
+  if (!byLevel) return null;
+  const currentLevel = Number(actionState?.level);
+  if (!Number.isFinite(currentLevel)) return null;
+  let stats = null;
+  let bestLevel = -Infinity;
+  for (const key of Object.keys(byLevel)) {
+    const lvl = Number(key);
+    if (!Number.isFinite(lvl) || lvl > currentLevel || lvl <= bestLevel) continue;
+    const s = byLevel[key];
+    if (!s || !(s.attempts >= REALISED_FLOOR_MIN_ATTEMPTS)) continue;
+    if (!(s.successes / s.attempts >= REALISED_FLOOR_MIN_SUCCESS)) continue;
+    bestLevel = lvl;
+    stats = s;
+  }
+  if (!stats) return null;
+  const evPerAction = stats.rankSum / stats.attempts;
+  if (!(evPerAction > 0)) return null;
+  if (mode === "per-action") return evPerAction;
+  const seconds = timeMs / 1000;
+  if (!(seconds > 0)) return null;
+  return evPerAction / seconds;
 }
 
 /**
@@ -2370,7 +2444,7 @@ export async function main(ns) {
       checkpointC2Logged = true;
     }
 
-    const picked = pickRankAction(gatedPool, { hpRecovering, staminaRecovering, quarantine: quarantineState.quarantine, nowMs, mode: OBJECTIVE_MODE });
+    const picked = pickRankAction(gatedPool, { hpRecovering, staminaRecovering, quarantine: quarantineState.quarantine, nowMs, mode: OBJECTIVE_MODE, ledger: levelGovernorActions });
     allActionsQuarantinedFlag = gatedPool.length > 0 && gatedPool.every((c) => isQuarantined(quarantineState.quarantine, c.name, nowMs));
     if (allActionsQuarantinedFlag) logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "all-actions-quarantined" });
 

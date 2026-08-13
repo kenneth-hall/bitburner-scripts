@@ -42,8 +42,26 @@ do, and what's broken?*
   - **Cheapest mitigations if it fires (unvalidated, in rising cost):** a `Tracking` level ceiling
     via the governor; a `Diplomacy` forcing path (currently unreachable — 24h
     `rankProducingSec == actionSec`, so `pickOverheadAction` is never called); city rotation.
-  - **Next action:** decide before ~L143 whether to intervene or let it fire and watch. **Wake
-    condition:** `Tracking` reaching **L142**, or any drop in `Tracking` starts/h below ~28.
+  - **✅ CAUSE IDENTIFIED AND FIXED 2026-08-13 — it was lost INTEL, not a real decline, and the
+    tell was in the data all along.** The estimate's **upper** bound never moved off **1.0000**
+    while the lower bound collapsed 0.89 → 0.25. A *widening* range means the game is less **sure**,
+    not that the action got worse — and since scoring reads the pessimistic bound, "uncertain" and
+    "bad" are indistinguishable at the call site.
+    - **Measured counter (`src/fieldanalysisprobe.js`):** `Field Analysis` restores `pMin` at
+      **+0.684/hour**, monotonic, with **city chaos flat at 274.8 throughout** — so it rebuilds the
+      population estimate and has nothing to do with chaos. Maintenance costs **~14 min/day
+      (~1% of wall time)** against a **0.158/day** decay.
+    - **Shipped fix (S-RF, `realisedFloorScore` + `pickRankAction`'s `ledger` opt):** selection now
+      takes `max(estimated, realised)` for any action with **>=50 attempts at its current level and
+      >=90% realised success**. Strictly one-directional — it can only *raise* a proven action,
+      never lower anything, never promote an unproven one, and is byte-for-byte the old behaviour
+      when no ledger is passed. 9 tests including a replay of the exact projected cliff.
+  - **Still open (deliberately NOT done):** `Field Analysis` is still **not in the engine's pool**,
+    so the estimate keeps decaying — S-RF makes selection immune to that, but the engine still
+    cannot self-heal its own intel. Wiring it in with a `pMin`-threshold trigger is the follow-on,
+    and it is a spec question (which action class, what trigger, what duty budget), not a constant
+    tweak. **Wake condition:** any future work on `objectiveMode`, or a second action becoming
+    rank-relevant.
 - **🟡 Four-way player-action-slot contention has no arbiter.** `bladeburnermanager.js`,
   `augfarmer.js` (faction work), `backdoorfactions.js` and `backdoorwd.js` (`installBackdoor`) all
   claim the single player-action slot. Only the bladeburner<->augfarmer pair cooperates (via

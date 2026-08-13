@@ -973,6 +973,27 @@ mechanics.
   single point value `0.0901` (post ~50 reps). The UI corroborates the mechanism: Field Analysis
   *"will improve the accuracy of your Synthoid population estimated in the current city."*
   **Caveat: it narrows *uncertainty*, not obviously the *rate*.**
+- **✅ QUANTIFIED 2026-08-13 — Field Analysis restores a collapsed `pMin` at ~+0.684/hour, and the
+  effect is pure INTEL, not chaos.** (`src/fieldanalysisprobe.js`, 17+ samples at 30 s over a 15-min
+  run; `logs/fieldanalysisprobe-1786589727034.json`.) `Tracking`'s `pMin` climbed **monotonically
+  0.2556 → 0.3468 in 8.0 min** with **zero** reversals, while **city chaos stayed pinned at 274.8
+  for the entire run** — so the mechanism is rebuilding the population estimate, and chaos is *not*
+  the lever being pulled. `Investigation`'s `pMin` rose in parallel (0.6828 → 0.9264, faster in
+  absolute terms).
+  - 🔑 **The signature that identifies this condition, and it is worth recognising anywhere:** the
+    estimate's **upper** bound never moved off **1.0000** while the lower bound collapsed
+    0.89 → 0.25. A *widening* range is **lost intel**; a *falling* range would be a real decline.
+    Since scoring reads the pessimistic bound, the two are indistinguishable at the call site —
+    read `[pMin, pMax]` as a pair, never `pMin` alone.
+  - **Maintenance arithmetic:** `pMin` decays **0.0268/level × 5.9 levels/day ≈ 0.158/day**, and
+    restores at **0.684/hour** ⇒ steady state costs **~14 min/day (~0.96% of wall time)**. Restoring
+    a fully-collapsed 0.25 → 0.89 takes **~1 hour**.
+  - ⚠️ **It lifts every action's estimate, including worthless ones** — `Investigation` (realised
+    ~0 rank/action) gained *more* `pMin` than `Tracking` did. It is only a net win because
+    `Tracking`'s `rankGain` is ~50× larger, so the same `pMin` multiplier moves its absolute score
+    far more. **Do not treat Field Analysis as a way to make the estimator trustworthy** — it
+    restores *precision*, not *accuracy*, and the estimator was separately measured wrong in both
+    directions (§ the `pMin 1.0000` cases).
 - **✅ ANSWERED 2026-07-31 (UI) — chaos dynamics.** Per-city; `Diplomacy` and `Stealth Retirement
   Operation` reduce it; `Incite Violence` raises it everywhere; several contracts/ops raise it
   locally; and ⚠️ **it also rises spontaneously from world events** (riot messages in the event
