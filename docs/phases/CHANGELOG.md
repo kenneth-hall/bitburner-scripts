@@ -6,6 +6,38 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-13
+
+- **🔴 Caught and fixed a projected run-killer ~1.2 days before it would have fired** (`3d4a013`).
+  Selection was on track to abandon **`Tracking`** — 100% realised success, **100.4% of the entire
+  rank rate** — because the estimator it scores on had decayed below a worthless alternative, with
+  the clear still ~3 days out and the run about to go unattended.
+  - 🔑 **The cause was LOST INTEL, not decline, and the tell was in the data all along:** the
+    estimate's **upper** bound never moved off **`1.0000`** while the lower bound collapsed
+    0.89 → 0.25. A **widening** `[pMin, pMax]` means *"less sure"*, not *"worse"* — and since
+    scoring reads the pessimistic bound, the two are **indistinguishable at the call site**.
+    📌 New durable rule: **read `getActionEstimatedSuccessChance` as a PAIR.**
+  - **Measured** (`src/fieldanalysisprobe.js`, new; 30 samples / 15 min): `Field Analysis` restores
+    `pMin` at **+0.684/hour**, monotonic, **while city chaos stayed flat at 274.8** — intel, not a
+    chaos lever. `Tracking` **0.2507 → 0.4444**, range width **0.749 → 0.556**. Decay is 0.158/day,
+    so steady state costs **~14 min/day (~1%)**. ⚠️ It lifts *every* action's estimate including
+    worthless ones — it restores **precision, not accuracy**.
+  - **Shipped (S-RF):** `pickRankAction` takes `max(estimated, realised)` for actions with ≥50
+    attempts at a proven level and ≥90% realised success, reading Phase 40's ledger. Strictly
+    one-directional; identical to old behaviour with no ledger passed.
+  - 🔑 **Caught before shipping — keying the floor on the *current* level is a self-locking
+    deadlock.** On level-up `byLevel[new]` is empty → floor `null` → selection falls back to the
+    very estimator being bypassed → the action never runs → never earns the attempts that re-arm
+    the floor. Fixed by falling back to the highest proven level **at or below** current
+    (conservative: yield grows +4.03%/level). **Found by walking the level-up path instead of the
+    steady state** — the steady-state design was correct and would still have failed.
+  - **Sanity check on the rest of the pool:** nothing worth switching to. `Bounty Hunter` predicted
+    a *converged* `pMin 1.0000` and delivered **0/20**; `Investigation` the same, delivering 0.01
+    rank/action over 1,695 attempts — the **third and fourth** instances of the estimator asserting
+    certainty and being wrong. 1406 tests green.
+
+---
+
 ## 2026-08-11
 
 - **✅ Phase 40 — autolevel governor SHIPPED, and its verdict is that its own premise was false.**
