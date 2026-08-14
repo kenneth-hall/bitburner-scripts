@@ -56,6 +56,26 @@ do, and what's broken?*
       >=90% realised success**. Strictly one-directional — it can only *raise* a proven action,
       never lower anything, never promote an unproven one, and is byte-for-byte the old behaviour
       when no ledger is passed. 9 tests including a replay of the exact projected cliff.
+  - **🟡 SIDE EFFECT OF S-RF, found 2026-08-13 — the success-rate INSTRUMENT is now contaminated,
+    though nothing is currently mis-deciding.** Keeping `Tracking` selected lets it **auto-repeat**
+    (`startAction` is not one-shot), so a single settlement now spans ~2.5 actions and the attempt
+    count falls back to the `SETTLE_MAX_MS` estimate (`elapsed / getActionTime`). Measured on
+    `Tracking`: estimated-settlement fraction **0.1% → 53.6%** across the S-RF restart.
+    - **Consequence:** the *denominator* inflates, so measured success reads **low** — L136–L139
+      read 92.6 → 84.5% while **realised success is 100%** (every completion pays; 1,371
+      completions read 100% across every chaos band, including 500–900). L140 reading back at
+      **100%** confirms it is an artifact, not a decline.
+    - **Not currently dangerous:** the governor decides on `recentWindow`, which reads **1.00
+      (`autolevel-healthy`)**, far from `LEVEL_LOWER_BAND` 0.6; and S-RF's own ≥90% gate simply
+      skips a contaminated level and falls back to a proven one, which is the fallback working.
+    - 🔴 **But Q40-15's guard cannot fire, by construction.** `estimated-fraction-high` is gated on
+      the **cumulative** ratio (`estimatedSettlements / settlements` = **210/3,921 = 5.4%**), which
+      thousands of clean historical settlements dilute below the 25% threshold **permanently**. A
+      recent-window contamination of 53.6% is invisible to it. **The warn should be windowed, not
+      cumulative.** Cheap fix, but it is instrument work, not a live-run fix.
+    - **Next action:** window the warn; consider whether settlement should force a boundary when a
+      run exceeds N actions. **Wake condition:** any governor decision citing a `successRate` below
+      0.9, or the `recentWindow` reading dropping below 1.0 on `Tracking`.
   - **Still open (deliberately NOT done):** `Field Analysis` is still **not in the engine's pool**,
     so the estimate keeps decaying — S-RF makes selection immune to that, but the engine still
     cannot self-heal its own intel. Wiring it in with a `pMin`-threshold trigger is the follow-on,

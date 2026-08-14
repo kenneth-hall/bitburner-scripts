@@ -298,6 +298,13 @@ on request — hold to them even when the moment is uncomfortable.
         `cityName` field, and it is precisely the contaminated sample
         `bladeburnermanager.js:1671-1674` was written to catch ("makes it look ~50× stronger than it
         is"). One clean sample has never been taken.
+      - **✅ FIRST CLEAN SAMPLE TAKEN 2026-08-13 — `Diplomacy` removed `645.03` chaos in ONE run**
+        (Ishima ~717 → 72.8, same city throughout, so it passed the `cityName` guard rather than
+        predating it). It fired **on its own**, unprompted: the overhead branch documented as
+        permanently starved *did* reach `pickOverheadAction`. ⚠️ **Do not read 645 as a per-run
+        constant** — it removed ~90% of the standing chaos, so one sample cannot distinguish an
+        absolute effect from a proportional one. What it does settle: **the branch works, and the
+        lever is far stronger than the retracted 174 figure.**
       - 🔴 **AND THE LEVER IS AIMED AT THE WRONG TARGET — chaos is FALSIFIED as `Investigation`'s
         cause (2026-08-08 evening).** Chaos is **city-scoped**, so `Tracking` is a free control: over
         the same window, same city, while chaos rose **7.2×** (9.3 → 66.5), `Tracking`'s zero-rate
