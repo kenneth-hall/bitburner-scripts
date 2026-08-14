@@ -239,6 +239,23 @@ on request — hold to them even when the moment is uncomfortable.
       ⚠️ **The clear needs ~3.2 days, so both dates land inside the window.** ⚠️ **Do not "fix" this
       by flipping `objectiveMode` to `per-action`** — `evPerAction` decays too (17.06 → 0); the
       per-second/per-action axis is orthogonal to this failure.
+      ✅ **CONFOUND RESOLVED SAME DAY (2026-08-13) — BOTH are real drivers, and `level` is NOT
+      established as one.** Two *independent* interventions each moved `pMin` while holding the
+      other variable still, which is exactly what the correlations could not do:
+      · **Field Analysis** — chaos held **flat** (274.8 → 274.7), level held 136, `pMin`
+        **0.2507 → 0.4444** ⇒ **intel is a driver.**
+      · **Diplomacy** — chaos **717 → 72.8**, level *rose* 136 → 139 (which should have *lowered*
+        `pMin`), `pMin` **0.4444 → 1.0000** ⇒ **chaos is a driver.**
+      🔴 **`pMin` rose while level increased, twice — so the "level-driven decay" reading is not
+      supported.** Read the paragraph below as the superseded reasoning, kept for the method.
+      ⚠️ **The cliff is currently GONE, not deferred** (`pMin` reads a converged **1.0000** against
+      100% realised). But **chaos regrows at 3.22%/h**, so it returns to ~700 in **~3.0 days**
+      against a **~3.3-day** clear — i.e. right at the finish. S-RF is the backstop for that.
+      🔑 **Method note worth keeping: two collinear candidates were separated by INTERVENING on each
+      in turn, not by more observation.** The correlations (−0.95 vs −0.97) were never going to
+      settle it; one 15-minute probe and one accidental `Diplomacy` run did.
+
+      [SUPERSEDED 2026-08-13 — kept for the method, not the conclusion]
       🔑 **Driver is CONFOUNDED and I could not separate it — do not assert either cause.** Ishima
       chaos rose **278% in 42h** (72.8 → 274.9, doubling every ~21.9h) while `Tracking` climbed
       L126→L136. The two are collinear, so both fit: `corr(pMin, level) = −0.95`,
@@ -266,6 +283,13 @@ on request — hold to them even when the moment is uncomfortable.
         *more* `pMin` than `Tracking`). It only nets out because `Tracking`'s `rankGain` is ~50×
         larger. **Field Analysis restores PRECISION, not ACCURACY** — it does not make the
         estimator trustworthy.
+      - ⚠️ **S-RF IS ARMED BUT NOT YET LOAD-BEARING — do not claim it "is holding the run."**
+        Checked 2026-08-13: it *is* supplying the score in use (floor **0.6649** > estimator
+        **0.6453** evPerSec), but the estimator alone would make the **same** pick — `Tracking`
+        0.6453 vs `Investigation` 0.0604, a 10× margin — because `Diplomacy` + `Field Analysis`
+        restored `pMin` to **1.0000**. It is **insurance that has not been called on**. Its live
+        proof so far is narrower and worth stating exactly: it survived **four `Tracking` level-ups
+        (L136→L140)** without the deadlock its first draft would have hit.
       - **✅ SHIPPED — S-RF, the realised-evidence floor.** `pickRankAction` now takes
         `max(estimated, realised)` for any action with **≥50 attempts at its current level and ≥90%
         realised success**, reading Phase 40's ledger. **Strictly one-directional**: it can only
