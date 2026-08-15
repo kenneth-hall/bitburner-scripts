@@ -143,10 +143,39 @@ on request — hold to them even when the moment is uncomfortable.
     a rate recorded here as "0.1371/wall-sec" was ~24% low within a day. **Every number below is
     stamped; if the stamp isn't today's, go get the live one** — `node tools/bb/cli.mjs stats`, or
     the last entry of `logs/goal-log.json` (`rank` field, 60s samples, ~2 days deep). *Durable*
-    facts, safe to quote: the goal is **rank 400,000** (`Operation Daedalus`), and rank and skill
+    facts, safe to quote: ~~the goal is **rank 400,000** (`Operation Daedalus`)~~, and rank and skill
     points **survive installs**. 🔴 **"The rank rate has been rising, not decaying" was listed here
     as durable and is now FALSE — do not restate it** (measured flat over 35 clean hours, §11.2).
     What is still rising is the **action level**, which is a different claim.
+    - 🚨 **CORRECTED 2026-08-15 — "the goal is rank 400,000" was listed here as a DURABLE FACT and
+      it is MISLEADING. Rank 400,000 is a GATE, not the goal.** The node clears by completing all
+      **21 black ops in order**, ending at `Operation Daedalus`; 400,000 is only the rank
+      *requirement* on that last one. Checked live at rank 349,057: `getNextBlackOp()` read
+      **`Operation Typhoon`** — the **first** op — with **zero of 21 done**, and
+      `bladeburnermanager.js` has **no black-op stage at all**. The engine would have hit 400,000
+      and ground `Tracking` forever. 📌 **Durable lesson: A PROGRESS TARGET IS NOT A WIN CONDITION** —
+      every snapshot in this file read *on track* while the run could not finish, because the missing
+      step was never instrumented. **Re-derive the goal periodically; don't trust the proxy.**
+      Ladder runner: `src/bbblackop.js` (hard rail — refuses `Operation Daedalus` without an explicit
+      argument, since completing it **destroys the BitNode**). Full record: `bn6-playbook.md` Stage 4.
+    - 🔑 **The skill-point bank was the unpulled lever, and it settles the ladder** (measured
+      2026-08-15, `src/bbskillbuy.js`). ~114,000 SP sat idle for weeks because Stage A never needed
+      them — `Tracking` runs at 100% realised success, so success skills bought nothing *there*.
+      Spent 91,460: `Blade's Intuition`+`Digital Observer` 25/25 → **200/200** (multiplier is the
+      **product** `(1+0.03·BI)(1+0.04·DO)`, so **×3.50 → ×63.00**) and `Overclock` 17 → **90**
+      (action time **×0.83 → ×0.10**). **Every one of the 21 ops' `pMax` went to `1.0000`** — the
+      back half's *falling* upper bounds (Daedalus `[0.0062, 0.0670]`, a real 6.7% ceiling) became
+      `[0.1746, 1.0000]`. Ladder serial time **16.56h → 1.88h**.
+    - 🔴 **`Overclock` "is measured DEAD — do NOT buy more" is RETRACTED 2026-08-15. It was bought to
+      90 and it works.** Q10's measurement stands; its **scope** did not. Stamina being per-action
+      makes action time cancel **only while stamina binds** — true for 13–150s contracts, false for
+      **185–7,377s** black ops running ~0.5 actions/hour against a 55.8/hour ceiling. 📌 **Sibling
+      rule to "an estimate is not a measurement": A MEASUREMENT INHERITS THE REGIME IT WAS TAKEN IN.
+      When recording a "closed permanently," record what would have to change to reopen it** — here
+      it was one unwritten word, *short* actions.
+    - 🔑 **The ladder pays its own gate, so the last ~50k of rank needed no grind at all.** Black-op
+      rank rewards from Typhoon to Vindictus total **~73,400**, taking ~350k to **~424k**. The ladder
+      was *faster than the `Tracking` climb that appeared to be blocking it*.
     - *Stamped 2026-08-06 ~01:40 UTC:* rank **33,793** · skill points **8,819** banked · Blade's
       Intuition / Digital Observer / Tracer **25** each · team size **0** · city **Ishima** ·
       running **Tracking**, at 100% success.
