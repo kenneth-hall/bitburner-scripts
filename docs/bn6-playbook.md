@@ -638,10 +638,24 @@ done**. The engine would have hit its target and then ground `Tracking` forever.
   destroys the BitNode**. `src/bbskillbuy.js` spent the idle SP first — see
   `bladeburner-reference.md` §5's 2026-08-15 measurement, which took every op's `pMax` to `1.0000`
   and the ladder's serial time from 16.56h to 1.88h.
-- 🔑 **The ladder pays its own gate.** Black-op rank rewards from Typhoon to Vindictus total
-  **~73,400**, so running it from ~350k lands at **~424k** — past the 400,000 Daedalus gate. The last
-  ~50k of rank does **not** need the ~18h of `Tracking` it appeared to; the ladder is faster than the
-  grind that was waiting on it.
+- 🔑 **The ladder pays MOST of its own gate — marginally, not comfortably.** Black-op rank rewards
+  from Typhoon to Vindictus total **~73,400 gross**, so running it from ~350k *looked* like ~424k.
+  🔴 **Corrected 2026-08-15, same day: that is the GROSS figure and it is not the outcome.** Failed
+  attempts **cost rank**, and the back half runs at `pMin` 0.19–0.35 (~13.6 expected failures across
+  the last four ops). Net lands **~398,500–399,000 vs the 400,000 gate**, spread ~390k–406k.
+  - **Measured cost of a failure:** `Hyron` **943** (3,000-reward op), `Ion Storm` **1,066**
+    (5,000-reward op) ⇒ loss scales as **`reward^0.24`, nearly flat**. The proportional reading —
+    which would have made the last three ops rank-*negative* and stalled the ladder ~40k short — is
+    **ruled out by measurement**, not by argument.
+  - **Failures hospitalise too** (`hpFraction` 0.860 → 1.000 across a failed op), so they cost money
+    on top of rank and time.
+  - **Still true and still the point:** the ladder is far faster than the `Tracking` climb that
+    appeared to be blocking it — it covers ~48k of the last ~50k in ~2h instead of ~18h. It just may
+    need an hour of grind to finish the job, which `bbblackop.js`'s rank check handles safely by
+    refusing to attempt `Daedalus` under-rank.
+  - 📌 **Lesson: a GROSS total was stated as a NET outcome.** The rewards were summed off the ladder
+    table without pricing the failures the same table's success chances implied. **When a projection
+    sums rewards, check whether the attempt can cost the thing being summed.**
 
 **➡️ The live plan is now the hacking path** — M≈28–37 to the WD gate 6,000, plus 35 augs for the
 Daedalus invite (§1/§3). That runs on existing machinery (batcher + aug ratchet), which is why it

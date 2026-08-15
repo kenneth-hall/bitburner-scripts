@@ -173,9 +173,27 @@ on request — hold to them even when the moment is uncomfortable.
       rule to "an estimate is not a measurement": A MEASUREMENT INHERITS THE REGIME IT WAS TAKEN IN.
       When recording a "closed permanently," record what would have to change to reopen it** — here
       it was one unwritten word, *short* actions.
-    - 🔑 **The ladder pays its own gate, so the last ~50k of rank needed no grind at all.** Black-op
-      rank rewards from Typhoon to Vindictus total **~73,400**, taking ~350k to **~424k**. The ladder
-      was *faster than the `Tracking` climb that appeared to be blocking it*.
+    - 🔑 **The ladder pays most of its own gate — but it is MARGINAL, not comfortable.** Black-op
+      rank rewards from Typhoon to Vindictus total **~73,400** gross, which *looked* like ~350k →
+      **~424k**. 🔴 **That figure is GROSS and was wrong to state as the outcome — corrected
+      2026-08-15 the same day it was written.** Failed attempts **cost rank**, and the back half runs
+      at `pMin` 0.19–0.35, so ~13.6 failures are expected across the last four ops. Net projection is
+      **~398,500–399,000 against the 400,000 gate — i.e. ~1,000–1,500 SHORT**, with a real spread of
+      roughly 390k–406k because the failure count is geometric. **Do not plan on the ladder clearing
+      the gate unaided.**
+      - **Measured failure cost** (`logs/bbblackop-*.json`): `Hyron` 2 fails on a 3,000-reward op →
+        **943/failure**; `Ion Storm` 4 fails on a 5,000-reward op → **1,066/failure**. Reward grew
+        67%, cost grew 13% ⇒ **loss scales as `reward^0.24` — nearly FLAT, not proportional.** The
+        proportional reading would have made the last three ops rank-*negative*; it is ruled out.
+      - **Failures also hospitalise** (HP jumps to max — `hpFraction` 0.860 → 1.000 across a failed
+        op), so each one costs money as well as rank and time. Third cost, easy to miss.
+      - **Recovery if it lands short is trivial and safe:** `bbblackop.js` blocks on its own rank
+        check rather than attempting Daedalus, so unpause the engine, let `Tracking` cover the gap at
+        **~1,435 rank/h** (~1 hour per 1,500 rank), then fire the last op.
+      - 📌 **The mistake worth keeping: a GROSS total was stated as a NET outcome.** The rank rewards
+        were read straight off the ladder table without pricing the failures that the same table's
+        success chances implied. **When a projection sums rewards, check whether the attempt itself
+        can cost the thing being summed.**
     - *Stamped 2026-08-06 ~01:40 UTC:* rank **33,793** · skill points **8,819** banked · Blade's
       Intuition / Digital Observer / Tracer **25** each · team size **0** · city **Ishima** ·
       running **Tracking**, at 100% success.
