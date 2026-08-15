@@ -122,6 +122,8 @@ export default defineConfig({
         if (/^q10probe-\d+\.json$/.test(file)) return `logs/${file}`; // src/q10probe.js -- Q10: is stamina spent per action or per second (gates Overclock), one file per run
         if (/^fieldanalysisprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/fieldanalysisprobe.js -- full action inventory + does Field Analysis reopen a collapsed estimate range, one file per run
         if (/^leverprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/leverprobe.js -- action-level cap + stamina-regen scaling (gates Cyber's Edge) + chaos, one file per run
+        if (/^bbskillbuy-\d+\.json$/.test(file)) return `logs/${file}`; // src/bbskillbuy.js -- banked-SP spend ahead of the black-op ladder (BI/DO/Overclock/Reaper), one file per run
+        if (/^bbblackop-\d+\.json$/.test(file)) return `logs/${file}`; // src/bbblackop.js -- black-op ladder runner (per-op result, retry evidence, slot discipline), one file per run
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';
