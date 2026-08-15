@@ -22,6 +22,24 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🔴 NEW 2026-08-15 — `Recruitment` is wired to a flag we closed permanently, so the engine can
+  never build a team — and teams only matter for the one thing the engine doesn't do.**
+  `pickOverheadAction` (`bladeburnermanager.js:669`) reads
+  `if (stageBEnabled && teamSize < TEAM_SIZE_TARGET)`. `stageBEnabled` is **`false`**
+  (`stageBBlockedBy: "Q11"`), and Stage B was **closed permanently on measurement 2026-08-11**, so
+  that branch is dead code. Live: `teamSize` **0**, and it has been 0 for the entire run.
+  - **The gate was right when it was written and is wrong now.** Teams apply to **Operations and
+    BlackOps only** (`getTeamSize` Remarks) — Stage A runs `Tracking`, a *Contract*, which teams
+    cannot help, so spending 4m22s of slot time on `Recruitment` in Stage A was correctly refused.
+    The bug is that **black ops are neither Stage A nor Stage B**: the engine has no black-op stage,
+    so the one place a team pays off is the one place nothing can request one.
+  - **Not currently blocking.** The ladder is running at a x63 success multiplier with `teamSize` 0
+    and ops are completing first-try. Recruitment is a *lever we never priced*, not a live failure.
+  - **Next concrete action:** if any late op stalls on retries, run `Recruitment` (4m22s, success
+    read **100%** for us) a few times and re-read `getActionEstimatedSuccessChance` before/after —
+    that also finally answers the playbook's open "does `Recruitment` gate the black ops?" question,
+    whose standing default is *"assume a team is required for late black ops."*
+
 - **🚨 PROJECTED RUN-KILLER, ~1.2 days out: selection will abandon `Tracking` on a number measured
   to be 4× wrong.** (Measured 2026-08-13; full record in `CLAUDE.md`'s standing-section estimator
   bullet.) `Tracking` realises **100% success / 68.14 rank/action** and is **100.4% of the measured

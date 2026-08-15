@@ -6,6 +6,43 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-15
+
+- **🚨 Found the reason BN6 was never going to clear, and fixed it** (`3ab8396`). Every stamped
+  snapshot tracked rank against 400,000 and read *on track*. The number was real and the engine was
+  healthy — and the run still could not finish. **Rank 400,000 is only the gate on the LAST black
+  op**; the node clears by completing all **21 in order**, and `getNextBlackOp()` read
+  **`Operation Typhoon`** — the *first* — with **zero done**. `bladeburnermanager.js` has **no
+  black-op stage at all** (`BLACKOPS_DAEDALUS_RANK` is only the constant defining its target), and
+  Stage 4 had sat SHELVED since 2026-07-30 behind a hacking-primary decision reversed on 2026-08-02.
+  - 📌 **Durable lesson: A PROGRESS TARGET IS NOT A WIN CONDITION.** No amount of telemetry could
+    have surfaced this — the missing step was never instrumented. **When a metric stands in for a
+    goal, periodically re-derive the goal and check the metric still reaches it.**
+  - **`src/bbskillbuy.js` (new)** spent the **~114,000 SP** the engine had banked and never used
+    (Stage A runs `Tracking` at 100% realised success, so success skills bought nothing *there*).
+    91,460 SP → success multiplier **×3.50 → ×63.00**, action time **×0.83 → ×0.10**.
+  - 🔑 **The measured effect was stronger than a lifted lower bound: every one of the 21 ops' `pMax`
+    went to `1.0000`.** The back half had *falling upper bounds* — Daedalus `[0.0062, 0.0670]`, a
+    **real 6.7% ceiling** by the pair-reading rule, not an intel gap. After: `[0.1746, 1.0000]`, with
+    ops 1–9 **converged at `[1.0000, 1.0000]`**. Ladder serial time **16.56h → 1.88h**.
+  - 🔴 **Retracted: `Overclock` "closed permanently" (Q10, 2026-08-06) — the measurement was right,
+    its SCOPE was wrong.** Stamina is per-action, so action time cancels *only while stamina binds* —
+    true for 13–150s contracts, false for **185–7,377s** black ops running ~0.5/hour against a
+    55.8/hour ceiling. Bought to 90 for 5,636 SP. 📌 **A MEASUREMENT INHERITS THE REGIME IT WAS TAKEN
+    IN — when recording a "closed permanently," record what would have to change to reopen it.**
+  - **`src/bbblackop.js` (new)** runs the ladder with a hard rail **refusing `Operation Daedalus`**
+    without an explicit argument (completing it destroys the BitNode). Pauses all four slot
+    claimants, verifies starts against `getCurrentAction()`, detects completion by `getNextBlackOp()`
+    advancing rather than by a timer.
+  - 🔑 **The ladder pays its own gate:** black-op rank rewards total **~73,400**, taking ~350k to
+    **~424k** — so the last 50k needed no `Tracking` grind at all. The ladder was faster than the
+    thing that was waiting on it.
+  - **New bug logged:** `Recruitment` is gated on `stageBEnabled` (`bladeburnermanager.js:669`),
+    which is permanently `false` — so `teamSize` has been **0** all run. Correct for Stage A (teams
+    help Operations/BlackOps only, and Stage A runs a *Contract*), wrong now, because **black ops are
+    neither stage**. Not blocking; ops complete first-try at ×63.
+  - `npm test` **1406 green**.
+
 ## 2026-08-13
 
 - **🔴 Caught and fixed a projected run-killer ~1.2 days before it would have fired** (`3d4a013`).

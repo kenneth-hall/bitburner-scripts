@@ -611,13 +611,37 @@ viability @ 0.1543 rank/held-sec) will produce the real verdict the 2026-07-30 t
 **Status 2026-08-01: implemented, live, zero data yet** — stood down for `backdoorfactions.js`
 since it started; not forced early, per the spec.
 
-**🚫 Stage 4 — rank ladder → black ops → `Operation Daedalus`. SHELVED 2026-07-30** along with
-Stage 3 — this was the win condition the engine existed to reach, and the node is now being cleared
-via hacking instead (§1). Retained facts, still true and still relevant if Bladeburner is ever
-revisited: rank 25 unlocks the Bladeburner faction, and ⚠️ **Bladeburner faction rep resets every
-install and can only be earned through Bladeburner actions** — no donation shortcut, no
-`workForFaction`, so its augs are structurally expensive in a way the ratchet cannot fix and should
-not be assumed into any plan.
+**✅ Stage 4 — rank ladder → black ops → `Operation Daedalus`. UNSHELVED AND RUNNING 2026-08-15.**
+~~SHELVED 2026-07-30 along with Stage 3 — this was the win condition the engine existed to reach, and
+the node is now being cleared via hacking instead (§1).~~ That shelving is dead twice over: the
+hacking path was demoted to a funding engine on 2026-08-02, and Bladeburner became the win condition
+again. Retained facts, still true: rank 25 unlocks the Bladeburner faction, and ⚠️ **Bladeburner
+faction rep resets every install and can only be earned through Bladeburner actions** — no donation
+shortcut, no `workForFaction`, so its augs are structurally expensive in a way the ratchet cannot fix
+and should not be assumed into any plan.
+
+🔴 **THE GAP THIS SHELVING LEFT, AND IT NEARLY COST THE RUN.** `bladeburnermanager.js` targets rank
+**400,000** and has **no black-op stage at all** — `BLACKOPS_DAEDALUS_RANK` appears three times and
+every one is just the constant defining that target. But **rank 400,000 is only the gate on the LAST
+op**; the node clears by completing all 21 **in order**. Checked live 2026-08-15 at rank 349,057:
+`getNextBlackOp()` read **`Operation Typhoon`, rank 2,500** — the *first* op, with **zero of 21
+done**. The engine would have hit its target and then ground `Tracking` forever.
+- 📌 **Durable lesson, and it generalises past Bladeburner: A PROGRESS TARGET IS NOT A WIN
+  CONDITION.** Every stamped snapshot in `CLAUDE.md` tracked rank-vs-400,000 and read "on track"; the
+  number was real, the engine was healthy, and the run was still not going to finish. **Whenever a
+  metric stands in for a goal, periodically re-derive the goal itself and check the metric still
+  reaches it** — nothing in the telemetry could ever have surfaced this, because the missing step was
+  never instrumented in the first place.
+- **Now shipped:** `src/bbblackop.js` runs the ladder (slot discipline for all four claimants,
+  `getCurrentAction` start-verification, completion detected by `getNextBlackOp` advancing) with a
+  hard rail refusing `Operation Daedalus` without an explicit argument, since **completing it
+  destroys the BitNode**. `src/bbskillbuy.js` spent the idle SP first — see
+  `bladeburner-reference.md` §5's 2026-08-15 measurement, which took every op's `pMax` to `1.0000`
+  and the ladder's serial time from 16.56h to 1.88h.
+- 🔑 **The ladder pays its own gate.** Black-op rank rewards from Typhoon to Vindictus total
+  **~73,400**, so running it from ~350k lands at **~424k** — past the 400,000 Daedalus gate. The last
+  ~50k of rank does **not** need the ~18h of `Tracking` it appeared to; the ladder is faster than the
+  grind that was waiting on it.
 
 **➡️ The live plan is now the hacking path** — M≈28–37 to the WD gate 6,000, plus 35 augs for the
 Daedalus invite (§1/§3). That runs on existing machinery (batcher + aug ratchet), which is why it

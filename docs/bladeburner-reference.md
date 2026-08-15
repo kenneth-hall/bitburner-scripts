@@ -253,6 +253,32 @@ Observed SP cost for the *next* level (2026-07-31, at levels 1–3): **4 SP** fo
 Blade's Intuition (lvl 1), Cloak (lvl 3), Hands of Midas (lvl 1). Costs escalate with level; the
 level-0 costs were 1–3 SP (`bladeburnerskillprobe`), so the curve is shallow early.
 
+#### ✅ MEASURED 2026-08-15 — the success skills are MULTIPLICATIVE, and they clear the black-op ladder outright
+
+Success multiplier for Operations/BlackOps is
+**`(1 + 0.03 × Blade's Intuition) × (1 + 0.04 × Digital Observer)`** — a *product*, so balanced
+levels beat a lopsided stack at equal spend (marginal returns at 200/200 are 0.00429 vs 0.00444,
+near-identical). Bought live via `src/bbskillbuy.js`:
+
+| | Before | After | Cost |
+|---|---|---|---|
+| Blade's Intuition · Digital Observer | 25 · 25 | **200 · 200** | 83,195 SP |
+| Success multiplier | ×3.50 | **×63.00** | |
+| `Overclock` | 17 | **90** | 5,636 SP |
+| Action-time multiplier | ×0.83 | **×0.10** | |
+
+🔑 **The result that matters, and it is stronger than a lifted lower bound: EVERY black op's `pMax`
+went to `1.0000`.** Before, the back half of the ladder had *falling upper bounds* — Daedalus read
+`[0.0062, 0.0670]`, i.e. a **real ceiling** of 6.7%, which by this doc's own pair-reading rule is a
+genuine decline and not an intel gap. After: `[0.1746, 1.0000]`, and ops 1–9 read a **converged
+`[1.0000, 1.0000]`**. The ceilings were not narrowed, they were *removed* — skills act on the
+underlying chance, not on the estimate's confidence.
+- ⚠️ **This does not make the estimator trustworthy** (it reported `[1.0, 1.0]` on `Investigation`
+  and realised 0.74%). It is corroborated by outcome instead: ops fired first-try, in order.
+- ⚠️ **~114,000 SP sat idle for weeks because Stage A never needed them** — `Tracking` runs at 100%
+  realised success, so success skills bought nothing *there*. The pile was not waste, but the engine
+  has no mechanism that ever notices a banked resource becoming useful; that judgement is external.
+
 The Skills tab also displays **live aggregate multipliers**, which is the cleanest way to read
 current standing: `Total Success Chance`, `Stealth/Retirement/Operation/Contract Success Chance`,
 `Action Time`, `Effective Strength/Defense/Dexterity/Agility`, `Synthoid Data Estimate`, `Stamina`,
@@ -498,8 +524,24 @@ sustainable actions/hour = regen x 3600 / cost = 55.8   <-- INDEPENDENT OF ACTIO
 
 `Overclock` 90 would permit **585.9** actions/hour by the clock; stamina caps us at **55.8**
 regardless. Live corroboration: the engine's rank-producing fraction is already **68.5%** — roughly a
-third of every hour is spent regenerating. **`Overclock` is closed permanently, and the ~4,000 banked
-SP were NOT spent on it.**
+third of every hour is spent regenerating. ~~**`Overclock` is closed permanently, and the ~4,000 banked
+SP were NOT spent on it.**~~
+
+🔴 **"CLOSED PERMANENTLY" IS RETRACTED 2026-08-15 — the measurement is right, its SCOPE was wrong,
+and `Overclock` was bought to 90.** Everything above this line still holds *for the contract grind*:
+stamina is per-action, so sustainable actions/hour is `regen × 3600 / cost` and action time cancels
+out. **That argument depends on stamina being the binding constraint, and it only binds when actions
+are short.** Black ops run **185s–7,377s** each — ~0.5 actions/hour at the long end, **two orders of
+magnitude under the 55.8/hour stamina ceiling**. There, nothing is competing for stamina and the
+binding constraint is plain wall-clock time, which is exactly what `Overclock` cuts.
+- **Measured 2026-08-15** (`src/bbskillbuy.js`, `logs/bbskillbuy-*.json`): `Overclock` 17 → **90**
+  for **5,636 SP**, action-time multiplier **0.83 → 0.10**. Whole 21-op ladder serial time
+  **16.56h → 1.88h**.
+- 📌 **The durable lesson, and it is a sibling of "an estimate is not a measurement": A MEASUREMENT
+  INHERITS THE REGIME IT WAS TAKEN IN.** Q10 measured a real invariant under a hidden precondition
+  (*stamina binds*), the precondition was never written into the conclusion, and the conclusion then
+  read as universal for nine days. **When recording a "closed permanently," record what would have to
+  change for it to reopen.** Here it was one word: *short* actions.
 
 🔑 **The reordering this forces — flagged in the pre-measurement note as the thing that would change
 if Q10 came back per-action, and it did:** when stamina is the binding constraint and each action
