@@ -200,6 +200,17 @@ substance because it is short and two of its claims are strategically load-beari
    (measured 2026-07-23: NiteSec rep 21.5m → 3.8m across an install) and to hacking level. Progress
    toward the black-op ladder is therefore **monotonic across the whole node** — installs cost you
    money, hacking level and fleet, but not rank.
+   - 🔴 **BUT NOT ACROSS A NODE CHANGE — do not let this fact stand in for the bigger one.** The
+     scope word is **"installs."** Per the Skills bullet above, *"Bladeburner skills add a persistent
+     bonus **while in the BitNode where they were purchased**,"* and destroying a node persists only
+     **Source-Files, scripts on home, and Intelligence** (`bitnodes.md`). BN6's ~463,000 rank and
+     ~150,000 SP **did not carry forward.** Every node entry re-grinds rank from **0**.
+   - 📌 **Why this went unnoticed for a day (2026-08-16, found by cold audit):** the install-survival
+     claim is *adjacent, true, and repeated everywhere*, so it reads as answering the node-change
+     question without ever being checked against it. **A true neighbouring claim is the easiest way
+     to not check the one that matters.** The planning consequence — node order should be chosen by
+     **redo-tax `(1/BladeburnerRank) × BladeburnerSkillCost`**, not by "where does progress persist"
+     — is in `bitnodes.md` § "Node order, re-derived after actually running Bladeburner".
 2. **Bladeburner faction rep resets on install AND can only be earned through Bladeburner actions.**
    No `workForFaction` path, no donation path. So Bladeburner *augs* are expensive in a way the
    ratchet's usual rep machinery cannot shortcut, while *rank* is cheap in a way nothing else is.

@@ -144,7 +144,8 @@ on request — hold to them even when the moment is uncomfortable.
     stamped; if the stamp isn't today's, go get the live one** — `node tools/bb/cli.mjs stats`, or
     the last entry of `logs/goal-log.json` (`rank` field, 60s samples, ~2 days deep). *Durable*
     facts, safe to quote: ~~the goal is **rank 400,000** (`Operation Daedalus`)~~, and rank and skill
-    points **survive installs**. 🔴 **"The rank rate has been rising, not decaying" was listed here
+    points **survive installs** (⚠️ **installs only — NOT node changes**; see the BN10 bullet below,
+    they are node-local and re-grind from 0 on entry). 🔴 **"The rank rate has been rising, not decaying" was listed here
     as durable and is now FALSE — do not restate it** (measured flat over 35 clean hours, §11.2).
     What is still rising is the **action level**, which is a different claim.
     - 🚨 **CORRECTED 2026-08-15 — "the goal is rank 400,000" was listed here as a DURABLE FACT and
@@ -593,12 +594,31 @@ on request — hold to them even when the moment is uncomfortable.
     **2× the aug-buying power at equal income**. The real regressions are exp (**0.25**, 2× slower
     than BN5) and fleet cost (`CloudServerSoftcap` **2.0** vs 1.2), so ⚠️ **post-install re-climbs
     are worse than BN5's 1–4h** and "rank survives installs" does *not* rescue the batcher's climb.
-  - **This is the counter-map's predicted next step, not a fresh decision.** `docs/bitnodes.md`'s
-    2026-07-18 counter-map order was BN1→BN2→BN5→BN4(held)→**BN6→BN7**→BN10→harsh nodes→BN12→BN11
-    — we're on it. **BN7 is the expected follow-on once BN6 clears**, not a separately-decided fork
-    — revisiting that needs new evidence, per the "don't re-argue a settled call" rule, not just
-    discomfort with a new engine. ⚠️ **In BN7, `joinBladeburnerDivision()` under SF7.3 permanently
-    locks out Stanek's Gift** — restate at execution time.
+  - **🔴 BN7-NEXT IS RETRACTED 2026-08-16. The next node is BN10.** ~~This is the counter-map's
+    predicted next step, not a fresh decision … **BN7 is the expected follow-on once BN6 clears**~~ —
+    that reopened under the "new evidence" clause and the evidence is decisive. Full re-derivation:
+    `docs/bitnodes.md` § "Node order, re-derived after actually running Bladeburner". Cold-audited
+    independently; the audit and the derivation agree.
+    - 🔑 **The fact that flipped it: rank and skill points are NODE-LOCAL.** This file says
+      repeatedly that they "survive augmentation installs" — **true, and a different claim.** The
+      game's own text: *"Bladeburner skills add a persistent bonus **while in the BitNode where they
+      were purchased**."* A node change persists only Source-Files, scripts on home, and
+      Intelligence. So every node entry re-grinds rank from **0**. 📌 **A true neighbouring claim is
+      the easiest way to not check the one that matters.**
+    - **The metric that follows: redo-tax = `(1 / BladeburnerRank) × BladeburnerSkillCost`.**
+      BN10 **1.25×** · BN9 **1.33×** · BN7 **3.33×** · BN13 4.44× · BN15 15× · BN8 **Bladeburner
+      disabled**. **BN7 is tied for third-worst**, and SF7.3's free Simulacrum needs **three** BN7
+      clears at 3.33× each.
+    - **Order: BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (anytime) → BN15 → BN11.**
+    - 🚨 **Its highest-risk assumption is CIRCULAR and must not be presented as derived:** BN10 leads
+      partly because sleeves may parallelise `Tracking` — but `Tracking` is **supply-capped**
+      (`countRemaining` pinned 1.00, ~30 actions/h) and was ~100% of BN6's rank. If that pool is
+      **per-city, not per-actor**, sleeves add ≈0. **It cannot be measured until SF10 is held, i.e.
+      until after BN10 is cleared.** Probe it first thing in the node after BN10 (`bitnodes.md`
+      has the 15-minute recipe).
+    - ⚠️ **In BN7, `joinBladeburnerDivision()` under SF7.3 permanently locks out Stanek's Gift** —
+      restate at execution time. Note it only bites while **SF7.3 is held**, so it does not
+      constrain a first BN7 entry.
   - **⚠️ Ordering lesson carried out of BN2 — don't repeat it.** The counter-map put BN2 before BN5
     because "the gang is a rep-tax killer." But in BN2 **rep saturated and was a non-issue**; the
     binding constraint was money→mult. Worse, BN2's gate is *mult*-gated while BN5's reward is **+8%

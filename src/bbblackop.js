@@ -48,6 +48,19 @@ const HOLD_REFRESH_MS = 10_000; // SLOT_HOLD_MAX_AGE_MS is 30s; refresh well ins
 const HP_FLOOR = 0.5;           // matches bladeburnermanager's HP_FLOOR_FRACTION
 const START_VERIFY_MS = 8_000;
 
+// 🔴 ADDED 2026-08-16 AFTER A REAL LOSS. The first version bounded ATTEMPTS (40) but
+// never bounded RANK, and a failed black op costs ~30% of that op's reward. Five straight
+// Centurion failures drained 382,418 -> 358,443 (~24,000 rank) before it was killed by
+// hand; left alone, MAX_ATTEMPTS would have permitted ~190,000. Bounding the wrong
+// quantity is not a guard.
+//
+// RANK_FLOOR is the real constraint: `Operation Daedalus` requires rank 400,000 AT THE
+// MOMENT OF THE ATTEMPT, so letting rank fall below that does not merely waste time, it
+// makes the win condition unreachable until it is re-ground. Both guards are checked
+// before every attempt AND after every failure, since a single failure can cross either.
+const RANK_FLOOR = 400_000;
+const RANK_LOSS_BUDGET = 40_000; // per run, across all ops
+
 function holdSlot(ns) {
   ns.write(SLOT_HOLD_FILE, JSON.stringify({ ts: Date.now(), holder: "bbblackop" }), "w");
 }
@@ -138,6 +151,19 @@ export async function main(ns) {
         flush("blocked-hp");
         break;
       }
+      if (rankNow < RANK_FLOOR) {
+        opRec.result = "BLOCKED - rank " + rankNow.toFixed(0) + " below RANK_FLOOR " + RANK_FLOOR;
+        outRec.ops.push(opRec);
+        flush("blocked-rank-floor");
+        break;
+      }
+      if (outRec.startRank - rankNow > RANK_LOSS_BUDGET) {
+        opRec.result = "BLOCKED - run has lost " + (outRec.startRank - rankNow).toFixed(0) +
+          " rank, over the " + RANK_LOSS_BUDGET + " budget";
+        outRec.ops.push(opRec);
+        flush("blocked-loss-budget");
+        break;
+      }
 
       opRec.successChance = ns.bladeburner.getActionEstimatedSuccessChance("Black Operations", nextOp.name);
       opRec.actionTimeMs = ns.bladeburner.getActionTime("Black Operations", nextOp.name);
@@ -189,6 +215,18 @@ export async function main(ns) {
           const hpMid = ns.getPlayer().hp;
           if (hpMid.current / hpMid.max < HP_FLOOR) {
             opRec.result = "ABORTED MID-OP - HP fell below floor after " + attempts + " failed attempt(s)";
+            break;
+          }
+          // The guards that were missing. A failure can cross either one on its own.
+          const rankMid = ns.bladeburner.getRank();
+          if (rankMid < RANK_FLOOR) {
+            opRec.result = "ABORTED MID-OP - rank " + rankMid.toFixed(0) + " fell below RANK_FLOOR " +
+              RANK_FLOOR + " after " + attempts + " failed attempt(s); Daedalus would become unattemptable";
+            break;
+          }
+          if (outRec.startRank - rankMid > RANK_LOSS_BUDGET) {
+            opRec.result = "ABORTED MID-OP - run has lost " + (outRec.startRank - rankMid).toFixed(0) +
+              " rank, over the " + RANK_LOSS_BUDGET + " budget, after " + attempts + " failed attempt(s)";
             break;
           }
           ns.bladeburner.startAction("Black Operations", nextOp.name);

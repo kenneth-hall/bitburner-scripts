@@ -276,7 +276,95 @@ not a math one.
 **Resolved by what actually happened:** the real order was BN1.2/1.3 → **BN2.1 (2026-07-23)** →
 **BN5.1 (2026-07-29)** → **BN6.1 (2026-07-29, current)** — matching this doc's own counter-map
 order exactly (line ~226 above), not the "BN5 first" plan CLAUDE.md was running on entry into
-BN5. Per that same counter-map, **BN6 → BN7 is next in sequence** after BN6.1 clears.
+BN5. ~~Per that same counter-map, **BN6 → BN7 is next in sequence** after BN6.1 clears.~~
+🔴 **BN7-next is RETRACTED 2026-08-16 — see the re-derivation immediately below.**
+
+---
+
+## Node order, re-derived after actually running Bladeburner (2026-08-16)
+
+⚠️ **The counter-map above was written 2026-07-18, before Bladeburner had ever been joined.** None
+of the `BladeburnerRank` / `BladeburnerSkillCost` data existed when it was drafted, and it is cited
+elsewhere as if it settled the question. **Read it as superseded input to this section, not as the
+answer.** Cold-audited independently 2026-08-16; both the audit and the primary derivation land on
+the same order.
+
+### The fact that reframes everything: rank and skill points are NODE-LOCAL
+
+🔴 **`CLAUDE.md` repeats "Bladeburner rank and skill points SURVIVE augmentation installs" — true,
+and it is NOT the same claim as surviving a node change.** The game's own text (quoted in
+`bladeburner-reference.md` §2): *"Bladeburner skills add a persistent bonus **while in the BitNode
+where they were purchased**."* And destroying a node persists only **Source-Files, scripts on home,
+and Intelligence**. So the ~463,000 rank and ~150,000 SP that cleared BN6 **evaporate on the clear.**
+- 📌 **The question is therefore NOT "which node preserves progress" — nothing does. It is "where is
+  redoing this grind cheapest?"** That inverts how the counter-map framed node choice.
+- ⚠️ This was missed for a full day because the install-survival fact is *adjacent, true, and
+  repeated*. **A true neighbouring claim is the easiest way to not check the one that matters.**
+
+### The metric: redo-tax = (1 / BladeburnerRank) × BladeburnerSkillCost
+
+Rank income scales by `BladeburnerRank`; skill cost scales by `BladeburnerSkillCost`; SP income is a
+fixed fraction of rank (1 SP per 3 rank). So time-to-reproduce a BN6-equivalent Bladeburner
+investment scales as their product, relative to BN6's 1.0 × 1.0 baseline.
+
+| Node | RankGain / SkillCost | **Redo-tax** | Note |
+|---|---|---|---|
+| BN11 | 100% / 100% | **1.00×** | reward counters nothing; still last |
+| BN12 | 98% / 102% | **1.04×** | background NFG ratchet, anytime |
+| BN10 | 80% / 100% | **1.25×** | + sleeves + grafting |
+| BN9 | 90% / 120% | **1.33×** | the "harshest node" is cheap *on this axis* |
+| BN7 | 60% / 200% | **3.33×** | ⚠️ and needs **3 clears** for SF7.3 |
+| BN14 | 60% / 200% | **3.33×** | |
+| BN13 | 45% / 200% | **4.44×** | |
+| BN15 | 20% / 300% | **15.0×** | worst in class |
+| BN8 | **Bladeburner DISABLED** | **N/A** | SF6 buys nothing here; needs SF10 grafting |
+
+### The order that falls out
+
+**BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (anytime) → BN15 → BN11.**
+
+1. **BN10** — cheapest real tax (1.25×), and the only node that grants a *throughput* tool (sleeves)
+   plus grafting, which counters the install-wipe tax on every later clear.
+2. **BN9** — 1.33× makes the node the counter-map called "the harshest seen so far" into an ordinary
+   rank grind, because its brutality is aimed at *hacking* (Level 50% / Exp 5% / MaxMoney 1%), which
+   a Bladeburner clear does not use.
+3. **BN13/BN14** — the 200%-skill-cost tier; enter once sleeves offset it.
+4. **BN7 — DEMOTED from 2nd.** SF6 L1 already grants "Bladeburner in other nodes"; SF7 repeats that
+   clause and adds only +8/12/14% Bladeburner mults, plus **The Blade's Simulacrum at L3 = three
+   clears at 3.33× each**. Opportunistic, not scheduled.
+5. **BN8 last of the hard ones** — Bladeburner disabled outright, so it must come after **BN10.1**
+   (grafting instead of installing), exactly as the in-game guide's hard constraint says.
+
+### 🚨 The highest-risk assumption in this order, and how to settle it
+
+**Whether sleeve-run Bladeburner Contracts add net-new rank or merely compete for the same supply.**
+`Tracking` is **supply-capped** — `countRemaining` pinned at 1.00, regeneration-limited to ~30
+actions/h (§11.4) — and `Tracking` was **~100% of BN6's rank rate**. If that regeneration pool is
+**per-city rather than per-actor**, a sleeve on Contracts in the same city adds ≈0 and BN10's
+parallelism case collapses to its bare 1.25× tax advantage.
+- ⚠️ **This is circular:** it cannot be measured until SF10 is held, i.e. until after BN10 is
+  cleared. **BN10-first is therefore partly a bet on its own justification.** Say so plainly rather
+  than presenting it as derived.
+- **Cheap probe, first thing in the node after BN10:** run one sleeve on `Take on contracts`
+  (Tracking) in the **same city** as the main character for ~15 min and compare the main character's
+  realised Tracking rank/h against its solo baseline. Both at full rate ⇒ parallelism works. Main
+  drops while sleeve gains ⇒ shared pool, and the ordering rationale needs revisiting.
+
+### Secondary risks worth carrying in
+
+- **BN9's real danger is its ECONOMY, not its Bladeburner tax.** Private/cloud servers are
+  **disabled** (`Server Limit: 0%`) and home RAM costs 500%, so the batcher is gone — while
+  hospitalisation from failed actions is a real, measured, *growing* bill (**$229.5m → $837.4m**
+  across the BN6 campaign). Nobody has priced whether BN9's residual income (Bladeburner contract
+  payouts, home-only) covers an aggressive black-op push. **Pre-flight check, not a blocker.**
+- **"Hacking is irrelevant to a Bladeburner clear" is true in practice, not in principle.** The
+  in-game panel says *"Many Ops benefit from Hacking skill."* It never bound in BN6 because skill
+  points dominated it — but that could flip in BN13/BN15, where the skill route costs 4.4×/15×.
+- **The Bladeburner aug catalog is safely ignorable.** Stacking *every* success-chance aug
+  multiplicatively yields **~1.92×**, against **~28×** bought with skill points for $0 in BN6
+  (×3.5 → ×100.3). Stamina augs are measured dead; analysis augs only feed an estimator that S-RF
+  already makes selection immune to. The one exception worth separate tracking is **The Blade's
+  Simulacrum**, which is a slot-parallelism question, not a success-chance one.
 
 ---
 

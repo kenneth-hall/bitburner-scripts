@@ -38,22 +38,38 @@
 // Priority order matters: Overclock first (cheap, and the time cut compounds over every
 // retry of every op), then the two success skills kept level with each other -- the
 // multiplier is a PRODUCT, so balanced levels beat a lopsided stack at equal spend.
-const BUY_PLAN = [
-  { skill: "Overclock", target: 90 },
-  { skill: "Blade's Intuition", target: 200 },
-  { skill: "Digital Observer", target: 200 },
-  { skill: "Reaper", target: 50 },
-];
+// 2026-08-16: the success-skill target is now an argument. The first pass hardcoded
+// 200/200, which was right for opening the ladder but is not where it ends -- the last
+// three ops sit at ~18-20% success with a ~30% rank penalty per failure, so the target
+// is now a tuning knob rather than a constant.
+//   run bbskillbuy.js dry          -> plan at the default target, buy nothing
+//   run bbskillbuy.js 250 dry      -> plan at BI/DO 250, buy nothing
+//   run bbskillbuy.js 250          -> buy toward BI/DO 250
+const DEFAULT_SUCCESS_TARGET = 200;
+
+function buildPlan(successTarget) {
+  return [
+    { skill: "Overclock", target: 90 },
+    { skill: "Blade's Intuition", target: successTarget },
+    { skill: "Digital Observer", target: successTarget },
+    { skill: "Reaper", target: 50 },
+  ];
+}
 
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
 
+  const argTarget = ns.args.map(Number).find((n) => Number.isFinite(n) && n > 0);
+  const successTarget = argTarget ?? DEFAULT_SUCCESS_TARGET;
+  const BUY_PLAN = buildPlan(successTarget);
+
   const outRec = {
     ts: Date.now(),
     iso: new Date().toISOString(),
     note: "spend banked SP ahead of the black-op ladder",
-    dryRun: ns.args[0] === "dry",
+    dryRun: ns.args.includes("dry"),
+    successTarget,
     steps: [],
   };
 
@@ -168,3 +184,5 @@ export async function main(ns) {
   }
   ns.tprint("  -> bbskillbuy-" + outRec.ts + ".json");
 }
+
+// touch to force resync

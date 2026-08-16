@@ -657,10 +657,15 @@ done**. The engine would have hit its target and then ground `Tracking` forever.
     table without pricing the failures the same table's success chances implied. **When a projection
     sums rewards, check whether the attempt can cost the thing being summed.**
 
-**➡️ The live plan is now the hacking path** — M≈28–37 to the WD gate 6,000, plus 35 augs for the
-Daedalus invite (§1/§3). That runs on existing machinery (batcher + aug ratchet), which is why it
-needs no Stage-3-equivalent build: **the "no new engine" property that made it look boring on
-2026-07-29 is exactly what makes it the surviving option.**
+🔴 **[STALE — REMOVED 2026-08-16. This line contradicted the Stage 4 header 46 lines above it and
+was never updated when the plan flipped back.]** ~~**➡️ The live plan is now the hacking path** —
+M≈28–37 to the WD gate 6,000, plus 35 augs for the Daedalus invite (§1/§3). That runs on existing
+machinery (batcher + aug ratchet), which is why it needs no Stage-3-equivalent build: the "no new
+engine" property that made it look boring on 2026-07-29 is exactly what makes it the surviving
+option.~~ The hacking path was demoted to a **funding engine** on 2026-08-02 and the node was
+cleared via the **black-op ladder** (Stage 4, unshelved 2026-08-15). Found by a cold audit, not by
+anyone reading the file — ⚠️ **a correction added at the top of a section does not retract a
+conclusion restated at the bottom of it.**
 
 ---
 

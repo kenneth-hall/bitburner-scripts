@@ -22,6 +22,19 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🚨 FIRST THING TO RUN IN THE NODE AFTER BN10 — the sleeve-parallelism probe the whole node order
+  rests on.** The 2026-08-16 re-derivation puts **BN10 next** partly because sleeves may parallelise
+  `Tracking`, and **that is unmeasured and circular** (it needs SF10, which needs BN10 cleared). If
+  it's false, BN10's lead shrinks to its bare 1.25× redo-tax edge over BN9.
+  - **The concrete risk:** `Tracking` is **supply-capped** — `countRemaining` pinned at 1.00,
+    regeneration-limited to ~30 actions/h — and was **~100% of BN6's rank rate**. If that pool is
+    **per-city rather than per-actor**, a sleeve on Contracts in the same city adds ≈0.
+  - **Probe (~15 min, read-only on the main character):** put one sleeve on `Take on contracts`
+    (Tracking) in the **same city** as the main character; compare the main character's realised
+    Tracking rank/h against its solo baseline. Both at full rate ⇒ parallelism works. Main drops
+    while the sleeve gains ⇒ shared pool, revisit the ordering.
+  - Full context: `docs/bitnodes.md` § "Node order, re-derived after actually running Bladeburner".
+
 - **🔴 NEW 2026-08-15 — `Recruitment` is wired to a flag we closed permanently, so the engine can
   never build a team — and teams only matter for the one thing the engine doesn't do.**
   `pickOverheadAction` (`bladeburnermanager.js:669`) reads
