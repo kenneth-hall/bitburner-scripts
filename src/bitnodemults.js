@@ -85,6 +85,51 @@ export async function main(ns) {
   // 📌 An empty object from a serialiser is not evidence of an empty collection.
   outRec.ownedSF = reset.ownedSF ? Object.fromEntries(reset.ownedSF) : undefined;
 
+  // ---- matrix mode: EVERY node x EVERY level, plus a probe past the known max --
+  // Added 2026-08-16 after the first pass only queried each node at level 1. If any node
+  // other than BN12 varies its multipliers by Source-File level, a level-1-only sweep
+  // silently misses it -- and BN12 proves at least one node does.
+  if (ns.args[0] === "matrix") {
+    const maxNode = Number(ns.args[1]) > 0 ? Number(ns.args[1]) : 20; // probe past 15 deliberately
+    const maxLvl = Number(ns.args[2]) > 0 ? Number(ns.args[2]) : 5;
+    outRec.mode = "matrix";
+    outRec.matrix = {};
+    outRec.nodesThatExist = [];
+    outRec.variesByLevel = {};
+    for (let n = 1; n <= maxNode; n++) {
+      const perLevel = {};
+      let ok = false;
+      for (let lvl = 1; lvl <= maxLvl; lvl++) {
+        try {
+          perLevel[lvl] = plain(ns.getBitNodeMultipliers(n, lvl));
+          ok = true;
+        } catch (err) {
+          perLevel[lvl] = { error: String(err).slice(0, 160) };
+        }
+        await ns.sleep(3);
+      }
+      if (ok) outRec.nodesThatExist.push(n);
+      outRec.matrix[n] = perLevel;
+      // Which fields actually move between level 1 and maxLvl?
+      const a = perLevel[1], b = perLevel[maxLvl];
+      if (a && b && !a.error && !b.error) {
+        const moved = Object.keys(a).filter((k) => a[k] !== b[k]);
+        if (moved.length) outRec.variesByLevel[n] = moved;
+      }
+    }
+    flush("matrix");
+    ns.tprint("bitnodemults: MATRIX nodes 1-" + maxNode + " x levels 1-" + maxLvl);
+    ns.tprint("  nodes that exist: " + JSON.stringify(outRec.nodesThatExist));
+    const varying = Object.keys(outRec.variesByLevel);
+    ns.tprint("  nodes whose multipliers VARY by SF level: " + (varying.length ? JSON.stringify(varying) : "NONE besides none"));
+    for (const n of varying) {
+      ns.tprint("    BN" + n + ": " + outRec.variesByLevel[n].length + " fields move (" +
+        outRec.variesByLevel[n].slice(0, 6).join(", ") + (outRec.variesByLevel[n].length > 6 ? ", ..." : "") + ")");
+    }
+    ns.tprint("  -> bitnodemults-" + outRec.ts + ".json");
+    return;
+  }
+
   // ---- sweep mode: one node across Source-File levels -------------------------
   if (ns.args[0] === "sweep") {
     const nodeNum = Number(ns.args[1]);

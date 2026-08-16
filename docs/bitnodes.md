@@ -319,6 +319,18 @@ investment scales as their product, relative to BN6's 1.0 × 1.0 baseline.
 | BN15 | 20% / 300% | **15.0×** | worst in class |
 | BN8 | **Bladeburner DISABLED** | **N/A** | SF6 buys nothing here; needs SF10 grafting |
 
+### ✅ The multiplier tables are VERIFIED, not transcribed (2026-08-16)
+
+`src/bitnodemults.js` queries `ns.getBitNodeMultipliers(n?, lvl?)` — a **pure hypothetical**
+lookup that returns any node's exact table at any Source-File level, without visiting it. Latest
+output: **`logs/bitnodemults-<epoch>.json`** (newest by mtime; the `matrix` run is the complete one).
+
+- **All 15 hand-transcribed tables confirmed — zero discrepancies.**
+- **Exactly 15 nodes exist.** Probing n=16–20 throws, so there are no hidden nodes.
+- **Only BN12's multipliers vary by Source-File level** (43 fields move). Every other node is
+  **level-invariant**, so a level-1 read is the complete picture for 14 of 15.
+- The **redo-tax** table below is computed by the script, not by hand.
+
 ### Time-to-clear estimates (2026-08-16), and which path each node wants
 
 ⚠️ **Read these with `docs/estimation-calibration.md` open.** BN6's only comparable prediction ran

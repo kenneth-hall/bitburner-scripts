@@ -1086,6 +1086,17 @@ reference before writing any `ns.bladeburner` code (the whole API throws pre-joi
 RAM-analyzer footguns are recorded there), and the playbook before proposing anything about how BN6
 gets cleared.
 
+**BitNode multipliers are MEASURED, not transcribed — `run bitnodemults.js`** (6.60 GB, read-only,
+needs SF5 which is held). `ns.getBitNodeMultipliers(n?, lvl?)` is a **pure hypothetical** lookup:
+it returns any node's exact table at any Source-File level **without visiting it**. Output →
+**`logs/bitnodemults-<epoch>.json`** (newest by mtime; the `matrix` run is the complete one).
+Modes: no-arg = current node + all 15 + a derived **redo-tax** table · `sweep <n> [maxLvl]` = one
+node across levels · `matrix [maxNode] [maxLvl]` = everything. Established 2026-08-16: **all 15
+hand-transcribed tables in `bitnodes.md` are correct (zero discrepancies)**, **exactly 15 nodes
+exist** (16–20 throw), **only BN12 varies by SF level**, and **BN12's ramp law is exactly
+`1.02^level`** — effective difficulty doubling every ~17.5 levels. ⚠️ **Quote this log, not the
+prose tables, when a decision turns on a multiplier.**
+
 **All things Sleeves & Grafting live in
 [`docs/sleeve-grafting-reference.md`](docs/sleeve-grafting-reference.md)** — gated the same way.
 Read it before writing any `ns.sleeve.*` / `ns.grafting.*` code or planning around sleeves in BN10.
