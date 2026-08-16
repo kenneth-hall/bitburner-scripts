@@ -6,6 +6,39 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-16
+
+- **🏆 BN6.1 CLEARED — via the Bladeburner black-op ladder, all 21 ops, final rank 513,931.**
+  Confirmed live: Stats reads *"BitNode 10: Digital Carbon (Level 1)"*, Augmentations reads
+  **Source-File 6: Bladeburners — Level 1 / 3**. Entered 2026-07-29 → cleared 2026-08-16 = **18
+  days** (~4 of them on the wrong path, so ~14 on Bladeburner). Now in **BN10**.
+  - 🔴 **Two things nearly stopped the run at the finish line, both invisible until hit.**
+    (1) **Rank 400,000 is a GATE, not the goal** — `bladeburnermanager.js` had no black-op stage,
+    and would have ground `Tracking` forever at "121% of target." (2) **Completing the final black
+    op does NOT destroy the node.** `getNextBlackOp()` went `null`, the BlackOps tab rendered empty,
+    and the game carried on. The real trigger is `ns.singularity.destroyW0r1dD43m0n(nextBN)`.
+    ⚠️ **`nextBN` is MANDATORY here despite `markdown/` documenting it as optional** — omitting it
+    throws. **Even the bundled API docs can be wrong about this fork; optionality is not a
+    guarantee, verify by calling.**
+  - **New scripts:** `bbskillbuy.js` (spend banked SP — success multiplier ×3.5 → ×100.3),
+    `bbblackop.js` (ladder runner, slot discipline, rank-floor + loss-budget guards, hard Daedalus
+    rail), `destroybn.js` (precondition-checked node destroy).
+  - 🔑 **The mid-run lesson that cost 24,000 rank:** the first ladder runner bounded *attempts* (40)
+    but never bounded *rank*, and a failed black op costs ~30% of its reward. Five Centurion
+    failures drained 382,418 → 358,443 before it was killed by hand. **Bounding the wrong quantity
+    is not a guard.**
+  - **New `docs/estimation-calibration.md`** — every stamped BN6 ETA scored. Measured estimates ran
+    **systematically pessimistic** (2–40×) because they froze a rate that was doubling every ~3
+    days; the one **underived** estimate ran **15–30× optimistic** and nearly picked the wrong win
+    path. And the headline was *accidentally* right (10–20 predicted, 18 actual) off two
+    compensating errors — **when a forecast verifies, check the reasoning survived.**
+  - **Node order re-derived** (`bitnodes.md`): **BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 →
+    BN12 (late) → BN15 → BN11**, on the discovery that **Bladeburner rank/SP are node-local** — so
+    the question is "where is redoing this grind cheapest," scored by
+    **redo-tax = (1/BladeburnerRank) × BladeburnerSkillCost**. BN12-first was considered (fastest at
+    ~5.5d, the only node where hacking beats Bladeburner) and **rejected on the in-game guide's
+    advice** — optimising for speed instead of value.
+
 ## 2026-08-15
 
 - **🚨 Found the reason BN6 was never going to clear, and fixed it** (`3ab8396`). Every stamped

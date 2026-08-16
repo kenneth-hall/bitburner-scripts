@@ -623,7 +623,7 @@ looks — `getBitNodeMultipliers()` is largely *redundant with this very doc* (w
 and Intelligence accrues glacially for a scripted no-Singularity playstyle. Pick BN5 *despite*
 the tooling, not because of it.
 
-### BN6: Bladeburners — owned **SF6 level 0 / 3** (ENTERED 2026-07-29, in progress)
+### BN6: Bladeburners — owned **SF6 level 1 / 3** (BN6.1 CLEARED 2026-08-16, via the black-op ladder)
 Fresh entry confirmed live: `Hack 2`, all combat stats `1`, `Money $115` — a clean cold start, no
 lingering BN5 state. This is the first node where **Bladeburner is new gameplay to build**, not a
 mult grind on the existing batcher — no automation exists yet.
@@ -697,7 +697,7 @@ servers are disabled outright (matches the comprehensive guide's warning). Multi
 - **Bladeburner** — Rank Gain: **90%** · Skill Cost: **120%**
 - **Stanek's Gift** — Gift Power: **50%** · Base Size Modifier: **+2.00000**
 
-### BN10: Digital Carbon — owned **SF10 level 0 / 3** (not cleared)
+### BN10: Digital Carbon — owned **SF10 level 0 / 3** (ENTERED 2026-08-16, in progress)
 Unlocks Sleeves + Grafting (Grafting via VitaLife, New Tokyo). SF10: Sleeve + Grafting API
 elsewhere; **+1 Sleeve per level**. Multiplier table:
 - **General** — `w0r1d_d43m0n` Difficulty: **200%** · Hacknet Production: **50%** · Coding Contract Reward: **50%**

@@ -9,8 +9,33 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **IN BN6.1 as of 2026-07-29** — entered straight off
-  the BN5.1 clear. **🔵 WIN PATH FLIPPED BACK TO BLADEBURNER-PRIMARY 2026-08-02, on Kenneth's call,
+- **Current goal (keep this line current):** **🟢 IN BN10.1 (Digital Carbon) as of 2026-08-16** —
+  entered straight off the BN6.1 clear. Confirmed live: Stats reads *"BitNode 10: Digital Carbon
+  (Level 1)"*, Augmentations reads **Source-File 6: Bladeburners — Level 1 / 3**. Held SFs:
+  **1 (3/3) · 2 (1/3) · 4 (3/3) · 5 (1/3) · 6 (1/3)**.
+  - **Why BN10:** cheapest Bladeburner redo-tax among reward-bearing nodes (**1.25×**) and the only
+    candidate granting new *tools* — **Sleeves + Grafting**. Agreed by three independent sources
+    (redo-tax derivation, cold audit, in-game guide). Estimate **~18 days (13–26)** via the
+    Bladeburner path; hacking is **not** viable here (gate ~6,000 at 35% — BN6 measured that exact
+    combination at 240–323 days). Full reasoning: `docs/bitnodes.md` § "Node order, re-derived".
+  - 🚨 **FIRST THING TO RUN: the sleeve-parallelism probe** (`BACKLOG.md`). The order's weakest plank
+    is that sleeves add rank throughput rather than competing for `Tracking`'s ~30 actions/h supply
+    cap. The in-game guide supports it (*"Contract/op generation is slow → Sleeves help"*) but it is
+    still **unmeasured**, and it could not be measured until we were in this node.
+  - ⚠️ **Nothing carried over but Source-Files and scripts.** BN6's 513,931 rank and 260/260 skills
+    are **gone** — they are node-local. Expect to re-grind from 0.
+  - 📌 **Before quoting any ETA, read `docs/estimation-calibration.md`.** BN6's only comparable
+    prediction ran **40% high on the point with the range correct**, and every measured ETA was
+    pessimistic because it froze a rising rate.
+
+  **✅ BN6.1 CLEARED 2026-08-16 — [everything below this line is CLOSED HISTORY, kept for its
+  lessons, not its plan].** Cleared via the **Bladeburner black-op ladder**, all 21 ops, final rank
+  513,931. 🔑 **Two things nearly stopped it, both worth carrying forward:** (1) *rank 400,000 is a
+  GATE, not the goal* — the engine had no black-op stage at all and would have ground `Tracking`
+  forever; (2) **completing the final black op does NOT destroy the node** — that needs
+  `ns.singularity.destroyW0r1dD43m0n(nextBN)`, and ⚠️ **`nextBN` is MANDATORY in this build despite
+  the bundled docs calling it optional.** Scripts: `src/bbskillbuy.js`, `src/bbblackop.js`,
+  `src/destroybn.js`. **🔵 WIN PATH FLIPPED BACK TO BLADEBURNER-PRIMARY 2026-08-02, on Kenneth's call,
   with measured support.** Bladeburner is now **the win condition**; the batcher is **its economy,
   not a second win path**. This is the third position on this question — the trail is
   `docs/bn6-playbook.md` §1; read it before reopening, and note the two prior flips were each driven
