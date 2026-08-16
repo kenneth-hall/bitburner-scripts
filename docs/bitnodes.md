@@ -369,8 +369,33 @@ at mult 1.28 against a measured 5,417 — 0.01% off).
 | Node | Combat mult (BitNode × SF1 L3) | Exp/stat for L100 | vs BN6's 5,418 | Total (×4 stats) |
 |---|---|---|---|---|
 | BN6 (measured) | 1.28 | 5,418 | 1.0× | 21,668 |
-| BN9 | 0.45 × 1.28 = 0.576 | ~117,068 | **~21.6×** | ~468,000 |
-| BN10 | 0.40 × 1.28 = 0.512 | ~231,226 | **~42.7×** | ~925,000 |
+| ~~BN9~~ | ~~0.45 × 1.28 = 0.576~~ | ~~117,068~~ | ~~21.6×~~ | ~~468,000~~ |
+| ~~BN10~~ | ~~0.40 × 1.28 = 0.512~~ | ~~231,226~~ | ~~42.7×~~ | ~~925,000~~ |
+
+#### ✅ RESOLVED LIVE, SAME DAY — the base mult is **1.3824**, not 1.28, and the gate is ~40% cheaper
+
+The estimate above flagged its own uncertainty: *"if SF1's +28% does not stack multiplicatively
+onto combat the way it's confirmed to for hacking."* **It does stack** — read straight off the
+in-game **Stats → Multipliers** panel in BN10 (no RAM, no probe needed):
+
+- **Strength / Defense / Dexterity / Agility Level: `138.24%` base → `55.30%` effective**
+- Hacking Level: `138.24%` base → `48.38%` effective
+
+Both are exactly `1.3824 × BitNodeMultiplier` (`1.3824 × 0.40 = 0.5530` ✓, `1.3824 × 0.35 = 0.4838`
+✓). The base is **1.3824 = 1.28 × 1.08** — SF1 L3 *and* SF5 L1 — which the 1.28 figure omitted.
+
+| Node | Combat mult (live basis) | Exp/stat for L100 | vs BN6 | Total (×4 stats) |
+|---|---|---|---|---|
+| BN6 (measured) | 1.28 | 5,417 | 1.0× | **21,668** ✓ formula reproduces it exactly |
+| **BN10** | **1.3824 × 0.40 = 0.5530** | **~146,939** | **~27.1×** | **~587,755** |
+| BN9 | 1.3824 × 0.45 = 0.6221 | ~78,600 | ~14.5× | ~314,000 |
+
+📌 **The gate is real but ~57% smaller than the estimate above.** It remains the largest
+previously-unpriced item in the BN10 plan, and it is **serial** — it must complete before
+`joinBladeburnerDivision()`, so it sits in front of the whole rank grind.
+🔑 **Method note worth keeping: the estimate named its own weak assumption, and that assumption was
+checkable off a UI panel in seconds.** When an estimate flags "this breaks if X," check X before
+propagating the number.
 
 ⚠️ **Self-derived from the documented general skill formula, NOT queried live — mark as an estimate,
 not a measurement**, per this file's own standing rule. BN6's real elapsed grind time for the
