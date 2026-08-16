@@ -746,6 +746,33 @@ table (matches "harsh mults, mediocre reward" from the guide):
 - **Corporation** — Corporation Softcap: **0.900** · Valuation: **10%** · Division limit: **90%**
 
 ### BN12: The Recursion — owned **SF12 level 0 / ∞** (only node with no level cap)
+
+#### ✅ RAMP LAW MEASURED 2026-08-16 — it is exactly `1.02^level`
+
+Previously logged as *"the ramp law isn't documented anywhere we have."* Settled by
+`src/bitnodemults.js sweep 12 20`, which queries `getBitNodeMultipliers(12, lvl)` for levels we
+do not hold — **no BN12 clears required**. Confirmed to 4 decimal places across 20 levels:
+
+- **Costs** (`BladeburnerSkillCost`, `WorldDaemonDifficulty`) grow as **`1.02^L`**
+- **Benefits** (`HackingLevelMultiplier`, `BladeburnerRank`) decay as **`1.02^-L`**
+
+Since the two compound against each other, **effective difficulty scales as `1.0404^L`, doubling
+every ~17.5 levels.**
+
+| SF12 level | Cost mult | Benefit mult | Redo-tax | WD gate | Effective hacking req |
+|---|---|---|---|---|---|
+| 1 | 1.020 | 0.980 | 1.040× | 3,060 | 3,121 |
+| 5 | 1.104 | 0.906 | 1.219× | 3,312 | 3,657 |
+| 10 | 1.219 | 0.820 | 1.486× | 3,657 | 4,458 |
+| 20 | 1.486 | 0.673 | 2.208× | 4,458 | 6,624 |
+| 30 | 1.811 | 0.552 | 3.281× | 5,434 | 9,843 |
+| 50 | 2.692 | 0.372 | 7.245× | 8,075 | 21,734 |
+
+📌 **Practical read: BN12 stays genuinely cheap to ~L20 and is still tractable at ~L30.** Its
+effective hacking requirement only reaches BN6-like territory (≈6,000 at a heavily-nerfed mult)
+around **L20–30**. The in-game guide's *"easy to start but quickly ramps up"* is right in shape but
+overstates the near-term ramp — the first ten clears are nearly free.
+
 Gets harder every completion; SF12 grants free NeuroFlux Governor levels = SF12's own level.
 Multiplier table below is the **level-0/1 preview** — nearly every value sits within ~2% of
 baseline (98.039% or 102%), confirming the guide's "easy at first, ramps up" — this is what

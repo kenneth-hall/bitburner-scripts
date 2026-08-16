@@ -124,6 +124,7 @@ export default defineConfig({
         if (/^leverprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/leverprobe.js -- action-level cap + stamina-regen scaling (gates Cyber's Edge) + chaos, one file per run
         if (/^bbskillbuy-\d+\.json$/.test(file)) return `logs/${file}`; // src/bbskillbuy.js -- banked-SP spend ahead of the black-op ladder (BI/DO/Overclock/Reaper), one file per run
         if (/^bbblackop-\d+\.json$/.test(file)) return `logs/${file}`; // src/bbblackop.js -- black-op ladder runner (per-op result, retry evidence, slot discipline), one file per run
+        if (/^bitnodemults-\d+\.json$/.test(file)) return `logs/${file}`; // src/bitnodemults.js -- exact BitNode multipliers for any node/level (SF5), + derived redo-tax table, one file per run
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';
