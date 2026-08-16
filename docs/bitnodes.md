@@ -355,6 +355,66 @@ output: **`logs/bitnodemults-<epoch>.json`** (newest by mtime; the `matrix` run 
   *more than the ~133,000 banked by the time you reach rank 400,000*, so BN7 forces grinding **past**
   the gate purely to fund skills.
 
+#### 🔴 CORRECTION 2026-08-16 (audit, this section) — the table above omits a real, serial cost: the pre-join combat-100 gate
+
+`joinBladeburnerDivision()` requires **all four combat stats ≥ 100** (`bladeburner-reference.md`
+§2), and BN6 called that gate "a short gym trip" (**21,668 total exp**, `combatgateprobe-1785371660239.json`) — but that number was measured at **combat mult ≈1.28** (SF1 L3, no BitNode
+penalty; BN6/BN7/BN12 don't touch `StrengthLevelMultiplier`). **BN9 and BN10 both nerf it to
+~40–45%**, and the level formula is *log* in exp, so a 2.5–3.2× mult cut is not a 2.5–3.2× exp cut —
+it compounds:
+
+`exp = e^((100/mult + 200)/32) − 534.6` (validated against BN6's own 21,668: predicts **5,417.8**/stat
+at mult 1.28 against a measured 5,417 — 0.01% off).
+
+| Node | Combat mult (BitNode × SF1 L3) | Exp/stat for L100 | vs BN6's 5,418 | Total (×4 stats) |
+|---|---|---|---|---|
+| BN6 (measured) | 1.28 | 5,418 | 1.0× | 21,668 |
+| BN9 | 0.45 × 1.28 = 0.576 | ~117,068 | **~21.6×** | ~468,000 |
+| BN10 | 0.40 × 1.28 = 0.512 | ~231,226 | **~42.7×** | ~925,000 |
+
+⚠️ **Self-derived from the documented general skill formula, NOT queried live — mark as an estimate,
+not a measurement**, per this file's own standing rule. BN6's real elapsed grind time for the
+21,668-exp gate was never precisely logged (the reference doc only says it "retires the ~2–6h
+figure" as an overestimate — i.e. well under that). Taking a rough 0.5–2h anchor and scaling
+linearly by the ratio above: **BN10's combat-100 gate is plausibly ~1–3.6 days**, **BN9's ~0.5–2.9
+days**, neither previously priced anywhere in this doc's ETA table. 🔴 **If SF1's +28%-all-mults
+does not stack multiplicatively onto combat the way it's confirmed to for hacking (BN5 clear
+record), the unstacked mult is 0.40/0.45 alone and the ratio balloons to ~236×/~108× — a
+multi-week pessimistic tail.** This range is wide enough to matter: added to the calibrated
+post-join estimate below, it's the single largest unpriced swing factor in the BN10 plan.
+**Cheapest fix: `run combatgateprobe.js` in BN10 right now** — same script, already written,
+seconds to run, converts this whole paragraph into one measured number. Attempted live during this
+audit (2026-08-16) but the CDP terminal was unreachable (see live-session note below); still the
+top recommended first action.
+- **This cost is NOT BN10-specific** — BN9 pays a similar tax (0.576 vs 0.512 combat mult), so it
+  does not change the BN10-vs-BN9 ranking. **BN7 and BN12 pay ~zero of it** (combat mults ≈1.0 and
+  ≈0.98 respectively) — a real point in BN7's favor that the redo-tax table alone doesn't surface,
+  though it doesn't overturn BN7's demotion (the 3.33× redo-tax + SP funding gap still dominate).
+
+#### Calibration-corrected central estimate for BN10 (per `estimation-calibration.md`)
+
+Redo-tax method: BN6's realised **Bladeburner-only** clear was **14 days** (18 total − ~4 on the
+abandoned hacking path, `estimation-calibration.md` line 15). BN10 redo-tax **1.25×** (measured:
+`BladeburnerRank` 0.8, `BladeburnerSkillCost` 1.0) → **14 × 1.25 = 17.5 days**, matching the ~18d
+already in the table. `estimation-calibration.md` flags the one directly-comparable prediction
+(08-06, "9–25d central ~14") as **40% high** → **17.5 / 1.4 ≈ 12.5 days** corrected central for the
+post-join Bladeburner grind alone.
+⚠️ **That correction is imported by analogy, not by shared mechanism** — the 08-06 estimate froze an
+in-flight rate mid-run (failure mode 1 in the calibration doc); this redo-tax figure scales an
+*already-realised* total by a cost ratio, which doesn't have that specific bias. A real,
+mechanism-based reason to expect faster-than-17.5d also exists: BN6's 14 days paid for *building and
+debugging* the Bladeburner engine (Phase 38's mistuned objective, the Investigation-cliff diagnosis,
+the chaos confound) — overhead BN10 doesn't repeat since the code is already correct. Net: **~12–15
+days is a defensible corrected central for the post-join grind**, but treat 12.5 as illustrative, not
+precise.
+**Adding the newly-priced combat-gate phase (serial, must complete before join): ~12.5–15d + ~1–3.6d
+⇒ total BN10 ETA ≈ 13.5–18.6 days**, plausibly wider (up to ~25d) if SF1 doesn't stack onto combat
+mults. 🔑 **This lands inside the pre-existing "13–26" range in the table above — but that range was
+never actually budgeting for this cost; it's a wide error bar that happens to cover an unpriced risk,
+not a priced one.** Don't read "still inside the range" as "already accounted for" — that's the same
+trap `estimation-calibration.md` names ("a forecast that verifies... teaches nothing if the reasoning
+didn't survive").
+
 ### The order that falls out
 
 **BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (repeatable, late) → BN15 → BN11.**
