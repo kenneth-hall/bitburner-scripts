@@ -609,7 +609,21 @@ on request — hold to them even when the moment is uncomfortable.
       BN10 **1.25×** · BN9 **1.33×** · BN7 **3.33×** · BN13 4.44× · BN15 15× · BN8 **Bladeburner
       disabled**. **BN7 is tied for third-worst**, and SF7.3's free Simulacrum needs **three** BN7
       clears at 3.33× each.
-    - **Order: BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (anytime) → BN15 → BN11.**
+    - **Order: BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (repeatable, LATE) → BN15 → BN11.**
+      **Three independent sources agree on BN10 next:** the redo-tax derivation, an independent cold
+      audit, and the **in-game recommendation guide**.
+      - **Estimates** (⚠️ read with `docs/estimation-calibration.md` — BN6's comparable prediction ran
+        **40% high on the point, correct on the range**): BN12 **~5.5 d** (hacking) · BN9 **~16 d** ·
+        BN10 **~18 d** · BN7 **~24 d**. **Hacking is viable in BN12 ONLY** (gate ~3,060 @ 98% vs
+        ~6,000 @ 35–50% elsewhere; BN6 at exactly 6,000/35% measured **240–323 days**).
+      - ⚖️ **BN12-first was considered and REJECTED.** It is ~3× faster than anything else, and the
+        in-game guide files it *"Save for later … SF is relatively weak for the rising effort"* /
+        *"do after unlocking all mechanics."* 📌 **The error it corrects: optimising for SPEED
+        instead of VALUE** — a first clear buys **one** NeuroFlux level for a week, the worst
+        per-day return of the four.
+      - 🔴 **A 3.33× redo-tax is NOT a 3.33× clear time.** `BladeburnerRank` scales grind *time*;
+        `BladeburnerSkillCost` scales what you can *afford*. BN7 is **~24 days, not ~40** (an error
+        made and corrected 2026-08-16).
     - 🚨 **Its highest-risk assumption is CIRCULAR and must not be presented as derived:** BN10 leads
       partly because sleeves may parallelise `Tracking` — but `Tracking` is **supply-capped**
       (`countRemaining` pinned 1.00, ~30 actions/h) and was ~100% of BN6's rank. If that pool is

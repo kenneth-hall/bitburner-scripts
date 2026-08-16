@@ -319,9 +319,72 @@ investment scales as their product, relative to BN6's 1.0 × 1.0 baseline.
 | BN15 | 20% / 300% | **15.0×** | worst in class |
 | BN8 | **Bladeburner DISABLED** | **N/A** | SF6 buys nothing here; needs SF10 grafting |
 
+### Time-to-clear estimates (2026-08-16), and which path each node wants
+
+⚠️ **Read these with `docs/estimation-calibration.md` open.** BN6's only comparable prediction ran
+**40% high on the central value with the range correct**, so trust the ranges, not the points.
+
+| Node | Path | Estimate | Grants |
+|---|---|---|---|
+| **BN12** | **Hacking** | **~5.5 d** (4–9) | +1 NeuroFlux/clear, uncapped SF levels |
+| **BN9** | Bladeburner | ~16 d (12–23) | Hacknet Servers; L2 = 128 GB home start |
+| **BN10** | Bladeburner | ~18 d (13–26) | **Sleeves + Grafting** |
+| **BN7** | Either | ~24 d (18–34) | Bladeburner mults; L3 Simulacrum |
+
+- 🔑 **The hacking path is viable in exactly ONE of these — BN12.** Gate scales with
+  `w0r1d_d43m0n` Difficulty and reachability with `HackingLevelMult`: BN12 is **gate ~3,060 at 98%**
+  (≈4% harder than BN5, cleared in 6 days), while BN9/BN10/BN7 are all **gate ~6,000 at 35–50%** —
+  and BN6 at *exactly* 6,000/35% was measured at **240–323 days**. BN9's is structurally blocked
+  besides: `Server Limit: 0%` means the batcher that funded every prior clear cannot exist.
+- 🔴 **A 3.33× redo-tax is NOT a 3.33× clear time — do not conflate them.** The two components do
+  different work: `BladeburnerRank` scales grind **time**; `BladeburnerSkillCost` scales how many
+  skills you can **afford** at a given rank. BN7 is therefore **~24 days, not ~40**. But its skill
+  problem is real and separate: BN6's stack cost **91,460 SP**, which at 200% is **182,920** —
+  *more than the ~133,000 banked by the time you reach rank 400,000*, so BN7 forces grinding **past**
+  the gate purely to fund skills.
+
 ### The order that falls out
 
-**BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (anytime) → BN15 → BN11.**
+**BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (repeatable, late) → BN15 → BN11.**
+
+#### ⚖️ BN12-first was seriously considered and REJECTED — by the in-game guide
+
+The time table above makes BN12 look dominant (**~5.5 days vs 16–24**), and it was briefly the
+recommendation. **The in-game guide overrules it, and is right.** It files BN12 in three places:
+*"easy to start but quickly ramps up in difficulty"* · **Save for later:** *"BN1 but harder each
+completion, forever; **SF is relatively weak for the rising effort**"* · **Special:** *"do after
+unlocking all mechanics."*
+
+📌 **The error being corrected: optimising for speed instead of value.** A first BN12 clear takes
+SF12 from level 0 → 1, buying **one** free NeuroFlux level (~+1% to everything) for a week. Per day
+invested that is the **worst** of the four, not the best. **"Fastest" is not the objective;
+efficient BitVerse clearing is.** BN12 is a node you clear *many* times, so you want every mechanic
+unlocked first — exactly what the guide says.
+
+#### ✅ The guide also SHORES UP the order's weakest assumption
+
+The sleeve-parallelism plank (see the risk section below) was flagged as unverified by an
+independent cold audit. The in-game guide speaks to it directly, in **BN6/BN7's own entry**:
+> *"Contract/op generation is slow → **Sleeves help**."*
+
+and in BN10's:
+> *"Sleeves = copies doing tasks in parallel (**great with Gang/Bladeburner**)."*
+
+That is the designers naming the exact bottleneck we measured (`Tracking` supply-capped at ~30
+actions/h). ⚠️ **Not proof** about the per-city-vs-per-actor pool question — still run the probe —
+but it moves the assumption from *speculative* to *supported by the game's own guidance*.
+
+#### Other in-game guide notes that bear on this order
+
+- **BN6/BN7: *"ideally both, BN6 easier."*** Mild support for BN7 that the redo-tax argument
+  discounts. The guide says nothing about *urgency*, so deferral stands.
+- **BN9: *"SF9.3 grants a pre-upgraded Hacknet Server on new-node entry — you get the 9.3 effect
+  in-node even before owning it, a key starting asset."*** Partly answers "how is anything funded in
+  BN9 with no fleet?" — there is a built-in income asset from turn one.
+- **BN10 is *"money-hungry"*:** the 5 extra purchasable sleeves come from **The Covenant**, the last
+  costing **100q**, so the batcher still matters there.
+- **Three independent sources now agree on BN10 next:** the redo-tax derivation, the cold audit, and
+  the in-game guide.
 
 1. **BN10** — cheapest real tax (1.25×), and the only node that grants a *throughput* tool (sleeves)
    plus grafting, which counters the install-wipe tax on every later clear.

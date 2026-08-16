@@ -16,10 +16,19 @@
  *
  * So the Bladeburner route ends here, not at the last op.
  *
- * `nextBN` is deliberately left UNDEFINED: the docs say that leaves you on the BitVerse
- * screen rather than jumping straight into a node. The next-node choice is a decision with
- * its own standing warnings (see docs/bitnodes.md's 2026-08-16 re-derivation), and this
- * script must not make it silently.
+ * 🔴 BUILD DIVERGENCE, measured live 2026-08-16 -- `nextBN` is MANDATORY here.
+ * `markdown/bitburner.singularity.destroyw0r1dd43m0n.md` documents it as OPTIONAL and says
+ * "Passing undefined leaves you on the BitVerse screen." That is false in this fork:
+ * omitting it throws
+ *   TYPE ERROR - singularity.destroyW0r1dD43m0n: 'nextBN' must be a number. Is undefined.
+ * So there is NO "land on the BitVerse and decide later" option -- the destination must be
+ * chosen at the call site. This script therefore REQUIRES an explicit node number and will
+ * not guess one; the next-node choice carries its own standing warnings
+ * (docs/bitnodes.md's 2026-08-16 re-derivation) and must never be a silent default.
+ *
+ * ⚠️ Sibling to CLAUDE.md's "this build is not vanilla" rule, and worse than it: here even
+ * the BUNDLED markdown/ docs were wrong, not just the online ones. Optionality in a
+ * signature is not a guarantee -- verify by calling.
  *
  * PRECONDITION CHECK, not a trust exercise: refuses to fire unless `getNextBlackOp()`
  * reads `null`. The whole point is that "the last op completed" and "the node is
@@ -36,6 +45,7 @@ export async function main(ns) {
   ns.disableLog("ALL");
 
   const confirmed = ns.args.includes("confirm");
+  const nextBN = ns.args.map(Number).find((n) => Number.isInteger(n) && n >= 1 && n <= 15);
 
   if (!ns.bladeburner.inBladeburner()) {
     ns.tprint("destroybn: ABORT - not in the Bladeburner division; cannot verify the black-op route.");
@@ -53,12 +63,18 @@ export async function main(ns) {
   ns.tprint("destroybn: precondition OK - getNextBlackOp() is null, all 21 black ops complete.");
   ns.tprint("destroybn: rank " + ns.format.number(rankNow) + " | node " + ns.getResetInfo().currentNode);
 
-  if (!confirmed) {
-    ns.tprint("destroybn: DRY RUN - nothing destroyed. Re-run with the 'confirm' argument to fire.");
+  if (nextBN === undefined) {
+    ns.tprint("destroybn: ABORT - no destination node given, and 'nextBN' is MANDATORY in this build.");
+    ns.tprint("destroybn: usage - run destroybn.js <1-15> confirm   (e.g. 'run destroybn.js 10 confirm')");
     return;
   }
 
-  ns.tprint("destroybn: DESTROYING w0r1d_d43m0n. This ends the BitNode. Landing on the BitVerse screen.");
-  // No nextBN -> stay on the BitVerse screen so the next-node choice stays a human decision.
-  ns.singularity.destroyW0r1dD43m0n();
+  if (!confirmed) {
+    ns.tprint("destroybn: DRY RUN - nothing destroyed. Would jump to BN" + nextBN + ".");
+    ns.tprint("destroybn: re-run with the 'confirm' argument to fire.");
+    return;
+  }
+
+  ns.tprint("destroybn: DESTROYING w0r1d_d43m0n. This ends the BitNode. Next node: BN" + nextBN + ".");
+  ns.singularity.destroyW0r1dD43m0n(nextBN);
 }
