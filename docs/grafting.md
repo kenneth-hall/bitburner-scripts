@@ -1,5 +1,12 @@
 # Augmentation grafting
 
+🔴 **SUPERSEDED 2026-08-16 by [`sleeve-grafting-reference.md`](sleeve-grafting-reference.md).**
+This file is **BN1-era** — written when Kenneth held **no Source-Files** and grafting was
+unreachable. We are now **in BN10**, the node that unlocks grafting, so its central framing
+("can only ever be driven manually until BN10 is completed", "not needed to finish BN1") is
+historical. **Read the new reference for the live interface**; keep this only for the Entropy
+explanation and the 2026-07-11 VitaLife observation, both still worth knowing.
+
 Reference for the grafting mechanic and — importantly — its **current unavailability** in
 Kenneth's BitNode. Read before spending any effort on a grafting-based plan.
 

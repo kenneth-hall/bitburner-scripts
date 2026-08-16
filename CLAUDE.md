@@ -1086,6 +1086,14 @@ reference before writing any `ns.bladeburner` code (the whole API throws pre-joi
 RAM-analyzer footguns are recorded there), and the playbook before proposing anything about how BN6
 gets cleared.
 
+**All things Sleeves & Grafting live in
+[`docs/sleeve-grafting-reference.md`](docs/sleeve-grafting-reference.md)** — gated the same way.
+Read it before writing any `ns.sleeve.*` / `ns.grafting.*` code or planning around sleeves in BN10.
+🔑 **Most of its content came from the in-game FAQ, not `markdown/`** — sync's cross-sleeve term is
+**quadratic**, shock 0 gates sleeve augs, **memory is the only sleeve stat surviving a node
+switch**, and sleeve purchases/memory upgrades are **BN10-exclusive**. None of that is in the API
+docs. ⚠️ `docs/grafting.md` is **BN1-era and superseded** by it.
+
 **Check the script library before hand-doing a task or writing a one-off.** `docs/scripts.md`
 indexes every `src/` script. A network/scan/**path**/aug/rep/backdoor task, or anything that
 smells like a one-off, almost certainly has a script already — reach for it first. (Concrete
