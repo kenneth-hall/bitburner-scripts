@@ -1,12 +1,12 @@
 # Phase 41 — BN10 entry: getting to Bladeburner (SPEC)
 
-**Stage 2.** Implementable specification derived from
-[`phase-41-bn10-entry.features.md`](phase-41-bn10-entry.features.md). Read that first — this
-document does not restate its reasoning, only what gets built and how it is validated.
+**Stage 2, revision 2** (cold-reviewed 2026-08-17; revision 1's blockers addressed — see §8 for the
+changelog). Derived from [`phase-41-bn10-entry.features.md`](phase-41-bn10-entry.features.md); read
+that first, this document does not restate its reasoning.
 
 **Deliverable in one line:** an unattended engine that takes the run from *node entry* to
 `joinBladeburnerDivision() === true` by sequencing grafts and combat grinding on the single
-player-action slot, and then stands down.
+player-action slot, then stands down cleanly.
 
 ---
 
@@ -14,71 +14,79 @@ player-action slot, and then stands down.
 
 ### In scope
 - Home-RAM unblock (features D6).
-- A **graft planner** that computes the optimal graft ladder and writes it as a plan file.
-- A **slot-owning entry engine** that executes graft → grind → join as a state machine.
-- Quiescing `augfarmer.js` for the duration (features D3) and making `ratchet-mode.txt` an
-  explicit BN10 decision (D3a).
+- A **graft planner** computing the optimal ladder into a plan file.
+- A **slot-owning entry engine** executing graft → grind → join as a state machine.
+- Quiescing `augfarmer.js` (D3); making `ratchet-mode.txt` an explicit BN10 decision (D3a).
 - Registering grafting as the **fifth** player-action-slot claimant.
 
 ### Explicitly NOT in scope
-- The Bladeburner rank grind, skill buying, or the black-op ladder. Existing scripts
-  (`bladeburnermanager.js`, `bbskillbuy.js`, `bbblackop.js`) cover those and are untouched here.
-- **The sleeve-parallelism probe** (BACKLOG top item). It becomes runnable the moment this phase
-  succeeds, and it is the *next* phase's opening move — not this one's.
-- Sleeve purchasing and memory upgrades (features D4, Q41-4).
-- Retargeting `augfarmer.js`'s scoring function (features Q41-5, deferred past the join).
-- Any change to `daemon.js`'s batcher logic. The economy is already adequate.
+- The Bladeburner rank grind, skill buying, black-op ladder (existing scripts, untouched).
+- **The sleeve-parallelism probe** — runnable the moment this phase succeeds; it is the *next*
+  phase's opening move.
+- Sleeve purchasing (D4).
+- Retargeting `augfarmer.js`'s scoring function (Q41-5, deferred past the join).
+- `daemon.js` batcher logic.
+
+🔴 **Carried-forward commitment that must NOT be lost by being out of scope.** Q41-4 (sleeve
+**memory** upgrades) is deferred, but its wake condition is *"expires at Bladeburner join, at which
+point it must be priced explicitly rather than forgotten"* — and the join is **this phase's
+deliverable**. Memory is the only **BN10-exclusive, permanent-across-all-future-nodes** purchase
+available. **Acceptance Z1: the close-out must price it explicitly or restate the deferral with a
+new date.** Deferring it silently is the failure mode this bullet exists to prevent.
 
 ---
 
-## 2. Architecture, and the constraint that forces it
+## 2. Architecture
 
-### 2.1 RAM forces a planner/executor split
+### 2.1 RAM forces a planner/executor split — re-derived post-WI1
 
-Home is **32.00 GB** with `HomeComputerRamCost` at 1.5×. A single script doing catalog reads,
-price/time reads, grafting, crime, travel, sleeve management and the Bladeburner join would need:
+A single script covering catalog reads, prerequisite checks, grafting, crime, travel and the join
+needs ≥53 GB (see §5's itemisation). WI1 raises home to **64 GB**, which still cannot host that
+alongside `daemon.js` (~16.5 GB) and its companions. **The split stands after WI1, not just before
+it.**
 
-| Call | RAM |
-|---|---|
-| `grafting.getGraftableAugmentations` | 5.00 |
-| `grafting.getAugmentationGraftPrice` | 3.75 |
-| `grafting.getAugmentationGraftTime` | 3.75 |
-| `grafting.graftAugmentation` | 7.50 |
-| `singularity.getAugmentationStats` | 5.00 |
-| `singularity.commitCrime` | 5.00 |
-| `singularity.travelToCity` | 2.00 |
-| `bladeburner.joinBladeburnerDivision` | 4.00 |
-| `sleeve.*` (≥3 methods) | ≥12.00 |
-| | **≥48 GB — does not fit** |
+**A1 — planner and executor are separate scripts communicating through `graft-plan.json`.**
+- `graftplanner.js` — pays catalog/price/time/stats/prereq RAM once, writes the plan, **exits**.
+- `bn10entry.js` — resident, reads the plan, owns the slot, never reads the catalog.
 
-**Decision A1 — split into a planner and an executor, communicating through a plan file.** The
-planner pays the catalog/price/stats RAM **once**; the executor reads the plan and pays only the
-acting RAM. This is the established repo pattern (companion scripts + JSON state files), not a new
-idea.
+**A1a — the planner runs on the FLEET, not home.** Singularity and Grafting calls carry no
+home-only requirement (`upgradehomeramonce.js`'s header records this). The executor `exec`s it to a
+fleet host with enough free RAM. ⚠️ Revision 1 said "exec when idle"; a resident holds its RAM
+whether idle or not, so that was unachievable. If no fleet host fits, the executor logs
+`planner-no-host` and continues on the existing plan rather than failing.
 
-- `graftplanner.js` — planner. ~20 GB. Runs on demand, writes `graft-plan.json`, exits.
-- `bn10entry.js` — executor. ~20 GB. Long-running resident, reads the plan, owns the slot.
+### 2.2 Slot ownership
 
-⚠️ **They must never run concurrently** (≈40 GB). The executor re-invokes the planner via
-`ns.exec` only when it is itself idle, or the planner is run by hand.
+**A2 — `bn10entry.js` claims `SLOT_HOLD_FILE` (`bladeburner-slot-hold.json`) and REFRESHES it every
+≤10 s.** `SLOT_HOLD_MAX_AGE_MS` is **30_000** (`bladeburnermanager.js:48`) and every consumer
+**fails open** on a stale marker (`augfarmer.js:768`, `backdoorfactions.js:89`); existing holders
+refresh at `HOLD_REFRESH_MS = 10_000` (`bbblackop.js:47`). A single write leaves a multi-hour graft
+unprotected after 30 seconds.
 
-### 2.2 The engine owns the player-action slot
+**A2a — `waitForOngoingGrafting()` is FORBIDDEN.** It blocks, so it cannot refresh the hold. Poll
+`getCurrentWork()` on the main loop cadence instead.
 
-Grafting defaults `focus: true` and blocks the crime grind, making it the **fifth** claimant of the
-single slot alongside `bladeburnermanager.js`, `augfarmer.js`, `backdoorfactions.js` and
-`backdoorwd.js`.
+⚠️ **Logged gap:** `bladeburnermanager.js` *writes* the hold rather than reading it. Survivable only
+because it cannot run before the join — i.e. **it becomes a real conflict the moment this phase
+succeeds**. The follow-on phase must make the hold bidirectional. → `BACKLOG.md`.
 
-**Decision A2 — `bn10entry.js` claims `SLOT_HOLD_FILE` (`bladeburner-slot-hold.json`) for its entire
-lifetime**, using the existing contract (`{ts, holder}`, written at
-`bladeburnermanager.js:1710`, honoured by `augfarmer.js:2228` via `resolveSlotHold`). It releases in
-an `ns.atExit`.
+### 2.3 🔴 Grafting cancels in-flight work — the central hazard
 
-⚠️ **Known gap, accepted and logged rather than fixed here:** `backdoorfactions.js` and
-`backdoorwd.js` honour the hold, but `bladeburnermanager.js` **writes** the file rather than reading
-it. That is fine for this phase only because `bladeburnermanager.js` cannot run before the join —
-which is precisely what this phase is trying to achieve. **It becomes a real conflict the moment
-this phase succeeds**, so the follow-on phase must make the hold bidirectional. Recorded in
-`BACKLOG.md`.
+`markdown/bitburner.grafting.graftaugmentation.md`, verbatim: *"You must be in New Tokyo to use
+this. **When you call this API, the current work (grafting or other actions) will be canceled.**"*
+Money is charged **up front**.
+
+**A3 — a `GRAFTING` state, gated on `singularity.getCurrentWork()`, is mandatory.** While a graft is
+in flight, the executor must issue **no** work-cancelling call. That prohibition covers *all* of:
+- re-issuing `graftAugmentation` (would forfeit the payment and pay again),
+- `commitCrime` (the `grind` branch),
+- `travelToCity`,
+- releasing the slot in `ns.atExit`,
+- the R5 stand-down path.
+
+**A3a — stand-down and exit LET AN IN-FLIGHT GRAFT FINISH.** `bn10entry-off.txt` and process exit
+stop the engine from starting *new* work; neither cancels a paid graft. (A hard-kill is outside our
+control and is accepted.)
 
 ---
 
@@ -86,182 +94,293 @@ this phase succeeds**, so the follow-on phase must make the hold bidirectional. 
 
 ### WI1 — Home-RAM unblock
 
-**Why:** home has 0.40 GB free; `augfarmer.js` (64.10 GB), `dashboard.js`, `xpfarm.js` and
-`ratchetlog.js` have never started this node, and every probe this session required killing the
-economy. The executor itself needs ~20 GB.
+**Build:** no new code — use `upgradehomeramonce.js` (one tier, spend-capped, and it already calls
+`recordTransaction` at `:46`, verified).
 
-**Build:** no new code. Use the existing `upgradehomeramonce.js` (one tier, spend-capped).
+⚠️ **Its `MAX_SPEND` default is `$500e6` and it silently prints `REFUSED` and returns above that.**
+
+**Ordering rule:** WI1 runs **before** the first graft, from the same wallet. Rationale: the
+executor needs ~22 GB and cannot run at all otherwise.
 
 **Acceptance:**
-- A1. Home RAM ≥ 64 GB, confirmed by `ns.getServerMaxRam("home")`.
-- A2. `bn10entry.js` and the daemon's companion set coexist without a `waiting-ram` log line for
-  `dashboard.js`.
-- A3. The purchase is recorded via `recordTransaction` (existing call site inside
-  `upgradehomeramonce.js` — verify it exists; if it does not, add it, per the standing convention
-  that every purchase is logged).
+- A1. `ns.getServerMaxRam("home") >= 64`.
+- A2. Expected resident set fits and is observed live via `ps`: `daemon.js`, `resourcemanager.js`,
+  `cloudmanager.js`, `transactionsmonitor.js`, `goallog.js`, `dashboard.js`, `bn10entry.js`.
+  ⚠️ `augfarmer.js` (64.10 GB alone) is **excluded by design** — WI4 pauses it. Revision 1's "no
+  `waiting-ram` log line" criterion is **withdrawn**: those events are FIFO-evicted from
+  `daemon-batch-log.json` within minutes, so absence is not evidence.
+- A3. A `transactions-*.json` record exists with the home-RAM upgrade's source tag and a non-zero
+  amount.
+- A4. If the tier price exceeds `MAX_SPEND`, the run raises the cap **explicitly and logs it** —
+  the `REFUSED` path must not be mistaken for "already upgraded".
 
 ---
 
-### WI2 — `graftplanner.js` (the planner)
+### WI2 — `graftplanner.js`
 
-**Build:** a script that reads the graft catalog and writes `graft-plan.json`.
-
-**Pure core (must be exported and unit-tested):**
+**Exported pure core (unit-tested, no `ns` calls):**
 
 ```js
-export function expForLevel(level, effectiveMult)      // e^((level/mult + 200)/32) − 534.6
-export function remainingExp(mults, bankedExpPerStat, nodeMult, targetLevel)
-export function planGraftLadder(candidates, currentMults, bankedExpPerStat, opts)
+/** @typedef {{strength:number,defense:number,dexterity:number,agility:number}} CombatQuad */
+
+export function expForLevel(level: number, effectiveMult: number): number
+// e^((level/effectiveMult + 200)/32) − 534.6
+
+export function remainingExp(
+  mults: CombatQuad,            // BASE mults, entropy NOT applied
+  banked: CombatQuad,           // per-stat banked exp -- PER STAT, never a scalar
+  opts: {nodeMult: number, targetLevel: number}
+): number
+
+export function planGraftLadder(
+  candidates: Array<{name, price, graftHours, mults: CombatQuad, prereqs: string[]}>,
+  currentMults: CombatQuad,
+  banked: CombatQuad,
+  opts: {nodeMult, targetLevel, grindExpPerSec, entropyPerGraft, owned: Set<string>,
+         maxSpend, moneyAvailable}
+): {ladder: Array<Step>, chosenK: number, projections: Array<Step>}
 ```
 
-`planGraftLadder` returns an **ordered** ladder plus a per-step projection
-`{k, aug, price, graftHours, cumCost, cumGraftHours, remainingExp, grindHours, totalHours}`, chosen
-**greedily by exp-reduction-per-dollar**, with entropy compounding at `ENTROPY_PER_GRAFT = 0.98`
-against every multiplier.
+**Typing rules that are the point, not decoration** (revision 1 under-specified exactly where the
+first attempt failed):
+- `banked` and `currentMults` are **4-tuples, never scalars**. The gate binds on the **worst** stat.
+- `currentMults` are **base** mults with entropy applied by the planner as `entropyPerGraft^k`.
+  ⚠️ **`ns.getPlayer().mults` may already include the entropy debuff.** WI2 must **determine this
+  empirically before shipping** (read `mults` at entropy 0 vs after graft #1) and record the answer
+  in the header. Double-counting on every `replan` is otherwise silent and compounding.
+- `nodeMult` is an explicit `opts` field, not implicit.
 
-**🔑 It must select `k` at the MINIMUM of `totalHours`, not the maximum affordable.** The features
-doc's §3.2 re-derivation shows the curve now has a true minimum (k≈7 at ~9.6 h) after which graft
-*time* exceeds the grind time it saves — k=10 is strictly worse than k=7. A planner that buys
-everything affordable is wrong.
+**Selection rule:** greedily by **exp-reduction-per-dollar**, choosing `chosenK` at the **MINIMUM of
+`totalHours`**, not the maximum affordable — the curve turns (features §3.2: k≈7 at 9.6 h, k=10 at
+11.5 h).
 
-**🔴 The per-stat rule, which is where the first attempt went wrong.** The gate binds on the
-**worst** of the four combat stats, so an aug's value is its effect on
-`sum over stats of max(0, expNeeded(stat) − banked(stat))`. **Never** multiply the four stats'
-multipliers into one scalar — `graftrecon.js`'s `combatLevelFactor` does exactly that and overstated
-the ladder by ~13× (45× vs the true ~3.5×). That field is **deprecated**; the planner must not read
-it.
+**🔴 Never collapse the four stats into one scalar.** `graftrecon.js`'s `combatLevelFactor` does
+exactly that and overstated the ladder ~13×. **That field is deprecated; the planner must not read
+it, and `graftrecon.js`'s header must say so.**
+
+**Prerequisite filtering (mandatory).** `getGraftableAugmentations` checks **neither money nor
+prerequisites** (`sleeve-grafting-reference.md` §7) — and the features doc's own greedy order
+contains `Augmented Targeting II` **without** `Augmented Targeting I`. A ladder with unbuyable steps
+invalidates every downstream projection. Use `singularity.getAugmentationPrereq`; a step is
+admissible only if its prereqs are owned/grafted or appear **earlier** in the same ladder.
 
 **Acceptance:**
-- B1. Reproduces the features doc §3.2 table (k=0 → 48.2 h, k=3 → 27.6 h, k=4 → 11.6 h,
-  k=7 → 9.6 h) to within 2% when fed the same inputs. Committed as a fixture test.
-- B2. `expForLevel` reproduces BN6's **measured 21,668** four-stat total at mult 1.0 / level 100
-  (`5,417 × 4`). This is the formula's only independent validation and must be a test.
-- B3. Selects the `totalHours` **minimum**, proven by a fixture where a cheaper-but-slower tail
-  exists.
-- B4. Emits `graft-plan.json` with a schema version and the inputs it was computed from
-  (mults, banked exp, rate, money) so a stale plan is detectable.
-- B5. Never emits an aug already owned or already grafted.
+- B1. Reproduces features §3.2 (k=0 → 48.2 h, k=3 → 27.6 h, k=4 → 11.6 h, k=7 → 9.6 h) within 2%,
+  as a committed golden test. **Fixture inputs, now sourced:** per-aug price/time/mults from
+  `logs/graftrecon-1786925861944.json`; `banked` = `expForLevel(74, 1.3824 × 0.40)` ≈ **33,395/stat**;
+  `grindExpPerSec` **2.62**; `nodeMult` **0.40**; `entropyPerGraft` **0.98**.
+  ⚠️ Post-prerequisite-filtering the ladder **may legitimately differ** from §3.2, which was computed
+  without that filter. If it does, the fixture records the **corrected** ladder and the features doc
+  §3.2 is annotated as superseded — do **not** bend the filter to reproduce a known-unfiltered table.
+- B2. `expForLevel(100, 1.28)` = **5,417/stat**, ×4 = **21,668** — BN6's measured combat-gate cost.
+  🔴 **Revision 1 stated this at mult 1.0, which is arithmetically false** (that yields 11,255/stat,
+  45,021 total). **1.28 is BN6's SF1.3 base-multiplier floor**, recorded in `CLAUDE.md`. This is the
+  formula's only independent validation; getting it wrong would have had an implementer "fix" the
+  formula all of WI2's economics rest on.
+- B3. Selects the `totalHours` **minimum**, proven by a fixture containing a cheaper-but-slower tail.
+- B4. Emits `graft-plan.json` with `schemaVersion` and every input it was computed from (mults,
+  banked, `grindExpPerSec`, money, entropy, timestamp) so staleness is detectable.
+- B5. Emits no aug already owned or grafted, and none whose prerequisites are unmet.
+- B6. RAM ≤ **30 GB**, measured by `mem graftplanner.js`. (Revision 1's ≤24 GB was set before
+  prerequisite filtering added 5 GB.)
 
 ---
 
-### WI3 — `bn10entry.js` (the executor)
+### WI3 — `bn10entry.js`
 
-A resident state machine that owns the slot.
-
-**States:** `ASSESS → GRAFT | GRIND → JOIN → DONE`, with `WAIT` for the money-blocked case.
-
-**Pure core (exported, unit-tested):**
+**States:** `ASSESS → GRAFTING | GRAFT_START | GRIND | JOIN → DONE`.
 
 ```js
-export function decideEntryAction(ctx)  // -> {kind:"graft"|"grind"|"join"|"wait"|"replan", reason}
+export function decideEntryAction(ctx): {kind: "graft"|"grind"|"join"|"replan"|"hold", reason: string}
 ```
 
-`ctx` carries combat levels, money, plan, plan freshness, HP, current action, and slot state. **The
-decision function performs no `ns` calls** — same rule as `decideInstall`, and the reason Phase 40's
-pure functions were testable while its live loop was not.
+**No `ns` calls inside `decideEntryAction`** — same rule as `decideInstall`, and the reason Phase
+40's pure functions stayed testable while its live loop did not.
 
-**Behaviour:**
-1. **`join` wins over everything** once all four combat stats ≥ 100 — check *before* starting any
-   new graft, so a completed gate is never delayed by a queued purchase.
-2. **`graft`** when the next ladder step is affordable and the plan is fresh. Travel to the graft
-   city first; verify arrival before calling `graftAugmentation`.
-3. **`grind`** otherwise — `commitCrime` with the configured crime.
-4. **`replan`** when the plan's recorded inputs drift materially from live state (default: combat
-   level moved ≥ 5, or money crossed the next step's price).
+**Precedence (strict order):**
+1. **`hold`** if a graft is in flight (`ctx.currentWork.type === "GRAFTING"`). Nothing preempts it —
+   see A3.
+2. **`join`** if all four combat stats ≥ 100.
+3. **`replan`** if plan inputs have drifted (below).
+4. **`graft`** if the next admissible step is affordable within all budgets.
+5. **`grind`** otherwise. 🔴 **This is the only fallthrough — there is no idle state.** Revision 1's
+   `wait` on budget exhaustion was a **terminal deadlock**: the gate is reachable by grinding alone
+   (48.2 h at k=0), so budget exhaustion must grind, never idle.
 
-**Safety rails (all mandatory):**
-- **R1 — a hard graft budget.** `MAX_GRAFT_SPEND` (default **$1.5b**) and `MAX_GRAFTS` (default
-  **8**), both checked *before* each purchase. Entropy is only cleared by an install, so an
-  unbounded grafter degrades every multiplier permanently for the node.
-- **R2 — never graft below a money floor.** `MONEY_FLOOR` (default **$50m**) preserved so the
-  batcher/fleet is not starved.
-- **R3 — verify, never trust the return value.** After `graftAugmentation`, confirm via
-  `getPlayer().entropy` incrementing or `getCurrentWork()`. This is the standing rule and
-  `bladeburner.startAction` is the precedent for why.
-- **R4 — release the slot in `ns.atExit`.**
-- **R5 — stand down entirely if `bn10entry-off.txt` exists**, mirroring `bladeburner-off.txt`.
+**Replan triggers** (each stated with its direction): any combat stat's level rose ≥ **5** since the
+plan was computed; **or** money rose past the next step's price (a fall cannot make a step
+admissible); **or** `entropy` differs from the plan's recorded value; **or** plan age > **6 h**.
+
+**Safety rails:**
+- **R1 — bound the PERSISTENT one-way quantity, not a per-process counter.** 🔴 Revision 1 bounded
+  in-memory counters, which reset on every restart — and `BACKLOG.md` records `cli.mjs restart`
+  racing the supervisor and leaving **two live instances** (two PIDs, observed). Two executors × 8
+  grafts ⇒ entropy `0.98^16 = 0.72` on every multiplier, permanently for the node. Bound instead on:
+  - `MAX_ENTROPY` (default **8**) read **live** from `ns.getPlayer().entropy` before every graft —
+    an absolute ceiling, restart-proof;
+  - `MAX_GRAFT_SPEND` (default **$1.5b**) computed from the **persisted transaction ledger**
+    (R3), not a counter;
+  - **a single-instance guard**: on startup, abort if another `bn10entry.js` PID exists.
+- **R2 — `MONEY_FLOOR`** (default **$50m**) preserved so the fleet is not starved.
+- **R2a — reserve the graft budget.** `cloudmanager.js` is documented spending **$5.08t in ~2.5 min**
+  against `totalReserved: 0`. R2 protects the fleet from the grafter; **nothing protects the grafter
+  from the fleet**, on a phase whose binding constraint is money. Register the next step's price via
+  the existing `resourcemanager.js` reservation chain, or record an explicit accepted-risk decision.
+- **R3 — every graft is logged via `recordTransaction`** (`src/translog.js`), on success only.
+  Standing convention, and the ledger is what makes R1's cumulative bound checkable.
+- **R4 — verify, never trust the return value.** `getCurrentWork()` is the **start** check
+  (entropy increments only on *completion*, so it cannot verify a start — revision 1 offered these
+  as interchangeable, and one of them cannot work).
+- **R5 — stand down if `bn10entry-off.txt` exists**, per A3a (finish an in-flight graft, start
+  nothing new). ⚠️ Markers under `src/` are pushed by viteburner, so an in-game deletion silently
+  reverts — same landmine as `ratchet-mode.txt`.
+- **R6 — reconcile pre-existing work at `ASSESS`.** BN6 precedent: `combatgrind.js` died and its
+  `commitCrime` ran unattended for ~90 min with nothing alive to stop it. The current state *is*
+  such a loop. Adopt it if it matches the intended crime; otherwise replace it.
 
 **Acceptance:**
-- C1. `decideEntryAction` returns `join` whenever all four stats ≥ 100, regardless of plan state or
-  affordability. Tested.
-- C2. Returns `wait`, never `graft`, when the purchase would breach R1 or R2. Tested at the exact
-  boundary.
-- C3. Returns `replan` on stale-plan inputs. Tested.
-- C4. Emits every decision to `bn10entry-log.json` with the reason. Non-negotiable — features Q41-2
-  (is Mug still best?) is answerable **only** from a realised exp-rate log, and the observed 2.62
-  exp/sec vs modelled 1.84–2.08 discrepancy is currently unexplained.
-- C5. RAM ≤ 24 GB, measured via `mem bn10entry.js`.
+- C1. Returns `hold` whenever a graft is in flight, **outranking `join`** — tested at the exact case
+  where stats cross 100 mid-graft.
+- C2. Returns `grind` — never an idle state — when R1/R2 binds. Tested at each boundary.
+- C3. Returns `replan` for each trigger. Tested per trigger.
+- C4. `bn10entry-log.json` records, per sample: timestamp, four combat exp values, four levels,
+  money, entropy, current action kind, decision + reason. 🔑 **Exp-vs-elapsed is the required
+  content** — revision 1 asked only for "decisions with reasons", which could pass while leaving
+  Q41-2 (is Mug best?) and the 2.62-vs-1.84 exp/sec discrepancy unanswerable.
+- C5. RAM ≤ **24 GB** (`mem bn10entry.js`), itemised in §5.
+- C6. `joinBladeburnerDivision()` returning `false` is retried on a bounded cadence and logged
+  distinctly from a thrown call; success is confirmed by a subsequent `getRank()`, not the boolean.
 
 ---
 
 ### WI4 — Engine alignment
 
-**Build:**
-- D-a. Quiesce `augfarmer.js` for the duration — it should not be launched by the daemon's
-  supervisor while `bn10entry.js` holds the slot. Prefer the existing pause marker
-  (`augfarmer-pause.txt`, already honoured by `bbblackop.js`) over a code change.
-- D-b. Make `ratchet-mode.txt` an explicit BN10 decision. It currently reads `observe` as inherited
-  BN6 state. ⚠️ **Edit the repo copy, not the in-game file** — it is gitignored *and* pushed by
-  viteburner, so an in-game write silently reverts (this cost a killed probe on 2026-08-06). Verify
-  with `run setratchetmode.js`.
-- D-c. Add grafting to the player-action-slot claimant table in `docs/bladeburner-reference.md` §8
-  and `BACKLOG.md` — it is the fifth, and the only one that blocks the combat grind.
+- D-a. Pause `augfarmer.js` via the existing `augfarmer-pause.txt` marker (already honoured by
+  `bbblackop.js`) — no code change.
+- D-b. Make `ratchet-mode.txt` an explicit BN10 decision (currently `observe`, inherited from BN6).
+  ⚠️ **Edit the repo copy** — gitignored *and* pushed by viteburner, so an in-game write silently
+  reverts (cost a killed probe 2026-08-06). Verify with `run setratchetmode.js`.
+- D-c. Add grafting as the fifth slot claimant in `docs/bladeburner-reference.md` §8 and
+  `BACKLOG.md`; deprecate `combatLevelFactor` in `graftrecon.js`'s header.
 
-**Acceptance:** D1. `docs/scripts.md`, `BACKLOG.md` and `docs/phases/CHANGELOG.md` are updated **in
-the same commits** as the code, per the standing convention.
+**Acceptance:** D1. `docs/scripts.md`, `BACKLOG.md`, `docs/phases/CHANGELOG.md` updated **in the same
+commits** as the code.
 
 ---
 
 ## 4. Test plan
 
-- **Unit (vitest)** — `planGraftLadder`, `expForLevel`, `remainingExp`, `decideEntryAction`. All
-  pure, no `ns`. Target: the full existing suite (**1395 green** at last run) plus the new cases,
-  with **zero regressions**.
-- **Fixture** — the §3.2 table committed as a golden test (B1), so a future refactor cannot silently
-  change the ladder economics.
-- **RAM gate** — `mem graftplanner.js` ≤ 24 GB, `mem bn10entry.js` ≤ 24 GB, and the two never
-  resident simultaneously.
-- **`npm run verify:log`** — extend to `bn10entry-log.json`. ⚠️ Two **pre-existing** failures in that
-  suite (`verify-ratchet`, `verify-transactions`) are unrelated and must not be "fixed" by loosening
-  assertions; see `BACKLOG.md`.
+- **Unit (vitest):** `expForLevel`, `remainingExp`, `planGraftLadder`, `decideEntryAction`.
+- **Golden fixture:** B1, inputs sourced above.
+- **Baseline: 1406 tests green** (measured 2026-08-17). Gate is **zero regressions against the
+  branch point**, not a frozen number — revision 1 cited a stale 1395.
+- **RAM gates:** B6 (≤30 GB), C5 (≤24 GB).
+- **`npm run verify:log`:** extend to `bn10entry-log.json`. ⚠️ Two **pre-existing** failures
+  (`verify-ratchet`, `verify-transactions`) are unrelated; do **not** "fix" them by loosening
+  assertions.
 
-### Live validation gates
-- **L1** — home RAM ≥ 64 GB, companion set fully resident (WI1).
-- **L2** — **the first graft is the real gate.** One graft completes; `getPlayer().entropy`
-  increments by exactly 1; the affected combat multiplier rises; and the *measured* new
-  `remainingExp` matches the plan's projection within **10%**. 🔑 **If L2's projection misses, stop
-  and re-derive — do not proceed up the ladder.** The entropy tax and the per-stat model are both
-  unvalidated against reality until this fires.
-- **L3** — combat 100/100/100/100 and `joinBladeburnerDivision()` returns `true`, verified by a
-  subsequent `ns.bladeburner.getRank()` succeeding rather than by the boolean.
-- **L4** — no slot theft: across the whole run, no `augfarmer.js` faction-work record overlaps a
-  graft window in the logs.
+### Live gates
+- **L1** — home RAM ≥ 64 GB; the A2 resident set observed via `ps`.
+- **L2** — **the model's only reality check, and it must be enforced in CODE.** After graft #1,
+  the executor **halts** (writes `bn10entry-hold.txt`, keeps grinding, starts no further graft)
+  until the marker is cleared by hand. It records: entropy delta (expect exactly **+1**), realised
+  vs projected **`remainingExp`** (±10%), realised vs projected **graft duration**, and realised vs
+  projected **price**.
+  🔴 **Why duration is measured:** `markdown/bitburner.grafting.md` says *"Do not use this value to
+  determine when the ongoing grafting finishes — affected by current intelligence level and focus
+  bonus."* `chosenK` sits at the `totalHours` minimum, whose location depends entirely on graft time.
+  The bonuses listed make realised time **shorter** than reported, which pushes the true minimum to a
+  **higher** k — so the error direction is knowable, but the magnitude is not, and L2 measures it.
+  🔴 **Why price is measured:** the ladder sums independent `getAugmentationGraftPrice` reads.
+  Whether graft price escalates with grafts already taken (as purchased-aug price does, ×1.9) is
+  **unasserted**. If it does, every `cumCost` row is wrong.
+  Revision 1 wrote "stop and re-derive" as prose on an unattended engine, which could gate nothing.
+- **L3** — combat 100/100/100/100 and `joinBladeburnerDivision()` verified by a subsequent
+  `getRank()`.
+- **L4** — **no `backdoorfactions.js` slot theft** across the run: no `installBackdoor` activity
+  overlaps a graft window. 🔴 Revision 1 tested `augfarmer.js`, which WI4 pauses and which cannot fit
+  in 64 GB anyway — a **vacuous** gate against the wrong claimant. `backdoorfactions.js` is the
+  documented live thief (confirmed via `ps` during the failed Q10 attempts).
 
 ---
 
-## 5. Risks
+## 5. RAM itemisation
+
+| `graftplanner.js` | GB | | `bn10entry.js` | GB |
+|---|---|---|---|---|
+| `getGraftableAugmentations` | 5.00 | | `graftAugmentation` | 7.50 |
+| `getAugmentationGraftPrice` | 3.75 | | `commitCrime` | 5.00 |
+| `getAugmentationGraftTime` | 3.75 | | `travelToCity` | 2.00 |
+| `getAugmentationStats` | 5.00 | | `joinBladeburnerDivision` | 4.00 |
+| `getAugmentationPrereq` | 5.00 | | `getCurrentWork` | 0.50 |
+| `getOwnedAugmentations` | 5.00 | | `exec` + base + file IO | ~2.60 |
+| base + file IO | ~1.60 | | | |
+| **≈29.1 (gate 30)** | | | **≈21.6 (gate 24)** | |
+
+⚠️ **Identifier hygiene is load-bearing here.** `bladeburnermanager.js` was silently billed **+25 GB**
+for naming a local `window`. Avoid `travel`, `graft`, `work`, `exec`, `share`, `read`, `write`,
+`kill`, `run`, `ls`, `ps` as local/property names; use bracket notation if a field name must collide.
+
+⚠️ **Both scripts are brand-new `src/` files** and the recorded viteburner bug is that new files
+never upload (silent pending) until seeded once via in-game `wget` — **ASCII only**.
+
+---
+
+## 6. Risks
 
 | Risk | Mitigation |
 |---|---|
-| Entropy tax is worse than the assumed 2%/graft | L2 measures it on graft #1 before committing to the ladder |
-| Graft time estimates are wrong (`getAugmentationGraftTime` unvalidated) | L2 compares projected vs realised; R1 bounds the exposure |
-| Money spent on grafts starves the fleet | R2's `MONEY_FLOOR`; the batcher's income is already measured adequate |
-| A better route exists (faction combat augs post-install) | Features R2 keeps it open; entropy is cleared by an install, so this phase does not foreclose it |
-| The 2.62 exp/sec observation is wrong and the grind is slower | C4's log makes it measurable; the ladder's value **rises** if the grind is slower, so the error is in the safe direction |
+| Entropy tax worse than assumed | L2 measures on graft #1 behind a code-enforced halt |
+| `getAugmentationGraftTime` ≠ realised | L2 measures duration; error direction is knowable (shorter ⇒ higher k) |
+| Graft price escalates | L2 measures realised price |
+| Double-instance ⇒ double grafts | R1's live-entropy ceiling + single-instance guard |
+| In-flight graft cancelled, money forfeit | A3's `hold` precedence + A3a |
+| Fleet outspends the graft budget | R2a reservation |
+| 2.62 exp/sec wrong | C4's log; a slower grind **raises** the ladder's value — error is in the safe direction |
 
-**Rollback:** delete `graft-plan.json`, touch `bn10entry-off.txt`, resume the manual grind. Grafts
-already applied are **not** reversible — this is the one-way component, and R1 is what bounds it.
+**Rollback:** delete `graft-plan.json`, create `bn10entry-off.txt`, resume the manual grind. **Grafts
+already applied are irreversible within the node** (entropy clears only on install) — R1 is what
+bounds that exposure.
 
 ---
 
-## 6. Open questions carried into implementation
+## 7. Open questions — defaults **and dates**, per the standing rule
 
-- **S-1.** Which crime does `grind` use? Features Q41-2's default is `Mug` (measured in BN6, and it
-  drives karma negative for the R2 faction route). **Not** re-derived here — the log from C4 settles
-  it empirically.
-- **S-2.** Focused or unfocused grind? The live 2.62 exp/sec suggests focused. Focused is ~25%
-  faster but blocks CDP reads, which cost this session three economy restarts. **Default: focused**,
-  with the executor unfocusing on demand via a marker file.
-- **S-3.** Does the sleeve switch off `Synchronize` during entry (features D5/Q41-3)? **Default: no
-  change this phase** — it is a ~12.6% effect on the grind term only, and D5 wants it decided by
-  arithmetic once the ladder fixes the remaining grind hours.
+- **S-1. Which crime does `grind` use?** Default `Mug` (measured in BN6; drives karma negative,
+  which the features-R2 faction route needs). Settled empirically from C4's log. **Expires
+  2026-08-19** (inherited from Q41-2).
+- **S-2. Focused or unfocused?** Default **focused** — confirmed live 2026-08-17 (the "Do something
+  else simultaneously" button is present, and the observed 2.62 exp/sec exceeds the 1.84 unfocused
+  measurement). Cost: focused blocks CDP reads, which cost three economy restarts this session.
+  Mitigation: an `bn10entry-unfocus.txt` marker the engine polls. **Expires 2026-08-19.**
+- **S-3. Sleeve task during entry.** ⚠️ **Flagged as a DEPARTURE from features D5**, which said
+  *"make the switch a measured decision, not a default … do not silently leave it on `SYNCHRO` by
+  inertia."* Default here **is** no change — the departure is deliberate (it is a ~12.6% effect on
+  the grind term alone, and WI2 produces the `grindHours` the decision needs as a by-product).
+  **Expires at L2**, when `grindHours` is known. Cost if wrong: ~12.6% of the remaining grind.
+- **S-4. Q41-1 (entropy vs batcher income).** Carried forward from the features doc, dropped by
+  revision 1. Default: accept the debuff. **Expires 2026-08-20.**
+
+---
+
+## 8. Revision changelog
+
+**Rev 2 (2026-08-17)** — cold review returned **15 blocking issues**; all addressed, none disputed.
+The five that would have caused real damage:
+1. **B2 was arithmetically false** (mult 1.0 → 45,021, not 21,668). An implementer would have
+   "fixed" `expForLevel` and silently corrupted every projection. Corrected to **1.28**, sourced.
+2. **R1 bounded per-process counters, not the persistent one-way quantity** — the exact
+   `MAX_ATTEMPTS` shape the review was asked to hunt. Now bounds live `entropy` + a persisted ledger
+   + a single-instance guard.
+3. **No `GRAFTING` state**, while `graftAugmentation` cancels current work and charges up front —
+   four separate code paths would each have forfeited a paid graft. Now A3/A3a.
+4. **The slot hold was never refreshed** against a 30 s expiry that fails open. Now ≤10 s, and
+   `waitForOngoingGrafting()` is forbidden.
+5. **C2 specified a terminal deadlock** (idle forever on budget exhaustion, on a phase whose gate is
+   reachable by grinding alone). Now grind is the sole fallthrough.
+
+Also: graft `recordTransaction` (convention violation); prerequisite filtering (the ladder contained
+an unbuyable step); planner moved to the fleet (the "never concurrent" rule was unachievable); graft
+budget reservation; B1's fixture inputs sourced; pure-function types pinned to 4-tuples; L2 made
+code-enforced and extended to duration and price; L4 retargeted from a vacuous claimant to the real
+one; dates restored to every open question.
