@@ -103,6 +103,34 @@ LuminCloaking-V2 · Augmented Targeting II · Combat Rib II · BrachiBlades · �
 **Diminishing returns bite hard after k≈8** ($1.27b → $2.91b buys only 6 more hours). The knee is
 around **k=6–8**.
 
+### 3.2 Re-derived from the live position — *stamped 2026-08-17, recompute before quoting*
+
+⚠️ **§3.1's table is from the ENTRY position (combat ~10) and is now stale for decisions.** Grafts
+cut the exp *requirement*, so their value rises as banked exp accumulates. At the live state —
+**combat 74/74/74/74, $228.8m, ~2.62 exp/sec observed** (faster than §3's 1.84–2.08 model, most
+likely a focused rather than unfocused grind):
+
+| Grafts | Cum. cost | Graft h | Exp remaining | Grind h | **Total** |
+|---|---|---|---|---|---|
+| 0 | $0 | 0 | 454,176 | 48.2 | **48.2 h** |
+| 3 | **$214m** | 2.9 | 233,140 | 24.7 | **27.6 h** |
+| 4 | $589m | 4.2 | 69,845 | 7.4 | **11.6 h** |
+| **7** | **$919m** | 6.5 | 29,019 | 3.1 | **🏆 9.6 h** |
+| 8 | $1.01b | 7.6 | 23,100 | 2.4 | 10.0 h |
+| 10 | $1.56b | 10.6 | 8,802 | 0.9 | 11.5 h |
+
+🔑 **Three things changed, and they revise D2:**
+1. **The curve now has a true MINIMUM at k≈7 (~9.6 h), not just a knee.** Past it, graft *time*
+   costs more than the grind time it saves — k=10 is strictly worse than k=7. In §3.1's
+   entry-position model more grafts always helped; that is no longer true.
+2. **`Bionic Spine` (k=4) is the single biggest step** — 27.6 h → 11.6 h on its own, because it
+   lifts all four stats where most cheap grafts lift one or two.
+3. **k=3 is affordable RIGHT NOW** ($214m vs $228.8m held) and takes 48.2 h → 27.6 h without
+   waiting on the batcher.
+
+**Revised D2 target: k≈7 (~$919m), starting with the k=3 set immediately** rather than waiting to
+fund the whole ladder.
+
 ⚠️ Grafting is **focused** — it takes the same player-action slot the crime grind uses, so graft
 hours and grind hours are **additive**, as modelled. The sleeve keeps grinding throughout (worth
 ~9k exp across a 10h graft run — real, small, and *not* included above, so the table is mildly
