@@ -22,18 +22,40 @@ do, and what's broken?*
 
 ## Bugs
 
-- **🚨 FIRST THING TO RUN IN THE NODE AFTER BN10 — the sleeve-parallelism probe the whole node order
-  rests on.** The 2026-08-16 re-derivation puts **BN10 next** partly because sleeves may parallelise
-  `Tracking`, and **that is unmeasured and circular** (it needs SF10, which needs BN10 cleared). If
-  it's false, BN10's lead shrinks to its bare 1.25× redo-tax edge over BN9.
-  - **The concrete risk:** `Tracking` is **supply-capped** — `countRemaining` pinned at 1.00,
-    regeneration-limited to ~30 actions/h — and was **~100% of BN6's rank rate**. If that pool is
-    **per-city rather than per-actor**, a sleeve on Contracts in the same city adds ≈0.
-  - **Probe (~15 min, read-only on the main character):** put one sleeve on `Take on contracts`
+- **🚨 RUN THIS RIGHT AFTER THE BLADEBURNER JOIN — the sleeve-parallelism probe the node order rests
+  on.** The 2026-08-16 re-derivation puts **BN10 next** partly because sleeves may parallelise
+  `Tracking`. If that's false, BN10's lead shrinks to its bare 1.25× redo-tax edge over BN9.
+  - ✅ **CORRECTED 2026-08-16 — it is NOT circular, and the trigger is IN THIS NODE.** ~~It needs
+    SF10, which needs BN10 cleared.~~ The sleeve mechanic and the full `ns.sleeve.*` API are **live
+    from BN10 entry**; SF10 only grants them *outside* the node. So this runs as soon as
+    `joinBladeburnerDivision()` succeeds (blocked today only by the combat-100 gate → Phase 41).
+    📌 "Needs SF10" was read as "needs the node cleared" — a Source-File requirement is about
+    **portability**, not in-node availability.
+  - 🔴 **AND A PRIOR CONSTRAINT THE ENTRY MISSED: we have exactly ONE sleeve, and #2 costs
+    $10.000t** (measured, `sleeverecon.js`). So parallelism is capped at one actor until $10t is
+    banked — the mechanic question matters, but it is no longer the *binding* one. What one sleeve
+    is actually worth was measured instead: **+12.6% player combat exp/sec** steady state
+    (`sleevesyncprobe.js`; ⚠️ the raw +22.7% reading is bonus-time inflated — `storedCycles` 360 → 4).
+  - **The concrete risk (unchanged):** `Tracking` is **supply-capped** — `countRemaining` pinned at
+    1.00, regeneration-limited to ~30 actions/h — and was **~100% of BN6's rank rate**. If that pool
+    is **per-city rather than per-actor**, a sleeve on Contracts in the same city adds ≈0.
+  - **Probe (~15 min, read-only on the main character):** put the sleeve on `Take on contracts`
     (Tracking) in the **same city** as the main character; compare the main character's realised
     Tracking rank/h against its solo baseline. Both at full rate ⇒ parallelism works. Main drops
     while the sleeve gains ⇒ shared pool, revisit the ordering.
-  - Full context: `docs/bitnodes.md` § "Node order, re-derived after actually running Bladeburner".
+  - Full context: `docs/bitnodes.md` § "Node order, re-derived after actually running Bladeburner";
+    measured entry state in `phase-41-bn10-entry.features.md` §2.
+
+- **🟡 NEW 2026-08-16 — the player-action-slot contention is now FIVE-way: grafting is a claimant and
+  is on nobody's list.** `ns.grafting.graftAugmentation(aug, focus?)` defaults `focus` to **`true`**,
+  so a graft takes the same single slot as `bladeburnermanager.js`, `augfarmer.js` (faction work),
+  `backdoorfactions.js` and `backdoorwd.js` — and unlike those four it also blocks the **combat
+  crime grind**, which is the BN10 entry critical path. Phase 41 plans a graft ladder of ~8 grafts /
+  ~7.8h of focused time, so this contention is scheduled, not hypothetical.
+  - **Not yet a live failure** (nothing is grafting yet), but it lands the moment work item 3 runs.
+  - **Next action:** whatever arbiter Phase 41 builds must treat grafting as a claimant of
+    `bladeburner-slot-hold.json` (or its successor), not as an unmodelled side effect. See the
+    existing four-way contention entry below — the same absence of an arbiter is the root.
 
 - **🔴 NEW 2026-08-15 — `Recruitment` is wired to a flag we closed permanently, so the engine can
   never build a team — and teams only matter for the one thing the engine doesn't do.**

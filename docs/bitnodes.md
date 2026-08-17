@@ -484,7 +484,11 @@ but it moves the assumption from *speculative* to *supported by the game's own g
   the in-game guide.
 
 1. **BN10** — cheapest real tax (1.25×), and the only node that grants a *throughput* tool (sleeves)
-   plus grafting, which counters the install-wipe tax on every later clear.
+   plus grafting, which counters the install-wipe tax on every later clear. ⚠️ **Read "throughput
+   tool" with the price attached** (see the risk section): sleeve #2 costs **$10.000t**, so the
+   parallelism is a batcher milestone, not an entry asset. **Grafting is the half that pays
+   immediately** — it needs only money and focused time, no rep and no install, and it was measured
+   on 2026-08-16 to cut BN10's combat-100 entry gate from ~88.7 h to ~26.4 h.
 2. **BN9** — 1.33× makes the node the counter-map called "the harshest seen so far" into an ordinary
    rank grind, because its brutality is aimed at *hacking* (Level 50% / Exp 5% / MaxMoney 1%), which
    a Bladeburner clear does not use.
@@ -502,9 +506,24 @@ but it moves the assumption from *speculative* to *supported by the game's own g
 actions/h (§11.4) — and `Tracking` was **~100% of BN6's rank rate**. If that regeneration pool is
 **per-city rather than per-actor**, a sleeve on Contracts in the same city adds ≈0 and BN10's
 parallelism case collapses to its bare 1.25× tax advantage.
-- ⚠️ **This is circular:** it cannot be measured until SF10 is held, i.e. until after BN10 is
-  cleared. **BN10-first is therefore partly a bet on its own justification.** Say so plainly rather
-  than presenting it as derived.
+- ✅ **CIRCULARITY DISSOLVED 2026-08-16, on entry — this is measurable INSIDE BN10, not after it.**
+  ~~It cannot be measured until SF10 is held, i.e. until after BN10 is cleared. BN10-first is
+  therefore partly a bet on its own justification.~~ Both halves were wrong: the **sleeve mechanic
+  and the whole `ns.sleeve.*` API are live from BN10 entry** (SF10 is only needed *outside* the
+  node — see `sleeve-grafting-reference.md` §1, and confirmed live by `sleeverecon.js`). The probe
+  needs sleeves **+ a Bladeburner join**, both obtainable in-node, so it runs **after the combat
+  gate clears**, not after the clear. 📌 **The error worth keeping: "needs SF10" was read as "needs
+  the node cleared", when SF10's actual job is granting the mechanic *elsewhere*.** A Source-File
+  requirement is about *portability*, not about in-node availability.
+- 🔴 **BUT A PRIOR, PURELY ECONOMIC CONSTRAINT WAS MISSED, and it binds harder than the mechanic
+  question (measured 2026-08-16).** We entered BN10 with **exactly 1 sleeve** (sync 27.17, shock
+  21.18, memory 1), and `getSleeveCost()` reads **$10.000t for #2** — against a ladder this file
+  already knew ends at **100q** for the last one (see the in-game-guide bullet above). So
+  *parallelism is bounded by one actor* until $10t is banked, regardless of whether the mechanic
+  works. ⚠️ **The ordering rationale below calls sleeves a "throughput tool" without carrying that
+  price into the argument** — the throughput is real but **money-gated**, and at a fresh-node
+  bankroll it is not available at the moment the gate needs it. Measured entry state and the
+  sleeve→player transfer figure: `phase-41-bn10-entry.features.md` §2.
 - **Cheap probe, first thing in the node after BN10:** run one sleeve on `Take on contracts`
   (Tracking) in the **same city** as the main character for ~15 min and compare the main character's
   realised Tracking rank/h against its solo baseline. Both at full rate ⇒ parallelism works. Main
