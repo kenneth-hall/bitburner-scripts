@@ -121,10 +121,36 @@ the first work item is economic, not athletic.
 1.3× the time saving. Re-derive against actual income when the money lands rather than committing
 to a fixed k now.
 
-**D3 — Retarget the aug ratchet at combat multipliers, or leave it off.** `augfarmer.js` currently
-chases hacking mults. In BN10 hacking is at 0.35 with a dead win-path, and augs cost 5×. Either it
-aims at the combat gate or it should not run — burning 5×-priced purchases on hacking mults is
-strictly worse than banking the money for grafts.
+**D3 — The aug ratchet is not a switch; it is three behaviours with three different answers.**
+Framing it as "run it or not" was wrong (Kenneth, 2026-08-16). Decomposed against the code:
+
+| Behaviour | Call site | BN10 answer |
+|---|---|---|
+| Faction work for rep | `workForFaction`, `augfarmer.js:2916` | ❌ **Harmful now** — takes the single player-action slot, which during entry *is* the critical path (crime grind, then focused grafting) |
+| Buying augs | `purchaseAugmentation`, `:2968` | ❌ **Cannot do the job** — see below |
+| Triggering installs | not in this file; `installer.js`, gated on `ratchet-mode.txt` | ⏸️ **Already off** (`observe`), but by inheritance, not decision |
+
+🔑 **The blocker is structural, not a tuning knob.** `scoreAug` (`:330`) reads **only** `hacking`,
+`hacking_exp`, `faction_rep`, `hacking_money`, `hacking_speed`; `filterAugs` (`:363`) keeps a name
+**iff `scoreAug(...) > 0`**. A pure combat aug touches none of those keys, scores **exactly 0**, and
+is dropped **by construction**. So the ratchet cannot buy Combat Rib / Bionic Spine / Wired
+Reflexes *even if pointed directly at a combat faction*. Retargeting it means changing the scoring
+function, not a constant.
+
+🔑 **And the deeper point: `scoreAug` encodes a win condition BN10 does not have.** The ratchet
+exists to raise the hacking multiplier toward a `w0r1d_d43m0n` gate. We are not clearing BN10 by
+hacking (R3). So its objective function is not merely mis-tuned here — it is aimed at a target that
+does not exist in this node.
+
+**Decision:** leave `augfarmer.js` **off for entry** — but record that the reason is the scoring
+function's objective, not a preference about aug-buying. Whether it comes back at all is Q41-5, and
+it is a *strategy* question about what the ratchet is for in a Bladeburner node, not an on/off flag.
+
+**D3a — `ratchet-mode.txt` must become a BN10 decision, not inherited BN6 state.** It currently
+reads `observe` because of the 2026-08-06 install-cadence stop, a decision made about a different
+node for reasons (installs costing 5.4% of Bladeburner wall-time) that have not been re-checked
+here. ⚠️ Note the recorded landmine: that file is **gitignored and pushed from the repo**, so an
+in-game edit silently reverts — edit the repo copy and verify with `run setratchetmode.js`.
 
 **D4 — Sleeve purchasing is OUT of scope.** At $10.000t it is a batcher milestone, not a feature.
 Revisit only if income crosses ~$1t/day.
@@ -194,8 +220,28 @@ made again. Currently **1**. **Default:** defer until the node is *safely* clear
 irreversible-window purchase should not compete with the clear itself. **Expires at Bladeburner
 join**, at which point it must be priced explicitly rather than forgotten.
 
-**Q41-5 — Does `augfarmer.js` run at all this node (D3)?** **Default:** off until it has a
-combat-mult target, since a 5×-priced hacking aug is worse than nothing. **Expires 2026-08-19.**
+**Q41-5 — What is the aug ratchet FOR in a Bladeburner node?** (Reframed from "does it run" —
+that was the wrong shape, per D3.) The ratchet's objective function targets a hacking gate that
+BN10 does not have, so "point it at combat augs" is not a smaller version of its old job — it is a
+different job, and it needs an objective before it needs code. Three candidate objectives, none
+obviously right:
+- **(a) Combat multipliers, to collapse the entry gate.** Directly on the critical path — but
+  grafting already does this *without* faction rep, an install, or the player slot (§3.1). The
+  ratchet would be a slower second route to a thing already solved.
+- **(b) Bladeburner-relevant multipliers, for the rank grind.** ⚠️ BN6 measured this tier **inert**
+  — every Bladeburner aug multiplies success chance, stamina or analysis, and we ran at 100%
+  success / 99.9% duty. That measurement was taken in BN6's regime; per the `Overclock` lesson, ask
+  what would have to change to reopen it (here: running at *less* than 100% success, which BN10's
+  0.8× rank and fresh skill tree could plausibly produce).
+- **(c) Nothing — retire it for this node.** Honest if (a) is dominated by grafting and (b) stays
+  inert. Costs nothing but the temptation to keep a working engine busy.
+
+**Default: (c), retire it for entry**, on the strength of D3's structural finding — but this is
+explicitly a *deferred strategy question*, not a closed one, and it should be answered **after** the
+Bladeburner join, when (b) becomes measurable rather than argued. **Expires at Bladeburner join.**
+
+⚠️ **Do not restate the old framing** ("off until it has a combat-mult target"). It implied a
+constant tweak would fix it; the scoring function is the fix.
 
 **Q41-6 — Does a sleeve parallelise Bladeburner *rank*?** The original BN10 thesis. Not measurable
 until `joinBladeburnerDivision()` succeeds, so it is **out of scope by construction** and moves to
@@ -212,7 +258,8 @@ the follow-on phase. Recorded here only so it is not lost between phases.
    587,755-exp target. This is the reusable-in-BN9 deliverable.
 3. **Graft executor** — buy the D2 ladder in greedy order, respecting the focused-slot contention
    with the grind and with the four other slot claimants.
-4. **Engine alignment** — D3 (`augfarmer.js` target or off) and D6 (home RAM), plus adding the
+4. **Engine alignment** — D3 (quiesce `augfarmer.js` for entry; its *objective* is Q41-5, deferred
+   to after the join), D3a (make `ratchet-mode.txt` a BN10 decision) and D6 (home RAM), plus adding the
    *fifth* claimant (grafting) to the player-action-slot hazard list in `BACKLOG.md`.
 
 ---
