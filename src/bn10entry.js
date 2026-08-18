@@ -476,9 +476,9 @@ export async function main(ns) {
     // A3a: never cancel an in-flight graft on exit. If nothing is grafting, release the
     // slot and the lock so another claimant (or a fresh instance) isn't blocked by a stale
     // marker for up to 30s longer than necessary.
-    let work = null;
-    try { work = ns.singularity.getCurrentWork(); } catch { /* Singularity unavailable */ }
-    if (!work || work.type !== "GRAFTING") {
+    let currentWorkRec = null;
+    try { currentWorkRec = ns.singularity.getCurrentWork(); } catch { /* Singularity unavailable */ }
+    if (!currentWorkRec || currentWorkRec.type !== "GRAFTING") {
       try { ns.rm(SLOT_HOLD_FILE, "home"); } catch { /* already gone */ }
       try { ns.rm(LOCK_FILE, "home"); } catch { /* already gone */ }
     }
