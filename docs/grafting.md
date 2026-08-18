@@ -1,3 +1,8 @@
+> 🔴 **SUPERSEDED 2026-08-18 by [`grafting-reference.md`](grafting-reference.md)**, which is measured
+> in BN10 rather than inferred in BN1. This file is retained only for its 2026-07-11 observation that
+> the clinic did not appear at VitaLife/New Tokyo in BN1, and for the Entropy explanation. **Do not
+> plan from it.**
+
 # Augmentation grafting
 
 🔴 **SUPERSEDED 2026-08-16 by [`sleeve-grafting-reference.md`](sleeve-grafting-reference.md).**

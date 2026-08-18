@@ -189,7 +189,14 @@ Both at full rate ⇒ parallelism works. Host drops while the sleeve gains ⇒ s
 
 ---
 
-## 7. Grafting
+## 7. Grafting -- MOVED
+
+🔴 **This section is superseded by [`grafting-reference.md`](grafting-reference.md)**, which is the
+authoritative grafting doc (measured economics, the Entropy model, the prereq rule, the landmines,
+and the graft-vs-install framework). The stub below is kept only so old links resolve; **do not plan
+from it** -- in particular its silence on price was read, wrongly, as grafting being expensive.
+
+### [SUPERSEDED] Original section 7
 
 Applies an augmentation's effect **with no install/reset** — you keep hacking level and progress.
 You pay **money** and **focused time**. In stock Bitburner it is a **city location**: VitaLife, in

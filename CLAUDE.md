@@ -1097,6 +1097,16 @@ exist** (16–20 throw), **only BN12 varies by SF level**, and **BN12's ramp law
 `1.02^level`** — effective difficulty doubling every ~17.5 levels. ⚠️ **Quote this log, not the
 prose tables, when a decision turns on a multiplier.**
 
+**All things GRAFTING live in [`docs/grafting-reference.md`](docs/grafting-reference.md)** - gated
+the same way. Read it before any `ns.grafting.*` code or any graft-vs-install decision. 🔑 **Measured
+2026-08-18, and it overturns what this file previously implied:** grafting costs **0.60x the purchase
+price** (constant across all 97 augs) and requires **no reputation at all** - it is the CHEAP route,
+not the expensive one. Its real price is **Entropy** (exactly `0.98^k` on *every* multiplier, cleared
+only by an install) and **serial focused time**. ⚠️ `ns.getPlayer().mults` **already includes** the
+Entropy debuff, so any planner applying `0.98^k` on top double-counts - `graftplanner.js` shipped with
+that bug. And `graftAugmentation` **cancels whatever work is running while charging up front**, which
+makes it the **fifth** player-action-slot claimant and the only one that also blocks the combat grind.
+
 **All things Sleeves & Grafting live in
 [`docs/sleeve-grafting-reference.md`](docs/sleeve-grafting-reference.md)** — gated the same way.
 Read it before writing any `ns.sleeve.*` / `ns.grafting.*` code or planning around sleeves in BN10.
