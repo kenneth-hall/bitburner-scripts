@@ -248,6 +248,23 @@ made again. Currently **1**. **Default:** defer until the node is *safely* clear
 irreversible-window purchase should not compete with the clear itself. **Expires at Bladeburner
 join**, at which point it must be priced explicitly rather than forgotten.
 
+**🔑 NEW EVIDENCE 2026-08-18 — this question is now close to answered, and by measurement.**
+`src/graftvsbuy.js` measured **graft price = 0.600 x purchase price, constant across all 97 graftable
+augs, with ZERO reputation required**. That undercuts the ratchet on its own terms: every multiplier
+the ratchet could buy is available for **40% less money, no rep grind, and no install** - and the rep
+grind is precisely what makes the ratchet compete for the player-action slot this node needs.
+
+So candidate **(a) "combat multipliers"** is not merely *dominated* by grafting (as this question
+originally guessed) - it is dominated on **price**, **reputation** *and* **reset cost** simultaneously.
+The ratchet's only remaining distinctive capability is **breadth**: an install applies MANY augs at
+once with no Entropy tax, where grafting is serial and taxes every multiplier `0.98^k`. That is a real
+advantage, but it is an *endgame spend-down* advantage, not an entry one.
+
+⚠️ **This does NOT close the question**, because candidate (b) (Bladeburner-relevant mults) is still
+unmeasured in BN10 and the breadth argument above is real. But it does move the default from
+"probably (c) retire it" to **"(c) unless breadth is needed"**, on evidence rather than on the
+structural `scoreAug` argument alone. Full economics: `docs/grafting-reference.md` sections 2 and 9.
+
 **Q41-5 — What is the aug ratchet FOR in a Bladeburner node?** (Reframed from "does it run" —
 that was the wrong shape, per D3.) The ratchet's objective function targets a hacking gate that
 BN10 does not have, so "point it at combat augs" is not a smaller version of its old job — it is a
