@@ -68,6 +68,19 @@ do, and what's broken?*
     through L1-L4. Once L2 (the graft-hazard halt) clears once, this entry can finally be deleted
     and folded into the CHANGELOG as genuinely resolved.
 
+- **🔴 FIRED 2026-08-17, WITHIN THE HOUR — the unreserved graft budget was eaten by the fleet.**
+  Upgraded from 🟡 accepted-risk to a measured event. Money read **$2.784b**, then **$997m** about
+  an hour later while a single **$135m** graft ran — so roughly **$1.65b** went elsewhere, almost
+  certainly `cloudmanager.js` fleet purchases. The ladder needs ~$454m more; headroom fell from
+  **4.7x to ~2.2x** in one hour with three grafts still to buy.
+  - **Mitigated operationally, not structurally:** `src/cloud-upgrade-off.txt` now pauses
+    `cloudmanager.js` for the duration of the ladder. ⚠️ **Delete it once the Bladeburner join
+    lands** — a forgotten pause silently stops all fleet growth, which is this node's income.
+  - 📌 **The judgement error worth keeping:** this was filed as a background risk to log. It is not
+    background — at BN10's income the fleet spends *faster than the ladder buys*, so it should have
+    been paused alongside `augfarmer.js` at the same moment, not watched. **When two consumers share
+    a wallet and one is on the critical path, pausing the other is part of starting the work.**
+  - Original entry, still accurate as the structural description:
 - **🟡 NEW 2026-08-17 — `bn10entry.js`'s graft budget is UNRESERVED against the fleet (spec R2a,
   accepted risk, not mitigated).** The spec offered two options: wire a graft-budget reservation into
   `resourcemanager.js`'s existing chain (the `AUGFARMER_RESERVE_FILE` precedent), or record an
