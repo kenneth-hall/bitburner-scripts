@@ -128,6 +128,8 @@ export default defineConfig({
         if (/^graftrecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/graftrecon.js -- is grafting live in BN10, which grafts move the combat mult, with the entropy tax carried, one file per run
         if (/^sleeverecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleeverecon.js -- BN10 sleeve census (sync/shock/memory/prices/tasks), one file per run
         if (/^sleevesyncprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevesyncprobe.js -- A/B measurement of how much sleeve exp actually reaches the player, one file per run
+        if (file === 'graft-plan.json') return 'logs/graft-plan.json'; // Phase 41 WI2 -- src/graftplanner.js's computed graft ladder, overwritten in place each run; carries schemaVersion + every input it was computed from (staleness detection, spec B4)
+        if (file === 'bn10entry-log.json') return 'logs/bn10entry-log.json'; // Phase 41 WI3 -- src/bn10entry.js's ring-capped per-poll decision log (exp/levels/money/entropy/action/decision+reason, spec C4)
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';
