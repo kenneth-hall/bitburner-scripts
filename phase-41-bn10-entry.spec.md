@@ -378,6 +378,36 @@ bounds that exposure.
 
 ---
 
+## 7b. Z1 DISCHARGED 2026-08-18 — sleeve memory priced, and deferred with a date
+
+The acceptance criterion was *"price it explicitly or restate the deferral with a new date"*.
+Priced (`src/sleevememprobe.js`, `logs/sleevememprobe-1787061022037.json`), at the Bladeburner join:
+
+| Memory | Cost | vs $20.932b held |
+|---|---|---|
+| **+1** (1 -> 2) | **$1.000t** | **47.8x short** |
+| +10 | $10.950t | 523x |
+| +50 | $84.579t | 4,040x |
+| +99 (-> 100, the cap) | **$305.130t** | 14,577x |
+| *(next sleeve, for scale)* | $10.000t | 478x |
+
+**Decision: DEFER, expires 2026-08-25.** It is BN10-exclusive and permanent across every future
+node, so it is genuinely valuable — but +1 memory costs ~48x our entire bankroll *at the moment the
+gate cleared*, and memory only sets a sleeve's **starting sync** in later nodes. With **one** sleeve,
+the cross-sleeve term (quadratic) is irrelevant, so the benefit is one actor starting a future node
+at sync N instead of sync 1 — recoverable in-node by running `Synchronize`, which is exactly what
+just took this sleeve from 27.17 to **100.0** unattended.
+
+🔑 **That last point is the real finding and it lowers memory's value considerably:** sync reached
+the cap **on its own during the graft ladder**, and shock decayed **21.18 -> 0.0** alongside it. So
+the thing memory buys — a head start on sync — is obtainable free with idle time. Memory is worth
+buying only if a future node is so short that the `Synchronize` ramp cannot be paid, or once there
+are enough sleeves for the quadratic cross-term to bite.
+
+**Re-evaluate when:** bankroll passes ~$1t (making +1 a real option), or a second sleeve is bought.
+
+---
+
 ## 7a. Post-join sequence -- ORDER MATTERS, and two steps are easy to forget
 
 Written 2026-08-17 during execution, after finding that `bladeburnermanager.js` is a **supervised
