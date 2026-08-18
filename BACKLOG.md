@@ -46,18 +46,39 @@ do, and what's broken?*
   - Full context: `docs/bitnodes.md` § "Node order, re-derived after actually running Bladeburner";
     measured entry state in `phase-41-bn10-entry.features.md` §2.
 
-- **🟡 NEW 2026-08-16 — the player-action-slot contention is now FIVE-way: grafting is a claimant and
-  is on nobody's list.** `ns.grafting.graftAugmentation(aug, focus?)` defaults `focus` to **`true`**,
-  so a graft takes the same single slot as `bladeburnermanager.js`, `augfarmer.js` (faction work),
+- **🟡 UPDATED 2026-08-17 — the player-action-slot contention is FIVE-way (grafting is the fifth),
+  and Phase 41 WI3's `bn10entry.js` now claims the slot for it — but this is CODE, not a live
+  validation.** `ns.grafting.graftAugmentation(aug, focus?)` defaults `focus` to **`true`**, so a
+  graft takes the same single slot as `bladeburnermanager.js`, `augfarmer.js` (faction work),
   `backdoorfactions.js` and `backdoorwd.js` — and unlike those four it also blocks the **combat
-  crime grind**, which is the BN10 entry critical path. Phase 41 plans a graft ladder of ~8 grafts /
-  ~7.8h of focused time, so this contention is scheduled, not hypothetical.
-  - **Not yet a live failure** (nothing is grafting yet), but it lands the moment work item 3 runs.
-  - **Next action:** whatever arbiter Phase 41 builds must treat grafting as a claimant of
-    `bladeburner-slot-hold.json` (or its successor), not as an unmodelled side effect. See the
-    existing four-way contention entry below — the same absence of an arbiter is the root.
+  crime grind**, which is the BN10 entry critical path.
+  - **What shipped (`src/bn10entry.js`, `phase-41-bn10-entry.spec.md` WI3, implemented
+    2026-08-17):** it writes/refreshes `bladeburner-slot-hold.json` every ≤10s, and its
+    `decideEntryAction` pure core ranks `hold` (a graft in flight) above every other decision —
+    including `join` — so nothing re-issues `graftAugmentation`/`commitCrime`/`travelToCity` while a
+    paid graft is running (A3/A3a in the spec). 44 unit tests cover the precedence/rail/replan
+    logic; `npm test` is green.
+  - **What is STILL open:** (1) `docs/bladeburner-reference.md` §8's slot-claimant table was **not**
+    updated to list grafting as the fifth claimant — that was spec WI4 (D-c), explicitly deferred as
+    an operational/doc step outside this implementation pass. (2) **Nothing here has run live** — the
+    spec's L1-L4 live gates (home RAM ≥64GB via WI1, the graft-hazard halt at L2, the actual
+    combat-100→join, and a `backdoorfactions.js` slot-theft check) all need the running game and
+    Kenneth's own validation, per the standing "RAM/log/live checks wait on his validation" rule.
+  - **Next action:** run WI1 (`upgradehomeramonce.js`) live, then `run bn10entry.js`, then work
+    through L1-L4. Once L2 (the graft-hazard halt) clears once, this entry can finally be deleted
+    and folded into the CHANGELOG as genuinely resolved.
 
-- **🔴 NEW 2026-08-15 — `Recruitment` is wired to a flag we closed permanently, so the engine can
+- **🟡 NEW 2026-08-17 — `bn10entry.js`'s graft budget is UNRESERVED against the fleet (spec R2a,
+  accepted risk, not mitigated).** The spec offered two options: wire a graft-budget reservation into
+  `resourcemanager.js`'s existing chain (the `AUGFARMER_RESERVE_FILE` precedent), or record an
+  explicit accepted-risk decision. This implementation took the second — `resourcemanager.js` is an
+  existing engine file, and the implementation task's scope was explicitly "adds new scripts only."
+  `cloudmanager.js` is documented spending **$5.08t in ~2.5 min** against `totalReserved: 0`, so a
+  fleet buy could in principle starve a graft the engine has already committed to (R2's `MONEY_FLOOR`
+  protects the FLEET from the grafter; nothing protects the grafter from the fleet).
+  - **Next action, if this bites live:** add a `bn10entry-reserve.json` reservation source to
+    `resourcemanager.js`, mirroring the `augfarmer-reserve.json` pattern exactly (read-only new
+    source, no behavior change to existing reservations).
   never build a team — and teams only matter for the one thing the engine doesn't do.**
   `pickOverheadAction` (`bladeburnermanager.js:669`) reads
   `if (stageBEnabled && teamSize < TEAM_SIZE_TARGET)`. `stageBEnabled` is **`false`**

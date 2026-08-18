@@ -6,6 +6,28 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-17
+
+- **Phase 41 (BN10 entry) WI2/WI3 IMPLEMENTED — `npm test` green (1406 → 1450, zero
+  regressions), but NOT yet live-validated.** `src/graftplanner.js` (the graft-ladder planner:
+  `expForLevel`/`remainingExp`/`planGraftLadder`, pure, unit-tested against a live BN10 fixture
+  and BN6's measured combat-gate cost) and `src/bn10entry.js` (the slot-owning entry engine:
+  `decideEntryAction`'s `hold > join > replan > graft > grind` precedence, `grind` as the sole
+  fallthrough, the graft-cancels-work hazard handled via the `hold` branch outranking `join`).
+  Full spec: `phase-41-bn10-entry.spec.md`.
+  - **B1 golden test corrected the features doc, on the escape hatch it named itself.**
+    Prerequisite filtering (Augmented Targeting II now correctly requires Augmented Targeting I)
+    reroutes the back half of the ladder — the true `totalHours` minimum moved from the
+    features doc's unfiltered k=7/$919m/9.6h to **k=9/$1.061b/9.91h**. The k=0..4 prefix
+    (HemoRecirculator, Wired Reflexes, Combat Rib I, Bionic Spine) matches the doc exactly.
+  - **NOT DONE, deliberately out of scope for this pass:** WI1 (buy the home-RAM tier live) and
+    WI4 (pause `augfarmer.js`, flip `ratchet-mode.txt`, add grafting to
+    `docs/bladeburner-reference.md`'s slot-claimant table) are operational/doc steps for Kenneth,
+    not code. **None of the spec's L1-L4 live gates have run** — this is unvalidated against the
+    real game. R2a's fleet-vs-grafter budget race is an accepted risk, not mitigated (see
+    BACKLOG.md). See the phase spec's own acceptance-criteria table for the full B/C-series
+    coverage map.
+
 ## 2026-08-16
 
 - **🏆 BN6.1 CLEARED — via the Bladeburner black-op ladder, all 21 ops, final rank 513,931.**
