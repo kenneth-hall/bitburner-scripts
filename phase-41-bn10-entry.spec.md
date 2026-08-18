@@ -378,6 +378,38 @@ bounds that exposure.
 
 ---
 
+## 7a. Post-join sequence -- ORDER MATTERS, and two steps are easy to forget
+
+Written 2026-08-17 during execution, after finding that `bladeburnermanager.js` is a **supervised
+resident companion gated on division membership** (`daemon.js` `BLADEBURNER_GATED_COMPANIONS`). It
+auto-launches the instant `joinBladeburnerDivision()` succeeds, claims the player-action slot, and
+starts grinding `Tracking`. That is desirable -- it is the win-condition engine -- but it makes the
+ordering load-bearing.
+
+1. 🔴 **Finish ALL grafts before joining.** A graft in flight when `bladeburnermanager.js` starts is
+   cancelled, and money is charged **up front**, so the loss is dollars, not just time. This is safe
+   by construction only because the ladder reaches combat 100 on grafts alone (k=4 leaves 0 exp to
+   grind) -- do not join early to "get started".
+2. **Join**, and verify with a subsequent `getRank()` rather than the boolean (C6).
+3. 🔴 **DELETE `src/cloud-upgrade-off.txt`.** It pauses all fleet growth, which IS this node`s
+   income. A forgotten pause is silent -- nothing alarms on it. (Created during the ladder because
+   R2a fired: the fleet ate $1.65b of graft budget in an hour.)
+4. **DELETE `src/augfarmer-pause.txt`** -- or consciously leave it, per Q41-5. Leaving it is
+   defensible (its scoring function targets a hacking win condition BN10 does not have); forgetting
+   it is not. Decide, do not drift.
+5. 🔴 **Z1 -- price the sleeve MEMORY upgrade (Q41-4).** Its wake condition is exactly this moment.
+   Memory is the only **BN10-exclusive, permanent-across-all-future-nodes** purchase in the game.
+   Either buy, or restate the deferral **with a new date**. Silently skipping it is the failure this
+   criterion exists to prevent.
+6. **Run the sleeve-parallelism probe** (`BACKLOG.md` top item) -- the assumption the whole BN10-next
+   ordering partly rests on, and it becomes measurable only now. One sleeve on `Take on contracts`
+   in the main character`s city; compare realised Tracking rank/h against the solo baseline.
+7. **Make the slot hold bidirectional.** `bladeburnermanager.js` *writes* `bladeburner-slot-hold.json`
+   but never reads it (spec 2.2`s logged gap). Survivable only pre-join; from here it is a live
+   conflict with every other claimant.
+
+---
+
 ## 8. Revision changelog
 
 **Rev 2 (2026-08-17)** — cold review returned **15 blocking issues**; all addressed, none disputed.
