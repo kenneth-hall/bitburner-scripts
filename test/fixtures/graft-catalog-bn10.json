@@ -1,0 +1,418 @@
+{
+  "provenance": {
+    "source": "src/graftrecon.js",
+    "logFile": "graftrecon-1786925861944.json",
+    "capturedIso": "2026-08-17T00:17:41.944Z",
+    "node": "BN10.1"
+  },
+  "note": "Combat-LEVEL-touching graftable augs as read live in BN10 on 2026-08-16. logs/ is gitignored, so this tracked copy is what test fixtures must use. PREREQUISITES ARE NOT CAPTURED HERE -- graftrecon.js did not read getAugmentationPrereq; planGraftLadder takes prereqs per candidate, so tests supply them explicitly.",
+  "playerAtCapture": {
+    "combatMults": {
+      "strength": 1.3824,
+      "defense": 1.3824,
+      "dexterity": 1.3824,
+      "agility": 1.3824
+    },
+    "entropy": 0,
+    "money": 3298808.97300044
+  },
+  "nodeMult": 0.4,
+  "candidates": [
+    {
+      "name": "Wired Reflexes",
+      "price": 7500000,
+      "graftHours": 0.7389311032067933,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1.05,
+        "agility": 1.05
+      }
+    },
+    {
+      "name": "LuminCloaking-V1 Skin Implant",
+      "price": 15000000,
+      "graftHours": 1.0206140046017522,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1,
+        "agility": 1.05
+      }
+    },
+    {
+      "name": "Augmented Targeting I",
+      "price": 45000000,
+      "graftHours": 0.29997095225760156,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1.1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Combat Rib I",
+      "price": 71250000,
+      "graftHours": 0.7705110215784847,
+      "mults": {
+        "strength": 1.1,
+        "defense": 1.1,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "LuminCloaking-V2 Skin Implant",
+      "price": 90000000,
+      "graftHours": 1.2638078304174356,
+      "mults": {
+        "strength": 1,
+        "defense": 1.1,
+        "dexterity": 1,
+        "agility": 1.1
+      }
+    },
+    {
+      "name": "INFRARET Enhancement",
+      "price": 90000000,
+      "graftHours": 1.0759352106329791,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1.1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Augmented Targeting II",
+      "price": 127500000,
+      "graftHours": 0.35903826221525215,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1.2,
+        "agility": 1
+      }
+    },
+    {
+      "name": "HemoRecirculator",
+      "price": 135000000,
+      "graftHours": 1.380074922815035,
+      "mults": {
+        "strength": 1.08,
+        "defense": 1.08,
+        "dexterity": 1.08,
+        "agility": 1.08
+      }
+    },
+    {
+      "name": "DermaForce Particle Barrier",
+      "price": 150000000,
+      "graftHours": 0.8435756485588844,
+      "mults": {
+        "strength": 1,
+        "defense": 1.4,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Combat Rib II",
+      "price": 195000000,
+      "graftHours": 0.7947580928137947,
+      "mults": {
+        "strength": 1.14,
+        "defense": 1.14,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "SmartSonar Implant",
+      "price": 225000000,
+      "graftHours": 1.0857029449728657,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1.1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "BrachiBlades",
+      "price": 270000000,
+      "graftHours": 1.2638078304174356,
+      "mults": {
+        "strength": 1.15,
+        "defense": 1.15,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Augmented Targeting III",
+      "price": 345000000,
+      "graftHours": 0.41337492010501153,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1.3,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Combat Rib III",
+      "price": 360000000,
+      "graftHours": 0.8181688894443624,
+      "mults": {
+        "strength": 1.18,
+        "defense": 1.18,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Nanofiber Weave",
+      "price": 375000000,
+      "graftHours": 1.0759352106329791,
+      "mults": {
+        "strength": 1.2,
+        "defense": 1.2,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Bionic Spine",
+      "price": 375000000,
+      "graftHours": 1.2712269843144122,
+      "mults": {
+        "strength": 1.15,
+        "defense": 1.15,
+        "dexterity": 1.15,
+        "agility": 1.15
+      }
+    },
+    {
+      "name": "Power Recirculation Core",
+      "price": 540000000,
+      "graftHours": 1.9712331174044757,
+      "mults": {
+        "strength": 1.05,
+        "defense": 1.05,
+        "dexterity": 1.05,
+        "agility": 1.05
+      }
+    },
+    {
+      "name": "Bionic Arms",
+      "price": 825000000,
+      "graftHours": 0.8839149894258945,
+      "mults": {
+        "strength": 1.3,
+        "defense": 1,
+        "dexterity": 1.3,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Bionic Legs",
+      "price": 1125000000,
+      "graftHours": 0.5543300358966852,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1,
+        "agility": 1.6
+      }
+    },
+    {
+      "name": "The Black Hand",
+      "price": 1650000000,
+      "graftHours": 1.3949952118692228,
+      "mults": {
+        "strength": 1.15,
+        "defense": 1,
+        "dexterity": 1.15,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Synfibril Muscle",
+      "price": 3375000000,
+      "graftHours": 0.8839149894258945,
+      "mults": {
+        "strength": 1.3,
+        "defense": 1.3,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "nextSENS Gene Modification",
+      "price": 5775000000,
+      "graftHours": 1.5753666964964679,
+      "mults": {
+        "strength": 1.2,
+        "defense": 1.2,
+        "dexterity": 1.2,
+        "agility": 1.2
+      }
+    },
+    {
+      "name": "Graphene BrachiBlades Upgrade",
+      "price": 7500000000,
+      "graftHours": 1.3544550587467776,
+      "mults": {
+        "strength": 1.4,
+        "defense": 1.4,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "HyperSight Corneal Implant",
+      "price": 8250000000,
+      "graftHours": 1.2652981621346775,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1.4,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Photosynthetic Cells",
+      "price": 8250000000,
+      "graftHours": 1.3800749228150349,
+      "mults": {
+        "strength": 1.4,
+        "defense": 1.4,
+        "dexterity": 1,
+        "agility": 1.4
+      }
+    },
+    {
+      "name": "Synthetic Heart",
+      "price": 8625000000,
+      "graftHours": 1.225444752444143,
+      "mults": {
+        "strength": 1.5,
+        "defense": 1,
+        "dexterity": 1,
+        "agility": 1.5
+      }
+    },
+    {
+      "name": "Neotra",
+      "price": 8625000000,
+      "graftHours": 1.2785659295713063,
+      "mults": {
+        "strength": 1.55,
+        "defense": 1.55,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "NEMEAN Subdermal Weave",
+      "price": 9750000000,
+      "graftHours": 0.7705110215784847,
+      "mults": {
+        "strength": 1,
+        "defense": 2.2,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Graphene Bionic Arms Upgrade",
+      "price": 11250000000,
+      "graftHours": 1.1234263064001067,
+      "mults": {
+        "strength": 1.85,
+        "defense": 1,
+        "dexterity": 1.85,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Graphene Bone Lacings",
+      "price": 12750000000,
+      "graftHours": 1.0660248766025042,
+      "mults": {
+        "strength": 1.7,
+        "defense": 1.7,
+        "dexterity": 1,
+        "agility": 1
+      }
+    },
+    {
+      "name": "Xanipher",
+      "price": 12750000000,
+      "graftHours": 2.0316147468908854,
+      "mults": {
+        "strength": 1.2,
+        "defense": 1.2,
+        "dexterity": 1.2,
+        "agility": 1.2
+      }
+    },
+    {
+      "name": "Graphene Bionic Legs Upgrade",
+      "price": 13500000000,
+      "graftHours": 0.8572901720659639,
+      "mults": {
+        "strength": 1,
+        "defense": 1,
+        "dexterity": 1,
+        "agility": 2.5
+      }
+    },
+    {
+      "name": "SPTN-97 Gene Modification",
+      "price": 14625000000,
+      "graftHours": 1.6595007444044862,
+      "mults": {
+        "strength": 1.75,
+        "defense": 1.75,
+        "dexterity": 1.75,
+        "agility": 1.75
+      }
+    },
+    {
+      "name": "CordiARC Fusion Reactor",
+      "price": 15000000000,
+      "graftHours": 1.8506149921359178,
+      "mults": {
+        "strength": 1.35,
+        "defense": 1.35,
+        "dexterity": 1.35,
+        "agility": 1.35
+      }
+    },
+    {
+      "name": "Graphene Bionic Spine Upgrade",
+      "price": 18000000000,
+      "graftHours": 1.4954101745384516,
+      "mults": {
+        "strength": 1.6,
+        "defense": 1.6,
+        "dexterity": 1.6,
+        "agility": 1.6
+      }
+    },
+    {
+      "name": "Hydroflame Left Arm",
+      "price": 7500000000000,
+      "graftHours": 0.9342228768882263,
+      "mults": {
+        "strength": 2.8,
+        "defense": 1,
+        "dexterity": 1,
+        "agility": 1
+      }
+    }
+  ]
+}
