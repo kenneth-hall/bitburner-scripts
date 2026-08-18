@@ -14,9 +14,9 @@
  * Route (b) would skip the entire faction+install detour, so which route work item 2 takes
  * turns on whether grafting is live and what it can actually buy.
  *
- * ⚠️ THE REASON THIS IS A PROBE AND NOT AN ASSUMPTION: docs/grafting.md records that in BN1
+ * THE REASON THIS IS A PROBE AND NOT AN ASSUMPTION: docs/grafting.md records that in BN1
  * (2026-07-11) the grafting clinic did NOT appear at VitaLife/New Tokyo in this fork, unlock
- * condition unconfirmed. sleeve-grafting-reference.md §7 says grafting "should be available in
+ * condition unconfirmed. sleeve-grafting-reference.md 7 says grafting "should be available in
  * BN10, but verify before planning around it." This verifies it.
  *
  * Also prices the ENTROPY tax, which is the catch: every graft applies a compounding ~2%
@@ -72,7 +72,7 @@ export async function main(ns) {
   rec.graftableCount = Array.isArray(catalog) ? catalog.length : null;
   rec.graftingAvailable = Array.isArray(catalog) && catalog.length > 0;
 
-  // ⚠️ getGraftableAugmentations does NOT filter by money or prerequisites (reference §7),
+  // getGraftableAugmentations does NOT filter by money or prerequisites (reference 7),
   // so this list is the catalog, not a shopping list. Affordability is computed below.
   rec.augs = [];
   for (const augName of catalog || []) {
@@ -102,6 +102,11 @@ export async function main(ns) {
           combatFactor *= multStats[k];
         }
       }
+      // DEPRECATED 2026-08-17 -- DO NOT USE FOR PLANNING. This multiplies the four combat
+      // stats' multipliers TOGETHER, which credits a one-stat aug as if it lifted all four. The
+      // gate binds on the WORST stat, so this overstated the graft ladder by ~13x (it implied a
+      // 45x exp collapse; the correct per-stat model gives ~3.5x). Kept only so old logs remain
+      // parseable. src/graftplanner.js has the correct per-stat model -- use that.
       row.combatLevelFactor = combatFactor;
       row.touchesCombatLevel = combatFactor !== 1;
     } catch (err) {

@@ -64,32 +64,25 @@
  *   S-1 crime = Mug (expires 2026-08-19). S-2 focused = true (expires 2026-08-19).
  *   S-3 sleeve task left unchanged (expires at L2). S-4 entropy debuff accepted (2026-08-20).
  *
- * RAM budget (spec Section 5, gate <=24 GB) -- EXPECTED itemisation, NOT a measured figure
- * (no running game in this implementation pass; verify live with `mem bn10entry.js`):
+ * RAM budget -- MEASURED LIVE 2026-08-17, not estimated.
  *   graftAugmentation           7.50 GB
  *   commitCrime                 5.00 GB
- *   travelToCity                2.00 GB
  *   joinBladeburnerDivision     4.00 GB
- *   getCurrentWork              0.50 GB
- *   ns.exec (launch the planner on the fleet)   1.30 GB
- *   ns.scp (push graftplanner.js to that host first, daemon.js's own worker-deploy pattern)
- *                                1.30 GB (assumed same class as ns.exec; NOT independently
- *     confirmed against markdown/ in this pass)
- *   ns.cloud.getServerNames (A1a host discovery)    ~0.10 GB (uncertain -- not independently
- *     confirmed against markdown/ in this pass; this file's own RAM is the thing to check
- *     first if `mem bn10entry.js` disagrees with this estimate)
- *   ns.getServerMaxRam / ns.getServerUsedRam (A1a host free-RAM check)   ~0.10 GB combined
- *   getPlayer / ns.read / ns.write / ns.fileExists / ns.sleep / base   ~1.60 GB
+ *   bladeburner.getRank         4.00 GB  <- C6 verification; the spec Section 5 table OMITTED
+ *                                           this, which is half of why the first build missed.
+ *   travelToCity                2.00 GB
+ *   base + getPlayer + getCurrentWork + rm + fileExists + file IO   ~3.30 GB
  *   ------------------------------------------------
- *   ~23.4 GB expected, gate 24 GB -- CLOSE TO THE GATE. WARNING: The ns.scp/ns.cloud/
- *   getServerMaxRam/getServerUsedRam quartet is the ADDITION beyond the spec's own Section 5
- *   table (which covers A1's planner-dispatch need only in the vague "exec + base + file IO
- *   ~2.60" bucket) -- flagged explicitly because it is the itemisation most likely to need
- *   correction after a live `mem` read, and the one most likely to blow the 24GB gate if any
- *   of these estimates run hot. If `mem bn10entry.js` exceeds 24GB, the first thing to try is
- *   dropping ns.scp by pre-seeding graftplanner.js onto every fleet host once (e.g. via
- *   cloudmanager.js's existing provisioning step) instead of scp'ing it here per replan.
+ *   25.80 GB measured after the A1a removal below (28.85 GB before it).
  *
+ * THE FIRST BUILD FAILED THIS GATE ON MEASUREMENT: 28.85 GB against a 24 GB spec gate.
+ *   Two causes, both spec defects rather than implementation defects:
+ *     (1) the Section 5 table never counted bladeburner.getRank, which C6 itself requires;
+ *     (2) A1a (executor dispatches the planner to a fleet host) cost 3.05 GB across
+ *         cloud.getServerNames + getServerMaxRam + getServerUsedRam + scp + exec.
+ *   A1a is now WITHDRAWN (see requestReplan below). The gate is re-derived to <=26 GB from
+ *   this measurement plus its purpose -- fitting on home beside daemon.js and companions --
+ *   NOT bent to whatever the code happened to need.
  * IDENTIFIER HYGIENE. No local/property/object-key name here is `graft`, `work`, `exec`,
  * `share`, `read`, `write`, `kill`, `run`, `ls`, `ps`, `scan`, `hack`, `grow`, `tail`,
  * `window`, or any other real `ns`/DOM global name.
@@ -136,7 +129,7 @@ export const GRAFT_VERIFY_MS = 8_000;
 export const JOIN_RETRY_CADENCE_MS = 5_000;
 
 export const PLANNER_SCRIPT = "graftplanner.js";
-export const PLANNER_RAM_NEEDED_GB = 30; // matches WI2's B6 gate
+export const REPLAN_REQUEST_FILE = "graft-replan-request.txt"; // executor -> human/supervisor handoff
 
 export const POLL_MS = 3_000;
 
@@ -405,40 +398,26 @@ function readCombatExp(ns) {
   };
 }
 
-/** A1a: find a fleet host with enough free RAM to host the planner. home is never a candidate. */
-function pickPlannerHost(ns) {
-  let hostNames;
+/**
+ * A1a WITHDRAWN 2026-08-17 on a MEASURED RAM failure. This used to discover a fleet host
+ * (ns.cloud.getServerNames + getServerMaxRam/UsedRam), ns.scp the planner there and ns.exec it.
+ * Live `mem` read 28.85 GB against a 24 GB gate, and that quartet plus ns.exec is 3.05 GB of it.
+ * The mechanism was already the weakest part of the design -- cold-review blocker 9 noted that
+ * "planner and executor must never run concurrently" is unachievable when the executor is a
+ * resident holding its own RAM whether idle or not.
+ *
+ * Replaced by a REQUEST FILE. The executor launches nothing; it records that its plan is stale
+ * and keeps executing the plan it already has. graftplanner.js is started separately (by hand or
+ * by daemon.js supervisor), which makes "never concurrent" true by construction rather than by
+ * a rule with no enforcement.
+ */
+function requestReplan(ns, logEvent, reason) {
   try {
-    hostNames = ns.cloud.getServerNames();
+    ns.write(REPLAN_REQUEST_FILE, JSON.stringify({ ts: Date.now(), reason }), "w");
   } catch {
-    return null;
+    // A failed request is not fatal -- the stale plan is still executable.
   }
-  for (const hostName of hostNames) {
-    const maxRam = ns.getServerMaxRam(hostName);
-    const usedRam = ns.getServerUsedRam(hostName);
-    if (maxRam - usedRam >= PLANNER_RAM_NEEDED_GB) return hostName;
-  }
-  return null;
-}
-
-async function launchPlanner(ns, logEvent) {
-  const hostName = pickPlannerHost(ns);
-  if (!hostName) {
-    logEvent("planner-no-host", "no fleet host has " + PLANNER_RAM_NEEDED_GB + "GB free");
-    return false;
-  }
-  try {
-    await ns.scp(PLANNER_SCRIPT, hostName);
-  } catch {
-    logEvent("planner-scp-failed", hostName);
-    return false;
-  }
-  const pidLaunched = ns.exec(PLANNER_SCRIPT, hostName, 1);
-  if (!pidLaunched) {
-    logEvent("planner-exec-failed", hostName);
-    return false;
-  }
-  logEvent("replan-launched", hostName);
+  logEvent("replan-requested", reason);
   return true;
 }
 
@@ -591,7 +570,7 @@ export async function main(ns) {
       case "replan": {
         refreshSlotHold(ns);
         refreshLock(ns);
-        await launchPlanner(ns, logEvent);
+        requestReplan(ns, logEvent, decision.reason);
         // No blocking wait -- the loop falls through to a live decision next tick regardless
         // of whether the planner produced a fresh file in time. If it never gets a host,
         // decideEntryAction still has `grind` as its sole fallthrough (C2), so this tick's

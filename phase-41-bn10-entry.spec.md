@@ -49,7 +49,14 @@ it.**
 - `graftplanner.js` — pays catalog/price/time/stats/prereq RAM once, writes the plan, **exits**.
 - `bn10entry.js` — resident, reads the plan, owns the slot, never reads the catalog.
 
-**A1a — the planner runs on the FLEET, not home.** Singularity and Grafting calls carry no
+**A1a — 🔴 WITHDRAWN 2026-08-17 (measured RAM failure).** ~~The planner runs on the FLEET, not home.~~
+It cost **3.05 GB** in the executor and was already cold-review blocker 9 ("never run concurrently"
+is unachievable when the executor is a resident holding its RAM whether idle or not). **Replaced by
+a request file:** the executor writes `graft-replan-request.txt` and keeps running its existing
+plan; `graftplanner.js` is launched separately (by hand or by `daemon.js`'s supervisor), which makes
+"never concurrent" true **by construction** rather than by an unenforceable rule.
+
+[SUPERSEDED] **A1a — the planner runs on the FLEET, not home.** Singularity and Grafting calls carry no
 home-only requirement (`upgradehomeramonce.js`'s header records this). The executor `exec`s it to a
 fleet host with enough free RAM. ⚠️ Revision 1 said "exec when idle"; a resident holds its RAM
 whether idle or not, so that was unachievable. If no fleet host fits, the executor logs
@@ -247,7 +254,15 @@ admissible); **or** `entropy` differs from the plan's recorded value; **or** pla
   money, entropy, current action kind, decision + reason. 🔑 **Exp-vs-elapsed is the required
   content** — revision 1 asked only for "decisions with reasons", which could pass while leaving
   Q41-2 (is Mug best?) and the 2.62-vs-1.84 exp/sec discrepancy unanswerable.
-- C5. RAM ≤ **24 GB** (`mem bn10entry.js`), itemised in §5.
+- C5. RAM ≤ **26 GB** (`mem bn10entry.js`), itemised in §5. 🔴 **Re-derived 2026-08-17 from a live
+  measurement, and the reason matters.** The first build measured **28.85 GB** against revision 2's
+  ≤24 GB. Both causes were **spec** defects, not implementation ones: §5's table never counted
+  `bladeburner.getRank` (4.00 GB) which **C6 itself requires**, and **A1a** cost 3.05 GB across
+  `cloud.getServerNames` + `getServerMaxRam` + `getServerUsedRam` + `scp` + `exec`. A1a is now
+  **withdrawn** (below); the rebuilt script measures **25.80 GB**. ⚠ The gate is re-derived from the
+  measurement *and its purpose* — fitting on home beside `daemon.js` and companions at 160 GB — not
+  bent to whatever the code happened to need. Had the code merely been over budget with no design
+  change, the correct move would have been cutting the code.
 - C6. `joinBladeburnerDivision()` returning `false` is retried on a bounded cadence and logged
   distinctly from a thrown call; success is confirmed by a subsequent `getRank()`, not the boolean.
 
