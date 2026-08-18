@@ -41,7 +41,7 @@
  *
  * WARNING: EMPIRICAL QUESTION LEFT OPEN (spec WI2, "must determine this empirically before
  * shipping"): does ns.getPlayer().mults already include the entropy debuff? This file
- * ASSUMES NOT -- entropy is applied separately, as entropyPerGraft^k, matching
+ * ANSWERED 2026-08-17: IT DOES. Live mults carry the debuff, so main() divides it back out
  * graftrecon.js's existing model (which computes its raw combat factor from
  * getAugmentationStats and applies entropy as a SEPARATE multiplier, never reading it out of
  * player.mults). That assumption is inherited from precedent, not independently re-verified
@@ -264,11 +264,22 @@ export async function main(ns) {
   const outRecord = { ts: Date.now(), iso: new Date().toISOString(), schemaVersion: SCHEMA_VERSION };
 
   const player = ns.getPlayer();
+  // MEASURED 2026-08-17 (logs/graftone-1787021054487.json), and it CORRECTS this file's
+  // original assumption. ns.getPlayer().mults ALREADY INCLUDES the entropy debuff:
+  // HemoRecirculator is a raw x1.08 per combat stat, and at entropy 1 the observed delta was
+  // exactly x1.0584 = 1.08 * 0.98. The header used to assume the opposite and flagged that, if
+  // wrong, this file would DOUBLE-COUNT entropy. It was wrong, so it did.
+  //
+  // Harmless on a first plan at entropy 0 (0.98^0 = 1), silently compounding on every REPLAN
+  // after a graft -- which is exactly the failure mode the spec asked to be checked. planGraftLadder
+  // models entropy itself as entropyPerGraft^k over FUTURE grafts, so it must be handed
+  // entropy-FREE base mults. Divide the already-applied debuff back out here.
+  const appliedEntropyFactor = Math.pow(ENTROPY_PER_GRAFT, player.entropy || 0);
   const currentMults = {
-    strength: player.mults.strength,
-    defense: player.mults.defense,
-    dexterity: player.mults.dexterity,
-    agility: player.mults.agility,
+    strength: player.mults.strength / appliedEntropyFactor,
+    defense: player.mults.defense / appliedEntropyFactor,
+    dexterity: player.mults.dexterity / appliedEntropyFactor,
+    agility: player.mults.agility / appliedEntropyFactor,
   };
   const banked = {
     strength: player.exp.strength,
