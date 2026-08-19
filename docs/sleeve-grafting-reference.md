@@ -149,7 +149,15 @@ mistake as reading a method list as an interface.
 ## 5. Sleeve augmentations
 
 - 🔴 **Shock must be exactly 0** before any aug can be bought for that sleeve. Confirmed live:
-  *Manage Augmentations* is inert at shock 23.4.
+  *Manage Augmentations* is inert at shock 23.4. `sleevemanager.js` surfaces this as `augReady`.
+- 🔑 **TIMING CONSEQUENCE, measured 2026-08-19: buy sleeve augs EARLY or not at all.** Because
+  installing one **resets the sleeve's stats**, the reset cost grows with every hour the sleeve
+  works. A sleeve on bonus time climbed **26 → 43 combat in ~20 minutes**; the same aug bought a
+  day later throws away far more. **The cheapest moment to buy is the first moment shock hits 0.**
+- ⚠️ **Shock is not monotonic — it can RISE.** Observed 0 at 2026-08-18T13:50Z, **5.384** at
+  00:42Z, then back to **0** by 01:03Z while committing crime. Cause unconfirmed (hospitalisation
+  is the obvious candidate — HP read 2/12 throughout). §9's open-question list treats shock decay
+  as the only direction; that is incomplete.
 - **Excluded outright:** *"Bladeburners-specific ones and NeuroFlux Governor are not available for
   sleeves."* ⚠️ **Directly relevant to us** — the Bladeburner aug catalog cannot be bought for
   sleeves, so the ×1.92 stack measured in BN6 does not transfer to them.
@@ -175,8 +183,24 @@ three sleeve-only specials (`SpecialBladeburnerActionEnumTypeForSleeve`):
 - The in-game guide says *"Contract/op generation is slow → **Sleeves help**"* and sleeves are
   *"great with Gang/Bladeburner"*.
 
-### 🚨 THE OPEN QUESTION THAT THE NODE ORDER RESTS ON
+### 🔴 ANSWERED 2026-08-18 — THEY COMPETE. Do not put a sleeve on contracts.
 
+**Measured** (`src/sleevepoolprobe.js`, `logs/sleevepoolprobe-*.json`, engine paused for clean
+attribution): a single sleeve on Tracking drained the **same** `countRemaining` pool at
+**0.308/min** and **~0.34/min** across two runs, against a measured **0.499/min** regeneration —
+**62–68% of the pool's entire regrowth consumed by one actor.** Sleeve contracts **compete for
+supply; they do not add throughput.** `src/sleevemanager.js` therefore never sets a Bladeburner
+task, by design.
+- ⚠️ **The rank half was never tested.** `rankDelta` reads 0 in the **idle control phase too** —
+  the engine was paused, so player rank could not move in either phase — and the probe self-reports
+  `INCONCLUSIVE` (`taskHeldSamples: 0` of 36). **The drain is the only real signal.**
+- 📌 **A CONTROL THAT CANNOT MOVE IS NOT A CONTROL.** Check the baseline could have shown the
+  effect before treating its absence as a result.
+- ⚠️ **`getTask` read `null` on all 36 samples while the counter drained** — the instrument cannot
+  currently observe a sleeve's Bladeburner task at all. Any re-test needs that fixed first, plus a
+  **live** engine.
+
+[SUPERSEDED — the question as it stood]
 **Do sleeve contracts ADD rank throughput, or COMPETE for the same supply?** BN6 measured
 `Tracking` **supply-capped at ~30 actions/hour** (`countRemaining` pinned at 1.00), and `Tracking`
 was **~100% of all rank earned**. If contract regeneration is a **per-city pool** rather than

@@ -95,6 +95,7 @@ export default defineConfig({
         if (file === 'gang-state.json') return 'logs/gang-state.json'; // Phase 27 Tier 1 -- gangmanager.js overwrite-in-place snapshot + restart-persistence source
         if (file === 'gang-log.json') return 'logs/gang-log.json'; // Phase 27 Tier 1 -- gangmanager.js ring-capped event log (recruit/promote/demote/sink/startup/off-marker)
         if (file === 'bladeburner-state.json') return 'logs/bladeburner-state.json'; // Phase 38 Slice B -- bladeburnermanager.js overwrite-in-place snapshot
+        if (file === 'sleeve-state.json') return 'logs/sleeve-state.json'; // src/sleevemanager.js -- overwrite-in-place sleeve snapshot (task/sync/shock/stats/augReady), the watcher that catches an idled sleeve
         if (file === 'bladeburner-log.json') return 'logs/bladeburner-log.json'; // Phase 39 -- bladeburnermanager.js ring-capped event log (startup/off-marker/yield-grant/yield-reclaim/quarantine/crossover/checkpoint/warn/skill-buy)
         if (file === 'bladeburner-attempts.json') return 'logs/bladeburner-attempts.json'; // Phase 39 (S7) -- bladeburnermanager.js per-attempt diagnostic ledger (startAction call + verification outcome, predicted vs realised EV)
         if (/^switchbbcity-\d+\.json$/.test(file)) return `logs/${file}`; // src/switchbbcity.js -- one-off Bladeburner city move + the Q5 switchCity cost measurement, one file per run
