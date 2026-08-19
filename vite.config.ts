@@ -129,6 +129,7 @@ export default defineConfig({
         if (/^graftvsbuy-\d+\.json$/.test(file)) return `logs/${file}`; // src/graftvsbuy.js -- purchase price vs graft price vs rep req per graftable aug (the graft-vs-install premium), one file per run
         if (/^sleevememprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevememprobe.js -- Z1: prices the BN10-exclusive permanent sleeve memory upgrade, one file per run
         if (/^sleevebbprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevebbprobe.js -- THE sleeve-parallelism A/B the BN10-next ordering rests on (per-actor vs per-city contract pool), one file per run
+        if (/^sleevepoolprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevepoolprobe.js -- DIRECT pool observation (does a sleeve completion decrement countRemaining), replaces the noisy rate A/B, one file per run
         if (/^graftrecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/graftrecon.js -- is grafting live in BN10, which grafts move the combat mult, with the entropy tax carried, one file per run
         if (/^sleeverecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleeverecon.js -- BN10 sleeve census (sync/shock/memory/prices/tasks), one file per run
         if (/^sleevesyncprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevesyncprobe.js -- A/B measurement of how much sleeve exp actually reaches the player, one file per run
