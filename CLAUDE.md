@@ -18,10 +18,31 @@ on request — hold to them even when the moment is uncomfortable.
     (redo-tax derivation, cold audit, in-game guide). Estimate **~18 days (13–26)** via the
     Bladeburner path; hacking is **not** viable here (gate ~6,000 at 35% — BN6 measured that exact
     combination at 240–323 days). Full reasoning: `docs/bitnodes.md` § "Node order, re-derived".
-  - 🚨 **FIRST THING TO RUN: the sleeve-parallelism probe** (`BACKLOG.md`). The order's weakest plank
-    is that sleeves add rank throughput rather than competing for `Tracking`'s ~30 actions/h supply
-    cap. The in-game guide supports it (*"Contract/op generation is slow → Sleeves help"*) but it is
-    still **unmeasured**, and it could not be measured until we were in this node.
+  - **✅ ENTRY GATE CLEARED 2026-08-18 — in the Bladeburner division, rank grind live.** Combat
+    **91 → 109** (gate 100) via **two grafts**, not a multi-day crime grind;
+    `joinBladeburnerDivision()` verified through a subsequent `getRank()`. **Phase 41 is CLOSED**
+    (`docs/phases/phase-41-bn10-entry.spec.md`). `bladeburnermanager.js` auto-launched and is
+    grinding. **Next: the same shape as BN6 — rank to 400,000, then all 21 black ops via
+    `bbskillbuy.js` + `bbblackop.js`.** ⚠️ Rank 400,000 is a GATE, not the win condition.
+  - 🔑 **GRAFTING IS THE CHEAP ROUTE, and this file previously implied the opposite.** Measured
+    across all 97 graftable augs: **graft price = 0.600 × purchase price, with ZERO reputation**.
+    Its real costs are **Entropy** (exactly `0.98^k` on *every* multiplier, cleared only by an
+    install) and **serial focused time**. ⚠️ `getPlayer().mults` **already includes** that debuff —
+    a planner applying `0.98^k` on top double-counts. Full mechanic:
+    **`docs/grafting-reference.md`** (authoritative; `docs/grafting.md` is superseded).
+  - 🚨 **THE ORDER'S WEAKEST PLANK IS NOW MEASURED, AND IT LOOKS BAD FOR SLEEVES.** The claim was
+    that sleeves add rank throughput rather than competing for `Tracking`'s supply cap. Measured
+    2026-08-18 with the engine paused so attribution was clean: a sleeve on Tracking drained
+    **0.308/min of the SAME counter** (62% of its 0.498/min regeneration) and produced **zero
+    player rank** over 10 minutes. ⚠️ **Not yet conclusive** — the sleeve's task ended mid-window,
+    so "no rank" may be "no completions"; a sampled re-run is in flight. **Do not restate the
+    sleeve-parallelism thesis as supported.** Also note **sleeve #2 costs $10t** and we hold one,
+    so even a positive result is bounded by a single extra actor.
+  - **Sleeve memory (BN10-EXCLUSIVE, permanent across all future nodes) priced and DEFERRED,
+    expires 2026-08-25:** +1 memory is **$1.000t** (47.8× the bankroll at the join), the +99 cap
+    **$305t**. 🔑 Devalued by a finding: sync reached its **100 cap on its own** during the graft
+    ladder (27.17 → 100) and shock decayed **21.18 → 0**, so the head start memory buys is
+    obtainable free with idle time.
   - ⚠️ **Nothing carried over but Source-Files and scripts.** BN6's 513,931 rank and 260/260 skills
     are **gone** — they are node-local. Expect to re-grind from 0.
   - 📌 **Before quoting any ETA, read `docs/estimation-calibration.md`.** BN6's only comparable
