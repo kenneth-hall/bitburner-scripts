@@ -6,6 +6,35 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-18
+
+- **✅ PHASE 41 SHIPPED AND CLOSED — BN10 entry gate cleared, Bladeburner joined.** Combat
+  **91 → 109** on **two** grafts; `joinBladeburnerDivision()` verified via a subsequent
+  `getRank()`. Docs graduated to `docs/phases/`. Full done-vs-left record in that spec's
+  **Close-out** section.
+  - 🔴 **The engine the phase built never ran.** `bn10entry.js` is complete and unit-tested, but
+    the gate was cleared **by hand** with `graftone.js` — deliberately, because grafting charges up
+    front and accrues irreversible Entropy while the engine's live loop had never executed. Its
+    value is **BN9 reuse**, which is what §1 argued; record it as a *deferred* payoff, and treat
+    `bn10entry.js` as **unvalidated until a live loop runs**.
+  - 🔑 **What actually paid off was measurement, and one result overturns prior planning:**
+    **graft price = 0.600 × purchase price, constant across all 97 augs, with ZERO reputation** —
+    grafting is the *cheap* route, not the expensive one this phase assumed while planning.
+    Also: **`getPlayer().mults` already includes the Entropy debuff** (a live double-counting
+    defect in `graftplanner.js`, found by measuring), and **`getAugmentationGraftTime` is reliable
+    when focused** (ratio 1.001 twice) despite the API doc saying otherwise.
+  - **New durable asset: [`docs/grafting-reference.md`](../grafting-reference.md)** — authoritative
+    for the mechanic, incl. the graft-vs-install framework, the Entropy model, and the in-game rule
+    that graft prerequisites need only be *queued*, not installed.
+  - **Re-planning beat planning:** at combat 96 the remaining ladder collapsed from 3 grafts to 1
+    (saving ~$79m, ~1.5 h and two Entropy points). Grafts change the *requirement*, so re-derive
+    after each one.
+  - New scripts: `graftrecon.js`, `graftvsbuy.js`, `graftone.js`, `graftplanner.js`,
+    `bn10entry.js`, `sleeverecon.js`, `sleevesyncprobe.js`, `sleevememprobe.js`,
+    `sleevebbprobe.js`, `sleevepoolprobe.js`. 1450 tests green.
+
+---
+
 ## 2026-08-17
 
 - **Phase 41 (BN10 entry) WI2/WI3 IMPLEMENTED — `npm test` green (1406 → 1450, zero

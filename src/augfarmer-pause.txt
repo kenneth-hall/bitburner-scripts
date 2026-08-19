@@ -1,0 +1,3 @@
+paused 2026-08-17 -- Phase 41 BN10 entry grafting owns the player-action slot.
+Grafting cancels in-flight work and charges money UP FRONT, so augfarmer faction
+work taking the slot mid-graft burns money, not just time. Delete to resume.

@@ -523,7 +523,7 @@ parallelism case collapses to its bare 1.25× tax advantage.
   works. ⚠️ **The ordering rationale below calls sleeves a "throughput tool" without carrying that
   price into the argument** — the throughput is real but **money-gated**, and at a fresh-node
   bankroll it is not available at the moment the gate needs it. Measured entry state and the
-  sleeve→player transfer figure: `phase-41-bn10-entry.features.md` §2.
+  sleeve→player transfer figure: `phases/phase-41-bn10-entry.features.md` §2.
 - **Cheap probe, first thing in the node after BN10:** run one sleeve on `Take on contracts`
   (Tracking) in the **same city** as the main character for ~15 min and compare the main character's
   realised Tracking rank/h against its solo baseline. Both at full rate ⇒ parallelism works. Main

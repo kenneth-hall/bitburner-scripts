@@ -461,3 +461,56 @@ an unbuyable step); planner moved to the fleet (the "never concurrent" rule was 
 budget reservation; B1's fixture inputs sourced; pure-function types pinned to 4-tuples; L2 made
 code-enforced and extended to duration and price; L4 retargeted from a vacuous claimant to the real
 one; dates restored to every open question.
+
+---
+
+## 9. Close-out — 2026-08-18
+
+**Deliverable MET.** `joinBladeburnerDivision()` returned `joined=true inBladeburner=true`, verified
+by a subsequent `getRank()` succeeding. Combat **91 → 109** (gate 100) on **two** grafts.
+
+### Done vs left
+
+| Work item | Status |
+|---|---|
+| WI1 home RAM | ✅ home reached 160 GB; full companion set resident |
+| WI2 `graftplanner.js` | ✅ shipped, and it **independently reproduced the hand-computed ladder to the dollar** |
+| WI3 `bn10entry.js` | ⚠️ **shipped but never ran live** — see below |
+| WI4 engine alignment | ✅ `augfarmer` paused, `cloudmanager` paused/unpaused around the ladder, grafting registered as the fifth slot claimant |
+| Z1 sleeve memory | ✅ priced and deferred with a date (§7b) |
+| L2 measurement gate | ✅ all three questions answered, one defect found |
+
+### 🔴 The honest result: the engine this phase built was not used to clear the gate
+
+`bn10entry.js` is complete and unit-tested, but the gate was cleared **by hand** with
+`graftone.js` before it ever ran. Two reasons, both deliberate:
+1. Grafting charges **up front** and accumulates irreversible Entropy, and the engine's *live loop*
+   had never executed. Phase 40's lesson — *a mechanism can be wrong while the code is right* — made
+   a hand-driven, instrumented first graft the right call.
+2. **Re-planning after each graft collapsed the remaining work faster than the engine could have
+   consumed it.** At combat 96 the ladder went from 3 grafts to **1**.
+
+**So the phase's own §1 objection was correct:** this was mostly a one-time event, and the engine's
+value is **BN9 reuse**, not BN10. That is not waste — BN9 is a Bladeburner node and rank is
+node-local, so the gate recurs from zero — but it should be recorded as a *deferred* payoff, not a
+realised one. ⚠️ **`bn10entry.js` has never executed a live loop. Treat it as unvalidated until it
+does.**
+
+### What actually paid off: the measurements
+
+- **Graft price = 0.600 × purchase price, constant across all 97 augs, with zero reputation.**
+  Grafting is the *cheap* route — the opposite of what this phase assumed while planning.
+- **`getPlayer().mults` already includes the Entropy debuff** — found by measurement, and it was a
+  live double-counting defect in `graftplanner.js`.
+- **`getAugmentationGraftTime` is reliable when focused** (ratio 1.001 on both grafts), despite the
+  API doc's explicit warning. The k-selection minimum rests on it, so this mattered.
+- All of it is now in **[`docs/grafting-reference.md`](../grafting-reference.md)**, the durable asset.
+
+### Carried forward
+- **Q41-5** (what the aug ratchet is *for*) — default moved to "retire unless breadth is needed", on
+  the price evidence. Still open.
+- **Q41-1** (Entropy vs batcher income) — never bit; entropy stopped at 2. Expires 2026-08-20.
+- **S-3** (sleeve task) — resolved by accident: sync reached its **100 cap** and shock hit **0**
+  unattended during the ladder.
+- **The slot hold is still one-directional** (`bladeburnermanager.js` writes but never reads it).
+  Pre-join this was harmless; it is now live. → `BACKLOG.md`.

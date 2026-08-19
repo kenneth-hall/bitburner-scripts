@@ -44,7 +44,7 @@ do, and what's broken?*
     Tracking rank/h against its solo baseline. Both at full rate ⇒ parallelism works. Main drops
     while the sleeve gains ⇒ shared pool, revisit the ordering.
   - Full context: `docs/bitnodes.md` § "Node order, re-derived after actually running Bladeburner";
-    measured entry state in `phase-41-bn10-entry.features.md` §2.
+    measured entry state in `docs/phases/phase-41-bn10-entry.features.md` §2.
 
 - **🟡 UPDATED 2026-08-17 — the player-action-slot contention is FIVE-way (grafting is the fifth),
   and Phase 41 WI3's `bn10entry.js` now claims the slot for it — but this is CODE, not a live
@@ -52,7 +52,7 @@ do, and what's broken?*
   graft takes the same single slot as `bladeburnermanager.js`, `augfarmer.js` (faction work),
   `backdoorfactions.js` and `backdoorwd.js` — and unlike those four it also blocks the **combat
   crime grind**, which is the BN10 entry critical path.
-  - **What shipped (`src/bn10entry.js`, `phase-41-bn10-entry.spec.md` WI3, implemented
+  - **What shipped (`src/bn10entry.js`, `docs/phases/phase-41-bn10-entry.spec.md` WI3, implemented
     2026-08-17):** it writes/refreshes `bladeburner-slot-hold.json` every ≤10s, and its
     `decideEntryAction` pure core ranks `hold` (a graft in flight) above every other decision —
     including `join` — so nothing re-issues `graftAugmentation`/`commitCrime`/`travelToCity` while a
