@@ -8,6 +8,30 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ## 2026-08-18
 
+- **🔴 SLEEVE-PARALLELISM CLOSED ON EVIDENCE — the BN10 order's weakest plank does not hold.**
+  Two probes (`src/sleevepoolprobe.js`) measured one sleeve on Tracking draining the **same**
+  `countRemaining` pool at **0.308/min** and **~0.34/min** against **0.499/min** regeneration —
+  **62–68% of its entire regrowth.** Sleeves **compete** for Bladeburner contract supply; they do
+  not parallelise it. **BN10-next is unaffected** (it stands on the 1.25× redo-tax alone), and
+  nothing is actionable in-node — this closes a *claim*, not a plan.
+  - ⚠️ **The rank half was never tested; the earlier "zero player rank" reading is WITHDRAWN.**
+    `rankDelta` is 0 in the **idle control phase too** (engine paused, so rank could not move in
+    either phase); the probe self-reports `INCONCLUSIVE` with `taskHeldSamples: 0` of 36.
+  - 📌 **Method rule earned: A CONTROL THAT CANNOT MOVE IS NOT A CONTROL.** And separately:
+    **designer guidance is a prior, not a measurement** — the in-game guide's two "sleeves help
+    Bladeburner" lines were read as mutual corroboration when they are one source saying one thing.
+  - **Sleeve memory DROPPED** (was deferred to 2026-08-25, now retired not renewed): $1.000t for +1
+    at 47.8× the bankroll, and sync self-capped 27.17 → 100 with shock → 0 during the graft ladder,
+    so the head start it buys is free with idle time.
+- **🧹 BACKLOG drift swept (5 stale entries + 1 corrupted).** Three Bugs resolved by Phase 41's
+  close were deleted (grafting-as-fifth-slot-claimant — the doc table was updated 2026-08-17; the
+  "nothing has run live" entry — the join is verified; the "$454m more / three grafts" entry — the
+  gate cleared on two). The graft-vs-fleet budget gap moved to **Ideas** with a wake-up trigger.
+  ⚠️ **A sixth issue nobody flagged: the `Recruitment` Bug had lost its title line** when the
+  2026-08-17 graft entries were spliced in — it began mid-sentence for a day. Header recovered from
+  `ac75d14`. `augfarmer-pause.txt` re-justified: the graft reason is spent, but it stays paused
+  because faction work steals the slot the rank grind needs.
+
 - **✅ PHASE 41 SHIPPED AND CLOSED — BN10 entry gate cleared, Bladeburner joined.** Combat
   **91 → 109** on **two** grafts; `joinBladeburnerDivision()` verified via a subsequent
   `getRank()`. Docs graduated to `docs/phases/`. Full done-vs-left record in that spec's

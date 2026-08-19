@@ -22,76 +22,7 @@ do, and what's broken?*
 
 ## Bugs
 
-- **🚨 RUN THIS RIGHT AFTER THE BLADEBURNER JOIN — the sleeve-parallelism probe the node order rests
-  on.** The 2026-08-16 re-derivation puts **BN10 next** partly because sleeves may parallelise
-  `Tracking`. If that's false, BN10's lead shrinks to its bare 1.25× redo-tax edge over BN9.
-  - ✅ **CORRECTED 2026-08-16 — it is NOT circular, and the trigger is IN THIS NODE.** ~~It needs
-    SF10, which needs BN10 cleared.~~ The sleeve mechanic and the full `ns.sleeve.*` API are **live
-    from BN10 entry**; SF10 only grants them *outside* the node. So this runs as soon as
-    `joinBladeburnerDivision()` succeeds (blocked today only by the combat-100 gate → Phase 41).
-    📌 "Needs SF10" was read as "needs the node cleared" — a Source-File requirement is about
-    **portability**, not in-node availability.
-  - 🔴 **AND A PRIOR CONSTRAINT THE ENTRY MISSED: we have exactly ONE sleeve, and #2 costs
-    $10.000t** (measured, `sleeverecon.js`). So parallelism is capped at one actor until $10t is
-    banked — the mechanic question matters, but it is no longer the *binding* one. What one sleeve
-    is actually worth was measured instead: **+12.6% player combat exp/sec** steady state
-    (`sleevesyncprobe.js`; ⚠️ the raw +22.7% reading is bonus-time inflated — `storedCycles` 360 → 4).
-  - **The concrete risk (unchanged):** `Tracking` is **supply-capped** — `countRemaining` pinned at
-    1.00, regeneration-limited to ~30 actions/h — and was **~100% of BN6's rank rate**. If that pool
-    is **per-city rather than per-actor**, a sleeve on Contracts in the same city adds ≈0.
-  - **Probe (~15 min, read-only on the main character):** put the sleeve on `Take on contracts`
-    (Tracking) in the **same city** as the main character; compare the main character's realised
-    Tracking rank/h against its solo baseline. Both at full rate ⇒ parallelism works. Main drops
-    while the sleeve gains ⇒ shared pool, revisit the ordering.
-  - Full context: `docs/bitnodes.md` § "Node order, re-derived after actually running Bladeburner";
-    measured entry state in `docs/phases/phase-41-bn10-entry.features.md` §2.
-
-- **🟡 UPDATED 2026-08-17 — the player-action-slot contention is FIVE-way (grafting is the fifth),
-  and Phase 41 WI3's `bn10entry.js` now claims the slot for it — but this is CODE, not a live
-  validation.** `ns.grafting.graftAugmentation(aug, focus?)` defaults `focus` to **`true`**, so a
-  graft takes the same single slot as `bladeburnermanager.js`, `augfarmer.js` (faction work),
-  `backdoorfactions.js` and `backdoorwd.js` — and unlike those four it also blocks the **combat
-  crime grind**, which is the BN10 entry critical path.
-  - **What shipped (`src/bn10entry.js`, `docs/phases/phase-41-bn10-entry.spec.md` WI3, implemented
-    2026-08-17):** it writes/refreshes `bladeburner-slot-hold.json` every ≤10s, and its
-    `decideEntryAction` pure core ranks `hold` (a graft in flight) above every other decision —
-    including `join` — so nothing re-issues `graftAugmentation`/`commitCrime`/`travelToCity` while a
-    paid graft is running (A3/A3a in the spec). 44 unit tests cover the precedence/rail/replan
-    logic; `npm test` is green.
-  - **What is STILL open:** (1) `docs/bladeburner-reference.md` §8's slot-claimant table was **not**
-    updated to list grafting as the fifth claimant — that was spec WI4 (D-c), explicitly deferred as
-    an operational/doc step outside this implementation pass. (2) **Nothing here has run live** — the
-    spec's L1-L4 live gates (home RAM ≥64GB via WI1, the graft-hazard halt at L2, the actual
-    combat-100→join, and a `backdoorfactions.js` slot-theft check) all need the running game and
-    Kenneth's own validation, per the standing "RAM/log/live checks wait on his validation" rule.
-  - **Next action:** run WI1 (`upgradehomeramonce.js`) live, then `run bn10entry.js`, then work
-    through L1-L4. Once L2 (the graft-hazard halt) clears once, this entry can finally be deleted
-    and folded into the CHANGELOG as genuinely resolved.
-
-- **🔴 FIRED 2026-08-17, WITHIN THE HOUR — the unreserved graft budget was eaten by the fleet.**
-  Upgraded from 🟡 accepted-risk to a measured event. Money read **$2.784b**, then **$997m** about
-  an hour later while a single **$135m** graft ran — so roughly **$1.65b** went elsewhere, almost
-  certainly `cloudmanager.js` fleet purchases. The ladder needs ~$454m more; headroom fell from
-  **4.7x to ~2.2x** in one hour with three grafts still to buy.
-  - **Mitigated operationally, not structurally:** `src/cloud-upgrade-off.txt` now pauses
-    `cloudmanager.js` for the duration of the ladder. ⚠️ **Delete it once the Bladeburner join
-    lands** — a forgotten pause silently stops all fleet growth, which is this node's income.
-  - 📌 **The judgement error worth keeping:** this was filed as a background risk to log. It is not
-    background — at BN10's income the fleet spends *faster than the ladder buys*, so it should have
-    been paused alongside `augfarmer.js` at the same moment, not watched. **When two consumers share
-    a wallet and one is on the critical path, pausing the other is part of starting the work.**
-  - Original entry, still accurate as the structural description:
-- **🟡 NEW 2026-08-17 — `bn10entry.js`'s graft budget is UNRESERVED against the fleet (spec R2a,
-  accepted risk, not mitigated).** The spec offered two options: wire a graft-budget reservation into
-  `resourcemanager.js`'s existing chain (the `AUGFARMER_RESERVE_FILE` precedent), or record an
-  explicit accepted-risk decision. This implementation took the second — `resourcemanager.js` is an
-  existing engine file, and the implementation task's scope was explicitly "adds new scripts only."
-  `cloudmanager.js` is documented spending **$5.08t in ~2.5 min** against `totalReserved: 0`, so a
-  fleet buy could in principle starve a graft the engine has already committed to (R2's `MONEY_FLOOR`
-  protects the FLEET from the grafter; nothing protects the grafter from the fleet).
-  - **Next action, if this bites live:** add a `bn10entry-reserve.json` reservation source to
-    `resourcemanager.js`, mirroring the `augfarmer-reserve.json` pattern exactly (read-only new
-    source, no behavior change to existing reservations).
+- **🔴 NEW 2026-08-15 — `Recruitment` is wired to a flag we closed permanently, so the engine can
   never build a team — and teams only matter for the one thing the engine doesn't do.**
   `pickOverheadAction` (`bladeburnermanager.js:669`) reads
   `if (stageBEnabled && teamSize < TEAM_SIZE_TARGET)`. `stageBEnabled` is **`false`**
@@ -677,6 +608,17 @@ do, and what's broken?*
 ## Ideas
 
 ### Game / progression
+- **🟡 PARKED 2026-08-18 — a graft budget is still UNRESERVED against the fleet.**
+  `resourcemanager.js` has no graft reservation source, so `cloudmanager.js` can spend money a
+  committed graft needs. This BIT once (2026-08-17: ~$1.65b of a $2.784b bankroll went to the fleet
+  inside an hour while a $135m graft ran) and was handled operationally with a
+  `cloud-upgrade-off.txt` pause, not structurally. Harmless right now — the BN10 entry ladder is
+  finished and nothing is grafting.
+  - **Revisit when:** any future plan schedules grafts again. Then add a `bn10entry-reserve.json`
+    reservation source to `resourcemanager.js`, mirroring `augfarmer-reserve.json` exactly.
+  - 📌 **Lesson (kept, it generalises):** when two consumers share a wallet and one is on the
+    critical path, pausing the other is part of *starting* the work, not a risk to monitor.
+
 - **🚨 Q14: does scouting a drained city restore usable success chances? (Volhaven is the test case.)**
   Volhaven reads population `0` and every action `[0.0000, 1.0000]` — **maximum uncertainty, not
   zero** — while its inventory is intact (2,727 Raids · 3,496 Undercover · 1,432 Assassinations).

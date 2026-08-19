@@ -458,7 +458,15 @@ invested that is the **worst** of the four, not the best. **"Fastest" is not the
 efficient BitVerse clearing is.** BN12 is a node you clear *many* times, so you want every mechanic
 unlocked first — exactly what the guide says.
 
-#### ✅ The guide also SHORES UP the order's weakest assumption
+#### 🔴 The guide SHORED UP the order's weakest assumption — and MEASUREMENT BEAT THE GUIDE
+
+⚠️ **Read this section as superseded 2026-08-18.** Everything below is accurate about what the
+in-game guide *says*; it is no longer evidence for sleeve parallelism. A direct probe measured a
+sleeve consuming **62–68% of the Tracking pool's regeneration** (see the risk section below), i.e.
+competing for the supply rather than adding to it. 📌 **The lesson: designer guidance is a prior,
+not a measurement — and it lost to a 15-minute probe.** Two weak-but-agreeing sources (the guide's
+two entries below) were treated as mutual corroboration when both are the same source saying the
+same thing.
 
 The sleeve-parallelism plank (see the risk section below) was flagged as unverified by an
 independent cold audit. The in-game guide speaks to it directly, in **BN6/BN7's own entry**:
@@ -470,6 +478,7 @@ and in BN10's:
 That is the designers naming the exact bottleneck we measured (`Tracking` supply-capped at ~30
 actions/h). ⚠️ **Not proof** about the per-city-vs-per-actor pool question — still run the probe —
 but it moves the assumption from *speculative* to *supported by the game's own guidance*.
+🔴 **The probe ran, and the pool is shared. This paragraph's conclusion is withdrawn.**
 
 #### Other in-game guide notes that bear on this order
 
@@ -524,10 +533,26 @@ parallelism case collapses to its bare 1.25× tax advantage.
   price into the argument** — the throughput is real but **money-gated**, and at a fresh-node
   bankroll it is not available at the moment the gate needs it. Measured entry state and the
   sleeve→player transfer figure: `phases/phase-41-bn10-entry.features.md` §2.
-- **Cheap probe, first thing in the node after BN10:** run one sleeve on `Take on contracts`
-  (Tracking) in the **same city** as the main character for ~15 min and compare the main character's
-  realised Tracking rank/h against its solo baseline. Both at full rate ⇒ parallelism works. Main
-  drops while sleeve gains ⇒ shared pool, and the ordering rationale needs revisiting.
+- 🔴 **SETTLED 2026-08-18 — THE ASSUMPTION FAILED. Sleeves compete for the pool; they do not
+  parallelise it.** Two probes (`src/sleevepoolprobe.js`, logs `sleevepoolprobe-*.json`), engine
+  paused for clean attribution, both measured a single sleeve on Tracking draining the **same**
+  `countRemaining` counter: **0.308/min** and **~0.34/min** against a measured **0.499/min**
+  regeneration — **62–68% of the pool's entire regrowth consumed by one actor.**
+  **BN10's parallelism case therefore does collapse to its bare 1.25× tax advantage** — which is
+  still the best on the board, so the *order* is unchanged; only its justification narrows.
+  - ⚠️ **The rank half was never actually tested and its earlier "zero player rank" reading is
+    WITHDRAWN.** `rankDelta` is 0 in the **idle control phase too** — the engine was paused, so
+    player rank could not move in either phase — and the probe self-reports
+    `"INCONCLUSIVE -- sleeve task did not persist and never completed anything"`
+    (`taskHeldSamples: 0` of 36). **The drain is the only real signal either run produced.**
+  - 📌 **Method rule earned here: A CONTROL THAT CANNOT MOVE IS NOT A CONTROL.** Check the baseline
+    could have shown the effect before treating its absence as a result.
+  - **Reopens only on** a probe run with the engine **LIVE**, plus a way to see the sleeve's task —
+    `getTask` read `null` on all 36 samples while the counter drained, so the instrument cannot
+    currently observe a sleeve's Bladeburner task at all.
+  - [SUPERSEDED, kept for the recipe] ~~Cheap probe, first thing in the node after BN10: run one
+    sleeve on `Take on contracts` (Tracking) in the same city as the main character for ~15 min and
+    compare the main character's realised Tracking rank/h against its solo baseline.~~
 
 ### Secondary risks worth carrying in
 

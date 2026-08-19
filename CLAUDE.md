@@ -30,19 +30,35 @@ on request — hold to them even when the moment is uncomfortable.
     install) and **serial focused time**. ⚠️ `getPlayer().mults` **already includes** that debuff —
     a planner applying `0.98^k` on top double-counts. Full mechanic:
     **`docs/grafting-reference.md`** (authoritative; `docs/grafting.md` is superseded).
-  - 🚨 **THE ORDER'S WEAKEST PLANK IS NOW MEASURED, AND IT LOOKS BAD FOR SLEEVES.** The claim was
-    that sleeves add rank throughput rather than competing for `Tracking`'s supply cap. Measured
-    2026-08-18 with the engine paused so attribution was clean: a sleeve on Tracking drained
-    **0.308/min of the SAME counter** (62% of its 0.498/min regeneration) and produced **zero
-    player rank** over 10 minutes. ⚠️ **Not yet conclusive** — the sleeve's task ended mid-window,
-    so "no rank" may be "no completions"; a sampled re-run is in flight. **Do not restate the
-    sleeve-parallelism thesis as supported.** Also note **sleeve #2 costs $10t** and we hold one,
-    so even a positive result is bounded by a single extra actor.
-  - **Sleeve memory (BN10-EXCLUSIVE, permanent across all future nodes) priced and DEFERRED,
-    expires 2026-08-25:** +1 memory is **$1.000t** (47.8× the bankroll at the join), the +99 cap
-    **$305t**. 🔑 Devalued by a finding: sync reached its **100 cap on its own** during the graft
-    ladder (27.17 → 100) and shock decayed **21.18 → 0**, so the head start memory buys is
-    obtainable free with idle time.
+  - 🔴 **CLOSED 2026-08-18 ON EVIDENCE — THE SLEEVE-PARALLELISM PLANK IS UNSUPPORTED. Do not
+    restate it as a reason BN10 leads.** The claim was that sleeves add rank throughput rather than
+    competing for `Tracking`'s supply cap. **Two probes, both showing a sleeve draining the SAME
+    counter:** 0.308/min (run 1) and ~0.34/min (run 2) against a measured **0.499/min** regeneration
+    — i.e. **62–68% of the pool's entire regrowth, consumed by one sleeve.** BN10's lead now rests
+    on its bare **1.25× redo-tax** edge over BN9, which is still the correct call and is unaffected;
+    we are already in the node, so nothing is actionable — this closes a *claim*, not a plan.
+    - ⚠️ **NEITHER PROBE EVER TESTED THE RANK HALF, and the earlier "produced zero player rank"
+      reading is WITHDRAWN as evidence.** `rankDelta` reads **0 in the idle control phase too**
+      (`logs/sleevepoolprobe-1787098052402.json`) — the engine was paused, so player rank could not
+      move in *either* phase. The probe's own verdict is
+      **`"INCONCLUSIVE -- sleeve task did not persist and never completed anything"`**
+      (`taskHeldSamples: 0` of 36, `completionsObserved: 0`). **The drain is the only real signal
+      either run produced.**
+    - 📌 **The method error worth keeping: A CONTROL THAT CANNOT MOVE IS NOT A CONTROL.** "Zero rank
+      under treatment" looked like a finding for two days; it was guaranteed by the setup, and the
+      idle phase said so in the same file. **Check that your baseline could have shown the effect
+      before crediting its absence.**
+    - **Reopens only on:** a probe run with the engine LIVE (so player rank can actually move) *and*
+      a way to confirm the sleeve is working — `getTask` read `null` on all 36 samples while the
+      counter drained, so the instrument cannot currently see a sleeve's Bladeburner task at all.
+    - Sleeve #2 costs **$10t** and we hold one, so even a reversal is bounded by a single extra actor.
+  - **✅ SLEEVE MEMORY — DECIDED 2026-08-18: DROPPED, not deferred again.** +1 memory is **$1.000t**
+    (47.8× the bankroll at the join), the +99 cap **$305t**. Killed by measurement, not by price:
+    sync reached its **100 cap on its own** during the graft ladder (27.17 → 100) and shock decayed
+    **21.18 → 0**, so the head start memory buys is **obtainable free with idle time**. Memory is
+    BN10-exclusive and permanent across future nodes, which is the only argument left for it, and it
+    is not enough at 47.8× bankroll. **Reopens only if** a sleeve is ever measured to add rank
+    throughput (see the plank closed above) — the 2026-08-25 expiry is retired, not renewed.
   - ⚠️ **Nothing carried over but Source-Files and scripts.** BN6's 513,931 rank and 260/260 skills
     are **gone** — they are node-local. Expect to re-grind from 0.
   - 📌 **Before quoting any ETA, read `docs/estimation-calibration.md`.** BN6's only comparable
@@ -670,12 +686,14 @@ on request — hold to them even when the moment is uncomfortable.
       - 🔴 **A 3.33× redo-tax is NOT a 3.33× clear time.** `BladeburnerRank` scales grind *time*;
         `BladeburnerSkillCost` scales what you can *afford*. BN7 is **~24 days, not ~40** (an error
         made and corrected 2026-08-16).
-    - 🚨 **Its highest-risk assumption is CIRCULAR and must not be presented as derived:** BN10 leads
-      partly because sleeves may parallelise `Tracking` — but `Tracking` is **supply-capped**
-      (`countRemaining` pinned 1.00, ~30 actions/h) and was ~100% of BN6's rank. If that pool is
-      **per-city, not per-actor**, sleeves add ≈0. **It cannot be measured until SF10 is held, i.e.
-      until after BN10 is cleared.** Probe it first thing in the node after BN10 (`bitnodes.md`
-      has the 15-minute recipe).
+    - 🔴 **ITS HIGHEST-RISK ASSUMPTION WAS MEASURED 2026-08-18 AND DID NOT SURVIVE — the order still
+      holds, but NOT for this reason.** BN10 led partly because sleeves may parallelise `Tracking`;
+      two probes instead measured a sleeve draining **62–68% of the same supply pool's
+      regeneration**. `Tracking` is supply-capped (`countRemaining` pinned 1.00, ~30 actions/h) and
+      was ~100% of BN6's rank, so a shared pool means sleeves add ≈0 to rank. **BN10-next remains
+      correct on the 1.25× redo-tax alone** — the tool argument is what died. Full record and the
+      reopen condition: the BN10 goal block above. (Two earlier errors here are also now closed: it
+      was **not** circular — the API is live from node entry, SF10 only grants it *elsewhere*.)
     - ⚠️ **In BN7, `joinBladeburnerDivision()` under SF7.3 permanently locks out Stanek's Gift** —
       restate at execution time. Note it only bites while **SF7.3 is held**, so it does not
       constrain a first BN7 entry.
