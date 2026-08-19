@@ -26,3 +26,7 @@ saves/*.pretty.json
 bb-*.png
 saves/
 src/ratchet-mode.txt
+src/augfarmer-pause.txt
+src/cloud-upgrade-off.txt
+src/bladeburner-off.txt
+src/bn10entry-off.txt
