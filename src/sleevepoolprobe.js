@@ -31,6 +31,8 @@
 const OFF_MARKER = "bladeburner-off.txt";
 const DEFAULT_PHASE_MIN = 10;
 
+function d_consumed(rec){ return rec.consumedPerCompletion === null ? 0 : rec.consumedPerCompletion; }
+
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
@@ -72,9 +74,36 @@ export async function main(ns) {
     if (!rec.phaseBVerified) {
       rec.verdict = "could-not-assign"; flush();
     } else {
+      // Sample THROUGHOUT, not just at the endpoints. The first run could not tell "the sleeve
+      // completed nothing" from "completions that pay no rank", because the task ended mid-window
+      // and only the endpoints were recorded. Those imply opposite conclusions.
       const b0 = { count: count(), rank: rank(), done: sleeveDone(), t: Date.now() };
-      await ns.sleep(phaseMin * 60000);
+      rec.samples = [];
+      const SAMPLE_MS = 20000;
+      const ticks = Math.max(1, Math.round((phaseMin * 60000) / SAMPLE_MS));
+      for (let i = 0; i < ticks; i++) {
+        await ns.sleep(SAMPLE_MS);
+        let taskType = null, done = null, actionName = null;
+        try {
+          const t = ns.sleeve.getTask(0);
+          taskType = t ? t.type : null;
+          actionName = t && t.actionName ? t.actionName : null;
+          done = t && t.type === "BLADEBURNER" ? t.tasksCompleted : null;
+        } catch { /* recorded as nulls */ }
+        rec.samples.push({ tSec: Math.round((Date.now() - b0.t) / 1000), count: count(),
+          rank: rank(), taskType, actionName, done });
+        if (i % 3 === 0) flush();
+      }
       const b1 = { count: count(), rank: rank(), done: sleeveDone(), t: Date.now() };
+      // Did the task survive the window, and did completions ever advance?
+      const bbSamples = rec.samples.filter((x) => x.taskType === "BLADEBURNER");
+      rec.taskHeldSamples = bbSamples.length;
+      rec.taskTotalSamples = rec.samples.length;
+      rec.taskSurvived = rec.samples.length > 0 && rec.samples[rec.samples.length - 1].taskType === "BLADEBURNER";
+      const doneVals = bbSamples.map((x) => x.done).filter((v) => typeof v === "number");
+      rec.completionsObserved = doneVals.length > 1 ? Math.max(...doneVals) - Math.min(...doneVals) : 0;
+      const rankVals = rec.samples.map((x) => x.rank).filter((v) => typeof v === "number");
+      rec.rankMovedDuringPhaseB = rankVals.length > 1 && (Math.max(...rankVals) - Math.min(...rankVals)) > 1e-9;
       rec.phaseB = { label: "sleeve-on-tracking", ...b0, endCount: b1.count, endRank: b1.rank,
         endDone: b1.done, minutes: (b1.t - b0.t) / 60000,
         countDelta: b1.count - b0.count, rankDelta: b1.rank - b0.rank,
@@ -86,10 +115,16 @@ export async function main(ns) {
       rec.completions = rec.phaseB.sleeveCompletions;
       rec.consumedPerCompletion = rec.completions > 0 ? rec.consumedBySleeve / rec.completions : null;
 
-      rec.verdict = !(rec.completions > 0) ? "INCONCLUSIVE (completion counter unusable: " + rec.completions + ")"
-        : rec.consumedPerCompletion !== null && rec.consumedPerCompletion >= 0.5
-          ? "PER-CITY / SHARED pool -- sleeve completions DO drain the same counter"
-          : "PER-ACTOR pool -- sleeve completed contracts WITHOUT draining the counter";
+      rec.verdict =
+        !rec.taskSurvived && rec.completionsObserved === 0
+          ? "INCONCLUSIVE -- sleeve task did not persist and never completed anything"
+        : rec.completionsObserved > 0 && !rec.rankMovedDuringPhaseB
+          ? "SLEEVE CONTRACTS PAY NO PLAYER RANK -- completions observed, rank never moved"
+        : rec.completionsObserved > 0 && rec.rankMovedDuringPhaseB && d_consumed(rec) >= 0.5
+          ? "SHARED POOL -- sleeve pays rank but drains the same counter"
+        : rec.completionsObserved > 0 && rec.rankMovedDuringPhaseB
+          ? "PER-ACTOR -- sleeve pays rank without draining the counter"
+        : "INCONCLUSIVE (completion counter unusable: " + rec.completions + ")";
     }
   } catch (err) {
     rec.threw = String(err).slice(0, 300);
