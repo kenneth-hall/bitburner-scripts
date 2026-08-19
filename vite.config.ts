@@ -133,6 +133,7 @@ export default defineConfig({
         if (/^sleevepoolprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevepoolprobe.js -- DIRECT pool observation (does a sleeve completion decrement countRemaining), replaces the noisy rate A/B, one file per run
         if (/^graftrecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/graftrecon.js -- is grafting live in BN10, which grafts move the combat mult, with the entropy tax carried, one file per run
         if (/^sleeverecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleeverecon.js -- BN10 sleeve census (sync/shock/memory/prices/tasks), one file per run
+        if (/^sleeveaugbuy-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleeveaugbuy.js -- sleeve aug purchase record (offered/prices/repReqs, and the stat reset the install causes), one file per run
         if (/^sleevesyncprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevesyncprobe.js -- A/B measurement of how much sleeve exp actually reaches the player, one file per run
         if (file === 'graft-plan.json') return 'logs/graft-plan.json'; // Phase 41 WI2 -- src/graftplanner.js's computed graft ladder, overwritten in place each run; carries schemaVersion + every input it was computed from (staleness detection, spec B4)
         if (file === 'bn10entry-log.json') return 'logs/bn10entry-log.json'; // Phase 41 WI3 -- src/bn10entry.js's ring-capped per-poll decision log (exp/levels/money/entropy/action/decision+reason, spec C4)
