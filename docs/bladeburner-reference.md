@@ -766,6 +766,47 @@ what they do.
 
 ---
 
+## 5b. HP, damage and healing — MEASURED 2026-08-19, and it kills an obvious "fix"
+
+All four facts below come from `logs/bladeburner-attempts.json` across BN6 and BN10, which
+straddle a **2.5x difference in HP pool** and so separate flat effects from proportional ones.
+
+**1. `hpMax = floor(10 + defense/10)`.** Exact on three independent points, zero error:
+defense 26 -> 12, defense 43 -> 14, defense 110 -> 21. (The first two are sleeve readings; a
+sleeve is a `Person` and obeys the same formula, which is what made a same-night cross-check
+possible.)
+
+**2. HP regeneration is FLAT — 2.00 HP/min — at every pool size.** BN6 at `hpMax` 53 and BN10 at
+`hpMax` 21 both measure **2.00 HP/min** on unambiguous healing events (HP strictly increased).
+⚠️ Filter carefully: BN6 ran at ~full HP, so most of its HRC samples had nothing to heal and
+average to ~0. Only strictly-increasing samples are meaningful.
+
+**3. Damage comes ONLY from FAILED contracts.** 76 HP drops following a contract action, **all of
+them after a failure**, mean **7.09 HP**. Successful contracts never cost HP — not once.
+
+**4. 🔑 THEREFORE RAISING MAX HP BUYS EXACTLY NOTHING.** Healing from `HP_FLOOR_FRACTION` 0.5 to
+`HP_RESUME_FRACTION` 0.85 restores `0.35M` HP at a flat 2/min, while the contracts that drained it
+number `0.35M/D`. The time fraction spent healing is `(1/2) / (1/2 + T_c/D)` — **`M` cancels.**
+Train defense all you like; the healing tax does not move.
+
+📌 **This is the THIRD time this exact trap has been hit.** `Cyber's Edge` / max stamina (§8.2) and
+now max HP: **a flat absolute regeneration rate makes a larger pool worth nothing.** Whenever a
+"raise the capacity" fix is proposed, first ask whether what refills that capacity is flat or
+proportional. Two of the three times, the capacity buff was already bought or nearly bought.
+
+**What the lever actually is: the NUMBER of failures, not the size of the pool.** At 2 HP/min, one
+failure costs **7.09 / 2 = 3.5 minutes** of healing against a **28-second** action — i.e. a single
+failure costs **~7.5 actions' worth of wall clock**, at any `hpMax`.
+
+- 🔴 **CONSEQUENCE FOR THE LEVEL GOVERNOR (open, not yet acted on).** `LEVEL_LOWER_BAND` is **0.6**
+  and `LEVEL_RAISE_BAND` **0.95**, so an action realising **80%** — which is exactly where BN10's
+  `Tracking` sits — is in the dead band and the governor never touches it. That band implicitly
+  prices a failure as *one lost action*. It is worth **7.5**. ⚠️ The right band is **not** derivable
+  from this measurement alone: it needs the success-vs-level curve, and Phase 40's standing lesson
+  is that tuning off a reconstructed curve is how that phase's premise got falsified.
+
+---
+
 ## 6. API reference
 
 RAM is lumpy and matters: **0 GB** — `nextUpdate`, `getBonusTime`, `inBladeburner`, and all five
