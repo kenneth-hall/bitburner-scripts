@@ -132,6 +132,7 @@ export default defineConfig({
         if (/^sleevebbprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevebbprobe.js -- THE sleeve-parallelism A/B the BN10-next ordering rests on (per-actor vs per-city contract pool), one file per run
         if (/^sleevepoolprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevepoolprobe.js -- DIRECT pool observation (does a sleeve completion decrement countRemaining), replaces the noisy rate A/B, one file per run
         if (/^graftrecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/graftrecon.js -- is grafting live in BN10, which grafts move the combat mult, with the entropy tax carried, one file per run
+        if (/^graftladder-\d+\.json$/.test(file)) return `logs/${file}`; // src/graftladder.js -- unattended BN10 combat graft ladder: resolved plan, per-step realised price/duration/entropy/level deltas, one file per run
         if (/^sleeverecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleeverecon.js -- BN10 sleeve census (sync/shock/memory/prices/tasks), one file per run
         if (/^sleeveaugbuy-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleeveaugbuy.js -- sleeve aug purchase record (offered/prices/repReqs, and the stat reset the install causes), one file per run
         if (/^tracksweep-\d+\.json$/.test(file)) return `logs/${file}`; // src/tracksweep.js -- Tracking success + rank/action vs action LEVEL, the curve the governor band needs, one file per run
