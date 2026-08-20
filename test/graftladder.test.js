@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolvePlan } from '../src/graftladder.js';
+import { resolvePlan, priceIsSane } from '../src/graftladder.js';
 
 // The whole reason this function exists: ns.grafting.getGraftableAugmentations() documents
 // that it "does not check your current money and prerequisite augmentations", so the catalog
@@ -114,5 +114,40 @@ describe('resolvePlan', () => {
     ]);
     // Bone Lacings is not graftable here, so its Graphene upgrade is correctly unreachable
     expect(out.dropped.some((d) => d.name === 'Graphene Bone Lacings')).toBe(true);
+  });
+});
+
+// --- priceIsSane -----------------------------------------------------------------
+// The charge is inferred from a money delta while the batcher is still settling billions
+// every few minutes, so the delta is noisy in one direction only.
+
+describe('priceIsSane', () => {
+  it('accepts an exact match', () => {
+    expect(priceIsSane(18e9, 18e9)).toBe(true);
+  });
+
+  it('LIVE REGRESSION 2026-08-20: a $50m income lump inside the measurement window is benign', () => {
+    // A symmetric $5m tolerance read $17.950b against a projected $18.000b and aborted a
+    // perfectly healthy ladder one graft in.
+    expect(priceIsSane(17.95e9, 18e9)).toBe(true);
+  });
+
+  it('tolerates a large income lump landing mid-measurement', () => {
+    expect(priceIsSane(15e9, 18e9)).toBe(true); // batch settled, looks cheaper than it was
+  });
+
+  it('rejects an OVERCHARGE -- the price model the plan is costed on would be wrong', () => {
+    expect(priceIsSane(18.5e9, 18e9)).toBe(false);
+  });
+
+  it('rejects a delta far below quoted -- it probably did not charge at all', () => {
+    expect(priceIsSane(1e9, 18e9)).toBe(false);
+    expect(priceIsSane(0, 18e9)).toBe(false);
+  });
+
+  it('rejects non-finite or non-positive inputs rather than passing them through', () => {
+    expect(priceIsSane(NaN, 18e9)).toBe(false);
+    expect(priceIsSane(18e9, 0)).toBe(false);
+    expect(priceIsSane(18e9, NaN)).toBe(false);
   });
 });

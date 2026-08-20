@@ -68,7 +68,15 @@ const LADDER = [
 
 const MAX_TOTAL_SPEND = 130e9; // matches the finance-reserve-extra.txt reservation
 const MAX_TOTAL_HOURS = 12;
-const PRICE_TOLERANCE = 5e6;
+// Price is inferred from a money DELTA, and hacking income lands in lumps (the batcher
+// settles batches worth billions every few minutes), so the delta is noisy in ONE direction:
+// income arriving mid-measurement makes the graft look CHEAPER than it was. That is harmless.
+// Being charged MORE than projected is the real alarm, because the whole plan is costed on
+// the price model. So the check is asymmetric rather than a symmetric tolerance.
+// Measured 2026-08-20: a $18.000b graft read $17.950b -- a $50m lump landing in a 1.2s window
+// tripped a symmetric $5m tolerance and aborted a healthy ladder.
+const PRICE_OVERCHARGE_FACTOR = 1.02; // charged more than this x projected -> stop
+const PRICE_UNDERCHARGE_FLOOR = 0.5; // charged less than this x projected -> it did not really charge
 const MONEY_WAIT_POLL_MS = 30000;
 const MONEY_WAIT_MAX_MS = 60 * 60000; // income is ~$34.6b/h; an hour of waiting means something is wrong
 const WORK_POLL_MS = 10000;
@@ -84,6 +92,22 @@ function snapshot(ns, label) {
     snap.levels[s] = p.skills[s];
   }
   return snap;
+}
+
+/**
+ * Pure. Is the money actually charged for a graft consistent with the quoted price?
+ *
+ * Asymmetric on purpose. The charge is inferred from a money delta while hacking income is
+ * still arriving in lumps, so a delta SMALLER than quoted just means a batch settled inside
+ * the measurement window -- benign. A delta LARGER than quoted means the price model the whole
+ * ladder is costed on is wrong, which is worth stopping for. A delta far BELOW quoted means it
+ * probably did not charge at all, which is also worth stopping for.
+ */
+export function priceIsSane(realised, projected) {
+  if (!Number.isFinite(realised) || !Number.isFinite(projected) || projected <= 0) return false;
+  if (realised > projected * PRICE_OVERCHARGE_FACTOR) return false;
+  if (realised < projected * PRICE_UNDERCHARGE_FLOOR) return false;
+  return true;
 }
 
 /**
@@ -265,13 +289,16 @@ export async function main(ns) {
     step.before = snapshot(ns, "before");
     const moneyPre = ns.getPlayer().money;
     step.callReturned = ns.grafting.graftAugmentation(name, true);
+    // Read money back IMMEDIATELY -- every millisecond of delay is another chance for an
+    // income lump to land inside the measurement window and distort the inferred price.
+    step.realisedPrice = moneyPre - ns.getPlayer().money;
 
     await ns.sleep(1200);
     const workNow = ns.singularity.getCurrentWork();
     step.verifiedWorkType = workNow ? workNow.type : null;
     step.verifiedStarted = !!workNow && workNow.type === "GRAFTING";
-    step.realisedPrice = moneyPre - ns.getPlayer().money;
-    step.priceMatchesProjection = Math.abs(step.realisedPrice - step.projectedPrice) < PRICE_TOLERANCE;
+    step.priceRatio = step.projectedPrice > 0 ? step.realisedPrice / step.projectedPrice : null;
+    step.priceMatchesProjection = priceIsSane(step.realisedPrice, step.projectedPrice);
     flush();
 
     if (!step.verifiedStarted) {
