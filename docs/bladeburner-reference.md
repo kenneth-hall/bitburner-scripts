@@ -982,6 +982,21 @@ grind, not just the Stanek loss.
    `getCityCommunities`, `getCityEstimatedPopulation`, `setTeamSize`. **Not** documented for
    `getActionTime`, the three `getAction*Gain/Loss`, `getActionSuccesses`, `getSkillUpgradeCost`.
 5. **`getActionAutolevel` returns `false` for an invalid action** — validate names separately.
+5a. 🔴 **Rank, skill points and action levels are NODE-LOCAL — but `bladeburner-state.json`
+   is not.** The file lives on `home`, and home files survive a BitNode switch, so a fresh
+   node silently inherits the previous node's cumulative totals and level ledger. **Measured
+   2026-08-19, first full day in BN10:** `checkpointC1` reported `met: true` at 0.408
+   rank/wall-sec — BN6's *lifetime* 504,491 rank over 1.24M wall-sec — while BN10's live 24h
+   rate was **0.0053, below the 0.007 bar it exists to trip on**. The engine's own viability
+   tripwire could not fire in the node it guards. `levelGovernor` rode in on the same file:
+   `Tracking.byLevel` held only BN6's L141–154 while BN10 ran at L31–32, which would have fed
+   S-RF a fabricated realised-success record the moment this node's `Tracking` climbed back
+   into that band. **Fixed** by `stateMatchesNode` — the blob is stamped with `bitNode` and
+   rejected WHOLE on mismatch (an unstamped blob predates the guard and is rejected too).
+   📌 **The durable rule, and it is the third time this shape has bitten: STATE THAT OUTLIVES
+   THE THING IT MEASURES WILL BE READ AS IF IT DIDN'T.** `seedTotals` already guarded the
+   wrong-*shape* case; this is the same blob from the wrong *run*. When persisting a
+   measurement, stamp it with the scope it is valid in.
 6. **Both level setters return `void`** — no success signal at all. Read back to confirm.
 7. **`getTeamSize()` vs `getTeamSize(type, name)` are different quantities.** Teams are
    Operations/BlackOps only.

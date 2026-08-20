@@ -1048,6 +1048,36 @@ export function seedTotals(state) {
   return seeded;
 }
 
+/**
+ * Pure. Rejects a persisted state blob that was written in a DIFFERENT BitNode.
+ *
+ * WHY. Bladeburner rank, skill points and action levels are node-LOCAL -- CLAUDE.md records
+ * that they survive augmentation installs, which is a different claim and the easy one to
+ * confuse. But `bladeburner-state.json` lives on `home`, and home files survive a node
+ * switch, so a fresh node silently inherits the previous node's cumulative totals and level
+ * ledger.
+ *
+ * Measured 2026-08-19, first full day in BN10: `checkpointC1` reported `met: true` at 0.408
+ * rank/wall-sec -- BN6's LIFETIME figure, 504,491 rank over 1.24M wall-sec -- while BN10's
+ * live 24h rate was 0.0053, BELOW the 0.007 bar it is supposed to trip on. The engine's own
+ * viability tripwire could not fire in the node it was meant to protect. `levelGovernor`
+ * carried the same contamination: `Tracking.byLevel` held only BN6's L141-154 entries while
+ * BN10 ran at L31-32, which would hand S-RF a fabricated realised-success record the moment
+ * this node's Tracking climbed back into that band.
+ *
+ * This is the `seedTotals` regression one layer up: that guard rejects a wrong-SHAPED blob,
+ * this one rejects a right-shaped blob from the wrong RUN. Same remedy -- reject WHOLE, never
+ * field-by-field.
+ *
+ * A blob carrying no `bitNode` key predates this guard and is exactly the contaminated class,
+ * so it is rejected too. Cost of a false reject is one restart's worth of re-earned samples.
+ */
+export function stateMatchesNode(state, currentNode) {
+  if (!state || typeof state !== "object") return false;
+  if (!Number.isFinite(currentNode)) return false;
+  return Number.isFinite(state.bitNode) && state.bitNode === currentNode;
+}
+
 /** Pure. Drops samples older than `maxWindowMs`, with a count cap as a runaway backstop -- see MAX_FINITE_WINDOW_MS/SAMPLE_HARD_CAP's declarations for why the count cap alone is insufficient. */
 export function pruneSamples(samples, nowMs, maxWindowMs = MAX_FINITE_WINDOW_MS, hardCap = SAMPLE_HARD_CAP) {
   const cutoff = nowMs - maxWindowMs;
@@ -1751,11 +1781,28 @@ export async function main(ns) {
   }
 
   let samples = []; // {timestamp, wallSec, actionSec, rankDelta, rankProducingSec, postInstallSec} -- finite windows only, pruned
-  const persistedState = readJsonState(ns, BB_STATE_FILE);
+  const currentBitNode = ns.getResetInfo().currentNode;
+  const rawPersistedState = readJsonState(ns, BB_STATE_FILE);
+  // One guard for every consumer below (totals, rep-starvation, the level governor): a blob
+  // from another BitNode is discarded WHOLE. See stateMatchesNode.
+  const persistedNodeMatches = stateMatchesNode(rawPersistedState, currentBitNode);
+  const persistedState = persistedNodeMatches ? rawPersistedState : null;
   let totals = seedTotals(persistedState); // persists across restarts -- see emptyTotals's doc comment
   let logEntries = seedBbLog(ns.read(BB_LOG_FILE));
   let attemptEntries = seedAttempts(ns.read(BB_ATTEMPTS_FILE));
-  logEntries = appendBbLog(logEntries, { ...ts(), kind: "startup", resumedTotals: { ...totals } });
+  logEntries = appendBbLog(logEntries, { ...ts(), kind: "startup", resumedTotals: { ...totals }, bitNode: currentBitNode });
+  if (rawPersistedState && !persistedNodeMatches) {
+    // Observable on purpose: this is the only outward sign that a node change wiped the
+    // engine's memory, and it explains an otherwise alarming rate/duty discontinuity.
+    logEntries = appendBbLog(logEntries, {
+      ...ts(),
+      kind: "state-discarded-node-change",
+      priorBitNode: Number.isFinite(rawPersistedState.bitNode) ? rawPersistedState.bitNode : null,
+      currentBitNode,
+      discardedRankGained: rawPersistedState?.totals?.rankGained ?? null,
+      discardedWallSec: rawPersistedState?.totals?.wallSec ?? null,
+    });
+  }
 
   // Seeded from the persisted log so a restart doesn't re-announce a verdict already
   // recorded (the ring can age a verdict out -- re-logging it then is the right failure
@@ -1935,6 +1982,7 @@ export async function main(ns) {
           JSON.stringify(
             buildBbState({
               now: nowMs,
+              bitNode: currentBitNode,
               off: true,
               stage: STAGE_B_ENABLED ? "B" : "A",
               objectiveMode: OBJECTIVE_MODE,
@@ -2091,6 +2139,7 @@ export async function main(ns) {
         JSON.stringify(
           buildBbState({
             now: nowMs,
+            bitNode: currentBitNode,
             off: false,
             stage: STAGE_B_ENABLED ? "B" : "A",
             objectiveMode: OBJECTIVE_MODE,
@@ -2807,6 +2856,7 @@ export async function main(ns) {
         JSON.stringify(
           buildBbState({
             now: nowMs,
+            bitNode: currentBitNode,
             off: false,
             stage: STAGE_B_ENABLED ? "B" : "A",
             objectiveMode: OBJECTIVE_MODE,

@@ -53,6 +53,7 @@ import {
   emptyTotals,
   accumulateTotals,
   seedTotals,
+  stateMatchesNode,
   RATE_WINDOWS_MS,
   MAX_FINITE_WINDOW_MS,
   SAMPLE_HARD_CAP,
@@ -1237,6 +1238,38 @@ describe('emptyTotals / accumulateTotals', () => {
   it('postInstallSec accumulates independently of kind', () => {
     const out = accumulateTotals(emptyTotals(), { wallSec: 10, actionSec: 10, rankDelta: 0, rankProducingSec: 0, postInstallSec: 10, kind: 'overhead' });
     expect(out.postInstallSec).toBe(10);
+  });
+});
+
+describe('stateMatchesNode', () => {
+  it('accepts a blob stamped with the node it is being read in', () => {
+    expect(stateMatchesNode({ bitNode: 10, totals: { wallSec: 1 } }, 10)).toBe(true);
+  });
+
+  it('rejects a blob from a different BitNode', () => {
+    expect(stateMatchesNode({ bitNode: 6 }, 10)).toBe(false);
+  });
+
+  it('rejects a blob with no bitNode stamp -- it predates the guard and is the contaminated class', () => {
+    expect(stateMatchesNode({ totals: { wallSec: 1236245 } }, 10)).toBe(false);
+  });
+
+  it('rejects null/non-object state and a non-finite current node', () => {
+    expect(stateMatchesNode(null, 10)).toBe(false);
+    expect(stateMatchesNode('corrupt', 10)).toBe(false);
+    expect(stateMatchesNode({ bitNode: 10 }, NaN)).toBe(false);
+    expect(stateMatchesNode({ bitNode: '10' }, 10)).toBe(false);
+  });
+
+  it('LIVE REGRESSION 2026-08-19: BN6 totals surviving into BN10 made checkpointC1 unable to fire', () => {
+    // bladeburner-state.json lives on home, and home files survive a node change -- so BN10
+    // inherited BN6's lifetime 504,491 rank over 1,236,245 wall-sec. checkpointC1 read that
+    // as 0.408 rank/wall-sec and reported met:true against its 0.007 bar, while BN10's actual
+    // 24h rate was 0.0053 -- BELOW the bar. The tripwire could not trip in the node it guards.
+    const bn6State = { totals: { wallSec: 1236245.9, rankGained: 504491.76 }, levelGovernor: { constants: {}, actions: { Tracking: { byLevel: { 154: { attempts: 104, successes: 104, rankSum: 14562.09 } } } } } };
+    expect(stateMatchesNode(bn6State, 10)).toBe(false);
+    // and the whole blob is what gets dropped -- the governor ledger rode in on the same file
+    expect(seedTotals(stateMatchesNode(bn6State, 10) ? bn6State : null)).toEqual(emptyTotals());
   });
 });
 
