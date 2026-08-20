@@ -694,6 +694,18 @@ export function bladeburnerPanel(state, now) {
 }
 
 /**
+ * Pure. The GOAL panel's node label, from live state. `BN<n>` when the node is known, plain
+ * `GOAL` otherwise -- naming a node we cannot confirm is worse than not naming one.
+ */
+export function goalTitle(state) {
+  const live = state && state !== PARSE_FAILED ? state : null;
+  const n = live ? live.bitNode : null;
+  if (!Number.isFinite(n)) return "GOAL";
+  const v = live.bitNodeVisit;
+  return Number.isFinite(v) ? `GOAL (BN${n}.${v})` : `GOAL (BN${n})`;
+}
+
+/**
  * Phase 32 -- the "why everything below exists" readout. RETARGETED 2026-08-04
  * to lead with the actual win condition (Bladeburner rank -> Operation
  * Daedalus) instead of the fallback hacking path's `M`; see goallog.js's
@@ -711,8 +723,13 @@ export function bladeburnerPanel(state, now) {
  * formatter's tests are exact strings, not substring checks.
  */
 export function goalPanel(state, now) {
-  // Node label -- bump on every node entry (BN6.1 as of 2026-07-29).
-  const title = "GOAL (BN6.1)";
+  // Node label, DERIVED from goallog.js's published `bitNode` rather than hardcoded. It read
+  // "GOAL (BN6.1)" for four days of BN10 because the old constant carried a comment telling a
+  // human to bump it on every node entry, and nobody did. A label that has to be maintained by
+  // hand is a label that lies -- the whole point of the panel is to say where we actually are.
+  // Falls back to the bare word when state is missing/unreadable, since there is no node to
+  // name in that case.
+  const title = goalTitle(state);
   if (state === null) return [`-- ${title} --`, "no data yet"];
   if (state === PARSE_FAILED) return [`-- ${title} --`, "unreadable"];
 

@@ -25,6 +25,7 @@ import {
   PARSE_FAILED,
   GANG_SAMPLE_MS,
   GANG_SAMPLE_CAP,
+  goalTitle,
 } from '../src/dashboard.js';
 
 const NOW = 1_700_000_000_000;
@@ -831,9 +832,12 @@ describe('renderAll', () => {
 
   it('GOAL renders as the first panel (lines[0] is the dashboard header)', () => {
     const lines = renderAll(allMissing, NOW);
-    // Ordering is what this asserts -- match the panel name, not the node label
-    // baked into it, so a node entry doesn't require editing this test.
-    expect(lines[1]).toMatch(/^-- GOAL \(BN\d+\.\d+\) --/);
+    // Ordering is what this asserts -- match the panel name, not the node label, so a node
+    // entry doesn't require editing this test. The label is now DERIVED from live state
+    // (goalTitle), so with `goal: null` there is genuinely no node to name -- which is why the
+    // node part is optional here rather than required. The old hardcoded "BN6.1" made this
+    // regex pass while the panel was lying about which node we were in.
+    expect(lines[1]).toMatch(/^-- GOAL( \(BN\d+(\.\d+)?\))? --/);
   });
 
   it('every line is within COLUMN_BUDGET on an all-missing render', () => {
@@ -962,5 +966,26 @@ describe('renderAll', () => {
 
     expect(lines.length).toBeLessThanOrEqual(ROW_BUDGET);
     for (const l of lines) expect(l.length).toBeLessThanOrEqual(COLUMN_BUDGET);
+  });
+});
+
+// --- goalTitle ---------------------------------------------------------------
+// The label used to be a hardcoded "GOAL (BN6.1)" with a comment asking a human to bump it on
+// every node entry. Nobody did, so it read BN6.1 through four days of BN10. Derived now.
+
+describe('goalTitle', () => {
+  it('renders node and visit from live state', () => {
+    expect(goalTitle({ bitNode: 10, bitNodeVisit: 1 })).toBe('GOAL (BN10.1)');
+    expect(goalTitle({ bitNode: 1, bitNodeVisit: 2 })).toBe('GOAL (BN1.2)');
+  });
+
+  it('falls back to the node alone when the visit is unknown', () => {
+    expect(goalTitle({ bitNode: 10 })).toBe('GOAL (BN10)');
+  });
+
+  it('names no node when state is missing or unreadable -- better than naming a wrong one', () => {
+    expect(goalTitle(null)).toBe('GOAL');
+    expect(goalTitle(undefined)).toBe('GOAL');
+    expect(goalTitle({})).toBe('GOAL');
   });
 });

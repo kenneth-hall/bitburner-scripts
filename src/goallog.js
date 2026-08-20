@@ -169,8 +169,35 @@ export const TRIPWIRE_MIN_SPAN_MS = 10_800_000; // 3h
  * UNKNOWN), never to a false STALLED off missing data.
  * @param {{t:number, rank:number}[]} series
  */
-export function evalTripwire(series, nowMs) {
-  const list = (Array.isArray(series) ? series : []).filter(
+/**
+ * Pure. Restricts a rank series to samples earned in the CURRENT BitNode.
+ *
+ * WHY. Bladeburner rank is node-LOCAL and restarts at 0 on entry, so across a node boundary
+ * the series is not monotonic -- and both consumers below are built on the assumption that it
+ * is. Measured 2026-08-20: goal-log.json held BN6's 513,930.74 for the first two hours of the
+ * ring and then dropped to 0.76, because before joining the BN10 division
+ * ns.bladeburner.getRank() throws, so bladeburner-state.json still held BN6's final write and
+ * this script faithfully recorded it. The single decrease broke the two consumers in OPPOSITE
+ * directions: computeRankForecast compares first-vs-last over 48h and read STALLED with no
+ * ETA, while evalTripwire looks back only 4h, saw BN10 climbing, and read ON TRACK. The panel
+ * showed both at once.
+ *
+ * Samples with no `bn` stamp predate this guard and are dropped rather than assumed current --
+ * the contaminated samples are exactly that class. Losing them degrades to WARMING, which is
+ * the direction evalTripwire's own doc insists on ("never a false STALLED off missing data").
+ *
+ * Note this deliberately does NOT key off "rank went down". Rank can legitimately fall WITHIN
+ * a node: a failed black op costs ~943-1,066 rank (measured, logs/bbblackop-*.json), so a
+ * decrease-detector would truncate the series every time the ladder missed.
+ */
+export function sameNodeSamples(series, currentNode) {
+  const list = Array.isArray(series) ? series : [];
+  if (!Number.isFinite(currentNode)) return [];
+  return list.filter((s) => s && s.bn === currentNode);
+}
+
+export function evalTripwire(series, nowMs, currentNode) {
+  const list = sameNodeSamples(series, currentNode).filter(
     (s) => s && typeof s.t === "number" && typeof s.rank === "number"
   );
   if (list.length === 0) return { status: "UNKNOWN", flatHours: null };
@@ -209,8 +236,8 @@ export function evalTripwire(series, nowMs) {
  *
  * @param {{t:number, rank:number}[]} series
  */
-export function computeRankForecast(series, nowMs) {
-  const list = (Array.isArray(series) ? series : []).filter(
+export function computeRankForecast(series, nowMs, currentNode) {
+  const list = sameNodeSamples(series, currentNode).filter(
     (s) => s && typeof s.t === "number" && typeof s.rank === "number"
   );
   const empty = {
@@ -489,7 +516,7 @@ export function computeTrend(series, nowMs, windowMs) {
 // target that does not exist. 15 min = 3 missed heartbeats.
 export const AUG_STATE_STALE_MS = 15 * 60 * 1000;
 
-export function buildSnapshot(series, augState, nowMs, liveness = null) {
+export function buildSnapshot(series, augState, nowMs, liveness = null, currentNode = null, bitNodeVisit = null) {
   const list = Array.isArray(series) ? series : [];
   const latest = list.length > 0 ? list[list.length - 1] : null;
 
@@ -507,7 +534,7 @@ export function buildSnapshot(series, augState, nowMs, liveness = null) {
     target: RANK_TARGET,
     targetLabel: RANK_TARGET_LABEL,
     pct: rankPct,
-    forecast: computeRankForecast(list, nowMs),
+    forecast: computeRankForecast(list, nowMs, currentNode),
   };
 
   // Projected M if the augs already PURCHASED this cycle were installed now.
@@ -555,11 +582,16 @@ export function buildSnapshot(series, augState, nowMs, liveness = null) {
   return {
     timestamp: nowMs,
     time: new Date(nowMs).toLocaleString(),
+    // Published so the GOAL panel can LABEL itself from live state instead of a hardcoded
+    // node name that goes stale the moment we enter the next node (it read "BN6.1" for four
+    // days of BN10).
+    bitNode: currentNode,
+    bitNodeVisit,
     rankProgress,
     mProgress: { value: mValue, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct, gateTarget: M_GATE_TARGET, queuedValue, queuedPct, queuedCount },
     income: { perSec, trend, windowMs: RATE_WINDOW_MS, gangPerSec, hackingPerSec, perSec24h },
     forecast: computeForecast(list, nowMs),
-    tripwire: evalTripwire(list, nowMs),
+    tripwire: evalTripwire(list, nowMs, currentNode),
     liveness,
     nextAug,
     // true == augfarmer.js has missed >=3 heartbeats, so nextAug is deliberately
@@ -597,6 +629,15 @@ export async function main(ns) {
   let lastLivenessStatus = null;
 
   while (true) {
+    const resetInfo = ns.getResetInfo();
+    const currentNode = resetInfo.currentNode;
+    // Visit number, the ".1" in "BN10.1": how many times this node has been cleared, plus the
+    // run in progress. ownedSF is a Map in-game but serialises as a plain object, so read both.
+    const sfLevels = resetInfo.ownedSF;
+    const clearedHere = sfLevels && typeof sfLevels.get === "function"
+      ? sfLevels.get(currentNode)
+      : sfLevels?.[currentNode];
+    const currentVisit = Number.isFinite(clearedHere) ? clearedHere + 1 : 1;
     let series = [];
     const rawSeries = ns.read(SERIES_FILE);
     if (rawSeries) {
@@ -634,10 +675,18 @@ export async function main(ns) {
     // docs/bladeburner-reference.md), so calling it here would crash this
     // resident in any node without Bladeburner. A tolerant file read degrades to
     // `rank: null` instead, which every consumer below already handles.
+    // Node-gate the rank read. bladeburner-state.json lives on `home` and home files survive
+    // a BitNode switch, so on entering a node the file still holds the PREVIOUS node's final
+    // rank -- and it keeps holding it until the division is joined here, because the whole
+    // ns.bladeburner API throws until then and the engine cannot overwrite it. That is how
+    // BN6's 513,930 got recorded as BN10 samples on 2026-08-18 (see sameNodeSamples).
+    // bladeburnermanager.js stamps `bitNode` as of 2026-08-19; an unstamped blob predates that
+    // and is exactly the untrustworthy class, so it yields no rank sample at all.
     const bbState = readJsonTolerant(ns, BLADEBURNER_STATE_FILE);
-    const rank = typeof bbState?.rank === "number" ? bbState.rank : null;
+    const bbFromThisNode = Number.isFinite(bbState?.bitNode) && bbState.bitNode === currentNode;
+    const rank = bbFromThisNode && typeof bbState.rank === "number" ? bbState.rank : null;
 
-    const sample = { t: nowMs, gangCum, hackingCum, mHacking: player.mults.hacking };
+    const sample = { t: nowMs, gangCum, hackingCum, mHacking: player.mults.hacking, bn: currentNode };
     // Omit the key entirely when unknown -- the filters in evalTripwire /
     // computeRankForecast drop non-numeric samples, and writing an explicit null
     // would bloat 2880 ring entries for nothing.
@@ -658,7 +707,7 @@ export async function main(ns) {
     const liveness = { status: verdict.status, reason: verdict.reason, sinceMs: stuckSince, boundaryStartMs };
 
     const augState = readJsonTolerant(ns, AUGFARMER_STATE_FILE);
-    const snapshot = buildSnapshot(series, augState, nowMs, liveness);
+    const snapshot = buildSnapshot(series, augState, nowMs, liveness, currentNode, currentVisit);
     ns.write(SNAPSHOT_FILE, JSON.stringify(snapshot, null, 2), "w");
 
     await ns.sleep(SAMPLE_INTERVAL_MS);
