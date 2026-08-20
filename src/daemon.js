@@ -142,6 +142,7 @@ export const RESIDENT_COMPANIONS = [
   // same reason procureprograms.js/backdoorwd.js are excluded. It is still
   // launched at startup below.
   "goallog.js", // Phase 32 -- BN2.1 progress sampler (installed-M / smoothed income rate / next-aug timer), feeds dashboard.js's GOAL panel
+  "procureprograms.js", // supervised ONLY while an opener is missing -- see COMPLETION_GATED_COMPANIONS
 ];
 export const SUPERVISOR_CHECK_MS = 60_000; // time-gated inside the main loop, like the share-marker check
 export const SUPERVISOR_RETRY_MS = 5 * 60_000; // per-script backoff so an instantly-re-crashing script doesn't relaunch-storm
@@ -165,6 +166,32 @@ export const GANG_GATED_COMPANIONS = ["gangmanager.js"];
 // documents. Filtered out of the supervised set until the division is joined.
 export const BLADEBURNER_GATED_COMPANIONS = ["bladeburnermanager.js"];
 
+// The five darkweb port openers, by filename. Duplicated from resourcemanager.js's
+// PORT_OPENER_COSTS rather than imported: importing charges this file that module's ENTIRE ns
+// footprint (the import-bleed trap in CLAUDE.md), and daemon.js is RAM-critical. The codebase
+// already duplicates small tables for exactly this reason -- see HOME_RESERVE_GB.
+export const PORT_OPENER_FILES = [
+  "BruteSSH.exe", "FTPCrack.exe", "relaySMTP.exe", "HTTPWorm.exe", "SQLInject.exe",
+];
+
+// Companions supervised only while their WORK IS UNFINISHED, rather than while some capability
+// gate is open. procureprograms.js is self-terminating -- "not running" normally means "done" --
+// which is why the comment above RESIDENT_COMPANIONS excludes it and every other fulfiller from
+// supervision, noting that a crash-before-done "heals at the next daemon restart".
+//
+// Measured 2026-08-20: it did not heal. procureprograms.js was not running, we owned 1 of 5
+// openers, and $1.5m of FTPCrack.exe had sat reserved-but-unbought for 3.5 days against a $48b
+// balance, because daemon.js is launched once per node and had been up since node entry. The
+// cost was real: FTPCrack alone unlocks 3 usable servers worth $3.459b maxMoney against a total
+// reachable pool of $1.478b -- a 2.3x target-pool increase, for 0.003% of the bankroll.
+//
+// The general objection in that comment stands (a supervisor cannot infer "done"), but it does
+// not apply HERE: this fulfiller's completion predicate is five ns.fileExists calls, which the
+// daemon can evaluate directly and cheaply. So it is supervised against its OWN predicate, not
+// against its absence. Other fulfillers (backdoorfactions/procureformulas/studybootstrap) keep
+// the old treatment -- their predicates are not this cheap.
+export const COMPLETION_GATED_COMPANIONS = ["procureprograms.js"];
+
 /**
  * Pure. The supervised resident set for the current gang/Bladeburner state:
  * the full list minus GANG_GATED_COMPANIONS when there's no gang, minus
@@ -176,10 +203,13 @@ export const BLADEBURNER_GATED_COMPANIONS = ["bladeburnermanager.js"];
  * @param {boolean} hasBladeburner
  * @returns {string[]}
  */
-export function supervisedResidents(residents, hasGang, hasBladeburner = true) {
+export function supervisedResidents(residents, hasGang, hasBladeburner = true, workOutstanding = false) {
   return residents.filter((s) => {
     if (!hasGang && GANG_GATED_COMPANIONS.includes(s)) return false;
     if (!hasBladeburner && BLADEBURNER_GATED_COMPANIONS.includes(s)) return false;
+    // Absence is the SUCCESS state for these, so supervise only while work remains. Defaults
+    // to false so every pre-existing three-arg call site keeps its exact behaviour.
+    if (!workOutstanding && COMPLETION_GATED_COMPANIONS.includes(s)) return false;
     return true;
   });
 }
@@ -1085,11 +1115,14 @@ export async function main(ns) {
       // gangcreate.js, or the division joined mid-session, starts being
       // supervised within one check, and neither a gangless nor a
       // Bladeburner-less node pays for a companion that can only exit.
-      const supervised = supervisedResidents(RESIDENT_COMPANIONS, ns.gang.inGang(), inBladeburnerSafe(ns));
+      // Five 0.1 GB fileExists reads; fileExists is already charged to this script for the
+      // marker files, so this adds no new RAM.
+      const openersOutstanding = PORT_OPENER_FILES.some((f) => !ns.fileExists(f, "home"));
+      const supervised = supervisedResidents(RESIDENT_COMPANIONS, ns.gang.inGang(), inBladeburnerSafe(ns), openersOutstanding);
       // Drop bookkeeping for anything a gate just removed, so a later
       // createGang()/division-join starts from a clean slate instead of
       // inheriting a multi-hour missing-since and a mid-backoff attempt clock.
-      for (const script of [...GANG_GATED_COMPANIONS, ...BLADEBURNER_GATED_COMPANIONS]) {
+      for (const script of [...GANG_GATED_COMPANIONS, ...BLADEBURNER_GATED_COMPANIONS, ...COMPLETION_GATED_COMPANIONS]) {
         if (supervised.includes(script)) continue;
         delete companionMissingSince[script];
         delete companionAttemptCount[script];

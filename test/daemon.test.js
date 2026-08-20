@@ -10,6 +10,7 @@ import {
   buildDaemonStatus,
   planRelaunches,
   RESIDENT_COMPANIONS,
+  COMPLETION_GATED_COMPANIONS,
   SUPERVISOR_RETRY_MS,
   supervisedResidents,
   GANG_GATED_COMPANIONS,
@@ -164,12 +165,29 @@ describe('planRelaunches — Phase 26 B1 (S5/S10)', () => {
     expect(nowFits.launch).toEqual(['a.js']);
   });
 
-  it('self-terminating scripts never appear -- list membership is the rail', () => {
-    expect(RESIDENT_COMPANIONS).not.toContain('procureprograms.js');
+  it('self-terminating scripts are never relaunched once done -- list membership is the rail', () => {
     expect(RESIDENT_COMPANIONS).not.toContain('procureformulas.js');
     expect(RESIDENT_COMPANIONS).not.toContain('studybootstrap.js');
     expect(RESIDENT_COMPANIONS).not.toContain('backdoorfactions.js');
     expect(RESIDENT_COMPANIONS).not.toContain('backdoorwd.js');
+  });
+
+  // procureprograms.js is the one exception, added 2026-08-20. It IS in the list, but gated on
+  // its own completion predicate rather than on its absence -- so the safety property the rail
+  // protects (never relaunch a fulfiller that has finished) still holds, by a different
+  // mechanism. The old list-exclusion let it stall silently: it was not running, we owned 1 of
+  // 5 openers, and $1.5m of FTPCrack.exe sat reserved-but-unbought for 3.5 days against $48b.
+  it('procureprograms.js is supervised ONLY while an opener is still missing', () => {
+    expect(RESIDENT_COMPANIONS).toContain('procureprograms.js');
+    expect(COMPLETION_GATED_COMPANIONS).toContain('procureprograms.js');
+    // work done -> not supervised, so a finished fulfiller is never relaunched
+    expect(supervisedResidents(RESIDENT_COMPANIONS, true, true, false)).not.toContain('procureprograms.js');
+    // work outstanding -> supervised, so a crash-before-done is healed within one check
+    expect(supervisedResidents(RESIDENT_COMPANIONS, true, true, true)).toContain('procureprograms.js');
+  });
+
+  it('the workOutstanding arg defaults to false, so pre-existing three-arg call sites are unchanged', () => {
+    expect(supervisedResidents(RESIDENT_COMPANIONS, true, true)).not.toContain('procureprograms.js');
   });
 
   it('Phase 27: gangmanager.js is resident, in the priority slot right after cloudmanager.js', () => {
@@ -191,11 +209,11 @@ describe('planRelaunches — Phase 26 B1 (S5/S10)', () => {
 
   describe('supervisedResidents -- gang gate', () => {
     it('with a gang, the set is the full resident list unchanged', () => {
-      expect(supervisedResidents(RESIDENT_COMPANIONS, true)).toEqual(RESIDENT_COMPANIONS);
+      expect(supervisedResidents(RESIDENT_COMPANIONS, true, true, true)).toEqual(RESIDENT_COMPANIONS);
     });
 
     it('without a gang, gangmanager.js is dropped and nothing else is', () => {
-      const gated = supervisedResidents(RESIDENT_COMPANIONS, false);
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, false, true, true);
       expect(gated).not.toContain('gangmanager.js');
       expect(gated).toEqual(RESIDENT_COMPANIONS.filter((s) => s !== 'gangmanager.js'));
     });
@@ -205,32 +223,32 @@ describe('planRelaunches — Phase 26 B1 (S5/S10)', () => {
     });
 
     it('a gangless gate means no relaunch is ever planned for gangmanager.js', () => {
-      const gated = supervisedResidents(RESIDENT_COMPANIONS, false);
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, false, true, true);
       const r = planRelaunches(new Set(), gated, new Set(), {}, 1000);
       expect(r.launch).not.toContain('gangmanager.js');
       expect(r.lastAttemptMs['gangmanager.js']).toBeUndefined();
       // ...and the gate is the only thing suppressing it: with a gang it plans.
-      const withGang = planRelaunches(new Set(), supervisedResidents(RESIDENT_COMPANIONS, true), new Set(), {}, 1000);
+      const withGang = planRelaunches(new Set(), supervisedResidents(RESIDENT_COMPANIONS, true, true, true), new Set(), {}, 1000);
       expect(withGang.launch).toContain('gangmanager.js');
     });
   });
 
   describe('supervisedResidents -- Phase 38 Slice B: Bladeburner gate (third param)', () => {
     it('two-arg call sites are behaviour-identical -- hasBladeburner defaults to true', () => {
-      expect(supervisedResidents(RESIDENT_COMPANIONS, true)).toEqual(RESIDENT_COMPANIONS);
-      const gated = supervisedResidents(RESIDENT_COMPANIONS, false);
+      expect(supervisedResidents(RESIDENT_COMPANIONS, true, true, true)).toEqual(RESIDENT_COMPANIONS);
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, false, true, true);
       expect(gated).toContain('bladeburnermanager.js');
       expect(gated).toEqual(RESIDENT_COMPANIONS.filter((s) => s !== 'gangmanager.js'));
     });
 
     it('without Bladeburner access, bladeburnermanager.js is dropped and nothing else is', () => {
-      const gated = supervisedResidents(RESIDENT_COMPANIONS, true, false);
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, true, false, true);
       expect(gated).not.toContain('bladeburnermanager.js');
       expect(gated).toEqual(RESIDENT_COMPANIONS.filter((s) => s !== 'bladeburnermanager.js'));
     });
 
     it('both gates compose -- no gang AND no Bladeburner drops both, only both', () => {
-      const gated = supervisedResidents(RESIDENT_COMPANIONS, false, false);
+      const gated = supervisedResidents(RESIDENT_COMPANIONS, false, false, true);
       expect(gated).toEqual(RESIDENT_COMPANIONS.filter((s) => s !== 'gangmanager.js' && s !== 'bladeburnermanager.js'));
     });
 

@@ -16,6 +16,7 @@ covered by the standing read-only probe grant in `CLAUDE.md`.
 |---|---|
 | `connect.js [target]` | **BFS path from home to a server** + lists its files. Default `CSEC`. Read-only — prints the route, doesn't connect. Feed the route to terminal `connect` hops. |
 | `allpaths.js` | BFS path to **every** reachable server (unbounded `scan-analyze`). |
+| `portlock.js` | **Read-only** — what the network is worth that we cannot reach, and which program unlocks it. Per port-requirement tier: servers, how many are rooted, how many are blocked by hacking **level** rather than ports, and total `maxMoney`; then what each *next* opener actually buys, split by `usableNow` (hacking level also satisfied). 🔑 **The split is the point** — on 2026-08-20 with 1/5 openers, `FTPCrack.exe` ($1.5m) unlocked **3 usable servers worth $3.459b** against a total reachable pool of **$1.478b** (a 2.3× target-pool increase), while `relaySMTP`/`HTTPWorm`/`SQLInject` unlocked **0 usable servers** — all 46 servers in those tiers are hacking-LEVEL blocked, so conflating the two would have overstated the prize ~2,000×. → `portlock-<epoch>.json`. |
 | `serverlist.js` | Every non-owned server sorted by required hacking level — spotting backdoor / faction targets. |
 | `auginfo.js` | Dump owned augs + aggregate player mults → timestamped `logs/auginfo-*.json`. Run before/after an install to diff. No Singularity. |
 | `ramcheck.js [scripts...]` | RAM-gate check via `getScriptRam`, + records in-game byte length as a staleness proof. Defaults to `daemon.js`+`share.js`. |
