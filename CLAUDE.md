@@ -524,7 +524,21 @@ on request — hold to them even when the moment is uncomfortable.
     REOPENS the aug tier … `bladeburner_stamina_gain` multiplies the rank rate directly.~~ That
     reopening rested on an assumption nobody had measured. `src/leverprobe.js` measured regen at
     **0.03274/s at `staminaMax` 88.96** vs Q10's **0.03352/s at ~136.5** — max moved ~35%, regen
-    moved **2.3%**. **Stamina regen is FLAT, independent of max.** So sustainable actions/hour is
+    moved **2.3%**. ~~**Stamina regen is FLAT, independent of max.**~~ 🔴 **RETRACTED 2026-08-21 —
+    REGEN IS NOT FLAT, and this was a regime-limited reading. Do not quote "flat".** Measured
+    live (`logs/q10probe-1787274944464.json`): **0.08026/s at `staminaMax` 335.3** — vs
+    leverprobe's 0.03274/s at 88.96, i.e. **max 3.77x, regen 2.45x**. The two original samples
+    spanned 88.96-136.5, a 1.5x band in which the effect is invisible; across 3.8x it is
+    obvious. 📌 **Fourth instance of "A MEASUREMENT INHERITS THE REGIME IT WAS TAKEN IN"** —
+    same lesson as `Overclock`, which was declared "measured DEAD" on short actions and then
+    mattered enormously on black ops. ⚠️ **The conclusions that rested on flatness are now
+    UNSOUND, not merely stale**: `Cyber's Edge`/max-stamina augs were dismissed *because*
+    regen was flat, and the "raising max only makes each rest longer in wall-clock" argument
+    inverts if regen scales with the same stat. Neither is re-opened here — nothing is
+    actionable in BN10 — but neither may be cited as settled. **What actually drove it is not
+    isolated**: combat rose ~10x and `staminaMax` 3.8x together, so `agility` and
+    `bladeburner_stamina_gain` are confounded exactly as chaos/level once were; separating
+    them needs an intervention on one, not more observation. So sustainable actions/hour is
     `regen × 3600 / cost` = **55.0** and *nothing* about max stamina can raise it. ⚠️ `Cyber's Edge`
     is **neutral-to-harmful**, not merely useless: the guards are *fractions* of max
     (`STAMINA_FLOOR_FRACTION` 0.5 / `STAMINA_RESUME_FRACTION` 0.55) while regen is a flat *absolute*

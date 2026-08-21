@@ -505,7 +505,7 @@ branch of §7 is now the operative one. (A 302 s window during the probe read 0.
 five minutes of a noisy series overlapping install #43's recovery — the hourly series is the
 honest source. Do not quote 0.1356.)
 
-### 8.2 ✅ Stamina regen is FLAT — `Cyber's Edge` is worthless. Do not spend the SP.
+### 8.2 🔴 [FALSIFIED 2026-08-21 — regen is NOT flat; see the verdict table] Stamina regen is FLAT — `Cyber's Edge` is worthless. Do not spend the SP.
 
 Measured **0.03274 / s** at `staminaMax` **88.96**, against Q10's **0.03352 / s** at a max of
 ~136.5. Max moved ~35%; regen moved **2.3%**. **Regen does not scale with max stamina.**
@@ -721,7 +721,7 @@ not independent evidence when both derive from the same uninformed reading.**
 |---|---|
 | Action level caps at 100 | 🔴 **RETRACTED** — Tracking is 103 and climbing |
 | Acceleration is over / ~25 days | 🔴 **RETRACTED** — 0.2161 and rising, ~15–19 days |
-| Stamina regen is FLAT (0.03274/s at max 88.96 vs 0.03352 at ~136.5) | ✅ **STANDS** — direct measurement, no estimate in the chain |
+| Stamina regen is FLAT (0.03274/s at max 88.96 vs 0.03352 at ~136.5) | 🔴 **FALSIFIED 2026-08-21** — 0.08026/s at max 335.3 (BN10, after the combat graft ladder): **max 3.77×, regen 2.45×**. The measurement was sound; its SCOPE was not — both original samples sat in an 88.96–136.5 band where the effect is invisible. Direct measurement with no estimate in the chain is still not proof of a *law*. |
 | `Cyber's Edge` worthless; 8,912 SP stay parked | ✅ **STANDS** — follows from flat regen |
 | Actions/hour fixed ~55; objective should be rank-per-action | ✅ **STANDS** — arithmetic, not inference |
 | Q11 moot in Ishima (Raid [1,1]) | ✅ **STANDS** — converged range, read directly |
