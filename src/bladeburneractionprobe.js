@@ -400,6 +400,11 @@ async function levelSweepMode(ns) {
 
 const RAID_TARGET = { type: "Operations", name: "Raid" };
 const RAID_WINDOW_MS = 200_000; // ~3 attempts at Raid's current 63s action time
+// 2026-08-21: overridable via `run bladeburneractionprobe.js raid <seconds>`. The 200s default
+// was sized to price HP per failure, which needs only a handful of attempts. Measuring the
+// SUCCESS RATE needs ~20, because the whole question is whether the estimator's pMin (0.228)
+// is trustworthy -- and the BN6 precedent is it being wrong by 135x while reporting certainty.
+const RAID_WINDOW_MAX_MS = 3_600_000;
 const RAID_TICK_MS = 5_000;
 const RAID_HP_PRECONDITION_FRACTION = 0.85; // refuse to start below this
 const RAID_HP_ABORT_FRACTION = 0.5; // matches bladeburnermanager.js's HP_FLOOR_FRACTION
@@ -422,6 +427,22 @@ async function raidHpCostMode(ns) {
     try { ns.write("bladeburneractionprobe-" + out.ts + ".json", JSON.stringify(out, null, 2), "w"); } catch { /* breadcrumb only */ }
   };
   emit("start");
+
+  // Raid is the one action whose cost has never been measured: it reduces the city's synthoid
+  // population and communities, and CLAUDE.md's "Raid permanently kills a city" claim was
+  // RETRACTED in 2026-08 as never having been tested. Capture it here so the first real run
+  // converts an unbounded warning into a number, rather than leaving it unbounded forever.
+  out.city = ns.bladeburner.getCity();
+  out.cityBefore = {
+    population: ns.bladeburner.getCityEstimatedPopulation(out.city),
+    communities: ns.bladeburner.getCityCommunities(out.city),
+    chaos: ns.bladeburner.getCityChaos(out.city),
+  };
+
+  const windowArg = Number(ns.args[1]);
+  out.windowMs = Number.isFinite(windowArg) && windowArg > 0
+    ? Math.min(windowArg * 1000, RAID_WINDOW_MAX_MS)
+    : RAID_WINDOW_MS;
 
   out.startHpFraction = readHpFraction(ns);
   if (out.startHpFraction < RAID_HP_PRECONDITION_FRACTION) {
@@ -449,6 +470,17 @@ async function raidHpCostMode(ns) {
   ns.tprint(`raidHpCost: ${out.aborted ? "ABORTED (" + out.aborted + ")" : "complete"}` +
     ` startHp=${(out.startHpFraction * 100).toFixed(1)}% endHp=${(out.endHpFraction * 100).toFixed(1)}%` +
     (out.hpCostPerFailure != null ? ` hpCostPerFailure=${out.hpCostPerFailure.toFixed(2)} (${out.failures} failures)` : ""));
+  if (out.realisedSuccessRate != null) {
+    ns.tprint(`  REALISED success ${(out.realisedSuccessRate * 100).toFixed(1)}% (${out.successesDuring}/${out.attemptsRounded})` +
+      ` vs estimate [${out.estimatedSuccessChance[0].toFixed(3)}, ${out.estimatedSuccessChance[1].toFixed(3)}]`);
+    ns.tprint(`  rank ${out.rankDelta != null ? out.rankDelta.toFixed(1) : "?"} over the window` +
+      ` = ${out.rankPerHour != null ? out.rankPerHour.toFixed(0) : "?"} rank/h  (Tracking baseline ~97)`);
+  }
+  if (out.cityDelta) {
+    ns.tprint(`  CITY COST ${out.city}: pop ${out.cityDelta.population.toExponential(3)}` +
+      ` (${out.populationCostPerAttempt != null ? out.populationCostPerAttempt.toExponential(2) : "?"}/attempt),` +
+      ` communities ${out.cityDelta.communities}, chaos ${out.cityDelta.chaos.toFixed(2)}`);
+  }
   ns.tprint(`  pauseCleared=${out.pauseCleared} -> ${file}`);
 }
 
@@ -479,7 +511,7 @@ async function runRaidWindow(ns, out, emit) {
   const samples = [];
   let lastHpFraction = out.startHpFraction;
   let aborted = false;
-  while (Date.now() - t0 < RAID_WINDOW_MS) {
+  while (Date.now() - t0 < out.windowMs) {
     await ns.sleep(RAID_TICK_MS);
     holdSlot(ns);
     const hpFraction = readHpFraction(ns);
@@ -526,6 +558,28 @@ async function runRaidWindow(ns, out, emit) {
   out.maxHp = maxHp;
   out.hpPointsLost = out.hpLost * maxHp;
   if (estimatedFailures > 0) out.hpCostPerFailure = out.hpPointsLost / estimatedFailures;
+
+  // The headline the run exists for: REALISED success vs what the estimator promised.
+  out.attemptsRounded = Math.max(0, Math.round(estimatedAttempts));
+  out.realisedSuccessRate = out.attemptsRounded > 0 ? successesDuring / out.attemptsRounded : null;
+  out.estimatedSuccessChance = ns.bladeburner.getActionEstimatedSuccessChance(t.type, t.name);
+  out.rankStart = samples.length > 0 ? samples[0].rank : null;
+  out.rankEnd = samples.length > 0 ? samples[samples.length - 1].rank : null;
+  out.rankDelta = out.rankEnd != null && out.rankStart != null ? out.rankEnd - out.rankStart : null;
+  out.rankPerHour = out.rankDelta != null && elapsedMs > 0 ? out.rankDelta / (elapsedMs / 3_600_000) : null;
+
+  out.cityAfter = {
+    population: ns.bladeburner.getCityEstimatedPopulation(out.city),
+    communities: ns.bladeburner.getCityCommunities(out.city),
+    chaos: ns.bladeburner.getCityChaos(out.city),
+  };
+  out.cityDelta = {
+    population: out.cityAfter.population - out.cityBefore.population,
+    communities: out.cityAfter.communities - out.cityBefore.communities,
+    chaos: out.cityAfter.chaos - out.cityBefore.chaos,
+  };
+  out.populationCostPerAttempt = out.attemptsRounded > 0 ? out.cityDelta.population / out.attemptsRounded : null;
+
   out.aborted = aborted ? out.aborted : undefined;
 }
 
