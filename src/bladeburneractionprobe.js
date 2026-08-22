@@ -399,6 +399,16 @@ async function levelSweepMode(ns) {
 // ---- Raid HP-cost mode (2026-08-02, Phase 39 Q11) ----------------------------
 
 const RAID_TARGET = { type: "Operations", name: "Raid" };
+// 2026-08-21: the mode generalised past Raid via `raid <seconds> <Type> <Name>`. The window
+// machinery (own the slot, restart on idle, detect failures by rank DROP, HP abort) is not
+// Raid-specific, and the same measurement is needed for CONTRACTS -- which cost no city
+// population at all, so testing them carries none of Raid's irreversibility. Bounty Hunter in
+// particular has never been run once in either node while estimating 26.08 rank/action.
+function resolveTarget(ns) {
+  const type = typeof ns.args[2] === "string" ? ns.args[2] : null;
+  const name = typeof ns.args[3] === "string" ? ns.args[3] : null;
+  return type && name ? { type, name } : RAID_TARGET;
+}
 const RAID_WINDOW_MS = 200_000; // ~3 attempts at Raid's current 63s action time
 // 2026-08-21: overridable via `run bladeburneractionprobe.js raid <seconds>`. The 200s default
 // was sized to price HP per failure, which needs only a handful of attempts. Measuring the
@@ -432,6 +442,7 @@ async function raidHpCostMode(ns) {
   // population and communities, and CLAUDE.md's "Raid permanently kills a city" claim was
   // RETRACTED in 2026-08 as never having been tested. Capture it here so the first real run
   // converts an unbounded warning into a number, rather than leaving it unbounded forever.
+  out.target = resolveTarget(ns);
   out.city = ns.bladeburner.getCity();
   out.cityBefore = {
     population: ns.bladeburner.getCityEstimatedPopulation(out.city),
@@ -467,7 +478,7 @@ async function raidHpCostMode(ns) {
 
   const file = "bladeburneractionprobe-" + out.ts + ".json";
   ns.write(file, JSON.stringify(out, null, 2), "w");
-  ns.tprint(`raidHpCost: ${out.aborted ? "ABORTED (" + out.aborted + ")" : "complete"}` +
+  ns.tprint(`raidHpCost[${out.target.name}]: ${out.aborted ? "ABORTED (" + out.aborted + ")" : "complete"}` +
     ` startHp=${(out.startHpFraction * 100).toFixed(1)}% endHp=${(out.endHpFraction * 100).toFixed(1)}%` +
     (out.hpCostPerFailure != null ? ` hpCostPerFailure=${out.hpCostPerFailure.toFixed(2)} (${out.failures} failures)` : ""));
   if (out.realisedSuccessRate != null) {
@@ -485,7 +496,7 @@ async function raidHpCostMode(ns) {
 }
 
 async function runRaidWindow(ns, out, emit) {
-  const t = RAID_TARGET;
+  const t = out.target;
 
   ns.write(BB_OFF_MARKER, "paused by bladeburneractionprobe.js raid mode @ " + out.iso + "\n", "w");
   ns.write(AUG_PAUSE_FILE, "paused by bladeburneractionprobe.js raid mode @ " + out.iso + "\n", "w");

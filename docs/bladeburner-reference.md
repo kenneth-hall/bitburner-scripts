@@ -970,6 +970,33 @@ grind, not just the Stanek loss.
 
 ---
 
+## 6b. Measured 2026-08-21 (BN10) — action costs nobody had priced
+
+Three costs measured live, each of which had been argued about without data.
+
+**Raid's city cost, measured for the FIRST time.** 19 attempts in Sector-12:
+population **4.866e9 → 4.007e9** (−859m, **−17.7%**, ~45m/attempt), **communities −13**,
+**chaos +50.4**. Realised success **68.4%** (13/19) against an estimate of **[0.305, 0.740]** —
+i.e. near the TOP of the range. 📌 **The estimator is not reliably biased in either direction**:
+BN6 caught it confidently wrong by 135× *low* on `Investigation`; here it was *pessimistic*.
+That is exactly why the answer was measured rather than reasoned from.
+⚠️ **Raid is self-limiting, not a rate change.** Population regenerates ~80m/h; Raid burns it
+~29× faster. Burning the full stock across all six cities is worth roughly **20k rank total** —
+about 5% of a 400k grind — after which the action is spent.
+
+**🔴 HP DOES NOT REGENERATE PASSIVELY — and this overturns the reading of commit `767f4c6`.**
+Over a 1,106 s window the HP trace fell **138 → 128 → 117 → 107 → 97 → 86 → 77** with **zero
+recovery at any point**. The recorded "HP regen is FLAT at 2.00 HP/min" is therefore a
+measurement of the **Hyperbolic Regeneration Chamber ACTION**, not of passive healing. The
+practical consequence is large: **every failure costs ACTION TIME, not just HP**, which is what
+made the pre-graft engine spend 75% of its wall clock in the chamber.
+
+**`Bounty Hunter` is not the free win its estimate suggests.** Realised **50.0%** (7/14) against
+**[0.438, 1.000]** — the pessimistic bound was about right. Raw **587 rank/h**, but at
+**−10.14 HP per failure** with no passive regen the run **hit the 50% HP abort floor in 18
+minutes**. Its sustainable rate is far below its raw rate. It costs **zero** city population
+(pop delta −7.0 over the window), which is the one clean advantage contracts have over Raid.
+
 ## 7. Gotchas — the implementer's list
 
 1. **Two tuples, two opposite conventions.** `getActionEstimatedSuccessChance` → `[MIN, MAX]`;
