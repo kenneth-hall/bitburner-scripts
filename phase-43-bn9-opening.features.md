@@ -222,23 +222,44 @@ The gate is combat **100 in all four stats**; we sit at **1/1/1/1** with essenti
 gate was cleared starting from combat **91**, so this is a materially harder start than Phase 41
 faced.
 
+**✅ Q4 ANSWERED 2026-08-25 — grafting is LIVE in BN9** (`logs/graftrecon-1787701791849.json`):
+`graftingAvailable: true`, **98 graftable augs**, **36 of them combat**, entropy currently **0**.
+D4's load-bearing assumption holds, so the table below is a real ladder, not a hypothetical.
+
 BN9 combat level mult **0.45** × current player mult **1.3824** = **0.6221 effective**. Using the
-measured `combatgateprobe` baseline (combat 1 → 100 = **21,668 exp** at mult 1.0) and the standard
-level curve `level = 32·ln(exp + 534.6) − 200`:
+measured `combatgateprobe` baseline and the standard level curve
+`level = 32·ln(exp + 534.6) − 200`, against `graftrecon`'s cumulative ladder (which already carries
+`0.98^k` **inside** `netCombatFactor`) and Mug at the measured **0.179 exp/s/stat**:
 
-| Combat multiplier | equivalent base level for 100 | exp needed **per stat** | Mug @ 0.179 exp/s/stat |
-|---|---|---|---|
-| **0.6221** (today) | 160.8 | **~78,300** | **~5.1 days** |
-| 0.933 (≈ +50% from grafts) | 107.2 | **~14,100** | **~0.9 days** |
-| 1.24 (≈ +100%) | 80.6 | ~5,700 | ~0.4 days |
+| grafts *k* | net combat ×  | effective mult | exp needed **/stat** | grind | graft (serial) | **total** | cum. cost |
+|---|---|---|---|---|---|---|---|
+| **0** | 1.000 | 0.622 | 78,171 | 121.3 h | 0 | **121.3 h** | $0 |
+| 4 | 1.421 | 0.884 | 17,225 | 26.7 h | 2.8 h | **29.6 h** | $139m |
+| 6 | 1.817 | 1.130 | 7,692 | 11.9 h | 5.1 h | **17.1 h** | $319m |
+| 8 | 2.848 | 1.772 | 2,487 | 3.9 h | 6.9 h | **10.7 h** | $581m |
+| **9** | **3.908** | **2.431** | **1,339** | **2.1 h** | **7.7 h** | **⭐ 9.8 h** | **$731m** |
+| 10 | 4.977 | 3.096 | 887 | 1.4 h | 8.5 h | **9.9 h** | $926m |
+| 12 | 6.954 | 4.326 | 532 | 0.8 h | 10.8 h | **11.7 h** | $1,421m |
 
-> **Required exp collapses super-exponentially in the multiplier.** This is the BN2 gate-math lesson
-> (*raise M, don't grind exp*) reappearing in a completely different subsystem — and it is why the
-> ordering matters more than the effort.
+> **Required exp collapses super-exponentially in the multiplier**, and grafting time is roughly
+> linear — so total wall-clock is U-shaped with a **shallow basin at k = 8–11 (~10–11 h)** and a
+> minimum at **k = 9, ~9.8 h**. Grind-only is **121 h — twelve times longer.** This is the BN2
+> gate-math lesson (*raise M, don't grind exp*) reappearing in a completely different subsystem.
 
-**Decision: buy combat-multiplier grafts *before* starting the stat grind**, funded from the
-Hacknet, with the sleeve grinding in parallel. `CLAUDE.md`'s "~0.5–2.9 days" estimate for this gate
-is **only reachable on the graft-first ordering**; grind-first is a ~5-day path.
+**Decision: graft to k ≈ 9 (~$731m, ~7.7 h serial) *before* starting the stat grind**, funded from
+the Hacknet, with the sleeve grinding in parallel. We already hold **$920m**, so the ladder is
+affordable *today* without waiting on income. `CLAUDE.md`'s "~0.5–2.9 days" estimate is **only
+reachable on the graft-first ordering**; grind-first is a **5.05-day** path.
+
+**⚠️ What k = 9 costs, permanently: Entropy 0.8337 on EVERY multiplier for the rest of the node.**
+That is the honest price and it is not only combat — it hits `bladeburner_success_chance`,
+`bladeburner_max_stamina`, `bladeburner_analysis`, `bladeburner_stamina_gain` (all currently at a
+bare 1.000, so Entropy pushes them **below baseline**) and Hacknet production (−$1.3b/day, which
+D2 says does not matter). **The specific risk worth naming: BN10's `Tracking` realised 80% success
+and that is what tripped S-RF's `0.9` floor and created Phase 42.** A 17% haircut on the
+Bladeburner mults is a plausible way to land in that regime again — offset, probably more than
+offset, by a **3.9× combat-stat multiplier**, since stats drive action success far harder than the
+mults do. **Not resolvable in advance; watch it at WI5.**
 
 **Rejected: "Improve Gym Training" hashes.** Ten purchases cost **$687m** (§3.3) and multiply the
 gym *rate* — a linear lever on the slow variable. The same money buys four or five grafts, which
@@ -291,6 +312,21 @@ corporations; the stock market (§6).
 - **The SP bank is node-local and must be spent before Daedalus**, balanced across Blade's Intuition
   and Digital Observer — the multiplier is a **product**, and `bbskillbuy.js` will not balance it
   for you (BACKLOG).
+- **🔴 IRREVERSIBILITY — DO NOT INSTALL AUGMENTATIONS IN BN9, and do not flip the ratchet to
+  `auto`.** An install is the **only** thing that clears Entropy, so it will look attractive once
+  the graft ladder has taxed everything to 83%. But `docs/reset-protocol.md`'s soft-reset table
+  puts *"Money, purchased servers"* in the **reset** column and **does not say what happens to
+  Hacknet Servers** — and `hacknet-server-0` is **the node's entire economy**, at a level that
+  `bn9econprobe` prices at **~$54b to rebuild** and which we did not pay for (Q3). If an install
+  wipes it, BN9 has no income and no way back. **The only way to test that is to do it, which is
+  exactly why we don't.**
+  - ✅ **Verified safe right now:** `src/ratchet-mode.txt` **and** its `dist/` mirror both read
+    `observe`, and `installer.js` refuses to act unless the file reads exactly `auto`. Nothing can
+    fire an install on its own. **Re-verify before any dev-server restart** (next bullet).
+  - **Consequence:** the Phase 25 aug-ratchet, `installer.js` and `augfarmer.js` have **no job in
+    BN9** — grafting replaces buying, and buying needs an install. `augfarmer.js` is nonetheless
+    *running and holding the single player-action slot* (faction work in Aevum). **It gets paused
+    for the node** via `augfarmer-pause.txt`, exactly as in Phase 41, at WI3.
 - **`ratchet-mode.txt` is gitignored *and* pushed by viteburner.** An in-game write silently reverts
   on the next dev-server restart.
 - **viteburner pushes the working tree, so git and the running game can disagree silently.**
@@ -311,8 +347,9 @@ the first place to look — not more Hacknet levels.
 |---|---|---|---|
 | **Q1** | Rank and SP granted per `Exchange for Bladeburner …` purchase | **Marginal; feature not built** (§3.3). Measure once on join day, for the record only. | 2026-09-05 |
 | **Q2** | Was `daemon.js` stopped deliberately, or did it crash on the empty fleet? | **Stays down either way** (§2). If it crashed, `cloudmanager`'s impossible-purchase loop is the prime suspect and WI2 removes it. | 2026-08-28 |
-| **Q3** | Where did `hacknet-server-0` come from? `hacknet_expenses` reads **0**, yet it is level 100 — a ladder costing **~$54b**, against $3.38b ever earned. `timeOnline` (40,175 s) ≈ node age (40,575 s). | **Hypothesis: BN9 grants a pre-levelled Hacknet Server at entry.** Nothing downstream depends on the answer; one UI/`getResetInfo` read settles it. | 2026-09-01 |
-| **Q4** | Is the 97-aug graft catalog intact in BN9, and does it contain the combat multipliers D4 needs? | **Assume yes** (grafting is SF10-granted and node-independent) — but this is D4's load-bearing assumption. `graftrecon.js` settles it in one run: **do this first.** | 2026-08-27 |
+| **Q3** | Where did `hacknet-server-0` come from? `hacknet_expenses` reads **0**, yet it is level 100 — a ladder costing **~$54b**, against $3.38b ever earned. `timeOnline` (40,175 s) ≈ node age (40,575 s). | **Hypothesis: BN9 grants a pre-levelled Hacknet Server at entry.** ⚠️ **Upgraded from trivia to load-bearing by §6:** if the grant is *on node entry*, an install does **not** restore it, which is the argument for never installing. | 2026-09-01 |
+| ~~**Q4**~~ | ~~Is the graft catalog intact in BN9?~~ | ✅ **ANSWERED 2026-08-25** — `graftingAvailable: true`, **98 graftable augs, 36 combat**, entropy 0 (`logs/graftrecon-1787701791849.json`). D4 stands. | closed |
+| **Q7** | Does an augmentation install reset Hacknet **Servers**? `reset-protocol.md` is silent on it. | **Assume YES, and never install in BN9** (§6). Not testable without doing it. | no expiry — this is a standing rail, not a decision awaiting data |
 | **Q5** | `w0r1d_d43m0n` is **not a valid host** (`getServer` throws), where it existed in BN6. When does it appear, and are `backdoorwd.js` / `gatewatch.js` degrading cleanly against a missing host? | **Assume it appears later and both scripts are harmless.** Check their logs once. | 2026-09-01 |
 | **Q6** | Does $250,000/hash hold as production scales, or is it a per-*purchase* price that escalates once `Sell for Money` leaves level 0? | **Assume flat** — `Sell for Money` is the one upgrade whose cost does **not** escalate (4 / 40 / 400 for 1 / 10 / 100), which is exactly what a flat exchange rate looks like. | 2026-09-05 |
 
