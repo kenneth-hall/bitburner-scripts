@@ -9,10 +9,42 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **🟢 IN BN10.1 (Digital Carbon) as of 2026-08-16** —
-  entered straight off the BN6.1 clear. Confirmed live: Stats reads *"BitNode 10: Digital Carbon
-  (Level 1)"*, Augmentations reads **Source-File 6: Bladeburners — Level 1 / 3**. Held SFs:
-  **1 (3/3) · 2 (1/3) · 4 (3/3) · 5 (1/3) · 6 (1/3)**.
+- **Current goal (keep this line current):** **🟢 IN BN9.1 (Hacktocracy) as of 2026-08-25** —
+  entered straight off the BN10.1 clear. Confirmed live: Stats reads *"BitNode 9: Hacktocracy
+  (Level 1)"*, Augmentations lists **Source-File 10: Digital Carbon**. Held SFs:
+  **1 · 2 · 4 · 5 · 6 · 10**. Fresh node: all stats **1**, money **$1.26k**, nothing running.
+  - **✅ BN10.1 CLEARED 2026-08-25** via the Bladeburner black-op ladder, same shape as BN6.
+    **Operation Daedalus completed FIRST TRY, zero failed attempts**, at `p[1.0000, 1.0000]`,
+    713s action time, rank **2,031,352 → 2,062,551** (+31,199). `getNextBlackOp()` then read
+    `null` and `destroybn.js 9 confirm` fired. **SF10 (Sleeves + Grafting) is banked** — the
+    tool argument that justified the BN10 detour is now permanent across all future nodes.
+    - 🔑 **The lever that made Daedalus free: the SP bank.** 535,869 skill points sat idle;
+      they are **node-local** and would have been destroyed regardless, so spending them cost
+      nothing. Blade's Intuition **250 → 756** took Daedalus from **p[0.5164, 1.0000] →
+      p[1.0000, 1.0000]**. ⚠️ **Do this again in BN9 before its ladder's back half** — and note
+      the projection that the ladder would land ~1,000–1,500 rank SHORT of its gate never
+      materialised here, because rank ran 5x over the gate long before the last three ops.
+    - 🔴 **`bbskillbuy.js` starved Digital Observer and reported `[ok]`** — greedy
+      list-order spending on a **product** multiplier. Cost ~1.8x at equal spend (x260 realised
+      vs ~x475 balanced). Harmless here, **will bite in BN9** where the bank re-grinds from 0
+      against a 1.33x redo-tax. → `BACKLOG.md`.
+  - ⚠️ **Nothing carried over but Source-Files, home scripts, and Intelligence.** BN10's rank,
+    skill points, $195b, all augmentations, the fleet and every faction membership are gone.
+    Grafting Entropy (`Aug. Success Chance mult: 81.7%`, i.e. 10 grafts) cleared with the node.
+  - **Why BN9:** documented next step from the 2026-08-16 re-derivation — redo-tax **1.33x**
+    (second-cheapest), **~16 days (12–23)** via the Bladeburner ladder. Grants SF9 (Hacknet
+    Servers; L2 = 128GB home start, L3 = pre-upgraded Hacknet Server on node entry). ⚠️ **BN9 is
+    the "harshest node"**: max money **1%**, **private servers disabled**, home RAM cost raised,
+    hacking mults nerfed — so **the batcher economy that funded BN6/BN10 largely does not exist
+    here.** Bladeburner is not merely preferred, it is close to the only route. Expect the
+    funding model to need rethinking, not porting.
+  - **🔴 NOT YET DONE — the node is idle.** Nothing is running: no daemon, no bootstrap, no
+    Bladeburner. BN9 entry needs its own opening (home RAM is SF1's 32GB, not 128GB — SF9.2 is
+    not held). The BN10 entry gate took **combat 100 via two grafts**; BN9's combat mult is
+    **0.576 vs BN10's 0.512**, so its gate is estimated **~0.5–2.9 days**.
+
+  - **[✅ BN10 CLOSED 2026-08-25 — everything from here to the BN6 block below is CLOSED
+    HISTORY, kept for its lessons, not its plan. Do not read any of it as current.]**
   - **Why BN10:** cheapest Bladeburner redo-tax among reward-bearing nodes (**1.25×**) and the only
     candidate granting new *tools* — **Sleeves + Grafting**. Agreed by three independent sources
     (redo-tax derivation, cold audit, in-game guide). Estimate **~18 days (13–26)** via the

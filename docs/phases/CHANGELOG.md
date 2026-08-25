@@ -6,6 +6,31 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-08-25
+
+- **✅ BN10.1 (Digital Carbon) CLEARED — all 21 black ops, then `destroyW0r1dD43m0n(9)`.**
+  **Operation Daedalus completed first try, zero failed attempts**, at `p[1.0000, 1.0000]`,
+  713s, rank **2,031,352 → 2,062,551**. `getNextBlackOp()` read `null`, `destroybn.js 9 confirm`
+  fired. Landed in **BN9.1 (Hacktocracy)**; **SF10 (Sleeves + Grafting) banked**.
+  - 🔑 **The SP bank was the free lever.** 535,869 idle skill points are **node-local** and
+    would have been destroyed anyway; spending them (Blade's Intuition **250 → 756**) moved
+    Daedalus from **p[0.5164, 1.0000] → p[1.0000, 1.0000]**. The 2026-08-15 projection that the
+    ladder would land ~1,000–1,500 rank **short** of its gate never materialised — rank ran 5x
+    over the gate well before the last three ops.
+  - 🔴 **Defect found and logged: `bbskillbuy.js` spends greedily in list order.** It put the
+    whole bank into Blade's Intuition, left Digital Observer at 250, and reported `[ok]`. The
+    multiplier is a **product**, so that cost ~**1.8x** at equal spend (x260 realised vs ~x475
+    balanced). Harmless here; **expected to bite in BN9**, where the bank re-grinds from 0
+    against a 1.33x redo-tax. → `BACKLOG.md`.
+  - 📌 **The "four claimants" landmine showed up again and was a false alarm.** `augfarmer.js`
+    flapped in and out of the slot every ~60s during acquisition, which looks exactly like the
+    failure that defeated four measurements on 2026-08-02. It settled on its own once the pause
+    file landed; the live panel (`Black Operations: Operation Daedalus`) was what settled it,
+    **not** the log. Sibling to "an engine that measures itself must be validated against an
+    independent source".
+
+---
+
 ## 2026-08-18
 
 - **🔴 SLEEVE-PARALLELISM CLOSED ON EVIDENCE — the BN10 order's weakest plank does not hold.**

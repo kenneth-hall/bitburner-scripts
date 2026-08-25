@@ -22,6 +22,24 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🔴 NEW 2026-08-25 — `bbskillbuy.js` spends the bank GREEDILY IN LIST ORDER, so an
+  under-funded run buys one success skill and starves the other.** The multiplier is a **product**
+  `(1+0.03*BI)*(1+0.04*DO)` — the script's own header says "balanced levels beat a lopsided stack
+  at equal spend" — but `buildPlan` is a sequential list and the loop drains the bank on each entry
+  before moving to the next.
+  - **Measured live 2026-08-25**, spending 535,869 SP at target 2000:
+    `Blade's Intuition: L250 -> L756 [ok]`, `Digital Observer: L250 -> L250 [unaffordable-or-at-max]`.
+    Realised multiplier **x260.48**. A balanced split of the same bank (~BI/DO 600/600) gives
+    `(1+18)*(1+25)` = **~x475** — so the greedy order cost ~**1.8x** at zero extra spend.
+  - **Didn't bite this time:** Daedalus still converged to `p[1.0000, 1.0000]`, so the clear was
+    unaffected. Logged because it is silent — the run reports `[ok]` on the starved plan.
+  - **It WILL bite in BN9.** Skill points are node-local, so BN9 re-grinds the same bank and runs
+    the same ladder, and BN9's redo-tax is **1.33x** — the bank will be tighter there, which is
+    exactly the regime where the greedy order does the most damage.
+  - **Next concrete action:** make the two success skills buy in **interleaved** steps (raise
+    whichever of BI/DO yields the larger marginal product per SP) rather than one-then-the-other,
+    and have an under-funded plan report `starved` instead of `[ok]`.
+
 - **🔴 NEW 2026-08-15 — `Recruitment` is wired to a flag we closed permanently, so the engine can
   never build a team — and teams only matter for the one thing the engine doesn't do.**
   `pickOverheadAction` (`bladeburnermanager.js:669`) reads
