@@ -231,25 +231,79 @@ measured `combatgateprobe` baseline and the standard level curve
 `level = 32·ln(exp + 534.6) − 200`, against `graftrecon`'s cumulative ladder (which already carries
 `0.98^k` **inside** `netCombatFactor`) and Mug at the measured **0.179 exp/s/stat**:
 
-| grafts *k* | net combat ×  | effective mult | exp needed **/stat** | grind | graft (serial) | **total** | cum. cost |
-|---|---|---|---|---|---|---|---|
-| **0** | 1.000 | 0.622 | 78,171 | 121.3 h | 0 | **121.3 h** | $0 |
-| 4 | 1.421 | 0.884 | 17,225 | 26.7 h | 2.8 h | **29.6 h** | $139m |
-| 6 | 1.817 | 1.130 | 7,692 | 11.9 h | 5.1 h | **17.1 h** | $319m |
-| 8 | 2.848 | 1.772 | 2,487 | 3.9 h | 6.9 h | **10.7 h** | $581m |
-| **9** | **3.908** | **2.431** | **1,339** | **2.1 h** | **7.7 h** | **⭐ 9.8 h** | **$731m** |
-| 10 | 4.977 | 3.096 | 887 | 1.4 h | 8.5 h | **9.9 h** | $926m |
-| 12 | 6.954 | 4.326 | 532 | 0.8 h | 10.8 h | **11.7 h** | $1,421m |
+### 🔴 The first pass at this was wrong: **the gate is on the MINIMUM stat, not a pooled product**
 
-> **Required exp collapses super-exponentially in the multiplier**, and grafting time is roughly
-> linear — so total wall-clock is U-shaped with a **shallow basin at k = 8–11 (~10–11 h)** and a
-> minimum at **k = 9, ~9.8 h**. Grind-only is **121 h — twelve times longer.** This is the BN2
-> gate-math lesson (*raise M, don't grind exp*) reappearing in a completely different subsystem.
+`graftrecon.js` reports `combatLevelFactor` as the product of *whatever stats an aug touches*
+(`Wired Reflexes` = dex 1.05 × agi 1.05 → **1.1025**) and compounds those into a cumulative
+`rawCombatFactor`. That models the four combat stats as **one pooled quantity**. The gate is
+`min(str, def, dex, agi) ≥ 100`, so a dex-only graft moves the pooled number and moves the gate
+**not at all** — while its Entropy still taxes all four.
 
-**Decision: graft to k ≈ 9 (~$731m, ~7.7 h serial) *before* starting the stat grind**, funded from
-the Hacknet, with the sleeve grinding in parallel. We already hold **$920m**, so the ladder is
-affordable *today* without waiting on income. `CLAUDE.md`'s "~0.5–2.9 days" estimate is **only
-reachable on the graft-first ordering**; grind-first is a **5.05-day** path.
+Recomputed per-stat on the binding minimum, `graftrecon`'s own ascending-price ladder reads:
+
+| k | binding eff. mult | exp /stat | grind | graft | **total** | cum. cost |
+|---|---|---|---|---|---|---|
+| 0 | 0.622 | 78,171 | 121.3 h | 0 | **121.3 h** | $0 |
+| 1 | 0.610 | 86,668 | 134.5 h | 0.7 h | **135.2 h** | $8m |
+| 3 | 0.585 | 107,192 | 166.3 h | 2.1 h | **168.4 h** | $68m |
+| 9 | 0.616 | 82,059 | 127.3 h | 7.7 h | **135.1 h** | $731m |
+| 10 | 0.666 | 56,082 | 87.0 h | 8.5 h | **95.5 h** | $926m |
+
+> 🔴 **Three grafts leave the gate 39% *further away* than doing nothing.** Entropy taxes all four
+> stats on every graft; a narrow aug repays only one. The ladder **oscillates** rather than
+> descending, and the earlier "k = 9 → 9.8 h" figure in this doc was an artifact of the pooling —
+> **it is retracted.**
+
+📌 **Durable lesson, and a sibling to *a measurement inherits the regime it was taken in*: an
+AGGREGATE IS NOT AN OBJECTIVE.** `graftrecon` was written in BN10, where it gave a usable answer
+(two broad grafts took combat 91 → 109), so the pooling never showed. It fails here because BN9
+starts from **1/1/1/1** — every stat binds at once. → `BACKLOG.md`.
+
+### The real problem is **selection**, not depth
+
+Optimising against the binding stat, and charging money-accrual as wall-clock (bankroll **$920m**,
+Hacknet **$7.74b/day**, grafting and earning concurrent):
+
+| plan | k | money-wait | graft | grind | **total** | cost |
+|---|---|---|---|---|---|---|
+| ascending price (`graftrecon`'s order) | 10 | — | 8.5 h | 87.0 h | **95.5 h** | $926m |
+| **optimised selection** | **11** | **9.0 h** | **9.5 h** | **11.7 h** | **⭐ 21.2 h** | **$3.83b** |
+| optimised, after the D2 RAM step | 9 | 8.1 h | 8.7 h | 11.8 h | **20.6 h** | $4.84b |
+
+**Choosing the right eleven augs is worth ~4.5×; choosing *more* augs is worth almost nothing.**
+The optimiser's picks are exactly the **broad** ones — `Bionic Spine` (all four), `HemoRecirculator`
+(all four), `Bionic Arms` (str+dex), `Bionic Legs` (agi), `DermaForce Particle Barrier` (def),
+`Combat Rib III` (str+def) — with cheap single-stat augs appearing only as late filler.
+
+**Decision D4 (revised): graft by *coverage of the binding stat per graft-hour*, not by price, and
+not to a fixed k.** Target ≈ **20–21 h to the gate at ~$4–5b**, which the Hacknet funds inside a
+day. Note the three cost terms come out **balanced** (~9 h money, ~9.5 h graft, ~12 h grind), so the
+plan is well-conditioned — no single lever dominates and small perturbations are cheap.
+
+**⚠️ Money binds after all, which D2 did not anticipate.** The augs that actually move the minimum
+stat run **$0.8–1.7b each**, not the ~$150m the price-ordered ladder suggested. D2's conclusion
+(*don't build the Hacknet empire*) survives — $4–5b is still well inside one day of income — but its
+reasoning ("money is not the binding constraint") is now **only true because the ladder is short**.
+The $41.7m RAM step should be done **first**, not opportunistically.
+
+### It is a **stopping rule**, not a number
+
+Two properties make the plan adaptive rather than a one-shot commitment:
+
+- **Exp is banked and the multiplier is applied at read time.** Exp ground before a graft is not
+  wasted — the graft re-values it. So there is no penalty for grinding early and grafting late.
+- **Each graft is an independent transaction** (~0.3–1.4 h, no price escalation), and money arrives
+  continuously.
+
+**So the spec should carry a rule, not a `k`:** *while the gate is unmet, graft the aug with the
+best (gain in the minimum stat) per (graft-hour), whenever it is affordable; stop when the remaining
+grind is shorter than the next graft's time.* That self-terminates around k ≈ 9–11 on today's
+numbers and re-derives itself if prices, income or the catalog differ at execution.
+
+⚠️ **The sleeve does not clear this gate.** `joinBladeburnerDivision` checks the **player's** stats;
+a sleeve's exp reaches the player only scaled by **sync**, which resets on a node change (only
+memory survives) and self-climbed 27 → 100 over BN10's ladder. Treat sleeve contribution as a
+bonus, not a term in the plan.
 
 **⚠️ What k = 9 costs, permanently: Entropy 0.8337 on EVERY multiplier for the rest of the node.**
 That is the honest price and it is not only combat — it hits `bladeburner_success_chance`,

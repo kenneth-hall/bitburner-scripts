@@ -22,6 +22,22 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🔴 NEW 2026-08-25 — `graftrecon.js` POOLS the four combat stats, but every gate that
+  matters is on the MINIMUM of them.** `combatLevelFactor` is the product of whatever stats an aug
+  touches (`Wired Reflexes` = dex 1.05 × agi 1.05 → **1.1025**), and `cumulative.rawCombatFactor`
+  compounds those — so a dex-only graft appears to advance a `min(str, def, dex, agi) >= 100` gate
+  when it advances it **not at all**, while its Entropy still taxes all four stats.
+  - **Measured impact (BN9, `logs/graftrecon-1787701791849.json`):** the script's own ladder read
+    *"k=9 → net combat ×3.908"*, implying **9.8 h** to the combat-100 gate. Recomputed per-stat on
+    the binding minimum the same ladder is **135.1 h**, and **k=3 is 39% WORSE than grafting
+    nothing** — the ladder oscillates instead of descending.
+  - **Next action:** track a per-stat multiplier vector and report `min()` across the gate's stats;
+    rank candidates by *gain in the minimum* per graft-hour, not by price.
+  - **Why it hid until now:** it was written in BN10, where the gate was approached from combat
+    **91** with two broad augs, so pooling and min happened to agree. BN9 starts at **1/1/1/1**,
+    where every stat binds at once. 📌 **An aggregate is not an objective.**
+  - Full corrected arithmetic: `phase-43-bn9-opening.features.md` §4.
+
 - **🔴 NEW 2026-08-25 (BN9) — `cloudmanager.js` and `resourcemanager.js` do not recognise a node
   where purchased servers are DISABLED.** BN9's `CloudServerLimit` is **0**
   (`logs/bitnodemults-1786922442524.json`), so `ns.cloud.purchaseServer` can never succeed. Live in
