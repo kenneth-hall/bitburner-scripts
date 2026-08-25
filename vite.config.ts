@@ -111,6 +111,8 @@ export default defineConfig({
         if (file === 'augfarmer-state.json') return 'logs/augfarmer-state.json'; // Phase 23 -- overwrite-in-place, written on change + a low-frequency heartbeat
         if (file === 'augfarmer-catalog.json') return 'logs/augfarmer-catalog.json'; // Phase 23 -- static per-node catalog, rewritten on rebuild (startup + faction-membership change)
         if (file === 'ramcheck-result.json') return 'logs/ramcheck-result.json';
+        if (/^bn9econprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/bn9econprobe.js -- BN9 recon: money sources, hacknet-server gain/cost curves (Formulas.exe), network RAM census, one file per run
+        if (/^hacknetprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/hacknetprobe.js -- BN9 recon: hacknet-server economics, hash-upgrade catalog + costs, and the node's damage report, one file per run
         if (/^homeramprobe-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 35 WI8 -- one-off D4/D10 verification probe, one file per run
         if (/^combatgateprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/combatgateprobe.js -- one-off: exp needed for combat level 100 (BN6 bladeburner join gate)
         if (file === 'combatgrind-log.json') return 'logs/combatgrind-log.json'; // src/combatgrind.js -- ring-capped combat-grind progress samples (BN6 bladeburner join gate)

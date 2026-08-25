@@ -38,10 +38,30 @@ on request — hold to them even when the moment is uncomfortable.
     hacking mults nerfed — so **the batcher economy that funded BN6/BN10 largely does not exist
     here.** Bladeburner is not merely preferred, it is close to the only route. Expect the
     funding model to need rethinking, not porting.
-  - **🔴 NOT YET DONE — the node is idle.** Nothing is running: no daemon, no bootstrap, no
-    Bladeburner. BN9 entry needs its own opening (home RAM is SF1's 32GB, not 128GB — SF9.2 is
-    not held). The BN10 entry gate took **combat 100 via two grafts**; BN9's combat mult is
-    **0.576 vs BN10's 0.512**, so its gate is estimated **~0.5–2.9 days**.
+  - **🔴 CORRECTED 2026-08-25 (evening) — "the node is idle / nothing is running / home RAM is
+    32GB" was STALE within hours. Do not restate it.** Measured live 11.3h into the node
+    (`logs/hacknetprobe-1787699918752.json`, `logs/bn9econprobe-1787700319698.json`): **home RAM
+    512 GB** · money **$774m** · hacking **103** · **10 processes on home** · and **one Hacknet
+    *Server* at level 100 / 10 cores** that has earned **$3,379,627,520 — the node's entire
+    income.** What *is* still true: **Bladeburner is not joined** (`getRank()` throws) and combat
+    is **1/1/1/1**, so the entry gate is untouched.
+    - 🔑 **`moneySources` reads `hacknet: $3.38b` and `hacking: 0`. `daemon.js` is NOT running and
+      has produced ZERO batches in BN9** — the last `daemon-batch-log.json` entry is timestamped
+      **10.6 s before the node reset**, i.e. it is BN10's. The batcher is not merely weak here, it
+      is absent, and §2 of the Phase 43 doc argues it should stay that way.
+    - 🔑 **The BN9 economy is the Hacknet, and overflow hashes auto-sell at EXACTLY $250,000
+      each** (derived to <0.1%). That constant prices every hash decision in dollars — and it
+      kills `Exchange for Bladeburner Rank/SP` (**$62.5m for the 1st purchase, quadratic after**)
+      as a rank lever. Full arithmetic + the cost curves: `phase-43-bn9-opening.features.md`.
+    - 🔑 **The entry gate is graft-FIRST, not grind-first.** BN9 combat mult **0.45** × player
+      **1.3824** = **0.6221**, which puts combat 1→100 at **~78,300 exp/stat ≈ 5.1 days** of
+      grinding. Grafting to ~+50% mult first drops it to **~14,100 exp/stat ≈ 0.9 days** —
+      required exp collapses **super-exponentially** in the multiplier (the BN2 *raise M, don't
+      grind exp* lesson, in a new subsystem). ⚠️ The **~0.5–2.9 day** estimate below is only
+      reachable on the graft-first ordering.
+    - **📋 Stage 1 (brainstorm) is DONE: `phase-43-bn9-opening.features.md`.** Spec not started
+      and not authorized. Its load-bearing open question is **Q4 — is the 97-aug graft catalog
+      intact in BN9?** (`graftrecon.js`, one run, do it first).
 
   - **[✅ BN10 CLOSED 2026-08-25 — everything from here to the BN6 block below is CLOSED
     HISTORY, kept for its lessons, not its plan. Do not read any of it as current.]**

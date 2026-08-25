@@ -22,6 +22,18 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🔴 NEW 2026-08-25 (BN9) — `cloudmanager.js` and `resourcemanager.js` do not recognise a node
+  where purchased servers are DISABLED.** BN9's `CloudServerLimit` is **0**
+  (`logs/bitnodemults-1786922442524.json`), so `ns.cloud.purchaseServer` can never succeed. Live in
+  BN9: `cloudmanager.js: WARN: purchaseServer(cloud-0, 2) returned empty string -- retrying next
+  poll`, while `resourcemanager.js` holds a **$110.000k `bootstrap-server` reservation** against a
+  purchase that is impossible for the entire node.
+  - **Next action:** have `cloudmanager.js` read `ns.cloud.getServerLimit()` at startup and stand
+    down permanently at `0`, releasing the `bootstrap-server` reservation as it goes.
+  - **Why it matters:** it is a standing false reservation plus a permanent retry loop, and it is
+    the prime suspect for `daemon.js` not being alive in BN9 (see Q2 in
+    `phase-43-bn9-opening.features.md`).
+
 - **🔴 NEW 2026-08-25 — `bbskillbuy.js` spends the bank GREEDILY IN LIST ORDER, so an
   under-funded run buys one success skill and starves the other.** The multiplier is a **product**
   `(1+0.03*BI)*(1+0.04*DO)` — the script's own header says "balanced levels beat a lopsided stack
