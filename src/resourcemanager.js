@@ -198,6 +198,13 @@ export function parseAugReserve(raw, now, staleMs) {
  * `openerTarget` from this call's return into next poll's args). Cheap
  * openers (<= CHEAP_OPENER_FLOOR) skip all of this -- always reserved in
  * full, exactly as before.
+ *
+ * Phase 43 WI-B: `cloudServerLimit` (default undefined -- preserves every existing call site's
+ * behavior byte-for-byte) skips the bootstrap-server reservation when it is exactly 0 (BN9:
+ * CloudServerLimit is a static per-BitNode 0, so cloudmanager.js's auto-buy this reservation
+ * exists to fund can never succeed -- reserving $110k for it forever would lock that amount out
+ * of every consumer of the reservation total, for nothing). Any other value (including the
+ * BN6/BN10-shaped `> 0` case, or simply not passing the parameter) reserves exactly as before.
  */
 export function computeReservations({
   serverCount,
@@ -212,10 +219,11 @@ export function computeReservations({
   trailingIncomePerSec = null,
   prevOpenerActive = false,
   prevOpenerTarget = null,
+  cloudServerLimit = undefined,
 }) {
   const reservations = [];
 
-  if (serverCount === 0) {
+  if (serverCount === 0 && cloudServerLimit !== 0) {
     reservations.push({ key: "bootstrap-server", label: "first cloud server (cloudmanager auto-buy)", amount: BOOTSTRAP_SERVER_COST });
   }
 
@@ -403,6 +411,7 @@ export async function main(ns) {
   while (true) {
     const money = ns.getPlayer().money;
     const serverCount = ns.cloud.getServerNames().length;
+    const cloudServerLimit = ns.cloud.getServerLimit(); // Phase 43 WI-B
     const hasTor = ns.hasTorRouter();
     const hackingLevel = ns.getHackingLevel();
 
@@ -461,6 +470,7 @@ export async function main(ns) {
       trailingIncomePerSec,
       prevOpenerActive,
       prevOpenerTarget,
+      cloudServerLimit,
     });
     prevOpenerActive = openerActive;
     prevOpenerTarget = openerTarget;

@@ -64,6 +64,8 @@ export function buildCloudState({
   now,
   paused = false,
   financeStale = false,
+  disabled = false,
+  disabledReason = null,
   available = 0,
   reserved = 0,
   fleet = null,
@@ -73,7 +75,19 @@ export function buildCloudState({
   lastBootstrapBuy = null,
   lastGrowthBuy = null,
 }) {
-  return { timestamp: now, time: new Date(now).toLocaleTimeString(), paused, financeStale, available, reserved, fleet, next, growth, lastUpgrade, lastBootstrapBuy, lastGrowthBuy };
+  return { timestamp: now, time: new Date(now).toLocaleTimeString(), paused, financeStale, disabled, disabledReason, available, reserved, fleet, next, growth, lastUpgrade, lastBootstrapBuy, lastGrowthBuy };
+}
+
+/**
+ * Pure (Phase 43 WI-B). Whether cloudmanager.js should stand itself down ENTIRELY --
+ * CloudServerLimit is a static per-BitNode constant (confirmed live in BN9,
+ * logs/hacknetprobe-1787699918752.json: cloud.limit: 0), so ns.cloud.purchaseServer can never
+ * succeed there and this poll loop would otherwise retry an impossible purchase forever. This
+ * check effectively fires once per process lifetime -- the caller `return`s on true rather than
+ * looping again.
+ */
+export function shouldStandDown(serverLimit) {
+  return serverLimit === 0;
 }
 
 /**
@@ -191,6 +205,24 @@ export async function main(ns) {
 
   while (true) {
     const timeLabel = new Date().toLocaleTimeString();
+
+    // Phase 43 WI-B: stand down entirely in a BitNode where CloudServerLimit is 0 (e.g. BN9 --
+    // "private servers disabled"). This must run BEFORE the OFF_MARKER check: OFF_MARKER is a
+    // reversible pause a human can lift, this is a permanent-for-the-node fact this script
+    // cannot act on regardless.
+    if (shouldStandDown(ns.cloud.getServerLimit())) {
+      ns.write(
+        CLOUD_STATE_FILE,
+        JSON.stringify(buildCloudState({
+          now: Date.now(),
+          disabled: true,
+          disabledReason: "CloudServerLimit is 0 for this BitNode",
+        })),
+        "w"
+      );
+      tprintTs(ns, "cloudmanager: CloudServerLimit is 0 -- nothing to manage, exiting.");
+      return;
+    }
 
     if (ns.fileExists(OFF_MARKER, "home")) {
       ns.clearLog();
