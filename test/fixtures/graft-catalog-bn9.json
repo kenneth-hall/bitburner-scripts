@@ -1,0 +1,580 @@
+{
+ "provenance": {
+  "source": "src/graftrecon.js",
+  "logFile": "graftrecon-1787701791849.json",
+  "capturedIso": "2026-08-25T23:49:51.849Z",
+  "node": "BN9.1"
+ },
+ "note": "Combat-LEVEL-touching graftable augs as read live in BN9 on 2026-08-25, at entropy 0 with combat 1/1/1/1 and all four mults tied at 1.3824. logs/ is gitignored, so this tracked copy is what test fixtures must use. This is the PERFECTLY TIED start state that makes a greedy min()-based selector degenerate (it can only pick all-four-stat augs), which is why WC1/WC2 must run against this capture and not a synthetic stand-in. PREREQUISITES ARE NOT CAPTURED HERE -- graftrecon.js does not read getAugmentationPrereq; tests supply them explicitly.",
+ "playerAtCapture": {
+  "combatMults": {
+   "strength": 1.3824,
+   "defense": 1.3824,
+   "dexterity": 1.3824,
+   "agility": 1.3824
+  },
+  "entropy": 0,
+  "money": 920101175.9252326,
+  "city": "Aevum",
+  "combatLevels": {
+   "strength": 1,
+   "defense": 1,
+   "dexterity": 1,
+   "agility": 1
+  }
+ },
+ "nodeMult": 0.45,
+ "goldenBeamResults": {
+  "note": "Measured 2026-08-25 by beam search over this catalog: objective max(moneyWaitHours, cumGraftHours) + grindHours, bankroll $920m, income $89,600/s, grind rate 0.179 exp/s/stat (PLACEHOLDER -- superseded live by CALIBRATE_GRIND).",
+  "width1_degenerate": {
+   "totalHours": 52.6,
+   "k": 3,
+   "picks": [
+    "SPTN-97 Gene Modification",
+    "Bionic Spine",
+    "HemoRecirculator"
+   ],
+   "why": "pure greedy: any aug not touching all four stats leaves min() flat while 0.98^(k+1) taxes all four, so it scores <=0 and is unreachable"
+  },
+  "width300_converged": {
+   "totalHours": 21.17,
+   "k": 11,
+   "picks": [
+    "Bionic Legs",
+    "DermaForce Particle Barrier",
+    "Bionic Arms",
+    "Augmented Targeting III",
+    "Nanofiber Weave",
+    "Bionic Spine",
+    "HemoRecirculator",
+    "Combat Rib III",
+    "Wired Reflexes",
+    "LuminCloaking-V2 Skin Implant",
+    "Augmented Targeting I"
+   ],
+   "convergence": "identical output at widths 300 / 600 / 1200 / 2400; width 100 gives 33.7h k=13, so the cliff is between 100 and 300"
+  }
+ },
+ "candidates": [
+  {
+   "name": "Wired Reflexes",
+   "graftPrice": 7500000,
+   "graftTimeMs": 2648184.779869494,
+   "graftTimeHours": 0.7356068832970817,
+   "mults": {
+    "dexterity": 1.05,
+    "agility": 1.05
+   },
+   "combatLevelFactor": 1.1025,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "LuminCloaking-V1 Skin Implant",
+   "graftPrice": 15000000,
+   "graftTimeMs": 3657681.293125416,
+   "graftTimeHours": 1.0160225814237267,
+   "mults": {
+    "agility": 1.05,
+    "charisma": 1.03,
+    "crime_money": 1.1
+   },
+   "combatLevelFactor": 1.05,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Augmented Targeting I",
+   "graftPrice": 45000000,
+   "graftTimeMs": 1075037.316367002,
+   "graftTimeHours": 0.29862147676861167,
+   "mults": {
+    "dexterity": 1.1
+   },
+   "combatLevelFactor": 1.1,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Combat Rib I",
+   "graftPrice": 71250000,
+   "graftTimeMs": 2761361.0405770233,
+   "graftTimeHours": 0.7670447334936176,
+   "mults": {
+    "strength": 1.1,
+    "defense": 1.1
+   },
+   "combatLevelFactor": 1.2100000000000002,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "LuminCloaking-V2 Skin Implant",
+   "graftPrice": 90000000,
+   "graftTimeMs": 4529240.475420512,
+   "graftTimeHours": 1.2581223542834756,
+   "mults": {
+    "defense": 1.1,
+    "agility": 1.1,
+    "charisma_exp": 1.1,
+    "crime_money": 1.25
+   },
+   "combatLevelFactor": 1.2100000000000002,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "INFRARET Enhancement",
+   "graftPrice": 90000000,
+   "graftTimeMs": 3855941.69274879,
+   "graftTimeHours": 1.0710949146524418,
+   "mults": {
+    "dexterity": 1.1,
+    "crime_success": 1.25,
+    "crime_money": 1.1
+   },
+   "combatLevelFactor": 1.1,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Augmented Targeting II",
+   "graftPrice": 127500000,
+   "graftTimeMs": 1286723.0209460238,
+   "graftTimeHours": 0.3574230613738955,
+   "mults": {
+    "dexterity": 1.2
+   },
+   "combatLevelFactor": 1.2,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "HemoRecirculator",
+   "graftPrice": 135000000,
+   "graftTimeMs": 4945919.030634659,
+   "graftTimeHours": 1.3738663973985166,
+   "mults": {
+    "strength": 1.08,
+    "defense": 1.08,
+    "dexterity": 1.08,
+    "agility": 1.08,
+    "charisma": 1.08
+   },
+   "combatLevelFactor": 1.3604889600000003,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "DermaForce Particle Barrier",
+   "graftPrice": 150000000,
+   "graftTimeMs": 3023210.396053657,
+   "graftTimeHours": 0.8397806655704603,
+   "mults": {
+    "defense": 1.4,
+    "charisma": 1.05
+   },
+   "combatLevelFactor": 1.4,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Combat Rib II",
+   "graftPrice": 195000000,
+   "graftTimeMs": 2848257.809062068,
+   "graftTimeHours": 0.7911827247394633,
+   "mults": {
+    "strength": 1.14,
+    "defense": 1.14
+   },
+   "combatLevelFactor": 1.2995999999999999,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "SmartSonar Implant",
+   "graftPrice": 225000000,
+   "graftTimeMs": 3890947.3452385017,
+   "graftTimeHours": 1.080818707010695,
+   "mults": {
+    "dexterity": 1.1,
+    "dexterity_exp": 1.15,
+    "crime_money": 1.25
+   },
+   "combatLevelFactor": 1.1,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "BrachiBlades",
+   "graftPrice": 270000000,
+   "graftTimeMs": 4529240.475420511,
+   "graftTimeHours": 1.2581223542834754,
+   "mults": {
+    "strength": 1.15,
+    "defense": 1.15,
+    "crime_success": 1.1,
+    "crime_money": 1.15
+   },
+   "combatLevelFactor": 1.3224999999999998,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Augmented Targeting III",
+   "graftPrice": 345000000,
+   "graftTimeMs": 1481454.9922870207,
+   "graftTimeHours": 0.4115152756352835,
+   "mults": {
+    "dexterity": 1.3
+   },
+   "combatLevelFactor": 1.3,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Combat Rib III",
+   "graftPrice": 360000000,
+   "graftTimeMs": 2932157.532666393,
+   "graftTimeHours": 0.8144882035184425,
+   "mults": {
+    "strength": 1.18,
+    "defense": 1.18
+   },
+   "combatLevelFactor": 1.3923999999999999,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Nanofiber Weave",
+   "graftPrice": 375000000,
+   "graftTimeMs": 3855941.69274879,
+   "graftTimeHours": 1.0710949146524418,
+   "mults": {
+    "strength": 1.2,
+    "defense": 1.2,
+    "charisma": 1.05
+   },
+   "combatLevelFactor": 1.44,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Bionic Spine",
+   "graftPrice": 375000000,
+   "graftTimeMs": 4555829.274219504,
+   "graftTimeHours": 1.26550813172764,
+   "mults": {
+    "strength": 1.15,
+    "defense": 1.15,
+    "dexterity": 1.15,
+    "agility": 1.15
+   },
+   "combatLevelFactor": 1.7490062499999994,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Power Recirculation Core",
+   "graftPrice": 540000000,
+   "graftTimeMs": 7064514.562224799,
+   "graftTimeHours": 1.9623651561735553,
+   "mults": {
+    "hacking": 1.05,
+    "hacking_exp": 1.1,
+    "strength": 1.05,
+    "strength_exp": 1.1,
+    "defense": 1.05,
+    "defense_exp": 1.1,
+    "dexterity": 1.05,
+    "dexterity_exp": 1.1,
+    "agility": 1.05,
+    "agility_exp": 1.1,
+    "charisma": 1.05,
+    "charisma_exp": 1.1
+   },
+   "combatLevelFactor": 1.2155062500000002,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Bionic Arms",
+   "graftPrice": 825000000,
+   "graftTimeMs": 3167778.7164970413,
+   "graftTimeHours": 0.8799385323602893,
+   "mults": {
+    "strength": 1.3,
+    "dexterity": 1.3
+   },
+   "combatLevelFactor": 1.6900000000000002,
+   "touchesCombatLevel": true,
+   "affordableNow": true
+  },
+  {
+   "name": "Bionic Legs",
+   "graftPrice": 1125000000,
+   "graftTimeMs": 1986610.6024167372,
+   "graftTimeHours": 0.5518362784490937,
+   "mults": {
+    "agility": 1.6
+   },
+   "combatLevelFactor": 1.6,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "The Black Hand",
+   "graftPrice": 1650000000,
+   "graftTimeMs": 4999390.433060517,
+   "graftTimeHours": 1.3887195647390325,
+   "mults": {
+    "hacking_speed": 1.02,
+    "hacking_money": 1.1,
+    "hacking": 1.1,
+    "strength": 1.15,
+    "dexterity": 1.15
+   },
+   "combatLevelFactor": 1.3224999999999998,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Synfibril Muscle",
+   "graftPrice": 3375000000,
+   "graftTimeMs": 3167778.7164970413,
+   "graftTimeHours": 0.8799385323602893,
+   "mults": {
+    "strength": 1.3,
+    "defense": 1.3
+   },
+   "combatLevelFactor": 1.6900000000000002,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "nextSENS Gene Modification",
+   "graftPrice": 5775000000,
+   "graftTimeMs": 5645806.612105372,
+   "graftTimeHours": 1.5682796144737146,
+   "mults": {
+    "hacking": 1.2,
+    "strength": 1.2,
+    "defense": 1.2,
+    "dexterity": 1.2,
+    "agility": 1.2,
+    "charisma": 1.2
+   },
+   "combatLevelFactor": 2.0736,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Graphene BrachiBlades Upgrade",
+   "graftPrice": 7500000000,
+   "graftTimeMs": 4854102.440707063,
+   "graftTimeHours": 1.3483617890852955,
+   "mults": {
+    "strength": 1.4,
+    "defense": 1.4,
+    "crime_success": 1.1,
+    "crime_money": 1.3
+   },
+   "combatLevelFactor": 1.9599999999999997,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "HyperSight Corneal Implant",
+   "graftPrice": 8250000000,
+   "graftTimeMs": 4534581.5332720885,
+   "graftTimeHours": 1.2596059814644691,
+   "mults": {
+    "hacking_speed": 1.03,
+    "hacking_money": 1.1,
+    "dexterity": 1.4,
+    "charisma": 1.03
+   },
+   "combatLevelFactor": 1.4,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Photosynthetic Cells",
+   "graftPrice": 8250000000,
+   "graftTimeMs": 4945919.030634658,
+   "graftTimeHours": 1.3738663973985161,
+   "mults": {
+    "strength": 1.4,
+    "defense": 1.4,
+    "agility": 1.4,
+    "charisma": 1.2
+   },
+   "combatLevelFactor": 2.7439999999999993,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Synthetic Heart",
+   "graftPrice": 8625000000,
+   "graftTimeMs": 4391754.6952754725,
+   "graftTimeHours": 1.2199318597987423,
+   "mults": {
+    "strength": 1.5,
+    "agility": 1.5,
+    "charisma": 1.3
+   },
+   "combatLevelFactor": 2.25,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Neotra",
+   "graftPrice": 8625000000,
+   "graftTimeMs": 4582130.620915102,
+   "graftTimeHours": 1.272814061365306,
+   "mults": {
+    "strength": 1.55,
+    "defense": 1.55,
+    "charisma": 1.55
+   },
+   "combatLevelFactor": 2.4025000000000003,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "NEMEAN Subdermal Weave",
+   "graftPrice": 9750000000,
+   "graftTimeMs": 2761361.0405770233,
+   "graftTimeHours": 0.7670447334936176,
+   "mults": {
+    "defense": 2.2
+   },
+   "combatLevelFactor": 2.2,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Graphene Bionic Arms Upgrade",
+   "graftPrice": 11250000000,
+   "graftTimeMs": 4026140.5062024924,
+   "graftTimeHours": 1.1183723628340256,
+   "mults": {
+    "strength": 1.85,
+    "dexterity": 1.85
+   },
+   "combatLevelFactor": 3.4225000000000003,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Graphene Bone Lacings",
+   "graftPrice": 12750000000,
+   "graftTimeMs": 3820424.9908140204,
+   "graftTimeHours": 1.0612291641150056,
+   "mults": {
+    "strength": 1.7,
+    "defense": 1.7
+   },
+   "combatLevelFactor": 2.8899999999999997,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Xanipher",
+   "graftPrice": 12750000000,
+   "graftTimeMs": 7280910.5313424785,
+   "graftTimeHours": 2.022475147595133,
+   "mults": {
+    "hacking": 1.2,
+    "hacking_exp": 1.15,
+    "strength": 1.2,
+    "strength_exp": 1.15,
+    "defense": 1.2,
+    "defense_exp": 1.15,
+    "dexterity": 1.2,
+    "dexterity_exp": 1.15,
+    "agility": 1.2,
+    "agility_exp": 1.15,
+    "charisma": 1.2,
+    "charisma_exp": 1.15
+   },
+   "combatLevelFactor": 2.0736,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Graphene Bionic Legs Upgrade",
+   "graftPrice": 13500000000,
+   "graftTimeMs": 3072360.5702133253,
+   "graftTimeHours": 0.8534334917259238,
+   "mults": {
+    "agility": 2.5
+   },
+   "combatLevelFactor": 2.5,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "SPTN-97 Gene Modification",
+   "graftPrice": 14625000000,
+   "graftTimeMs": 5947326.610616617,
+   "graftTimeHours": 1.652035169615727,
+   "mults": {
+    "hacking": 1.15,
+    "strength": 1.75,
+    "defense": 1.75,
+    "dexterity": 1.75,
+    "agility": 1.75
+   },
+   "combatLevelFactor": 9.37890625,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "CordiARC Fusion Reactor",
+   "graftPrice": 15000000000,
+   "graftTimeMs": 6632242.7548446795,
+   "graftTimeHours": 1.842289654123522,
+   "mults": {
+    "strength": 1.35,
+    "strength_exp": 1.35,
+    "defense": 1.35,
+    "defense_exp": 1.35,
+    "dexterity": 1.35,
+    "dexterity_exp": 1.35,
+    "agility": 1.35,
+    "agility_exp": 1.35
+   },
+   "combatLevelFactor": 3.321506250000001,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Graphene Bionic Spine Upgrade",
+   "graftPrice": 18000000000,
+   "graftTimeMs": 5359258.05083678,
+   "graftTimeHours": 1.4886827918991057,
+   "mults": {
+    "strength": 1.6,
+    "defense": 1.6,
+    "dexterity": 1.6,
+    "agility": 1.6
+   },
+   "combatLevelFactor": 6.553600000000002,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  },
+  {
+   "name": "Hydroflame Left Arm",
+   "graftPrice": 7500000000000,
+   "graftTimeMs": 3348072.3613402075,
+   "graftTimeHours": 0.9300201003722799,
+   "mults": {
+    "strength": 2.8
+   },
+   "combatLevelFactor": 2.8,
+   "touchesCombatLevel": true,
+   "affordableNow": false
+  }
+ ]
+}

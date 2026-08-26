@@ -1,22 +1,36 @@
 // Pure-function tests for Phase 43 WI-C's src/graftmath.js -- the beam-search graft-ladder
 // planner and its supporting pure math (spec acceptance criteria WC1-WC7).
 //
-// DATA-AVAILABILITY NOTE (read before touching WC1/WC2's numbers): the spec's WC1/WC2/WC3
-// reference `logs/graftrecon-1787701791849.json` -- a live capture from a running BN9 session.
-// logs/ is gitignored and no BN9 catalog fixture has been checked into test/fixtures/ yet (the
-// BN10 precedent, graft-catalog-bn10.json, WAS captured live and tracked -- see its own
-// provenance note). This implementation pass has no live game to capture from, so WC1/WC2's
-// literal golden numbers (52.6h / 21.17h, the exact named 11-aug ladder) are NOT reproduced
-// here -- that requires a live `run graftrecon.js` in BN9 and a tracked fixture, exactly like
-// BN10's, which is flagged as follow-up work (BACKLOG.md).
+// WC1/WC2 NOW RUN AGAINST THE REAL BN9 CAPTURE (test/fixtures/graft-catalog-bn9.json,
+// sourced from logs/graftrecon-1787701791849.json -- logs/ is gitignored, so this tracked
+// copy is what test fixtures must use, same convention as graft-catalog-bn10.json). An
+// earlier draft of this file used a hand-built synthetic fixture instead because no BN9
+// capture had been tracked yet; that synthetic case is KEPT below (it demonstrates the
+// all-four-stat-only degeneracy with round, hand-verifiable numbers that the real 36-aug
+// catalog doesn't offer) but is no longer the only, or the primary, coverage for WC1/WC2.
 //
-// What IS tested here, honestly, without fabricating a "real" capture: the ALGORITHM's
-// documented properties, using small hand-constructed synthetic fixtures whose correct answer
-// can be reasoned about directly -- including one built to reproduce the EXACT failure mode
-// Section 0 describes (a tied 1/1/1/1 start where every partial-coverage candidate scores
-// negative, so width-1 beam/greedy can only ever pick all-four-stat candidates) plus the beam
-// search recovering a materially better plan at a wider beam. This is a structural proof of the
-// same claim WC1/WC2 make, not a byte-for-byte reproduction of the real capture's numbers.
+// ⚠️ ONE NUMBER IN THE FIXTURE'S OWN `goldenBeamResults.width300_converged` BLOCK IS NOT
+// PREREQUISITE-ADMISSIBLE, and this file does NOT assert it. That block's `picks` includes
+// `Augmented Targeting III` without `Augmented Targeting II` (and `Combat Rib III` without
+// `Combat Rib II`, `LuminCloaking-V2` without `V1`) -- impossible from an empty owned-set,
+// since those tiers require the previous tier already owned (real, static per-augmentation
+// game data -- see AUG_PREREQ_MAP below, unchanged from BN10's, since prereqs are not
+// BitNode-specific). Reproduced exactly here: running this file's planGraftLadder against
+// the fixture WITH prereqs=[] on every candidate (i.e. prereq-blind, the same mistake) gives
+// chosenK=11 / 21.17h / that exact picks list -- confirming the golden block was captured by
+// a beam search that never read getAugmentationPrereq, the SAME class of error Phase 41's
+// original BN10 numbers had (test/fixtures/graft-catalog-bn10.json's own candidates predate
+// prereq-aware selection too; see graftplanner.js's git history for that correction). With
+// prereqs correctly enforced, the true converged optimum (stable across widths 300/600/1200/
+// 2400, verified independently below) is chosenK=10, ~22.62h, a ten-aug set that substitutes
+// Augmented Targeting I+II for the inadmissible III, and Combat Rib I for the inadmissible
+// III. WC1 asserts THIS number. Shipping a test that asserts the inadmissible figure would
+// either force weakening the prereq check (the exact defect WI-C's beam search exists to not
+// repeat) or hardcode a special case that contradicts the algorithm's own stated contract --
+// both worse than a documented, evidence-backed divergence from the fixture's own note.
+// WC2 (width 1) is UNAFFECTED by this -- SPTN-97/Bionic Spine/HemoRecirculator carry no
+// prereqs, so the degenerate all-four-stat-only result is identical with or without prereq
+// enforcement, and is asserted here exactly as the fixture states it.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -38,11 +52,16 @@ import {
 const bn10Fixture = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), 'test/fixtures/graft-catalog-bn10.json'), 'utf8')
 );
+const bn9Fixture = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), 'test/fixtures/graft-catalog-bn9.json'), 'utf8')
+);
 
-// Same tiered prerequisite map test/graftplanner.test.js used to carry directly (that file's
-// own note explains why: graftrecon.js never read getAugmentationPrereq, so the fixture itself
-// carries none -- this is real, static game data, not a guess).
-const BN10_PREREQ_MAP = {
+// Tiered prerequisite map -- REAL, static per-augmentation game data (Roman-numeral tiers
+// require the previous tier; Graphene-* upgrades require their base implant). NOT
+// BitNode-specific, so the same map applies to both fixtures; neither graftrecon.js capture
+// reads getAugmentationPrereq itself, so tests supply this explicitly (both fixtures'
+// provenance notes say so).
+const AUG_PREREQ_MAP = {
   'Augmented Targeting II': ['Augmented Targeting I'],
   'Augmented Targeting III': ['Augmented Targeting II'],
   'Combat Rib II': ['Combat Rib I'],
@@ -55,7 +74,44 @@ const BN10_PREREQ_MAP = {
 };
 
 function bn10Candidates() {
-  return bn10Fixture.candidates.map((c) => ({ ...c, prereqs: BN10_PREREQ_MAP[c.name] || [] }));
+  return bn10Fixture.candidates.map((c) => ({ ...c, prereqs: AUG_PREREQ_MAP[c.name] || [] }));
+}
+
+// bn9Fixture's candidates are graftrecon.js's raw shape (graftPrice/graftTimeHours/mults with
+// UNTOUCHED stats simply absent) -- normalise to planGraftLadder's {price, graftHours, mults:
+// CombatQuad} shape, same defaulting graftplanner.js's main() applies (an absent stat mult
+// defaults to 1, i.e. "does not touch this stat").
+function bn9Candidates({ withPrereqs = true } = {}) {
+  return bn9Fixture.candidates.map((c) => {
+    const mults = {};
+    for (const stat of STATS) mults[stat] = typeof c.mults[stat] === 'number' ? c.mults[stat] : 1;
+    return {
+      name: c.name,
+      price: c.graftPrice,
+      graftHours: c.graftTimeHours,
+      mults,
+      prereqs: withPrereqs ? AUG_PREREQ_MAP[c.name] || [] : [],
+    };
+  });
+}
+
+function bn9PlanOpts(overrides = {}) {
+  return {
+    nodeMult: bn9Fixture.nodeMult,
+    targetLevel: 100,
+    grindRatePerStat: 0.179, // the placeholder rate goldenBeamResults' own note names
+    entropyPerGraft: 0.98,
+    owned: new Set(),
+    maxSpend: 1e12, // no spend ceiling for this reproduction -- goldenBeamResults' own note carries no maxSpend either
+    moneyAvailable: bn9Fixture.playerAtCapture.money, // $920,101,175.93 -- "bankroll $920m" per spec
+    incomeRatePerSecDollars: 89_600, // "income $89,600/s" per spec Section 5's arithmetic
+    maxDepth: 14,
+    ...overrides,
+  };
+}
+
+function bn9BankedZero() {
+  return { strength: 0, defense: 0, dexterity: 0, agility: 0 }; // combat 1/1/1/1 at capture -- negligible banked exp
 }
 
 describe('resolveNodeConfig -- WC5', () => {
@@ -250,12 +306,78 @@ describe('planGraftLadder -- prerequisite admissibility and owned-aug exclusion 
   });
 });
 
-describe('planGraftLadder -- WC2/WC1 structural reproduction: the tied-start pooling failure', () => {
-  // Reproduces the EXACT shape Section 0 describes: all four stats/mults tied at a common
-  // starting point, so a partial-coverage candidate cannot move min() while entropy still
-  // taxes every stat -- forcing a width-1 search to only ever pick all-four-stat candidates,
-  // even though a WIDER search finds a materially cheaper path through partial-coverage augs
-  // combined together.
+describe('planGraftLadder -- WC1/WC2 (real BN9 fixture, graft-catalog-bn9.json)', () => {
+  it('WC2 (negative control): beamWidth 1 reproduces the exact degenerate result -- 52.6h, k=3, all-four-stat picks only, in the fixture\'s own order', () => {
+    const candidates = bn9Candidates();
+    const result = planGraftLadder(candidates, bn9Fixture.playerAtCapture.combatMults, bn9BankedZero(), bn9PlanOpts({ beamWidth: 1 }));
+    expect(result.chosenK).toBe(3);
+    expect(result.totalHours).toBeCloseTo(52.6, 0); // "sensible tolerance" -- fixture's own figure is rounded to 1dp
+    // Confirmed unaffected by prereqs (SPTN-97/Bionic Spine/HemoRecirculator carry none) --
+    // exact order match, not just set match, since this is a genuinely single deterministic path.
+    expect(result.ladder.map((s) => s.name)).toEqual(
+      bn9Fixture.goldenBeamResults.width1_degenerate.picks
+    );
+    // Every pick touches all four stats -- the degeneracy Section 0 describes.
+    const candidateByName = new Map(candidates.map((c) => [c.name, c]));
+    for (const step of result.ladder) {
+      const mults = candidateByName.get(step.name).mults;
+      for (const stat of STATS) expect(mults[stat]).not.toBe(1);
+    }
+  });
+
+  it('WC1 (positive control): beamWidth 300 finds the true prerequisite-admissible optimum -- k=10, ~22.62h, stable through width 2400', () => {
+    const candidates = bn9Candidates(); // WITH real prereqs (default) -- see the file header note
+    const currentMults = bn9Fixture.playerAtCapture.combatMults;
+    const banked = bn9BankedZero();
+
+    const expectedNames = [
+      'Augmented Targeting I', 'Augmented Targeting II', 'Bionic Arms', 'Bionic Legs',
+      'Bionic Spine', 'Combat Rib I', 'DermaForce Particle Barrier', 'HemoRecirculator',
+      'Nanofiber Weave', 'Wired Reflexes',
+    ].sort();
+
+    const widths = [300, 600, 1200, 2400];
+    const results = widths.map((beamWidth) => planGraftLadder(candidates, currentMults, banked, bn9PlanOpts({ beamWidth })));
+
+    for (let i = 0; i < results.length; i++) {
+      expect(results[i].chosenK).toBe(10);
+      expect(results[i].totalHours).toBeCloseTo(22.62, 1); // ~2% tolerance -- float-derived
+      // Order is NOT asserted: ties in the beam's frontier resolve to different (equally
+      // optimal) insertion sequences at different widths -- verified directly (width 300's
+      // ladder order differs from width 600's even though both total 22.6167h). The SET
+      // reaching that exact total is the real invariant a "converged" claim makes, matching
+      // how state dedup itself is defined (spec Section 5: "a chosen candidate set,
+      // deduplicated by sorted name list -- two orderings of the same set are the same
+      // state").
+      expect([...results[i].ladder.map((s) => s.name)].sort()).toEqual(expectedNames);
+    }
+  });
+
+  it('confirms the divergence from the fixture\'s own goldenBeamResults.width300_converged is explained: reproducing it exactly requires the SAME prereq-blind mistake', () => {
+    const blindCandidates = bn9Candidates({ withPrereqs: false });
+    const result = planGraftLadder(
+      blindCandidates, bn9Fixture.playerAtCapture.combatMults, bn9BankedZero(),
+      bn9PlanOpts({ beamWidth: 300 })
+    );
+    const golden = bn9Fixture.goldenBeamResults.width300_converged;
+    expect(result.chosenK).toBe(golden.k);
+    expect(result.totalHours).toBeCloseTo(golden.totalHours, 1);
+    expect([...result.ladder.map((s) => s.name)].sort()).toEqual([...golden.picks].sort());
+    // And it is inadmissible: Augmented Targeting III appears without II ever being chosen.
+    const names = result.ladder.map((s) => s.name);
+    expect(names).toContain('Augmented Targeting III');
+    expect(names).not.toContain('Augmented Targeting II');
+  });
+});
+
+describe('planGraftLadder -- synthetic tied-start structural demonstration (supplementary to WC1/WC2 above)', () => {
+  // Kept alongside the real-fixture WC1/WC2 tests above (not a replacement for them): this
+  // hand-built fixture demonstrates the SAME failure mode Section 0 describes with small,
+  // round, hand-verifiable numbers the real 36-aug catalog doesn't offer -- all four
+  // stats/mults tied at a common starting point, so a partial-coverage candidate cannot move
+  // min() while entropy still taxes every stat, forcing a width-1 search to only ever pick
+  // all-four-stat candidates, even though a WIDER search finds a materially cheaper path
+  // through partial-coverage augs combined together.
   const currentMults = { strength: 1, defense: 1, dexterity: 1, agility: 1 };
   const banked = { strength: 0, defense: 0, dexterity: 0, agility: 0 };
   const opts = {
@@ -278,14 +400,14 @@ describe('planGraftLadder -- WC2/WC1 structural reproduction: the tied-start poo
     { name: 'NarrowAgi', price: 10_000, graftHours: 0.2, mults: { strength: 1, defense: 1, dexterity: 1, agility: 1.9 }, prereqs: [] },
   ];
 
-  it('WC2 (negative control): at beamWidth 1, the search is confined to all-four-stat picks', () => {
+  it('supplementary negative control: at beamWidth 1, the search is confined to all-four-stat picks', () => {
     const { ladder } = planGraftLadder(candidates, currentMults, banked, { ...opts, beamWidth: 1 });
     for (const step of ladder) {
       expect(['BroadA', 'BroadB']).toContain(step.name);
     }
   });
 
-  it('WC1 (positive control -- what makes WC2 a real test): a wide beam finds a strictly cheaper plan by combining narrow picks', () => {
+  it('supplementary positive control -- what makes the negative control above a real test: a wide beam finds a strictly cheaper plan by combining narrow picks', () => {
     const wide = planGraftLadder(candidates, currentMults, banked, { ...opts, beamWidth: 300 });
     const narrow1 = planGraftLadder(candidates, currentMults, banked, { ...opts, beamWidth: 1 });
     expect(wide.totalHours).toBeLessThan(narrow1.totalHours);
