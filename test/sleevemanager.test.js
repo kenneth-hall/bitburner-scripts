@@ -52,3 +52,71 @@ describe('decideSleeveAction', () => {
     }
   });
 });
+
+// Phase 43 WI-F: the syncThreshold active-policy mode, additive and opt-in.
+describe('decideSleeveAction -- syncThreshold mode (Phase 43 WI-F)', () => {
+  // WF1: non-regression -- decideSleeveAction(taskNow, sync, undefined) is byte-identical to
+  // the pre-existing function for every case its current tests already cover.
+  describe('WF1: syncThreshold undefined is byte-identical to the legacy default', () => {
+    it('idle -> crime, same as before', () => {
+      expect(decideSleeveAction(null, 50, undefined)).toEqual(decideSleeveAction(null));
+    });
+    it('already on crime -> none, same as before', () => {
+      const task = { type: 'CRIME', crimeType: 'Mug' };
+      expect(decideSleeveAction(task, 50, undefined)).toEqual(decideSleeveAction(task));
+    });
+    it('already synchronizing -> none (deference), same as before -- the legacy mode never touches Synchro', () => {
+      const task = { type: 'SYNCHRO' };
+      expect(decideSleeveAction(task, 99, undefined)).toEqual(decideSleeveAction(task));
+    });
+    it('every other deliberate task -> none, same as before', () => {
+      for (const type of ['RECOVERY', 'CLASS', 'COMPANY', 'FACTION', 'BLADEBURNER', 'INFILTRATE', 'SUPPORT']) {
+        const task = { type };
+        expect(decideSleeveAction(task, 10, undefined)).toEqual(decideSleeveAction(task));
+      }
+    });
+  });
+
+  // WF2: decideSleeveAction(taskNow, sync, 50) across every listed case.
+  describe('WF2: threshold mode across idle/synchronizing/other-task boundaries', () => {
+    const THRESHOLD = 50;
+
+    it('idle + low sync -> synchronize', () => {
+      const d = decideSleeveAction(null, 10, THRESHOLD);
+      expect(d.act).toBe('synchronize');
+    });
+
+    it('idle + high sync -> crime', () => {
+      const d = decideSleeveAction(null, 80, THRESHOLD);
+      expect(d.act).toBe('crime');
+    });
+
+    it('idle + sync EXACTLY at threshold -> crime (>=, not >)', () => {
+      const d = decideSleeveAction(null, THRESHOLD, THRESHOLD);
+      expect(d.act).toBe('crime');
+    });
+
+    it('already-synchronizing + sync crossed threshold -> crime', () => {
+      const d = decideSleeveAction({ type: 'SYNCHRO' }, 51, THRESHOLD);
+      expect(d.act).toBe('crime');
+    });
+
+    it('already-synchronizing + still below -> none', () => {
+      const d = decideSleeveAction({ type: 'SYNCHRO' }, 49, THRESHOLD);
+      expect(d.act).toBe('none');
+      expect(d.why).toMatch(/synchronizing/);
+    });
+
+    it('already on crime -> none, at any sync (mirrors the default mode\'s crime deference)', () => {
+      expect(decideSleeveAction({ type: 'CRIME', crimeType: 'Mug' }, 10, THRESHOLD).act).toBe('none');
+      expect(decideSleeveAction({ type: 'CRIME', crimeType: 'Mug' }, 90, THRESHOLD).act).toBe('none');
+    });
+
+    it('any other deliberate task at any sync -> none (unchanged deference -- this mode only arbitrates Synchronize vs Crime)', () => {
+      for (const type of ['RECOVERY', 'CLASS', 'COMPANY', 'FACTION', 'BLADEBURNER', 'INFILTRATE', 'SUPPORT']) {
+        expect(decideSleeveAction({ type }, 10, THRESHOLD).act).toBe('none');
+        expect(decideSleeveAction({ type }, 90, THRESHOLD).act).toBe('none');
+      }
+    });
+  });
+});
