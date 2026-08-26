@@ -146,6 +146,7 @@ export default defineConfig({
         if (/^hacknetramonce-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 43 WI-A -- src/hacknetramonce.js's one-shot RAM-upgrade record (before/after hash production, cost, verification mismatch finding), one file per run
         if (file === 'bn9entry-log.json') return 'logs/bn9entry-log.json'; // Phase 43 WI-D -- src/bn9entry.js's ring-capped per-poll decision log (exp/levels/money/entropy/action/decision+reason/rate-source, spec WD4)
         if (file === 'bn9companions-state.json') return 'logs/bn9companions-state.json'; // Phase 43 WI-E -- src/bn9companions.js's overwrite-in-place supervision snapshot (last check/launch per target, running/gated status)
+        if (/^srfcheck-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 43 WI-E -- src/srfcheck.js's machine-checked S-RF re-verification (dominant rank-producing action's realised success rate), one file per run
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';
