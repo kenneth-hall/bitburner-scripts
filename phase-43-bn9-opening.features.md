@@ -267,10 +267,43 @@ Hacknet **$7.74b/day**, grafting and earning concurrent):
 | plan | k | money-wait | graft | grind | **total** | cost |
 |---|---|---|---|---|---|---|
 | ascending price (`graftrecon`'s order) | 10 | — | 8.5 h | 87.0 h | **95.5 h** | $926m |
-| **optimised selection** | **11** | **9.0 h** | **9.5 h** | **11.7 h** | **⭐ 21.2 h** | **$3.83b** |
+| ~~optimised selection~~ 🔴 **see below** | ~~11~~ | ~~9.0 h~~ | ~~9.5 h~~ | ~~11.7 h~~ | ~~21.2 h~~ | ~~$3.83b~~ |
 | optimised, after the D2 RAM step | 9 | 8.1 h | 8.7 h | 11.8 h | **20.6 h** | $4.84b |
 
-**Choosing the right eleven augs is worth ~4.5×; choosing *more* augs is worth almost nothing.**
+### 🔴 RETRACTED 2026-08-26 — that ladder is IMPOSSIBLE. It ignores prerequisites.
+
+The k=11 ladder above contains **`Augmented Targeting III` without II or I, `Combat Rib III` without
+II or I, and `LuminCloaking-V2` without V1.** My beam search ran over `graftrecon.js`'s 36 combat
+candidates with **no admissibility filter at all**, so it planned over a set that cannot execute.
+
+📌 **This repo's own gated reference warned about exactly this, in bold, and I read it earlier the
+same session** (`docs/grafting-reference.md` §6, lines 127-130):
+
+> ⚠️ **`getGraftableAugmentations()` checks neither money nor prerequisites.** It returns
+> `Augmented Targeting II` with no `Augmented Targeting I` anywhere. **Filter yourself** via
+> `singularity.getAugmentationPrereq`. A ladder built without that filter contains steps that cannot
+> execute, and **every downstream cost/time projection is then computed over an impossible set.**
+
+**Corrected figure — `k = 10`, `~22.62 h`**, an admissible ten-aug set substituting Augmented
+Targeting I+II and Combat Rib I for the inadmissible tiers; verified stable across beam widths
+300/600/1200/2400. Found by the implementing agent, which reproduced my exact numbers by zeroing
+out prereqs — proving the cause rather than asserting it. ⚠️ The prereq chain itself is still
+**inferred from BN10 precedent plus the doc above**, not read live; `src/graftprereqprobe.js`
+(written, unrun — blocked on the game UI) closes that with `getAugmentationPrereq`.
+
+**The conclusion is unchanged and the correction is small** (21.17 → 22.62 h, k 11 → 10): selection
+still beats depth by ~4×, and the *shape* of the answer — prefer broad, all-four-stat augs — is
+what survives. Only the exact ladder moved.
+
+📌 **Third instance in this phase of one pattern, and now it is mine: `graftrecon` pooled the stats,
+`graftplanner` summed them, and my beam ignored admissibility. Every one of the three was a
+projection computed over a set that could not happen.** The check that catches this class is
+cheap and the same each time: **state the objective, then verify the candidate set can actually
+produce it.**
+
+---
+
+**Choosing the right ten augs is worth ~4×; choosing *more* augs is worth almost nothing.**
 The optimiser's picks are exactly the **broad** ones — `Bionic Spine` (all four), `HemoRecirculator`
 (all four), `Bionic Arms` (str+dex), `Bionic Legs` (agi), `DermaForce Particle Barrier` (def),
 `Combat Rib III` (str+def) — with cheap single-stat augs appearing only as late filler.
