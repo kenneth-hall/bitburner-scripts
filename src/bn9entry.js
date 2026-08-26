@@ -51,11 +51,29 @@
  *   - WD2 requires "the entropy ceiling or money floor bind" as a grind-triggering rail, but
  *     Section 6/7's prose never pins BN9 numbers for either (unlike bn10entry.js's spec, which
  *     named MAX_ENTROPY=8 and MONEY_FLOOR=$50m explicitly). This file ports the SAME SHAPE from
- *     bn10entry.js's R1/R2 with BN9-appropriate values: MAX_ENTROPY=12 (comfortably above the
- *     converged k=11 ladder, spec Section 5.1) and MONEY_FLOOR=$50,000,000 (same floor
- *     bn10entry.js used, no BN9-specific reason to differ). No MAX_GRAFT_SPEND rail is ported --
- *     graftmath.js's own NODE_CONFIGS[9].maxSpend already bounds the beam search's total spend,
- *     and nothing in WD1-WD11 asks for a second, redundant spend ceiling here.
+ *     bn10entry.js's R1/R2, with MONEY_FLOOR=$50,000,000 (same floor bn10entry.js used, no
+ *     BN9-specific reason to differ).
+ *
+ *     MAX_ENTROPY=16 IS A RUNAWAY GUARD, NOT A PLAN CAP -- this was gotten wrong once (an
+ *     earlier revision set it to 12, "comfortably above the converged k=11 ladder", and that
+ *     ladder is itself CALIBRATE_GRIND's whole reason to exist: k=11 is the plan at the
+ *     UNMEASURED 0.179 exp/s/stat placeholder, and the spec's own sensitivity table (Section 6)
+ *     shows the true optimal k moving with the real, calibrated rate -- 10 at 0.060, 14 at
+ *     0.090, 9 at 0.300, 7 at 0.500. A ceiling of 12 would have silently TRUNCATED a legitimate
+ *     k=14 plan at a real calibrated rate of 0.09, capping the plan instead of catching a bug --
+ *     exactly backwards for what this rail is for). The graft ladder's real bound is the beam
+ *     search's own maxDepth (14, graftmath.js's NODE_CONFIGS[9].maxDepth) -- no legitimate plan
+ *     this file ever executes can exceed 14 grafts, since graftplanner.js never returns a
+ *     ladder longer than that. MAX_ENTROPY is set ABOVE that bound (16) so it can never bind a
+ *     real plan; its only job is to stop a BUG that grafts forever (a replan loop that keeps
+ *     re-choosing "one more graft" past what any real ladder would ever call for). If it ever
+ *     DOES bind -- entropy reaches 16 while a plan is still being executed -- that is logged as
+ *     an anomaly (event "entropy-ceiling-bound-a-plan"), not silently treated as ordinary
+ *     rails-blocked routing, precisely because that outcome would mean either the beam search's
+ *     own maxDepth bound was bypassed or this rail is doing something it should never do.
+ *     No MAX_GRAFT_SPEND rail is ported -- graftmath.js's own NODE_CONFIGS[9].maxSpend already
+ *     bounds the beam search's total spend, and nothing in WD1-WD11 asks for a second,
+ *     redundant spend ceiling here.
  *   - CALIBRATE_GRIND's "attempts >= 20" bound (spec Section 6) has no cheap live call for a
  *     real per-crime attempt count within this script's RAM budget (ns.getCrimeStats is
  *     itemized for the calibration FALLBACK path, not a live counter). This file approximates
@@ -109,7 +127,7 @@ export const LOG_RING_CAP = 1000;
 
 export const LOCK_STALE_MS = 30_000; // matches the slot-hold convention
 
-export const MAX_ENTROPY = 12; // assumption -- see header note
+export const MAX_ENTROPY = 16; // a runaway guard set ABOVE the beam's own maxDepth (14) -- never a plan cap. See header note.
 export const MONEY_FLOOR = 50_000_000; // assumption -- see header note
 
 export const REPLAN_LEVEL_DELTA = 5;
@@ -665,6 +683,21 @@ export async function main(ns) {
       currentWork, combatLevels, plan: planCtx, money, entropy, nowMs,
       grindRatePerStat: effectiveRate, railsOk,
     });
+
+    // MAX_ENTROPY is a runaway guard, never meant to bind a legitimate plan (header note) --
+    // any real ladder is already bounded by the beam search's own maxDepth (14), well under
+    // this rail's ceiling (16). If it DOES bind while a real plan is still in progress, that
+    // is a design invariant broken somewhere upstream (a bypassed maxDepth, or this rail no
+    // longer set above it) -- log it loudly and distinctly rather than letting it look like
+    // ordinary rails-blocked routing.
+    if (decision.kind === "grind" && decision.reason === "rails-blocked:entropy-ceiling") {
+      logEvent("entropy-ceiling-bound-a-plan", {
+        entropy, MAX_ENTROPY, nextStep: planCtx?.nextStep ?? null,
+      });
+      ns.tprint("bn9entry: ANOMALY -- MAX_ENTROPY (" + MAX_ENTROPY + ") blocked a real plan at entropy " +
+        entropy + ". This rail is a runaway guard and should never bind a legitimate ladder " +
+        "(the beam search's own maxDepth already bounds every real plan) -- investigate before continuing.");
+    }
 
     let effectiveKind = decision.kind;
     if (decision.kind === "hold") {

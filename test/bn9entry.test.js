@@ -3,6 +3,7 @@
 // supporting pure functions take NO `ns` calls, so every precedence branch and boundary is
 // testable here without a live game.
 import { describe, it, expect } from 'vitest';
+import { resolveNodeConfig } from '../src/graftmath.js';
 import {
   decideEntryAction,
   computeReplanReason,
@@ -141,6 +142,18 @@ describe('decideEntryAction -- WD2: grind (never idle) when the entropy ceiling 
     expect(rails.moneyFloor).toBe(false);
     const justOk = computeRailsOk({ entropy: 0, money: MONEY_FLOOR + 100, nextStepPrice: 100, singleInstanceHeld: true });
     expect(justOk.moneyFloor).toBe(true);
+  });
+
+  it('MAX_ENTROPY is a runaway guard, strictly ABOVE the beam search\'s own maxDepth for BN9 -- it must never be able to bind a legitimate plan', () => {
+    // Corrected: an earlier revision set MAX_ENTROPY=12, calibrated against k=11 -- the
+    // ladder AT THE UNMEASURED 0.179 placeholder rate. The spec's own sensitivity table
+    // (Section 6) shows the real optimal k moving with the calibrated rate (up to 14 at
+    // 0.090), so a ceiling of 12 would have silently truncated a legitimate plan instead of
+    // only catching a runaway. The real bound on any legitimate plan is graftmath's own
+    // NODE_CONFIGS[9].maxDepth -- this asserts MAX_ENTROPY sits strictly above it, so the
+    // rail can only ever fire on a bug, never on real ladder growth.
+    const bn9Config = resolveNodeConfig(9, {});
+    expect(MAX_ENTROPY).toBeGreaterThan(bn9Config.maxDepth);
   });
 });
 
