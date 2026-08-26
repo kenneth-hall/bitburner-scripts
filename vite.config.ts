@@ -143,6 +143,9 @@ export default defineConfig({
         if (/^sleevesyncprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleevesyncprobe.js -- A/B measurement of how much sleeve exp actually reaches the player, one file per run
         if (file === 'graft-plan.json') return 'logs/graft-plan.json'; // Phase 41 WI2 -- src/graftplanner.js's computed graft ladder, overwritten in place each run; carries schemaVersion + every input it was computed from (staleness detection, spec B4)
         if (file === 'bn10entry-log.json') return 'logs/bn10entry-log.json'; // Phase 41 WI3 -- src/bn10entry.js's ring-capped per-poll decision log (exp/levels/money/entropy/action/decision+reason, spec C4)
+        if (/^hacknetramonce-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 43 WI-A -- src/hacknetramonce.js's one-shot RAM-upgrade record (before/after hash production, cost, verification mismatch finding), one file per run
+        if (file === 'bn9entry-log.json') return 'logs/bn9entry-log.json'; // Phase 43 WI-D -- src/bn9entry.js's ring-capped per-poll decision log (exp/levels/money/entropy/action/decision+reason/rate-source, spec WD4)
+        if (file === 'bn9companions-state.json') return 'logs/bn9companions-state.json'; // Phase 43 WI-E -- src/bn9companions.js's overwrite-in-place supervision snapshot (last check/launch per target, running/gated status)
         if (/^transactions-\d{4}-\d{2}-\d{2}\.json$/.test(file)) return `logs/${file}`;
         if (file === 'finance-log.json') return 'logs/finance-log.json';
         if (file === 'bootstrap-log.json') return 'logs/bootstrap-log.json';
