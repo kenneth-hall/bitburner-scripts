@@ -1,14 +1,14 @@
-// Pure-function tests for Phase 41 WI2's graftplanner.js (phase-41-bn10-entry.spec.md's
-// acceptance criteria B1-B5). expForLevel/remainingExp/planGraftLadder are all ns-free; main()
-// is thin plumbing around them (catalog reads -> planGraftLadder -> ns.write), covered here
-// only for B4's output-shape requirement via a minimal fake `ns`.
+// Integration tests for graftplanner.js's main() (Phase 41 WI2's acceptance criteria B4/B5,
+// carried forward through Phase 43 WI-C's rebuild on graftmath.js's beam search).
+//
+// The pure math (expForLevel, statHoursRemaining, bottleneckHours, planGraftLadder itself,
+// prerequisite admissibility, entropy correctness, beam-width convergence) moved to
+// src/graftmath.js and is tested there (test/graftmath.test.js) -- this file now only tests
+// the thin `ns`-touching glue: does main() assemble candidates correctly, exclude owned augs,
+// resolve the live BitNode's config, read the grind-rate override/goal-state income signal,
+// and write graft-plan.json in the expected shape.
 import { describe, it, expect } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
 import {
-  expForLevel,
-  remainingExp,
-  planGraftLadder,
   main,
   STATS,
   NODE_MULT,
@@ -20,231 +20,33 @@ import {
   SCHEMA_VERSION,
 } from '../src/graftplanner.js';
 
-const fixture = JSON.parse(
-  fs.readFileSync(path.join(process.cwd(), 'test/fixtures/graft-catalog-bn10.json'), 'utf8')
-);
-
-// PREREQUISITES ARE NOT IN THE FIXTURE (graftrecon.js never read getAugmentationPrereq --
-// see the fixture's own provenance note). This is the real, tiered prerequisite structure
-// for this candidate set (Roman-numeral tiers require the previous tier; Graphene-* upgrades
-// require their base implant) -- static game data, not a guess, and exactly the relationship
-// the spec calls out by name ("the features doc's own greedy order contains Augmented
-// Targeting II without Augmented Targeting I").
-const PREREQ_MAP = {
-  'Augmented Targeting II': ['Augmented Targeting I'],
-  'Augmented Targeting III': ['Augmented Targeting II'],
-  'Combat Rib II': ['Combat Rib I'],
-  'Combat Rib III': ['Combat Rib II'],
-  'LuminCloaking-V2 Skin Implant': ['LuminCloaking-V1 Skin Implant'],
-  'Graphene BrachiBlades Upgrade': ['BrachiBlades'],
-  'Graphene Bionic Arms Upgrade': ['Bionic Arms'],
-  'Graphene Bionic Legs Upgrade': ['Bionic Legs'],
-  'Graphene Bionic Spine Upgrade': ['Bionic Spine'],
-};
-
-function fixtureCandidates() {
-  return fixture.candidates.map((c) => ({ ...c, prereqs: PREREQ_MAP[c.name] || [] }));
-}
-
-describe('expForLevel', () => {
-  it('B2: expForLevel(100, 1.28) = 5417/stat (BN6\'s measured combat-gate cost), x4 = 21668', () => {
-    const perStat = expForLevel(100, 1.28);
-    expect(perStat).toBeCloseTo(5416.95, 1);
-    expect(perStat * 4).toBeCloseTo(21667.78, 1);
-  });
-
-  it('is monotonically increasing in level at a fixed mult', () => {
-    const mult = 0.6;
-    expect(expForLevel(50, mult)).toBeLessThan(expForLevel(75, mult));
-    expect(expForLevel(75, mult)).toBeLessThan(expForLevel(100, mult));
-  });
-
-  it('is monotonically decreasing in mult at a fixed level (a higher mult is always cheaper)', () => {
-    expect(expForLevel(100, 0.8)).toBeLessThan(expForLevel(100, 0.5));
-  });
-});
-
-describe('remainingExp', () => {
-  it('sums per-stat exp clamped at >=0 -- an already-capped stat contributes 0, never a negative correction', () => {
-    const mults = { strength: 2, defense: 2, dexterity: 2, agility: 2 };
-    // strength/defense already WAY past target (huge banked exp); dexterity/agility at 0.
-    const needAt100 = expForLevel(TARGET_LEVEL, 2 * NODE_MULT);
-    const banked = {
-      strength: needAt100 * 10, // far past requirement
-      defense: needAt100 * 10,
-      dexterity: 0,
-      agility: 0,
-    };
-    const result = remainingExp(mults, banked, { nodeMult: NODE_MULT, targetLevel: TARGET_LEVEL });
-    // If a naive (sum(need) - sum(banked)) model were used, the huge strength/defense surplus
-    // would swamp the dexterity/agility deficit and could even go negative. The correct,
-    // per-stat-clamped model must equal exactly 2x the single-stat need (str/def contribute 0).
-    expect(result).toBeCloseTo(needAt100 * 2, 6);
-    expect(result).toBeGreaterThan(0);
-  });
-
-  it('matches the BN6 formula total exactly at mult 1.28, nodeMult 1, banked 0 (B2 cross-check)', () => {
-    const mults = { strength: 1.28, defense: 1.28, dexterity: 1.28, agility: 1.28 };
-    const banked = { strength: 0, defense: 0, dexterity: 0, agility: 0 };
-    const total = remainingExp(mults, banked, { nodeMult: 1, targetLevel: 100 });
-    expect(total).toBeCloseTo(21667.78, 1);
-  });
-
-  it('reproduces the live BN10 k=0 baseline exactly: 454,176 total remaining exp at combat 74', () => {
-    const currentMults = fixture.playerAtCapture.combatMults;
-    const banked = {};
-    for (const stat of STATS) banked[stat] = expForLevel(74, currentMults[stat] * fixture.nodeMult);
-    const total = remainingExp(currentMults, banked, { nodeMult: fixture.nodeMult, targetLevel: TARGET_LEVEL });
-    expect(total).toBeCloseTo(454175.97, 0);
-  });
-});
-
-describe('planGraftLadder', () => {
-  it('B5: never emits an already-owned/grafted aug, even if it would otherwise score best', () => {
-    const currentMults = { strength: 1, defense: 1, dexterity: 1, agility: 1 };
-    const banked = { strength: 0, defense: 0, dexterity: 0, agility: 0 };
-    const candidates = [
-      { name: 'CheapOwned', price: 1, graftHours: 0.1, mults: { strength: 5, defense: 5, dexterity: 5, agility: 5 }, prereqs: [] },
-      { name: 'Unowned', price: 1000, graftHours: 1, mults: { strength: 1.1, defense: 1.1, dexterity: 1.1, agility: 1.1 }, prereqs: [] },
-    ];
-    const { ladder, projections } = planGraftLadder(candidates, currentMults, banked, {
-      nodeMult: 1, targetLevel: 100, grindExpPerSec: 1, entropyPerGraft: 0.98,
-      owned: new Set(['CheapOwned']), maxSpend: 1e9, moneyAvailable: 1e9,
-    });
-    expect(ladder.some((s) => s.name === 'CheapOwned')).toBe(false);
-    expect(projections.some((s) => s.name === 'CheapOwned')).toBe(false);
-  });
-
-  it('B5: never emits a candidate whose prerequisites are unmet (and not satisfiable within the ladder)', () => {
-    const currentMults = { strength: 1, defense: 1, dexterity: 1, agility: 1 };
-    const banked = { strength: 0, defense: 0, dexterity: 0, agility: 0 };
-    const candidates = [
-      // Tier II is the BEST score by far, but its prereq (Tier I) is never made available.
-      { name: 'Tier II', price: 100, graftHours: 0.1, mults: { strength: 3, defense: 3, dexterity: 3, agility: 3 }, prereqs: ['Tier I'] },
-      { name: 'Filler', price: 100, graftHours: 0.1, mults: { strength: 1.05, defense: 1, dexterity: 1, agility: 1 }, prereqs: [] },
-    ];
-    const { ladder, projections } = planGraftLadder(candidates, currentMults, banked, {
-      // entropyPerGraft: 1 (no tax) isolates prerequisite-filtering from the entropy/net-value
-      // tradeoff -- with the real 0.98 tax a single-stat filler aug can legitimately be a NET
-      // NEGATIVE pick (entropy taxes all four stats while it only helps one), which is a
-      // correct model behavior covered separately, not what THIS test is checking.
-      nodeMult: 1, targetLevel: 100, grindExpPerSec: 1, entropyPerGraft: 1,
-      owned: new Set(), maxSpend: 1e9, moneyAvailable: 1e9,
-    });
-    expect(ladder.some((s) => s.name === 'Tier II')).toBe(false);
-    expect(projections.some((s) => s.name === 'Tier II')).toBe(false);
-    // Filler (no prereq) is still admissible and should appear.
-    expect(ladder.some((s) => s.name === 'Filler')).toBe(true);
-  });
-
-  it('B5: admits a tiered candidate once its prerequisite is chosen earlier in the SAME ladder', () => {
-    const currentMults = { strength: 1, defense: 1, dexterity: 1, agility: 1 };
-    const banked = { strength: 0, defense: 0, dexterity: 0, agility: 0 };
-    const candidates = [
-      { name: 'Tier I', price: 100, graftHours: 0.1, mults: { strength: 1.1, defense: 1, dexterity: 1, agility: 1 }, prereqs: [] },
-      { name: 'Tier II', price: 100, graftHours: 0.1, mults: { strength: 1.3, defense: 1, dexterity: 1, agility: 1 }, prereqs: ['Tier I'] },
-    ];
-    const { ladder } = planGraftLadder(candidates, currentMults, banked, {
-      nodeMult: 1, targetLevel: 100, grindExpPerSec: 1, entropyPerGraft: 0.98,
-      owned: new Set(), maxSpend: 1e9, moneyAvailable: 1e9,
-    });
-    const names = ladder.map((s) => s.name);
-    expect(names).toContain('Tier I');
-    expect(names).toContain('Tier II');
-    expect(names.indexOf('Tier I')).toBeLessThan(names.indexOf('Tier II'));
-  });
-
-  it('B3: selects the totalHours MINIMUM, not the maximum affordable -- proven by a cheaper-but-slower tail', () => {
-    const currentMults = { strength: 1, defense: 1, dexterity: 1, agility: 1 };
-    const banked = { strength: 0, defense: 0, dexterity: 0, agility: 0 };
-    const candidates = [
-      // Step A: efficient, cuts remaining exp a lot for modest graft time -- lowers totalHours.
-      { name: 'Efficient', price: 100, graftHours: 1, mults: { strength: 2, defense: 2, dexterity: 2, agility: 2 }, prereqs: [] },
-      // Step B: cheap in MONEY, but a long graft for a tiny stat gain -- raises totalHours
-      // back up even though it is affordable and would score positively on $ alone if graft
-      // time were ignored. Its presence in `projections` (but not `ladder`) is what B3 proves.
-      { name: 'SlowTail', price: 10, graftHours: 50, mults: { strength: 1.01, defense: 1, dexterity: 1, agility: 1 }, prereqs: [] },
-    ];
-    const { ladder, chosenK, projections } = planGraftLadder(candidates, currentMults, banked, {
-      nodeMult: 1, targetLevel: 100, grindExpPerSec: 5, entropyPerGraft: 0.98,
-      owned: new Set(), maxSpend: 1e9, moneyAvailable: 1e9,
-    });
-    // Both candidates are affordable and admissible -- the walk reaches k=2 in `projections`...
-    expect(projections.some((s) => s.name === 'SlowTail')).toBe(true);
-    // ...but chosenK must stop BEFORE the slow tail's 50h graft cost outweighs its tiny exp
-    // saving, i.e. chosenK is the k=1 (Efficient-only) row, not k=2.
-    expect(chosenK).toBe(1);
-    expect(ladder.map((s) => s.name)).toEqual(['Efficient']);
-    // And totalHours actually rises from k=1 to k=2, which is what makes this a real proof
-    // (not just "SlowTail never got picked" for an unrelated reason).
-    const step1 = projections.find((s) => s.k === 1);
-    const step2 = projections.find((s) => s.k === 2);
-    expect(step2.totalHours).toBeGreaterThan(step1.totalHours);
-  });
-
-  it('B1 golden (live BN10 fixture, combat 74, corrected for prerequisite filtering): reproduces the k=0..4 prefix of features doc Section 3.2 exactly, then diverges once Augmented Targeting II is correctly gated on Augmented Targeting I', () => {
-    const candidates = fixtureCandidates();
-    const currentMults = fixture.playerAtCapture.combatMults;
-    const nodeMult = fixture.nodeMult;
-    const banked = {};
-    for (const stat of STATS) banked[stat] = expForLevel(74, currentMults[stat] * nodeMult);
-
-    const { ladder, chosenK, projections } = planGraftLadder(candidates, currentMults, banked, {
-      nodeMult, targetLevel: TARGET_LEVEL, grindExpPerSec: 2.62, entropyPerGraft: ENTROPY_PER_GRAFT,
-      owned: new Set(), maxSpend: DEFAULT_MAX_SPEND, moneyAvailable: fixture.playerAtCapture.money,
-    });
-
-    // k=0 baseline: EXACT match to the features doc (454,176 remaining, 48.2h) -- no
-    // prerequisite filtering applies before any grafts are chosen.
-    expect(projections[0].remainingExp).toBeCloseTo(454175.97, 0);
-    expect(projections[0].totalHours).toBeCloseTo(48.15, 1);
-
-    // k=1..4: the doc's own greedy order (HemoRecirculator, Wired Reflexes, Combat Rib I,
-    // Bionic Spine) needs no prerequisites among these four, so the corrected model matches
-    // the doc's unfiltered one exactly through k=4 (within 2%, per B1's tolerance).
-    const byK = Object.fromEntries(projections.map((s) => [s.k, s]));
-    expect(byK[1].name).toBe('HemoRecirculator');
-    expect(byK[2].name).toBe('Wired Reflexes');
-    expect(byK[3].name).toBe('Combat Rib I');
-    expect(byK[3].cumCost).toBeCloseTo(213_750_000, -6);
-    expect(byK[3].totalHours).toBeCloseTo(27.6, 1);
-    expect(byK[4].name).toBe('Bionic Spine');
-    expect(byK[4].cumCost).toBeCloseTo(589_000_000, -7);
-    expect(byK[4].totalHours).toBeCloseTo(11.6, 1);
-
-    // CORRECTED LADDER (documented deviation from features doc Section 3.2's k=7/$919m/9.6h,
-    // per B1's escape hatch -- that table was computed WITHOUT prerequisite filtering, and
-    // "Augmented Targeting II" cannot be bought before "Augmented Targeting I" in this
-    // model). The prerequisite constraint reroutes the back half of the ladder through
-    // Combat Rib II / Augmented Targeting I / the two LuminCloaking tiers before Augmented
-    // Targeting II becomes admissible, pushing the true totalHours minimum out to k=9.
-    expect(chosenK).toBe(9);
-    expect(ladder.map((s) => s.name)).toEqual([
-      'HemoRecirculator', 'Wired Reflexes', 'Combat Rib I', 'Bionic Spine',
-      'Combat Rib II', 'Augmented Targeting I', 'LuminCloaking-V1 Skin Implant',
-      'LuminCloaking-V2 Skin Implant', 'Augmented Targeting II',
-    ]);
-    const chosenStep = projections.find((s) => s.k === chosenK);
-    expect(chosenStep.totalHours).toBeCloseTo(9.91, 1);
-    expect(chosenStep.cumCost).toBeCloseTo(1_061_250_000, -7);
-
-    // The minimum is real, not an artifact of stopping early -- totalHours rises immediately
-    // past chosenK (k=10 costs more AND takes longer overall).
-    const nextStep = projections.find((s) => s.k === chosenK + 1);
-    if (nextStep) expect(nextStep.totalHours).toBeGreaterThan(chosenStep.totalHours);
+describe('graftplanner.js re-exports Phase 41\'s BN10 constants unchanged (WC5)', () => {
+  it('NODE_MULT/TARGET_LEVEL/ENTROPY_PER_GRAFT/DEFAULT_GRIND_EXP_PER_SEC/DEFAULT_MAX_SPEND still read the exact BN10 values', () => {
+    expect(NODE_MULT).toBe(0.4);
+    expect(TARGET_LEVEL).toBe(100);
+    expect(ENTROPY_PER_GRAFT).toBe(0.98);
+    expect(DEFAULT_GRIND_EXP_PER_SEC).toBe(2.62);
+    expect(DEFAULT_MAX_SPEND).toBe(1_500_000_000);
   });
 });
 
 describe('main() (B4 -- fake ns integration)', () => {
-  function makeFakeNs({ owned = [], catalog = [], stats = {}, prices = {}, times = {}, prereqs = {} } = {}) {
+  function makeFakeNs({
+    owned = [], catalog = [], stats = {}, prices = {}, times = {}, prereqs = {},
+    args = [], currentNode = 10, goalState = null,
+  } = {}) {
     const written = {};
+    const files = {};
+    if (goalState) files['goal-state.json'] = JSON.stringify(goalState);
     return {
-      args: [],
+      args,
       disableLog: () => {},
       sleep: async () => {},
       tprint: () => {},
+      read: (file) => files[file] ?? '',
       write: (file, content) => { written[file] = content; },
       format: { number: (n) => String(n) },
+      getResetInfo: () => ({ currentNode }),
       getPlayer: () => ({
         mults: { strength: 1.3824, defense: 1.3824, dexterity: 1.3824, agility: 1.3824 },
         exp: { strength: 1000, defense: 1000, dexterity: 1000, agility: 1000 },
@@ -266,7 +68,7 @@ describe('main() (B4 -- fake ns integration)', () => {
     };
   }
 
-  it('B4: writes graft-plan.json with schemaVersion and every computation input', async () => {
+  it('B4: writes graft-plan.json with schemaVersion, bitNode, and every computation input', async () => {
     const fakeNs = makeFakeNs({
       catalog: ['TestAug'],
       stats: { TestAug: { strength: 1.1, defense: 1, dexterity: 1, agility: 1 } },
@@ -277,14 +79,16 @@ describe('main() (B4 -- fake ns integration)', () => {
     expect(fakeNs._written[PLAN_FILE]).toBeDefined();
     const record = JSON.parse(fakeNs._written[PLAN_FILE]);
     expect(record.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(record.bitNode).toBe(10);
     expect(record.inputs).toBeDefined();
     expect(record.inputs.currentMults).toEqual({ strength: 1.3824, defense: 1.3824, dexterity: 1.3824, agility: 1.3824 });
     expect(record.inputs.banked).toEqual({ strength: 1000, defense: 1000, dexterity: 1000, agility: 1000 });
     expect(record.inputs.money).toBe(3_000_000);
     expect(record.inputs.entropy).toBe(0);
-    expect(record.inputs.grindExpPerSec).toBe(DEFAULT_GRIND_EXP_PER_SEC);
+    expect(record.inputs.grindRatePerStat).toBe(DEFAULT_GRIND_EXP_PER_SEC);
     expect(record.inputs.entropyPerGraft).toBe(ENTROPY_PER_GRAFT);
     expect(typeof record.timestamp).toBe('number');
+    expect(typeof record.totalHours).toBe('number');
     expect(Array.isArray(record.ladder)).toBe(true);
   });
 
@@ -301,7 +105,76 @@ describe('main() (B4 -- fake ns integration)', () => {
     });
     await main(fakeNs);
     const record = JSON.parse(fakeNs._written[PLAN_FILE]);
-    const allNames = [...record.ladder, ...record.projections].map((s) => s.name);
-    expect(allNames).not.toContain('AlreadyOwned');
+    expect(record.ladder.some((s) => s.name === 'AlreadyOwned')).toBe(false);
+  });
+
+  it('BitNode-aware (Phase 43): resolves BN9\'s config, not BN10\'s, when getResetInfo says BN9', async () => {
+    const fakeNs = makeFakeNs({ currentNode: 9, catalog: [] });
+    await main(fakeNs);
+    const record = JSON.parse(fakeNs._written[PLAN_FILE]);
+    expect(record.bitNode).toBe(9);
+    expect(record.inputs.nodeMult).toBe(0.45);
+    expect(record.inputs.grindRatePerStat).toBe(0.179); // NODE_CONFIGS[9]'s calibration-pending placeholder
+  });
+
+  it('a single scalar grind-rate CLI override (ns.args[1], old BN10 call shape) is honoured', async () => {
+    const fakeNs = makeFakeNs({ args: [DEFAULT_MAX_SPEND, 0.5], catalog: [] });
+    await main(fakeNs);
+    const record = JSON.parse(fakeNs._written[PLAN_FILE]);
+    expect(record.inputs.grindRatePerStat).toBe(0.5);
+  });
+
+  it('a per-stat grind-rate CLI override (four positional args, CALIBRATE_GRIND\'s shape) is honoured', async () => {
+    const fakeNs = makeFakeNs({ args: [DEFAULT_MAX_SPEND, 0.1, 0.2, 0.3, 0.4], catalog: [] });
+    await main(fakeNs);
+    const record = JSON.parse(fakeNs._written[PLAN_FILE]);
+    expect(record.inputs.grindRatePerStat).toEqual({ strength: 0.1, defense: 0.2, dexterity: 0.3, agility: 0.4 });
+  });
+
+  it('reads a live, fresh goal-state.json income rate for the money-wait term', async () => {
+    const fakeNs = makeFakeNs({
+      catalog: [],
+      goalState: { timestamp: Date.now(), income: { perSec24h: 12_345 } },
+    });
+    await main(fakeNs);
+    const record = JSON.parse(fakeNs._written[PLAN_FILE]);
+    expect(record.inputs.incomeRatePerSecDollars).toBe(12_345);
+  });
+
+  it('a missing/stale goal-state.json collapses income rate to 0, not a crash', async () => {
+    const fakeNs = makeFakeNs({ catalog: [] }); // no goalState at all
+    await main(fakeNs);
+    const record = JSON.parse(fakeNs._written[PLAN_FILE]);
+    expect(record.inputs.incomeRatePerSecDollars).toBe(0);
+  });
+
+  it('only combat-touching candidates (at least one mult != 1) reach the plan', async () => {
+    const fakeNs = makeFakeNs({
+      catalog: ['NotCombat', 'IsCombat'],
+      stats: {
+        NotCombat: { strength: 1, defense: 1, dexterity: 1, agility: 1, hacking: 1.5 },
+        IsCombat: { strength: 1.1, defense: 1, dexterity: 1, agility: 1 },
+      },
+      prices: { NotCombat: 1000, IsCombat: 1000 },
+      times: { NotCombat: 3_600_000, IsCombat: 3_600_000 },
+    });
+    await main(fakeNs);
+    const record = JSON.parse(fakeNs._written[PLAN_FILE]);
+    expect(record.candidateCount).toBe(1);
+  });
+
+  it('a getGraftableAugmentations throw aborts with a fatal record, not a crash', async () => {
+    const fakeNs = makeFakeNs({});
+    fakeNs.grafting.getGraftableAugmentations = () => { throw new Error('boom'); };
+    await main(fakeNs);
+    const record = JSON.parse(fakeNs._written[PLAN_FILE]);
+    expect(typeof record.fatal).toBe('string');
+    expect(record.ladder).toBeUndefined();
+  });
+});
+
+describe('STATS re-export', () => {
+  it('matches graftmath.js\'s canonical stat order', () => {
+    expect(STATS).toEqual(['strength', 'defense', 'dexterity', 'agility']);
   });
 });
