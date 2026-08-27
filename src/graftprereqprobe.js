@@ -5,7 +5,7 @@ export async function main(ns) {
   const out = { ts: Date.now(), iso: new Date().toISOString(), prereqs: {}, owned: [], errors: {} };
   try { out.owned = ns.singularity.getOwnedAugmentations(true); } catch (e) { out.errors.owned = String(e).slice(0, 200); }
   let names = [];
-  try { names = ns.singularity.getGraftableAugmentations(); } catch (e) { out.errors.catalog = String(e).slice(0, 200); }
+  try { names = ns.grafting.getGraftableAugmentations(); } catch (e) { out.errors.catalog = String(e).slice(0, 200); }
   out.graftableCount = names.length;
   for (const n of names) {
     try { out.prereqs[n] = ns.singularity.getAugmentationPrereq(n); }

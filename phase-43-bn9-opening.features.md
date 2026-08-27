@@ -284,12 +284,36 @@ same session** (`docs/grafting-reference.md` §6, lines 127-130):
 > `singularity.getAugmentationPrereq`. A ladder built without that filter contains steps that cannot
 > execute, and **every downstream cost/time projection is then computed over an impossible set.**
 
-**Corrected figure — `k = 10`, `~22.62 h`**, an admissible ten-aug set substituting Augmented
-Targeting I+II and Combat Rib I for the inadmissible tiers; verified stable across beam widths
-300/600/1200/2400. Found by the implementing agent, which reproduced my exact numbers by zeroing
-out prereqs — proving the cause rather than asserting it. ⚠️ The prereq chain itself is still
-**inferred from BN10 precedent plus the doc above**, not read live; `src/graftprereqprobe.js`
-(written, unrun — blocked on the game UI) closes that with `getAugmentationPrereq`.
+**✅ Corrected and CONFIRMED LIVE 2026-08-27 — `k = 10`, `22.62 h`, cost `$3.24b`.** Verified
+stable at beam widths 300 / 600 / 1200 / 2400. The prereq chain is no longer inferred:
+`src/graftprereqprobe.js` read it from the game via `ns.singularity.getAugmentationPrereq`
+(`logs/graftprereqprobe-1787793146241.json` — 98 graftable augs, **20 with prereqs**):
+
+```
+Augmented Targeting III  -> ['Augmented Targeting II', 'Augmented Targeting I']
+Combat Rib III           -> ['Combat Rib II', 'Combat Rib I']
+LuminCloaking-V2         -> ['LuminCloaking-V1 Skin Implant']
+```
+
+The admissible ladder substitutes Augmented Targeting I+II and Combat Rib I for the impossible
+tiers:
+
+| # | aug | price | graft h |
+|---|---|---|---|
+| 1 | Bionic Legs | $1,125m | 0.55 |
+| 2 | DermaForce Particle Barrier | $150m | 0.84 |
+| 3 | Bionic Arms | $825m | 0.88 |
+| 4 | Bionic Spine | $375m | 1.27 |
+| 5 | Augmented Targeting I | $45m | 0.30 |
+| 6 | Nanofiber Weave | $375m | 1.07 |
+| 7 | Augmented Targeting II | $128m | 0.36 |
+| 8 | HemoRecirculator | $135m | 1.37 |
+| 9 | Combat Rib I | $71m | 0.77 |
+| 10 | Wired Reflexes | $8m | 0.74 |
+
+Found by the implementing agent, which reproduced my exact retracted numbers by zeroing prereqs
+out — proving the cause rather than asserting it. `test/fixtures/graft-catalog-bn9.json` now carries
+the live `prereqs` per candidate, a field `graft-catalog-bn10.json` explicitly lacks.
 
 **The conclusion is unchanged and the correction is small** (21.17 → 22.62 h, k 11 → 10): selection
 still beats depth by ~4×, and the *shape* of the answer — prefer broad, all-four-stat augs — is
