@@ -136,6 +136,24 @@ describe('computeReservations', () => {
     expect(after.map((r) => r.key)).not.toContain('bootstrap-server');
   });
 
+  // Phase 43 WI-B, HB4: bootstrap-server must never be reserved in a BitNode where
+  // CloudServerLimit is 0 (BN9) -- the purchase this reservation exists to fund can never
+  // succeed there, so it would otherwise lock $110k out of every consumer forever.
+  it('HB4: serverCount 0 + cloudServerLimit 0 -- no bootstrap-server reservation', () => {
+    const { reservations } = computeReservations({ ...BASE_STATE, serverCount: 0, cloudServerLimit: 0 });
+    expect(reservations.map((r) => r.key)).not.toContain('bootstrap-server');
+  });
+
+  it('HB4 (regression case): serverCount 0 + cloudServerLimit 2 (BN6/BN10-shaped) -- reservation still fires, proving the gate is conditional, not accidentally always-off', () => {
+    const { reservations } = computeReservations({ ...BASE_STATE, serverCount: 0, cloudServerLimit: 2 });
+    expect(reservations.map((r) => r.key)).toContain('bootstrap-server');
+  });
+
+  it('HB4: omitting cloudServerLimit entirely (an un-updated call site) preserves the old always-reserve-at-zero-servers behavior', () => {
+    const { reservations } = computeReservations({ ...BASE_STATE, serverCount: 0 });
+    expect(reservations.map((r) => r.key)).toContain('bootstrap-server');
+  });
+
   it('tor-router drops once TOR is owned', () => {
     const { reservations } = computeReservations({ ...BASE_STATE, hasTor: false });
     expect(reservations.map((r) => r.key)).toContain('tor-router');

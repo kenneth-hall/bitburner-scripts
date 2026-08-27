@@ -13,6 +13,7 @@ import {
   pickGrowthRam,
   nextCloudName,
   buildCloudState,
+  shouldStandDown,
   GROWTH_RAM_MIN,
   GROWTH_RAM_MAX,
   GROWTH_RAM_FALLBACK,
@@ -219,6 +220,8 @@ describe('buildCloudState', () => {
       timestamp: 1000,
       paused: true,
       financeStale: false,
+      disabled: false,
+      disabledReason: null,
       available: 0,
       reserved: 0,
       fleet: null,
@@ -248,5 +251,36 @@ describe('buildCloudState', () => {
     expect(state.fleet.count).toBe(3);
     expect(state.next.affordable).toBe(true);
     expect(state.lastUpgrade.hostname).toBe('cloud-0');
+  });
+
+  // Phase 43 WI-B, HB1: disabled/disabledReason round-trip, every other call shape unaffected.
+  it('HB1: disabled/disabledReason round-trip when passed', () => {
+    const state = buildCloudState({ now: 5, disabled: true, disabledReason: 'CloudServerLimit is 0 for this BitNode' });
+    expect(state.disabled).toBe(true);
+    expect(state.disabledReason).toBe('CloudServerLimit is 0 for this BitNode');
+  });
+
+  it('HB1: every other call shape (paused/financeStale/normal) still defaults disabled:false, disabledReason:null', () => {
+    for (const call of [
+      { now: 1 },
+      { now: 1, paused: true },
+      { now: 1, financeStale: true },
+      { now: 1, available: 100, reserved: 50, fleet: { count: 1, minRam: 16, maxRam: 16, serverLimit: 25, ramLimit: 1_048_576 } },
+    ]) {
+      const state = buildCloudState(call);
+      expect(state.disabled).toBe(false);
+      expect(state.disabledReason).toBeNull();
+    }
+  });
+});
+
+describe('shouldStandDown (Phase 43 WI-B)', () => {
+  it('HB3 (this branch, the new one): true exactly when CloudServerLimit is 0', () => {
+    expect(shouldStandDown(0)).toBe(true);
+  });
+
+  it('HB3 (regression case): false for the BN6/BN10-shaped serverLimit > 0 -- the new branch does not fire', () => {
+    expect(shouldStandDown(25)).toBe(false);
+    expect(shouldStandDown(1)).toBe(false);
   });
 });
