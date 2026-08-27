@@ -1,11 +1,15 @@
 {
  "provenance": {
-  "source": "src/graftrecon.js",
-  "logFile": "graftrecon-1787701791849.json",
+  "source": "src/graftrecon.js + src/graftprereqprobe.js",
+  "logFiles": [
+   "graftrecon-1787701791849.json",
+   "graftprereqprobe-1787793146241.json"
+  ],
   "capturedIso": "2026-08-25T23:49:51.849Z",
+  "prereqsCapturedIso": "2026-08-27T01:12:26.241Z",
   "node": "BN9.1"
  },
- "note": "Combat-LEVEL-touching graftable augs as read live in BN9 on 2026-08-25, at entropy 0 with combat 1/1/1/1 and all four mults tied at 1.3824. logs/ is gitignored, so this tracked copy is what test fixtures must use. This is the PERFECTLY TIED start state that makes a greedy min()-based selector degenerate (it can only pick all-four-stat augs), which is why WC1/WC2 must run against this capture and not a synthetic stand-in. PREREQUISITES ARE NOT CAPTURED HERE -- graftrecon.js does not read getAugmentationPrereq; tests supply them explicitly.",
+ "note": "Combat-LEVEL-touching graftable augs as read live in BN9, at entropy 0 with combat 1/1/1/1 and all four mults tied at 1.3824. logs/ is gitignored, so this tracked copy is what test fixtures must use. UNLIKE graft-catalog-bn10.json, PREREQUISITES ARE CAPTURED HERE, read live via ns.singularity.getAugmentationPrereq (20 of 98 graftable augs have them). They are mandatory: a prereq-blind beam over this same catalog returns an IMPOSSIBLE k=11 / 21.17h ladder containing Augmented Targeting III without II or I. See docs/grafting-reference.md 6.",
  "playerAtCapture": {
   "combatMults": {
    "strength": 1.3824,
@@ -25,9 +29,9 @@
  },
  "nodeMult": 0.45,
  "goldenBeamResults": {
-  "note": "Measured 2026-08-25 by beam search over this catalog: objective max(moneyWaitHours, cumGraftHours) + grindHours, bankroll $920m, income $89,600/s, grind rate 0.179 exp/s/stat (PLACEHOLDER -- superseded live by CALIBRATE_GRIND).",
+  "note": "Measured 2026-08-27, prereq-ENFORCED. Objective max(moneyWaitHours, cumGraftHours) + grindHours; bankroll $920m, income $89,600/s, grind rate 0.179 exp/s/stat (PLACEHOLDER, superseded live by CALIBRATE_GRIND).",
   "width1_degenerate": {
-   "totalHours": 52.6,
+   "totalHours": 52.61,
    "k": 3,
    "picks": [
     "SPTN-97 Gene Modification",
@@ -37,22 +41,27 @@
    "why": "pure greedy: any aug not touching all four stats leaves min() flat while 0.98^(k+1) taxes all four, so it scores <=0 and is unreachable"
   },
   "width300_converged": {
-   "totalHours": 21.17,
-   "k": 11,
+   "totalHours": 22.62,
+   "k": 10,
    "picks": [
     "Bionic Legs",
     "DermaForce Particle Barrier",
     "Bionic Arms",
-    "Augmented Targeting III",
-    "Nanofiber Weave",
     "Bionic Spine",
+    "Augmented Targeting I",
+    "Nanofiber Weave",
+    "Augmented Targeting II",
     "HemoRecirculator",
-    "Combat Rib III",
-    "Wired Reflexes",
-    "LuminCloaking-V2 Skin Implant",
-    "Augmented Targeting I"
+    "Combat Rib I",
+    "Wired Reflexes"
    ],
-   "convergence": "identical output at widths 300 / 600 / 1200 / 2400; width 100 gives 33.7h k=13, so the cliff is between 100 and 300"
+   "costDollars": 3236250000,
+   "convergence": "identical output at widths 300 / 600 / 1200 / 2400"
+  },
+  "prereqBlindArtifact": {
+   "totalHours": 21.17,
+   "k": 11,
+   "why": "RETRACTED. What the same beam returns with prereqs ignored -- kept so a test can prove the filter is live."
   }
  },
  "candidates": [
@@ -67,7 +76,8 @@
    },
    "combatLevelFactor": 1.1025,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "LuminCloaking-V1 Skin Implant",
@@ -81,7 +91,8 @@
    },
    "combatLevelFactor": 1.05,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "Augmented Targeting I",
@@ -93,7 +104,8 @@
    },
    "combatLevelFactor": 1.1,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "Combat Rib I",
@@ -106,7 +118,8 @@
    },
    "combatLevelFactor": 1.2100000000000002,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "LuminCloaking-V2 Skin Implant",
@@ -121,7 +134,10 @@
    },
    "combatLevelFactor": 1.2100000000000002,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": [
+    "LuminCloaking-V1 Skin Implant"
+   ]
   },
   {
    "name": "INFRARET Enhancement",
@@ -135,7 +151,8 @@
    },
    "combatLevelFactor": 1.1,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "Augmented Targeting II",
@@ -147,7 +164,10 @@
    },
    "combatLevelFactor": 1.2,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": [
+    "Augmented Targeting I"
+   ]
   },
   {
    "name": "HemoRecirculator",
@@ -163,7 +183,8 @@
    },
    "combatLevelFactor": 1.3604889600000003,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "DermaForce Particle Barrier",
@@ -176,7 +197,8 @@
    },
    "combatLevelFactor": 1.4,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "Combat Rib II",
@@ -189,7 +211,10 @@
    },
    "combatLevelFactor": 1.2995999999999999,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": [
+    "Combat Rib I"
+   ]
   },
   {
    "name": "SmartSonar Implant",
@@ -203,7 +228,8 @@
    },
    "combatLevelFactor": 1.1,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "BrachiBlades",
@@ -218,7 +244,8 @@
    },
    "combatLevelFactor": 1.3224999999999998,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "Augmented Targeting III",
@@ -230,7 +257,11 @@
    },
    "combatLevelFactor": 1.3,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": [
+    "Augmented Targeting II",
+    "Augmented Targeting I"
+   ]
   },
   {
    "name": "Combat Rib III",
@@ -243,7 +274,11 @@
    },
    "combatLevelFactor": 1.3923999999999999,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": [
+    "Combat Rib II",
+    "Combat Rib I"
+   ]
   },
   {
    "name": "Nanofiber Weave",
@@ -257,7 +292,8 @@
    },
    "combatLevelFactor": 1.44,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "Bionic Spine",
@@ -272,7 +308,8 @@
    },
    "combatLevelFactor": 1.7490062499999994,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "Power Recirculation Core",
@@ -295,7 +332,8 @@
    },
    "combatLevelFactor": 1.2155062500000002,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "Bionic Arms",
@@ -308,7 +346,8 @@
    },
    "combatLevelFactor": 1.6900000000000002,
    "touchesCombatLevel": true,
-   "affordableNow": true
+   "affordableNow": true,
+   "prereqs": []
   },
   {
    "name": "Bionic Legs",
@@ -320,7 +359,8 @@
    },
    "combatLevelFactor": 1.6,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "The Black Hand",
@@ -336,7 +376,8 @@
    },
    "combatLevelFactor": 1.3224999999999998,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "Synfibril Muscle",
@@ -349,7 +390,8 @@
    },
    "combatLevelFactor": 1.6900000000000002,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "nextSENS Gene Modification",
@@ -366,7 +408,8 @@
    },
    "combatLevelFactor": 2.0736,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "Graphene BrachiBlades Upgrade",
@@ -381,7 +424,10 @@
    },
    "combatLevelFactor": 1.9599999999999997,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": [
+    "BrachiBlades"
+   ]
   },
   {
    "name": "HyperSight Corneal Implant",
@@ -396,7 +442,8 @@
    },
    "combatLevelFactor": 1.4,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "Photosynthetic Cells",
@@ -411,7 +458,8 @@
    },
    "combatLevelFactor": 2.7439999999999993,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "Synthetic Heart",
@@ -425,7 +473,8 @@
    },
    "combatLevelFactor": 2.25,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "Neotra",
@@ -439,7 +488,8 @@
    },
    "combatLevelFactor": 2.4025000000000003,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "NEMEAN Subdermal Weave",
@@ -451,7 +501,8 @@
    },
    "combatLevelFactor": 2.2,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "Graphene Bionic Arms Upgrade",
@@ -464,7 +515,10 @@
    },
    "combatLevelFactor": 3.4225000000000003,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": [
+    "Bionic Arms"
+   ]
   },
   {
    "name": "Graphene Bone Lacings",
@@ -477,7 +531,8 @@
    },
    "combatLevelFactor": 2.8899999999999997,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "Xanipher",
@@ -500,7 +555,8 @@
    },
    "combatLevelFactor": 2.0736,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "Graphene Bionic Legs Upgrade",
@@ -512,7 +568,10 @@
    },
    "combatLevelFactor": 2.5,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": [
+    "Bionic Legs"
+   ]
   },
   {
    "name": "SPTN-97 Gene Modification",
@@ -528,7 +587,8 @@
    },
    "combatLevelFactor": 9.37890625,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "CordiARC Fusion Reactor",
@@ -547,7 +607,8 @@
    },
    "combatLevelFactor": 3.321506250000001,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   },
   {
    "name": "Graphene Bionic Spine Upgrade",
@@ -562,7 +623,10 @@
    },
    "combatLevelFactor": 6.553600000000002,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": [
+    "Bionic Spine"
+   ]
   },
   {
    "name": "Hydroflame Left Arm",
@@ -574,7 +638,8 @@
    },
    "combatLevelFactor": 2.8,
    "touchesCombatLevel": true,
-   "affordableNow": false
+   "affordableNow": false,
+   "prereqs": []
   }
  ]
 }

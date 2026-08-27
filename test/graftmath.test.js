@@ -1,36 +1,32 @@
 // Pure-function tests for Phase 43 WI-C's src/graftmath.js -- the beam-search graft-ladder
 // planner and its supporting pure math (spec acceptance criteria WC1-WC7).
 //
-// WC1/WC2 NOW RUN AGAINST THE REAL BN9 CAPTURE (test/fixtures/graft-catalog-bn9.json,
-// sourced from logs/graftrecon-1787701791849.json -- logs/ is gitignored, so this tracked
-// copy is what test fixtures must use, same convention as graft-catalog-bn10.json). An
-// earlier draft of this file used a hand-built synthetic fixture instead because no BN9
-// capture had been tracked yet; that synthetic case is KEPT below (it demonstrates the
-// all-four-stat-only degeneracy with round, hand-verifiable numbers that the real 36-aug
-// catalog doesn't offer) but is no longer the only, or the primary, coverage for WC1/WC2.
+// WC1/WC2 RUN AGAINST THE REAL, PREREQ-COMPLETE BN9 CAPTURE
+// (test/fixtures/graft-catalog-bn9.json, sourced from graftrecon.js's catalog capture +
+// graftprereqprobe.js's live ns.singularity.getAugmentationPrereq sweep -- see the fixture's
+// own `provenance` block for both source log files). logs/ is gitignored, so this tracked
+// copy is what test fixtures must use, same convention as graft-catalog-bn10.json.
 //
-// ⚠️ ONE NUMBER IN THE FIXTURE'S OWN `goldenBeamResults.width300_converged` BLOCK IS NOT
-// PREREQUISITE-ADMISSIBLE, and this file does NOT assert it. That block's `picks` includes
-// `Augmented Targeting III` without `Augmented Targeting II` (and `Combat Rib III` without
-// `Combat Rib II`, `LuminCloaking-V2` without `V1`) -- impossible from an empty owned-set,
-// since those tiers require the previous tier already owned (real, static per-augmentation
-// game data -- see AUG_PREREQ_MAP below, unchanged from BN10's, since prereqs are not
-// BitNode-specific). Reproduced exactly here: running this file's planGraftLadder against
-// the fixture WITH prereqs=[] on every candidate (i.e. prereq-blind, the same mistake) gives
-// chosenK=11 / 21.17h / that exact picks list -- confirming the golden block was captured by
-// a beam search that never read getAugmentationPrereq, the SAME class of error Phase 41's
-// original BN10 numbers had (test/fixtures/graft-catalog-bn10.json's own candidates predate
-// prereq-aware selection too; see graftplanner.js's git history for that correction). With
-// prereqs correctly enforced, the true converged optimum (stable across widths 300/600/1200/
-// 2400, verified independently below) is chosenK=10, ~22.62h, a ten-aug set that substitutes
-// Augmented Targeting I+II for the inadmissible III, and Combat Rib I for the inadmissible
-// III. WC1 asserts THIS number. Shipping a test that asserts the inadmissible figure would
-// either force weakening the prereq check (the exact defect WI-C's beam search exists to not
-// repeat) or hardcode a special case that contradicts the algorithm's own stated contract --
-// both worse than a documented, evidence-backed divergence from the fixture's own note.
-// WC2 (width 1) is UNAFFECTED by this -- SPTN-97/Bionic Spine/HemoRecirculator carry no
-// prereqs, so the degenerate all-four-stat-only result is identical with or without prereq
-// enforcement, and is asserted here exactly as the fixture states it.
+// PREREQS ARE NOW READ DIRECTLY FROM `candidates[].prereqs` -- NOT inferred, hardcoded, or
+// guessed. This closes a real discrepancy caught in an earlier pass of this file: an initial
+// version of this fixture's `goldenBeamResults.width300_converged` block was captured by a
+// beam search that never enforced admissibility (its `picks` included `Augmented Targeting
+// III` without ever choosing `Augmented Targeting II`, which is impossible once prereqs are
+// real) -- the same class of mistake Phase 41's original BN10 numbers had. That was flagged
+// against a HAND-INFERRED prereq table at the time, since graftrecon.js's own catalog capture
+// never reads getAugmentationPrereq. The fixture has since been regenerated: `candidates[]`
+// now carries each aug's live prereq array (confirmed identical to the hand-inferred table
+// for every disputed chain), `goldenBeamResults.width300_converged` is regenerated
+// prereq-enforced (k=10, 22.62h, cost $3,236,250,000 -- reproduced exactly below), and a new
+// `goldenBeamResults.prereqBlindArtifact` block RETAINS the retracted prereq-blind figure
+// (21.17h, k=11) specifically so a test can assert the admissibility filter still matters --
+// see the "prereq-blind filter is load-bearing" test below, which fails loudly if the filter
+// is ever accidentally disabled.
+//
+// An earlier draft of this file also used a hand-built SYNTHETIC fixture for WC1/WC2 because
+// no BN9 capture existed yet at all. That synthetic case is KEPT below (it demonstrates the
+// all-four-stat-only degeneracy with round, hand-verifiable numbers the real 36-aug catalog
+// doesn't offer) but is explicitly labeled supplementary, not the primary WC1/WC2 coverage.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -56,12 +52,12 @@ const bn9Fixture = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), 'test/fixtures/graft-catalog-bn9.json'), 'utf8')
 );
 
-// Tiered prerequisite map -- REAL, static per-augmentation game data (Roman-numeral tiers
-// require the previous tier; Graphene-* upgrades require their base implant). NOT
-// BitNode-specific, so the same map applies to both fixtures; neither graftrecon.js capture
-// reads getAugmentationPrereq itself, so tests supply this explicitly (both fixtures'
-// provenance notes say so).
-const AUG_PREREQ_MAP = {
+// BN10-ONLY, hand-inferred prerequisite map (Roman-numeral tiers require the previous tier;
+// Graphene-* upgrades require their base implant). graft-catalog-bn10.json's own provenance
+// note says its capture never read getAugmentationPrereq ("PREREQUISITES ARE NOT CAPTURED
+// HERE"), so BN10's tests still supply this explicitly. BN9's fixture no longer needs this --
+// see bn9Candidates below, which reads live prereqs straight off the fixture.
+const BN10_INFERRED_PREREQ_MAP = {
   'Augmented Targeting II': ['Augmented Targeting I'],
   'Augmented Targeting III': ['Augmented Targeting II'],
   'Combat Rib II': ['Combat Rib I'],
@@ -74,13 +70,18 @@ const AUG_PREREQ_MAP = {
 };
 
 function bn10Candidates() {
-  return bn10Fixture.candidates.map((c) => ({ ...c, prereqs: AUG_PREREQ_MAP[c.name] || [] }));
+  return bn10Fixture.candidates.map((c) => ({ ...c, prereqs: BN10_INFERRED_PREREQ_MAP[c.name] || [] }));
 }
 
 // bn9Fixture's candidates are graftrecon.js's raw shape (graftPrice/graftTimeHours/mults with
 // UNTOUCHED stats simply absent) -- normalise to planGraftLadder's {price, graftHours, mults:
 // CombatQuad} shape, same defaulting graftplanner.js's main() applies (an absent stat mult
-// defaults to 1, i.e. "does not touch this stat").
+// defaults to 1, i.e. "does not touch this stat"). `prereqs` comes straight from the
+// fixture's own live `candidates[].prereqs` field (graftprereqprobe.js's
+// ns.singularity.getAugmentationPrereq sweep) -- NO inferred/hardcoded table, by design.
+// `withPrereqs: false` is the one deliberate exception, used ONLY to prove the admissibility
+// filter is load-bearing (see "prereq-blind filter is load-bearing" below) -- it is never
+// used to compute a number this file treats as correct.
 function bn9Candidates({ withPrereqs = true } = {}) {
   return bn9Fixture.candidates.map((c) => {
     const mults = {};
@@ -90,7 +91,7 @@ function bn9Candidates({ withPrereqs = true } = {}) {
       price: c.graftPrice,
       graftHours: c.graftTimeHours,
       mults,
-      prereqs: withPrereqs ? AUG_PREREQ_MAP[c.name] || [] : [],
+      prereqs: withPrereqs ? (Array.isArray(c.prereqs) ? c.prereqs : []) : [],
     };
   });
 }
@@ -306,67 +307,103 @@ describe('planGraftLadder -- prerequisite admissibility and owned-aug exclusion 
   });
 });
 
-describe('planGraftLadder -- WC1/WC2 (real BN9 fixture, graft-catalog-bn9.json)', () => {
-  it('WC2 (negative control): beamWidth 1 reproduces the exact degenerate result -- 52.6h, k=3, all-four-stat picks only, in the fixture\'s own order', () => {
+// Pure. For every step in a planGraftLadder `ladder`, every one of its prereqs (read from
+// `candidatesByName`, the same live-prereq candidate list the search ran against) must
+// already be satisfied by the point it is chosen -- either pre-owned, or appearing at an
+// EARLIER index in this same ladder. This is the invariant that was actually violated by the
+// prereq-blind artifact (Augmented Targeting III chosen with II never chosen at all); it is
+// checked directly here rather than only implied by matching a golden picks list.
+function assertPrereqClosed(ladder, candidatesByName, owned = new Set()) {
+  const chosenSoFar = new Set(owned);
+  for (const step of ladder) {
+    const candidate = candidatesByName.get(step.name);
+    for (const prereq of candidate.prereqs || []) {
+      expect(chosenSoFar.has(prereq)).toBe(true);
+    }
+    chosenSoFar.add(step.name);
+  }
+}
+
+describe('planGraftLadder -- WC1/WC2 (real BN9 fixture, graft-catalog-bn9.json, live prereqs)', () => {
+  it('WC2 (negative control): beamWidth 1 reproduces the fixture\'s golden degenerate result -- 52.61h, k=3, all-four-stat picks only, in the fixture\'s own order', () => {
     const candidates = bn9Candidates();
-    const result = planGraftLadder(candidates, bn9Fixture.playerAtCapture.combatMults, bn9BankedZero(), bn9PlanOpts({ beamWidth: 1 }));
-    expect(result.chosenK).toBe(3);
-    expect(result.totalHours).toBeCloseTo(52.6, 0); // "sensible tolerance" -- fixture's own figure is rounded to 1dp
-    // Confirmed unaffected by prereqs (SPTN-97/Bionic Spine/HemoRecirculator carry none) --
-    // exact order match, not just set match, since this is a genuinely single deterministic path.
-    expect(result.ladder.map((s) => s.name)).toEqual(
-      bn9Fixture.goldenBeamResults.width1_degenerate.picks
-    );
-    // Every pick touches all four stats -- the degeneracy Section 0 describes.
     const candidateByName = new Map(candidates.map((c) => [c.name, c]));
+    const golden = bn9Fixture.goldenBeamResults.width1_degenerate;
+
+    const result = planGraftLadder(candidates, bn9Fixture.playerAtCapture.combatMults, bn9BankedZero(), bn9PlanOpts({ beamWidth: 1 }));
+    expect(result.chosenK).toBe(golden.k);
+    expect(result.totalHours).toBeCloseTo(golden.totalHours, 1); // sensible tolerance -- float-derived
+    // Confirmed unaffected by prereqs (SPTN-97/Bionic Spine/HemoRecirculator carry none, per
+    // the fixture's own live data) -- exact order match, not just set match, since this is a
+    // genuinely single deterministic path.
+    expect(result.ladder.map((s) => s.name)).toEqual(golden.picks);
+    // Every pick touches all four stats -- the degeneracy Section 0 describes.
     for (const step of result.ladder) {
       const mults = candidateByName.get(step.name).mults;
       for (const stat of STATS) expect(mults[stat]).not.toBe(1);
     }
+    assertPrereqClosed(result.ladder, candidateByName);
   });
 
-  it('WC1 (positive control): beamWidth 300 finds the true prerequisite-admissible optimum -- k=10, ~22.62h, stable through width 2400', () => {
-    const candidates = bn9Candidates(); // WITH real prereqs (default) -- see the file header note
+  it('WC1 (positive control): beamWidth 300 finds the fixture\'s golden prerequisite-admissible optimum -- k=10, ~22.62h, cost $3,236,250,000, stable through width 2400', () => {
+    const candidates = bn9Candidates(); // live prereqs, straight off the fixture (default)
+    const candidateByName = new Map(candidates.map((c) => [c.name, c]));
     const currentMults = bn9Fixture.playerAtCapture.combatMults;
     const banked = bn9BankedZero();
-
-    const expectedNames = [
-      'Augmented Targeting I', 'Augmented Targeting II', 'Bionic Arms', 'Bionic Legs',
-      'Bionic Spine', 'Combat Rib I', 'DermaForce Particle Barrier', 'HemoRecirculator',
-      'Nanofiber Weave', 'Wired Reflexes',
-    ].sort();
+    const golden = bn9Fixture.goldenBeamResults.width300_converged;
+    const expectedNames = [...golden.picks].sort();
 
     const widths = [300, 600, 1200, 2400];
     const results = widths.map((beamWidth) => planGraftLadder(candidates, currentMults, banked, bn9PlanOpts({ beamWidth })));
 
-    for (let i = 0; i < results.length; i++) {
-      expect(results[i].chosenK).toBe(10);
-      expect(results[i].totalHours).toBeCloseTo(22.62, 1); // ~2% tolerance -- float-derived
+    for (const result of results) {
+      expect(result.chosenK).toBe(golden.k);
+      expect(result.totalHours).toBeCloseTo(golden.totalHours, 1); // ~2% tolerance -- float-derived
+      expect(result.ladder.reduce((sum, s) => sum + s.price, 0)).toBe(golden.costDollars);
       // Order is NOT asserted: ties in the beam's frontier resolve to different (equally
       // optimal) insertion sequences at different widths -- verified directly (width 300's
-      // ladder order differs from width 600's even though both total 22.6167h). The SET
-      // reaching that exact total is the real invariant a "converged" claim makes, matching
-      // how state dedup itself is defined (spec Section 5: "a chosen candidate set,
-      // deduplicated by sorted name list -- two orderings of the same set are the same
-      // state").
-      expect([...results[i].ladder.map((s) => s.name)].sort()).toEqual(expectedNames);
+      // ladder order differs from width 600's even though both total the same 22.6167h and
+      // the same $3,236,250,000). The SET reaching that exact total is the real invariant a
+      // "converged" claim makes, matching how state dedup itself is defined (spec Section 5:
+      // "a chosen candidate set, deduplicated by sorted name list -- two orderings of the
+      // same set are the same state").
+      expect([...result.ladder.map((s) => s.name)].sort()).toEqual(expectedNames);
+      // The invariant that was actually violated by the prereq-blind mistake, checked
+      // directly: every chosen aug's prereqs appear earlier in THIS ladder.
+      assertPrereqClosed(result.ladder, candidateByName);
     }
   });
 
-  it('confirms the divergence from the fixture\'s own goldenBeamResults.width300_converged is explained: reproducing it exactly requires the SAME prereq-blind mistake', () => {
-    const blindCandidates = bn9Candidates({ withPrereqs: false });
-    const result = planGraftLadder(
-      blindCandidates, bn9Fixture.playerAtCapture.combatMults, bn9BankedZero(),
-      bn9PlanOpts({ beamWidth: 300 })
-    );
+  it('prereq-blind filter is load-bearing: with prereqs ignored, the SAME fixture returns the retracted 21.17h/k=11 result -- a control that provably moves', () => {
+    const enforcedCandidates = bn9Candidates(); // prereqs ON (default)
+    const blindCandidates = bn9Candidates({ withPrereqs: false }); // prereqs OFF
+    const currentMults = bn9Fixture.playerAtCapture.combatMults;
+    const banked = bn9BankedZero();
+    const artifact = bn9Fixture.goldenBeamResults.prereqBlindArtifact;
     const golden = bn9Fixture.goldenBeamResults.width300_converged;
-    expect(result.chosenK).toBe(golden.k);
-    expect(result.totalHours).toBeCloseTo(golden.totalHours, 1);
-    expect([...result.ladder.map((s) => s.name)].sort()).toEqual([...golden.picks].sort());
-    // And it is inadmissible: Augmented Targeting III appears without II ever being chosen.
-    const names = result.ladder.map((s) => s.name);
-    expect(names).toContain('Augmented Targeting III');
-    expect(names).not.toContain('Augmented Targeting II');
+
+    const enforced = planGraftLadder(enforcedCandidates, currentMults, banked, bn9PlanOpts({ beamWidth: 300 }));
+    const blind = planGraftLadder(blindCandidates, currentMults, banked, bn9PlanOpts({ beamWidth: 300 }));
+
+    // The filter being on vs off must produce DIFFERENT numbers -- if this ever stops being
+    // true, the admissibility check has silently stopped doing anything.
+    expect(blind.chosenK).not.toBe(enforced.chosenK);
+    expect(blind.totalHours).not.toBeCloseTo(enforced.totalHours, 1);
+
+    // The enforced run matches the fixture's real golden figure...
+    expect(enforced.chosenK).toBe(golden.k);
+    expect(enforced.totalHours).toBeCloseTo(golden.totalHours, 1);
+
+    // ...and the blind run reproduces the RETRACTED artifact figure exactly, confirming the
+    // filter -- not some other change -- is what accounts for the whole difference.
+    expect(blind.chosenK).toBe(artifact.k);
+    expect(blind.totalHours).toBeCloseTo(artifact.totalHours, 1);
+
+    // And it is inadmissible in exactly the way the artifact's own `why` field says: a tier
+    // III aug chosen with its tier II prerequisite never chosen at all.
+    const blindNames = blind.ladder.map((s) => s.name);
+    expect(blindNames).toContain('Augmented Targeting III');
+    expect(blindNames).not.toContain('Augmented Targeting II');
   });
 });
 
