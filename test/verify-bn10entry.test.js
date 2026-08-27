@@ -83,10 +83,15 @@ describe('graft-plan.json (Phase 41 WI2, spec B4)', () => {
     }
     expect(Number.isFinite(data.inputs.money)).toBe(true);
     expect(Number.isFinite(data.inputs.entropy)).toBe(true);
-    // Phase 43 WI-C: grindExpPerSec was renamed grindRatePerStat and may be either a scalar
-    // or a per-stat object (STATS-keyed) -- accept either shape.
-    const rate = data.inputs.grindRatePerStat;
-    const rateOk = Number.isFinite(rate) || (rate && STATS.every((stat) => Number.isFinite(rate[stat])));
+    // Phase 43 WI-C renamed grindExpPerSec -> grindRatePerStat and allowed it to be either a
+    // scalar or a STATS-keyed object. This file verifies EXPORTED logs, which include ones
+    // written before the rename (logs/graft-plan.json is a schemaVersion-1 BN10 record from
+    // 2026-08-18), so the legacy name stays valid here forever -- a rename in the writer must
+    // not retroactively invalidate a log the writer already produced.
+    const rate = data.inputs.grindRatePerStat ?? data.inputs.grindExpPerSec;
+    const rateOk =
+      Number.isFinite(rate) ||
+      (!!rate && typeof rate === "object" && STATS.every((stat) => Number.isFinite(rate[stat])));
     expect(rateOk).toBe(true);
     expect(Number.isFinite(data.timestamp)).toBe(true);
     expect(Array.isArray(data.ladder)).toBe(true);
