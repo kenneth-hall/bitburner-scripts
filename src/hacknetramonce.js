@@ -16,9 +16,10 @@
  *   hacknet.getRamUpgradeCost     0.5 GB
  *   hacknet.upgradeRam            0.5 GB
  *   getServer (verification read) ~2.00 GB
- *   base + file IO                ~0.5 GB
+ *   base + file IO                 1.60 GB  <-- baseCost is ALWAYS 1.60 in this build;
+ *                                            0.5 was assumed here and cost a failed gate
  *   ------------------------------------------------
- *   ~4.0 GB expected -- verify live with `mem hacknetramonce.js`.
+ *   5.10 GB MEASURED live 2026-08-27 (was estimated 4.0 -- the base-cost error above).
  *
  * IDENTIFIER HYGIENE: no local/property name here is `graft`, `work`, `exec`, `share`, `read`,
  * `write`, `kill`, `run`, `ls`, `ps`, `scan`, `hack`, `grow`, `tail`, `window`, `document`,

@@ -374,7 +374,12 @@ Reflexes, LuminCloaking-V2, Augmented Targeting I.
      double-applying the already-divided-out debuff nor under-counting it.
 - **WC5.** `resolveNodeConfig(10, {})` reproduces Phase 41's exact BN10 constants; BN10's existing
   golden fixture (`graft-catalog-bn10.json`) passes unmodified through the new code path.
-- **WC6.** RAM: `graftplanner.js` re-measured at **≤30 GB** after the move to `graftmath.js`.
+- **WC6.** RAM: `graftplanner.js` re-measured at **≤32 GB** after the move to `graftmath.js`.
+  ✅ **MEASURED 2026-08-27: 30.60 GB.** 🔴 The original ≤30 gate was wrong, not the code: the
+  itemisation priced `getResetInfo` at "~0 GB" (it is **1.00**) and omitted `getPlayer` (**0.50**)
+  entirely. No wasted RAM was found — every charged call is genuinely used. 📌 Same class of defect
+  as Phase 41's failed gate (`fb84e37`: *"BOTH causes were spec defects, not implementation
+  defects"*), which this spec cited and then repeated.
 - **WC7.** `graftmath.js` itself contributes **exactly 0 GB** to any importer — verified live via
   `mem` on a throwaway script that imports only `graftmath.js`, not merely asserted from its source
   containing no `ns.` text.
@@ -616,7 +621,7 @@ method) — anchored to a real measurement, not a blind guess, but still pending
 
 | `hacknetramonce.js` | GB |
 |---|---|
-| (§3's table) | ≈4.0 |
+| (§3's table) | **5.10 MEASURED 2026-08-27 (gate 6)** |
 
 | `graftplanner.js` | GB |
 |---|---|
@@ -629,7 +634,7 @@ method) — anchored to a real measurement, not a blind guess, but still pending
 | `getResetInfo` (non-Singularity) | ~0 |
 | `graftmath.js` import | **0.00 — verified live, not estimated (WC7)** |
 | base + file IO | ~1.60 |
-| **≈29.1 (gate 30)** | |
+| **30.60 MEASURED 2026-08-27 (gate 32)** | |
 
 | `bn9entry.js` | GB |
 |---|---|
@@ -644,7 +649,7 @@ method) — anchored to a real measurement, not a blind guess, but still pending
 | `exec` + `scriptRunning` (companions + handshake) + base + file IO | ~3.00 |
 | `graftmath.js` import | 0.00 |
 | `ns.sleeve.*` | **none — lives in `sleevemanager.js` (§8) instead** |
-| **≈31.0 (gate ≤34 GB)** | |
+| **28.10 MEASURED 2026-08-27 (gate ≤34) ✅ PASS, 5.9 GB headroom** | |
 
 | `sleevemanager.js` (existing file, extended) | GB |
 |---|---|
@@ -662,7 +667,7 @@ method) — anchored to a real measurement, not a blind guess, but still pending
 | `scriptRunning` | ~0.10 |
 | `exec` | 1.30 |
 | base + file IO | ~0.50 |
-| **≈1.9 (gate 6)** | |
+| **4.00 MEASURED 2026-08-27 (gate 6) ✅ PASS** | |
 
 **Sanity check against home's 512 GB:** `bn9entry.js` (~31.0) + `bn9companions.js` (~1.9) +
 `sleevemanager.js` (~21.7) + `bladeburnermanager.js` (unchanged, out of this phase's scope) sits

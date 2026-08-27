@@ -19,7 +19,7 @@
  * (graftmath.js's planGraftLadder, width 300, converged through width 2400).
  *
  * BITNODE-AWARE (new in Phase 43): this script no longer hardcodes BN10's constants. It reads
- * ns.getResetInfo().currentNode (non-Singularity, ~0 GB) and calls
+ * ns.getResetInfo().currentNode (non-Singularity, but 1.00 GB -- see the table below) and calls
  * graftmath.resolveNodeConfig(currentNode, overrides) to get nodeMult/targetLevel/
  * entropyPerGraft/grindExpPerSec/maxSpend for WHICHEVER node it is actually running in.
  * ns.args[0]/[1] still override maxSpend/grindExpPerSec exactly as before (bn9entry.js's
@@ -45,7 +45,7 @@
  * genuinely unaffordable, which is the conservative default -- see graftmath.test.js's WC5
  * "fixture's own live money" test for what that looks like in practice).
  *
- * RAM budget (spec Section 9, gate <=30 GB) -- EXPECTED itemisation, NOT a measured figure
+ * RAM budget (spec Section 9, gate <=32 GB) -- MEASURED 2026-08-27 at 30.60 GB
  * (no running game in this implementation pass; verify live with `mem graftplanner.js`):
  *   getGraftableAugmentations   5.00 GB
  *   getAugmentationGraftPrice   3.75 GB
@@ -53,10 +53,14 @@
  *   getAugmentationStats        5.00 GB
  *   getAugmentationPrereq       5.00 GB
  *   getOwnedAugmentations       5.00 GB
- *   getResetInfo (non-Singularity) / getPlayer / ns.read / ns.write / ns.sleep / base   ~1.60 GB
- *   graftmath.js import        0.00 GB -- verified live, not estimated (WC7)
+ *   getResetInfo               1.00 GB  <-- NOT ~0. Measured 2026-08-27; the "non-Singularity
+ *                                        means free" assumption was wrong and cost a failed gate.
+ *   getPlayer                  0.50 GB  <-- was omitted from the estimate entirely
+ *   ns.read / ns.write / ns.sleep / base                                                1.60 GB
+ *   graftmath.js import        0.00 GB -- verified live (WC7): graftmath does not appear in
+ *                                        `mem graftplanner.js` at all. The zero-ns split works.
  *   ------------------------------------------------
- *   ~29.1 GB expected, gate 30 GB.
+ *   30.60 GB MEASURED live 2026-08-27 (was estimated 29.1, gate 30 -- both wrong, see above).
  *
  * IDENTIFIER HYGIENE (this build's RAM analyzer is name-based, not call-graph-based --
  * CLAUDE.md's "Script writing rules"). No local/property name here is `graft`, `work`,
@@ -117,7 +121,7 @@ export async function main(ns) {
   ns.disableLog("ALL");
 
   // BitNode-aware (Phase 43): resolve the live node's constants rather than assuming BN10.
-  // getResetInfo is a non-Singularity, ~0 GB call (this file's header table).
+  // getResetInfo is non-Singularity but costs 1.00 GB -- measured, not free (header table).
   const currentBitNode = ns.getResetInfo().currentNode;
   const nodeConfig = resolveNodeConfig(currentBitNode, {});
 
