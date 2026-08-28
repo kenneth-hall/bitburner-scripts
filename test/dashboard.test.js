@@ -703,12 +703,14 @@ describe('goalPanel', () => {
       { timestamp: NOW, rankProgress: RANK_OK, mProgress: { value: 1.86, target: 30, targetLabel: 'fallback', pct: 6, queuedValue: 1.88, queuedPct: 6, queuedCount: 1 }, income: { perSec: 192_613, trend: 'DOWN', windowMs: 600_000 } },
       NOW
     );
-    expect(lines).toContain("M 1.86 (funds rank; not this node's gate)");
+    // The caption follows the node's own label instead of asserting "funds rank",
+    // which is false wherever the batcher is retired (BN9, Phase 43 D1).
+    expect(lines).toContain("M 1.86 (fallback; not this node's gate)");
     expect(lines.some((l) => l.includes('/30') || l.includes('~6%'))).toBe(false);
     expect(lines.some((l) => l.startsWith('+queued') || l.includes('(overshoot)'))).toBe(false);
     // Ordering is load-bearing: income is the batcher's objective now, M is only
     // the lever that moves it.
-    expect(lines.indexOf('income $192.61k/s DOWN (10m)')).toBeLessThan(lines.indexOf("M 1.86 (funds rank; not this node's gate)"));
+    expect(lines.indexOf('income $192.61k/s DOWN (10m)')).toBeLessThan(lines.indexOf("M 1.86 (fallback; not this node's gate)"));
   });
 
   it('falls back to leading with M and its full target/pct when rank is absent (non-Bladeburner node)', () => {

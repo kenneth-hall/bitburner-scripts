@@ -797,7 +797,13 @@ export function goalPanel(state, now) {
   // with its full target/% form -- on a hacking-path node the fallback IS the
   // plan, and this formatter should follow the node rather than hardcode BN6.
   if (rankLive) {
-    lines.push(`M ${mText} (funds rank; not this node's gate)`);
+    // Follow the node's own label rather than asserting a funding relationship.
+    // "funds rank" was hardcoded and is FALSE in BN9: the batcher is retired
+    // there (Phase 43 D1) and the Hacknet funds everything, so the caption
+    // claimed a dead engine was paying for the live one -- exactly the BN6
+    // hardcoding this branch's own comment warns against, three lines up.
+    const mCaption = m.targetLabel ? `${m.targetLabel}; ` : "";
+    lines.push(`M ${mText} (${mCaption}not this node's gate)`);
   } else {
     const pctText = typeof m.pct === "number" ? m.pct : "?";
     lines.push(`M ${mText}/${m.target ?? "?"} (${m.targetLabel ?? "?"}) ~${pctText}%`);

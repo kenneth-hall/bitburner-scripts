@@ -127,6 +127,38 @@ export const M_GATE_TARGET = 30;
 export const RANK_TARGET = 400_000;
 export const RANK_TARGET_LABEL = "Op Daedalus";
 
+// ---------------------------------------------------------------------------
+// BN9.1 RETARGET (2026-08-27). The TARGETS are unchanged; the LABELS were lying.
+//
+// Checked live in BN9 before touching anything: `ladderstatus.js` reads Operation
+// Daedalus's requirement as rank 400.000k, so RANK_TARGET is still correct here.
+// Two labels were not:
+//
+//   1. "Op Daedalus" reads as the finish line. It is not. The node clears by
+//      completing all 21 black ops; 400,000 is only the rank REQUIREMENT on the
+//      last one. This is the exact confusion CLAUDE.md records as costing BN6 a
+//      near-miss ("A PROGRESS TARGET IS NOT A WIN CONDITION" -- the engine would
+//      have hit 400,000 and ground Tracking forever). ladderstatus.js exists to
+//      read the real condition from the game; the panel should not contradict it.
+//   2. "fallback" implies the hacking path is available if Bladeburner stalls.
+//      In BN9 it is NOT a fallback, it is dead: the batcher is retired (Phase 43
+//      D1 -- effective steal 0.001, CloudServerLimit 0 so no fleet at all,
+//      HackExpGain 0.05). M cannot move here, so a "fallback" label invites a
+//      plan that does not exist. The value and pct stay arithmetically true.
+//
+// Labels only, resolved per node, so BN6's semantics survive a future re-entry.
+export const NODE_GOAL_LABELS = {
+  9: { rank: "gate 21ops", m: "retired" },
+};
+/** Pure. Panel labels for `node`, falling back to the historical constants. */
+export function resolveGoalLabels(node) {
+  const row = NODE_GOAL_LABELS[node];
+  return {
+    rankLabel: row?.rank ?? RANK_TARGET_LABEL,
+    mLabel: row?.m ?? M_TARGET_LABEL,
+  };
+}
+
 // Goalpost tripwire. RETARGETED 2026-08-04 from M to rank, and retuned 12h/11h
 // -> 4h/3h. Three reasons the M version had to go, in order of severity:
 //
@@ -289,7 +321,24 @@ export function computeRankForecast(series, nowMs, currentNode) {
  */
 export function computeRateRange(series, fromMs, toMs, field) {
   const list = Array.isArray(series) ? series : [];
-  const inRange = list.filter((s) => s && typeof s.t === "number" && s.t >= fromMs && s.t <= toMs);
+  let inRange = list.filter((s) => s && typeof s.t === "number" && s.t >= fromMs && s.t <= toMs);
+
+  // A RATE READ ACROSS A SCHEMA CHANGE IS NOT A RATE -- the same family as
+  // CLAUDE.md's "a trend read across a known disturbance is not a trend".
+  // `hacknetCum` was added 2026-08-27 (BN9: the Hacknet is the entire economy and
+  // was going uncounted). Differencing a sample that carries it against one that
+  // does not books the WHOLE cumulative hacknet total as income earned inside the
+  // window. Caught live the minute it shipped: the panel printed $37,663,202/s
+  // against a true ~$134,465/s -- wrong by 280x. So once the newest sample in the
+  // window carries hacknetCum, older-schema samples are not comparable and are
+  // dropped rather than mixed.
+  if (field === "total" && inRange.length > 0) {
+    const newest = inRange[inRange.length - 1];
+    if (typeof newest.hacknetCum === "number") {
+      inRange = inRange.filter((s) => typeof s.hacknetCum === "number");
+    }
+  }
+
   if (inRange.length < 2) return null;
 
   const first = inRange[0];
@@ -297,7 +346,9 @@ export function computeRateRange(series, fromMs, toMs, field) {
   const spanMs = last.t - first.t;
   if (!(spanMs > 0)) return null;
 
-  const valueOf = (s) => (field === "total" ? (s.gangCum ?? 0) + (s.hackingCum ?? 0) : (s[field] ?? 0));
+  const valueOf = (s) =>
+    field === "total" ? (s.gangCum ?? 0) + (s.hackingCum ?? 0) + (s.hacknetCum ?? 0) : (s[field] ?? 0);
+
   const delta = valueOf(last) - valueOf(first);
   if (delta < 0) return null;
 
@@ -354,11 +405,31 @@ export function evalStuck({ series, daemonStatus, financeState, boundaryStartMs,
     return { status: "BOUNDARY", reason: null };
   }
 
-  if (!daemonStatus || typeof daemonStatus.timestamp !== "number" || nowMs - daemonStatus.timestamp > DAEMON_STATUS_STALE_MS) {
+  const perSecRecent = computeRateRange(list, nowMs - STUCK_WINDOW_MS, nowMs, "total");
+
+  // A DEAD DAEMON IS NOT A DEAD NODE -- it only was while the daemon WAS the
+  // economy. This check used to short-circuit to STUCK before income was ever
+  // consulted, which is correct in BN1/2/5/6/10 and wrong in BN9, where the
+  // batcher is deliberately retired (Phase 43 D1) and the Hacknet earns
+  // ~$126k/s unattended. Left as-is the panel warned "STUCK -- daemon-dead"
+  // permanently, and a warning that is always lit is one nobody reads -- the
+  // same "rarity is what makes an objection legible" argument CLAUDE.md makes
+  // about objections.
+  //
+  // The daemon-dead signal is NOT dropped: it still fires whenever income is
+  // absent or below the floor, which is every case it was actually protecting
+  // (in a batcher node a dead daemon takes income with it). What changed is
+  // that measured income, not the presence of one particular engine, is now
+  // the ground truth for "is this node alive".
+  const daemonSilent =
+    !daemonStatus ||
+    typeof daemonStatus.timestamp !== "number" ||
+    nowMs - daemonStatus.timestamp > DAEMON_STATUS_STALE_MS;
+  if (daemonSilent && (perSecRecent === null || perSecRecent < STUCK_INCOME_FLOOR)) {
     return { status: "STUCK", reason: "daemon-dead" };
   }
+  if (daemonSilent) return { status: "OK", reason: "daemon-down-earning" };
 
-  const perSecRecent = computeRateRange(list, nowMs - STUCK_WINDOW_MS, nowMs, "total");
   if (perSecRecent === null) return { status: "OK", reason: null };
 
   if (perSecRecent < STUCK_INCOME_FLOOR) {
@@ -463,7 +534,7 @@ export function computeForecast(series, nowMs) {
   // Secondary: observed $ spent per M-point over the same span. Uses the
   // same cumulative fields computeRateRange reads, so a corrupt/reset series
   // that decreased yields null rather than a negative cost.
-  const totalOf = (s) => (s.gangCum ?? 0) + (s.hackingCum ?? 0);
+  const totalOf = (s) => (s.gangCum ?? 0) + (s.hackingCum ?? 0) + (s.hacknetCum ?? 0);
   const dMoney = totalOf(last) - totalOf(first);
   const dollarsPerMPoint = dMoney > 0 ? dMoney / dM : null;
   const moneyRemaining = dollarsPerMPoint !== null ? dollarsPerMPoint * mRemaining : null;
@@ -522,6 +593,7 @@ export function buildSnapshot(series, augState, nowMs, liveness = null, currentN
 
   const mValue = latest && typeof latest.mHacking === "number" ? latest.mHacking : null;
   const pct = mValue !== null ? Math.round((mValue / M_TARGET) * 100) : null;
+  const goalLabels = resolveGoalLabels(currentNode);
 
   // The win condition (2026-08-04). Null `value` == Bladeburner not joined or
   // bladeburner-state.json absent/unreadable, in which case the dashboard falls
@@ -532,7 +604,7 @@ export function buildSnapshot(series, augState, nowMs, liveness = null, currentN
   const rankProgress = {
     value: rankValue,
     target: RANK_TARGET,
-    targetLabel: RANK_TARGET_LABEL,
+    targetLabel: goalLabels.rankLabel,
     pct: rankPct,
     forecast: computeRankForecast(list, nowMs, currentNode),
   };
@@ -588,7 +660,7 @@ export function buildSnapshot(series, augState, nowMs, liveness = null, currentN
     bitNode: currentNode,
     bitNodeVisit,
     rankProgress,
-    mProgress: { value: mValue, target: M_TARGET, targetLabel: M_TARGET_LABEL, pct, gateTarget: M_GATE_TARGET, queuedValue, queuedPct, queuedCount },
+    mProgress: { value: mValue, target: M_TARGET, targetLabel: goalLabels.mLabel, pct, gateTarget: M_GATE_TARGET, queuedValue, queuedPct, queuedCount },
     income: { perSec, trend, windowMs: RATE_WINDOW_MS, gangPerSec, hackingPerSec, perSec24h },
     forecast: computeForecast(list, nowMs),
     tripwire: evalTripwire(list, nowMs, currentNode),
@@ -658,6 +730,15 @@ export async function main(ns) {
     const sources = ns.getMoneySources().sinceStart;
     const gangCum = sources["gang"] ?? 0;
     const hackingCum = sources.hacking ?? 0;
+    // BN9 (2026-08-27): the Hacknet is the ENTIRE economy here and was not counted,
+    // so the panel read "income $0.0/s FLAT" and the liveness verdict escalated to
+    // "STUCK -- daemon-dead" while the node earned ~$134k/s ($11.6b/day) unattended.
+    // The daemon IS deliberately down (Phase 43 D1) -- but "no batcher" and "no
+    // income" are different claims, and the panel was making the wrong one.
+    // Bracket notation is MANDATORY: `ns.hacknet` is a real ns namespace, so a
+    // literal `.hacknet` property access gets charged its RAM regardless of
+    // receiver -- the same trap `"gang"` above is bracketed for.
+    const hacknetCum = sources["hacknet"] ?? 0;
     const player = ns.getPlayer();
 
     // Node-entry reset guard (decision 4): sinceStart survives installs
@@ -665,7 +746,11 @@ export async function main(ns) {
     // cumulative total is below the last sample's, the series is a previous
     // node's junk and gets cleared before this sample is appended.
     const priorLast = series.length > 0 ? series[series.length - 1] : null;
-    if (priorLast && gangCum + hackingCum < priorLast.gangCum + priorLast.hackingCum) {
+    const cumTotal = gangCum + hackingCum + hacknetCum;
+    const priorTotal = priorLast
+      ? (priorLast.gangCum ?? 0) + (priorLast.hackingCum ?? 0) + (priorLast.hacknetCum ?? 0)
+      : 0;
+    if (priorLast && cumTotal < priorTotal) {
       series = [];
     }
 
@@ -686,7 +771,7 @@ export async function main(ns) {
     const bbFromThisNode = Number.isFinite(bbState?.bitNode) && bbState.bitNode === currentNode;
     const rank = bbFromThisNode && typeof bbState.rank === "number" ? bbState.rank : null;
 
-    const sample = { t: nowMs, gangCum, hackingCum, mHacking: player.mults.hacking, bn: currentNode };
+    const sample = { t: nowMs, gangCum, hackingCum, hacknetCum, mHacking: player.mults.hacking, bn: currentNode };
     // Omit the key entirely when unknown -- the filters in evalTripwire /
     // computeRankForecast drop non-numeric samples, and writing an explicit null
     // would bloat 2880 ring entries for nothing.

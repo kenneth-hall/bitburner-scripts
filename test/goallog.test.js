@@ -24,6 +24,7 @@ import {
   computeForecast,
   FORECAST_MIN_SPAN_MS,
   AUG_STATE_STALE_MS,
+  resolveGoalLabels,
 } from '../src/goallog.js';
 
 const T = 1_000_000_000;
@@ -664,5 +665,97 @@ describe('buildSnapshot rankProgress', () => {
     expect(snap.mProgress.value).toBe(1.86);
     expect(snap.mProgress.target).toBe(M_TARGET);
     expect(snap.mProgress.targetLabel).toBe(M_TARGET_LABEL);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BN9 retarget (2026-08-27): node-aware GOAL labels + hacknet income.
+describe('BN9 retarget', () => {
+  it('relabels the rank gate so it cannot be read as the win condition', () => {
+    // 400,000 is Operation Daedalus's rank REQUIREMENT, not the finish line --
+    // the node clears on all 21 black ops. CLAUDE.md records this exact
+    // confusion nearly costing BN6 the run.
+    expect(resolveGoalLabels(9).rankLabel).toBe('gate 21ops');
+    expect(resolveGoalLabels(9).rankLabel).not.toBe(RANK_TARGET_LABEL);
+  });
+
+  it('relabels M as retired in BN9, where the batcher does not run at all', () => {
+    expect(resolveGoalLabels(9).mLabel).toBe('retired');
+  });
+
+  it('leaves every other node on the historical labels', () => {
+    for (const node of [1, 2, 5, 6, 10, null, undefined]) {
+      expect(resolveGoalLabels(node).rankLabel).toBe(RANK_TARGET_LABEL);
+      expect(resolveGoalLabels(node).mLabel).toBe(M_TARGET_LABEL);
+    }
+  });
+
+  it('threads the node-aware labels through buildSnapshot', () => {
+    const series = [{ t: T, gangCum: 0, hackingCum: 0, hacknetCum: 0, mHacking: 1.3, bn: 9 }];
+    const snap = buildSnapshot(series, null, T + 1000, null, 9, 1);
+    expect(snap.rankProgress.targetLabel).toBe('gate 21ops');
+    expect(snap.mProgress.targetLabel).toBe('retired');
+    // The TARGETS are unchanged -- only the labels were wrong.
+    expect(snap.rankProgress.target).toBe(RANK_TARGET);
+    expect(snap.mProgress.target).toBe(M_TARGET);
+  });
+
+  it('counts hacknet income, which is the entire BN9 economy', () => {
+    // Without hacknetCum this window reads $0/s and the liveness verdict
+    // escalates to "STUCK -- daemon-dead" while the node earns $134k/s.
+    const series = [
+      { t: T, gangCum: 0, hackingCum: 0, hacknetCum: 0, mHacking: 1.3, bn: 9 },
+      { t: T + 10_000, gangCum: 0, hackingCum: 0, hacknetCum: 1_344_650, mHacking: 1.3, bn: 9 },
+    ];
+    // $1,344,650 over a 10-SECOND window = $134,465/s -- the live post-WI-A rate.
+    expect(computeRateRange(series, T, T + 10_000, 'total')).toBeCloseTo(134_465, 3);
+  });
+
+  it('a dead daemon with healthy income is NOT stuck', () => {
+    // BN9 retires the batcher deliberately (D1) while the Hacknet earns ~$126k/s.
+    // The old rule short-circuited to STUCK on daemon staleness before income was
+    // consulted, so the panel warned permanently -- and a warning that is always
+    // lit is one nobody reads.
+    const T0 = T;
+    const series = [];
+    for (let i = 0; i <= 10; i++) {
+      series.push({ t: T0 + i * (STUCK_WINDOW_MS / 5), gangCum: 0, hackingCum: 0, hacknetCum: i * 1e9, mHacking: 1.3, bn: 9 });
+    }
+    const nowMs = series[series.length - 1].t;
+    const verdict = evalStuck({ series, daemonStatus: null, financeState: null, boundaryStartMs: null, nowMs });
+    expect(verdict.status).toBe('OK');
+    expect(verdict.reason).toBe('daemon-down-earning');
+  });
+
+  it('a dead daemon with NO income is still stuck -- the signal is kept, not dropped', () => {
+    const T0 = T;
+    const series = [];
+    for (let i = 0; i <= 10; i++) {
+      series.push({ t: T0 + i * (STUCK_WINDOW_MS / 5), gangCum: 0, hackingCum: 0, hacknetCum: 0, mHacking: 1.3, bn: 9 });
+    }
+    const nowMs = series[series.length - 1].t;
+    const verdict = evalStuck({ series, daemonStatus: null, financeState: null, boundaryStartMs: null, nowMs });
+    expect(verdict.status).toBe('STUCK');
+    expect(verdict.reason).toBe('daemon-dead');
+  });
+
+  it('REFUSES to difference across the hacknetCum schema change', () => {
+    // Shipped and caught live the same minute: mixing the two schemas booked the
+    // whole cumulative hacknet balance as income earned inside the window, and the
+    // panel printed $37,663,202/s against a true ~$134,465/s. A rate read across a
+    // schema change is not a rate -- null ("no measurement") is the honest answer.
+    const mixed = [
+      { t: T, gangCum: 0, hackingCum: 0, mHacking: 1.3, bn: 9 },
+      { t: T + 10_000, gangCum: 0, hackingCum: 0, hacknetCum: 5_000_000_000, mHacking: 1.3, bn: 9 },
+    ];
+    expect(computeRateRange(mixed, T, T + 10_000, 'total')).toBeNull();
+  });
+
+  it('still reads pre-retarget samples that carry no hacknetCum at all', () => {
+    const series = [
+      { t: T, gangCum: 0, hackingCum: 0, mHacking: 1.3, bn: 6 },
+      { t: T + 10_000, gangCum: 0, hackingCum: 20_000, mHacking: 1.3, bn: 6 },
+    ];
+    expect(computeRateRange(series, T, T + 10_000, 'total')).toBeCloseTo(2000, 6);
   });
 });
