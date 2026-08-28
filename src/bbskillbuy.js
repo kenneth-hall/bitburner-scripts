@@ -47,11 +47,52 @@
 //   run bbskillbuy.js 250          -> buy toward BI/DO 250
 const DEFAULT_SUCCESS_TARGET = 200;
 
+// ---------------------------------------------------------------------------
+// The success multiplier is a PRODUCT: (1 + 0.03*BI) * (1 + 0.04*DO). Spending the
+// bank in list order therefore starves whichever skill comes second.
+//
+// Measured live 2026-08-25 in BN10, spending 535,869 SP at target 2000:
+//   Blade's Intuition: L250 -> L756 [ok]
+//   Digital Observer:  L250 -> L250 [unaffordable-or-at-max]
+// ...and it reported [ok]. Realised x260 against a balanced ~x475 at equal spend --
+// roughly 1.8x thrown away. Harmless in BN10 (the ladder was already cleared); this
+// file's own header had said "balanced levels beat a lopsided stack at equal spend"
+// the whole time, so the principle was written down and not implemented.
+//
+// The fix is a marginal-value walk: at each step buy the ONE level, on whichever of
+// the two skills, that raises the product most per skill point spent. Costs rise with
+// level while the multiplicative gain per level shrinks, so a per-step greedy on
+// (gain - 1) / cost tracks the balanced optimum instead of draining one side.
+export const BI_PER_LEVEL = 0.03;
+export const DO_PER_LEVEL = 0.04;
+
+/** Pure. The success multiplier at given levels. */
+export function successMultiplierAt(biLevel, doLevel) {
+  return (1 + BI_PER_LEVEL * biLevel) * (1 + DO_PER_LEVEL * doLevel);
+}
+
+/**
+ * Pure. Which single level to buy next, or null when neither is worth/able to buy.
+ * `biCost`/`doCost` are the quoted cost of ONE more level (Infinity/NaN when maxed).
+ * Ties go to Digital Observer -- it carries the larger per-level coefficient, so at
+ * equal score it compounds faster.
+ */
+export function pickNextSuccessLevel({ biLevel, doLevel, biCost, doCost, points, target }) {
+  const base = successMultiplierAt(biLevel, doLevel);
+  const scoreOf = (gain, cost) =>
+    Number.isFinite(cost) && cost > 0 && cost <= points ? (gain / base - 1) / cost : -Infinity;
+  const biOk = biLevel < target;
+  const doOk = doLevel < target;
+  const biScore = biOk ? scoreOf(successMultiplierAt(biLevel + 1, doLevel), biCost) : -Infinity;
+  const doScore = doOk ? scoreOf(successMultiplierAt(biLevel, doLevel + 1), doCost) : -Infinity;
+  if (biScore === -Infinity && doScore === -Infinity) return null;
+  return doScore >= biScore ? "Digital Observer" : "Blade's Intuition";
+}
+
+
 function buildPlan(successTarget) {
   return [
     { skill: "Overclock", target: 90 },
-    { skill: "Blade's Intuition", target: successTarget },
-    { skill: "Digital Observer", target: successTarget },
     { skill: "Reaper", target: 50 },
   ];
 }
@@ -101,7 +142,49 @@ export async function main(ns) {
     levels: {},
   };
   for (const entry of BUY_PLAN) outRec.before.levels[entry.skill] = ns.bladeburner.getSkillLevel(entry.skill);
+  for (const sp of ["Blade's Intuition", "Digital Observer"]) outRec.before.levels[sp] = ns.bladeburner.getSkillLevel(sp);
   flush("before");
+
+  // Interleaved success-skill pass -- see pickNextSuccessLevel above. Runs before the
+  // sequential plan so the product-valued pair is never starved by list order.
+  const SUCCESS_PAIR = ["Blade's Intuition", "Digital Observer"];
+  outRec.successPass = { target: successTarget, bought: { "Blade's Intuition": 0, "Digital Observer": 0 }, steps: 0 };
+  for (let guard = 0; guard < 100000; guard += 1) {
+    const biLevel = ns.bladeburner.getSkillLevel("Blade's Intuition");
+    const doLevel = ns.bladeburner.getSkillLevel("Digital Observer");
+    const points = ns.bladeburner.getSkillPoints();
+    const choice = pickNextSuccessLevel({
+      biLevel,
+      doLevel,
+      biCost: ns.bladeburner.getSkillUpgradeCost("Blade's Intuition", 1),
+      doCost: ns.bladeburner.getSkillUpgradeCost("Digital Observer", 1),
+      points,
+      target: successTarget,
+    });
+    if (choice === null) break;
+    if (outRec.dryRun) {
+      outRec.successPass.bought[choice] += 1;
+      outRec.successPass.steps += 1;
+      // Dry run cannot advance real levels, so stop after recording the first pick.
+      outRec.successPass.dryRunNote = "first pick only -- levels cannot advance without buying";
+      break;
+    }
+    ns.bladeburner.upgradeSkill(choice, 1);
+    const after = ns.bladeburner.getSkillLevel(choice);
+    const expected = (choice === "Blade's Intuition" ? biLevel : doLevel) + 1;
+    if (after !== expected) {
+      outRec.successPass.abort = "MISMATCH on " + choice + " -- level did not advance";
+      break;
+    }
+    outRec.successPass.bought[choice] += 1;
+    outRec.successPass.steps += 1;
+    if (outRec.successPass.steps % 50 === 0) await ns.sleep(20);
+  }
+  outRec.successPass.levelsAfter = {
+    "Blade's Intuition": ns.bladeburner.getSkillLevel("Blade's Intuition"),
+    "Digital Observer": ns.bladeburner.getSkillLevel("Digital Observer"),
+  };
+  flush("success-pass");
 
   for (const entry of BUY_PLAN) {
     const spName = entry.skill;
@@ -165,6 +248,7 @@ export async function main(ns) {
     levels: {},
   };
   for (const entry of BUY_PLAN) outRec.after.levels[entry.skill] = ns.bladeburner.getSkillLevel(entry.skill);
+  for (const sp of ["Blade's Intuition", "Digital Observer"]) outRec.after.levels[sp] = ns.bladeburner.getSkillLevel(sp);
 
   outRec.deltas = {
     successMultiplier: outRec.before.successMultiplier + " -> " + outRec.after.successMultiplier,
