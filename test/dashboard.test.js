@@ -26,6 +26,7 @@ import {
   GANG_SAMPLE_MS,
   GANG_SAMPLE_CAP,
   goalTitle,
+  hacknetPanel,
 } from '../src/dashboard.js';
 
 const NOW = 1_700_000_000_000;
@@ -989,5 +990,65 @@ describe('goalTitle', () => {
     expect(goalTitle(null)).toBe('GOAL');
     expect(goalTitle(undefined)).toBe('GOAL');
     expect(goalTitle({})).toBe('GOAL');
+  });
+});
+
+// --- hacknetPanel (2026-08-28) --------------------------------------------
+describe('hacknetPanel', () => {
+  const live = {
+    timestamp: NOW, nodeCount: 1, maxNodes: 20,
+    production: 0.6964, dollarsPerSec: 174_100, hashes: 1024, hashCapacity: 1024,
+    atCap: true, earned: 19_047_000_000,
+    node0: { level: 100, ram: 128, cores: 14, cache: 5 },
+  };
+
+  it('renders production, income and shape within the column budget', () => {
+    const lines = hacknetPanel(live, NOW);
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(COLUMN_BUDGET);
+    expect(lines[0]).toContain('HACKNET');
+    expect(lines.some((l) => l.includes('0.6964 h/s'))).toBe(true);
+    expect(lines.some((l) => l.includes('L100'))).toBe(true);
+  });
+
+  it('says the overflow sells, so a pinned hash count does not read as a stall', () => {
+    expect(hacknetPanel(live, NOW).some((l) => l.includes('(overflow sells)'))).toBe(true);
+  });
+
+  it('omits the overflow note when below the cap', () => {
+    const lines = hacknetPanel({ ...live, hashes: 500, atCap: false }, NOW);
+    expect(lines.some((l) => l.includes('(overflow sells)'))).toBe(false);
+    expect(lines.some((l) => l.includes('500/1024'))).toBe(true);
+  });
+
+  it('renders a live empty panel when no nodes are owned, not "no data yet"', () => {
+    const lines = hacknetPanel({ timestamp: NOW, nodeCount: 0 }, NOW);
+    expect(lines.some((l) => l.includes('no hacknet nodes owned'))).toBe(true);
+    expect(lines.some((l) => l.includes('no data yet'))).toBe(false);
+  });
+
+  it('shows a STALE marker past the threshold', () => {
+    expect(hacknetPanel({ ...live, timestamp: NOW - 400_000 }, NOW)[0]).toContain('STALE');
+  });
+});
+
+describe('cloudPanel when the BitNode disables purchased servers', () => {
+  it('collapses to one line naming the reason instead of a permanent stale/empty pair', () => {
+    const lines = cloudPanel(
+      { timestamp: NOW, disabled: true, disabledReason: 'CloudServerLimit is 0 for this BitNode' },
+      NOW
+    );
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain('CloudServerLimit is 0');
+    expect(lines.some((l) => l.includes('no cloud servers owned'))).toBe(false);
+    // The writer exited deliberately, so a stale marker is noise, not a signal.
+    expect(lines[0]).not.toContain('STALE');
+  });
+
+  it('leaves a normal cloud node untouched', () => {
+    const lines = cloudPanel(
+      { timestamp: NOW, fleet: { count: 3, serverLimit: 25, minRam: 64, maxRam: 256 }, available: 1e9 },
+      NOW
+    );
+    expect(lines.some((l) => l.includes('disabled'))).toBe(false);
   });
 });

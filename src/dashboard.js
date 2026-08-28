@@ -65,7 +65,13 @@ export const DASHBOARD_W = 891;
 // an aspirational budget. In BN6 (GANG absent, blank separators removed) real content is
 // ~41 rows, so ~11 rows of slack remain -- deliberate headroom for a panel gaining a
 // line, not wasted space. Shrinking further would clip a gang node.
-export const DASHBOARD_H = 1133;
+// Raised 1133 -> 1177 (+44px = 2 rows at 21.78px/row) 2026-08-28, in lockstep with
+// ROW_BUDGET 52 -> 54, adding the HACKNET panel. The worst-case composite fixture
+// (every panel present, GANG included) measured 54 rows, so the window is sized to
+// what renderAll can actually emit, per this file's own precedent. Screen usable
+// height is 1392px and the panel top is Y=21, so the new bottom at 1198 clears it
+// by 194px -- ample. Also well inside TAIL_LOG_SIZE_ASSUMED (200).
+export const DASHBOARD_H = 1177;
 export const DASHBOARD_FONT = 16;
 export const DASHBOARD_X = 1653; // live daemon-tail anchor, confirmed via CDP 2026-07-14
 export const DASHBOARD_Y = 21;
@@ -98,7 +104,7 @@ export const TAIL_LOG_SIZE_ASSUMED = 200; // in-game Options -> "Netscript log s
 // A subsystem silent this long is treated as ABSENT (previous node) rather than stale.
 // 1h is far past every STALE_MS threshold (worst is 390s) and far short of a node.
 export const PANEL_ABSENT_MS = 3_600_000;
-export const ROW_BUDGET = 52; // paired with DASHBOARD_H -- the measured worst case renderAll can emit
+export const ROW_BUDGET = 54; // paired with DASHBOARD_H -- the measured worst case renderAll can emit (54 with HACKNET, 2026-08-28)
 export const POLL_MS = 1000;
 export const RULER_FLAG = "dashboard-ruler.txt";
 export const PANEL_ENTRY_CAP = 3;
@@ -119,6 +125,8 @@ const STALE_MS = {
   gang: 15_000,
   // Phase 32 -- goallog.js samples every 60s; 3x that, over the 15s floor.
   goal: 180_000,
+  // Same writer, same cadence as goal.
+  hnet: 180_000,
   // Phase 38 -- bladeburnermanager.js writes every 10s while actively held,
   // but only every 60s while off/stood-down (the common case so far); 3x
   // the worst-case cadence is 180s.
@@ -141,6 +149,7 @@ const TRANSACTIONS_ENTRY_CAP = 2;
 const DAEMON_STATUS_FILE = "daemon-status.json";
 const TARGETS_RANKING_FILE = "targets-ranking.json";
 const CLOUD_STATE_FILE = "cloud-state.json";
+const HACKNET_STATE_FILE = "hacknet-state.json";
 const XPFARM_STATE_FILE = "xpfarm-state.json";
 const AUGFARMER_STATE_FILE = "augfarmer-state.json";
 const GANG_STATE_FILE = "gang-state.json";
@@ -512,12 +521,55 @@ export function xpPanel(state, now) {
   return lines;
 }
 
+/**
+ * HACKNET panel (2026-08-28). Added on request, per the observability
+ * convention's gate -- in BN9 the Hacknet is the ENTIRE economy (moneySources
+ * reads `hacknet: $19b, hacking: 0`) and had no readout anywhere, while the
+ * CLOUD panel it sits beside is permanently dead in this node.
+ *
+ * `atCap` is called out deliberately: hashes pinned at 1024/1024 look like a
+ * stall, but overflow auto-sells at $250k each -- that IS the income.
+ */
+export function hacknetPanel(state, now) {
+  const title = "HACKNET";
+  if (state === null) return [`-- ${title} --`, "no data yet"];
+  if (state === PARSE_FAILED) return [`-- ${title} --`, "unreadable"];
+
+  const stale = staleSuffix(state.timestamp, now, STALE_MS.hnet);
+  const lines = [`-- ${title} --${stale}`];
+
+  if (!state.nodeCount) {
+    lines.push("no hacknet nodes owned");
+    return lines;
+  }
+
+  const prod = typeof state.production === "number" ? state.production.toFixed(4) : "?";
+  const perSec = typeof state.dollarsPerSec === "number" ? `$${fmtNum(state.dollarsPerSec)}/s` : "$?/s";
+  const earned = typeof state.earned === "number" ? ` | earned $${fmtNum(state.earned)}` : "";
+  lines.push(`${prod} h/s = ${perSec}${earned}`);
+
+  const n0 = state.node0;
+  const shape = n0
+    ? `L${n0.level ?? "?"} ${fmtRam(n0.ram)} ${n0.cores ?? "?"}c cache${n0.cache ?? "?"}`
+    : "node 0 unreadable";
+  const hashPart =
+    typeof state.hashes === "number" && typeof state.hashCapacity === "number"
+      ? ` | hashes ${Math.round(state.hashes)}/${Math.round(state.hashCapacity)}${state.atCap ? " (overflow sells)" : ""}`
+      : "";
+  lines.push(`${state.nodeCount}/${state.maxNodes ?? "?"} nodes, #0 ${shape}${hashPart}`);
+  return lines;
+}
+
 export function cloudPanel(state, now) {
   const title = "CLOUD";
   if (state === null) return [`-- ${title} --`, "no data yet"];
   if (state === PARSE_FAILED) return [`-- ${title} --`, "unreadable"];
 
-  const stale = staleSuffix(state.timestamp, now, STALE_MS.cloud);
+  // Suppress the stale marker when the node disables cloud entirely: the writer
+  // exited ON PURPOSE, so "STALE 160689s" is noise sitting next to a line that
+  // already explains why. Leaving it in would undercut exactly the point of the
+  // disabled branch below.
+  const stale = state.disabled ? "" : staleSuffix(state.timestamp, now, STALE_MS.cloud);
   const lines = [`-- ${title} --${stale}`];
   if (state.paused) {
     lines.push("PAUSED");
@@ -525,6 +577,15 @@ export function cloudPanel(state, now) {
   }
   if (state.financeStale) {
     lines.push("finance state stale -- spending nothing");
+    return lines;
+  }
+  // A node that disables purchased servers (BN9: CloudServerLimit 0) makes
+  // cloudmanager.js self-exit, so its state goes permanently stale and the panel
+  // used to read "STALE 160431s / no cloud servers owned" forever. Say the real
+  // thing in one line instead -- a panel that is loudly broken for a whole node
+  // trains you to ignore staleness markers that do matter elsewhere.
+  if (state.disabled) {
+    lines.push(`disabled -- ${state.disabledReason ?? "not available in this BitNode"}`);
     return lines;
   }
 
@@ -868,6 +929,7 @@ export function renderAll(states, now) {
     { name: "TARGETS", fn: targetsPanel, state: states.targets },
     { name: "BLADEBURNER", fn: bladeburnerPanel, state: states.bladeburner },
     { name: "XP FARM", fn: xpPanel, state: states.xp },
+    { name: "HACKNET", fn: hacknetPanel, state: states["hnet"] },
     { name: "CLOUD", fn: cloudPanel, state: states.cloud },
     { name: "FINANCE", fn: financePanel, state: states.finance },
     { name: "TRANSACTIONS", fn: transactionsPanel, state: states.transactions },
@@ -956,6 +1018,7 @@ export async function main(ns) {
       finance: readFinanceState(ns),
       xp: readStateFile(ns, XPFARM_STATE_FILE),
       cloud: readStateFile(ns, CLOUD_STATE_FILE),
+      hnet: readStateFile(ns, HACKNET_STATE_FILE),
       transactions: readStateFile(ns, transactionsFileName(new Date(now))),
       augfarmer: readStateFile(ns, AUGFARMER_STATE_FILE),
       gangState: readStateFile(ns, GANG_STATE_FILE),

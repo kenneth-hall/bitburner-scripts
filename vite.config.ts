@@ -100,6 +100,7 @@ export default defineConfig({
         if (file === 'bladeburner-attempts.json') return 'logs/bladeburner-attempts.json'; // Phase 39 (S7) -- bladeburnermanager.js per-attempt diagnostic ledger (startAction call + verification outcome, predicted vs realised EV)
         if (/^switchbbcity-\d+\.json$/.test(file)) return `logs/${file}`; // src/switchbbcity.js -- one-off Bladeburner city move + the Q5 switchCity cost measurement, one file per run
         if (file === 'gang-rate-log.json') return 'logs/gang-rate-log.json'; // Phase 30 survivor -- gangratelog.js durable respect-rate/ascension-mult series (ring-capped, 5min samples)
+        if (file === 'hacknet-state.json') return 'logs/hacknet-state.json'; // dashboard.js's HACKNET panel source -- BN9's entire economy, written by goallog.js
         if (file === 'goal-state.json') return 'logs/goal-state.json'; // Phase 32 -- goallog.js overwrite-in-place snapshot, dashboard.js's GOAL panel source
         if (file === 'goal-log.json') return 'logs/goal-log.json'; // Phase 32 -- goallog.js ring-capped cumulative series (gangCum/hackingCum/mHacking, 60s samples)
         if (file === 'gatewatch-log.json') return 'logs/gatewatch-log.json'; // GP1 watcher (gatewatch.js) -- ring-capped rep/M/gate series across the Red-Pill install boundary

@@ -46,6 +46,36 @@ export const BOUNDARY_START_FILE = "boundary-start.json"; // bootstrap.js's per-
 // BLADEBURNER's /ws) is that check, and a divergence between them is a signal
 // worth seeing, not a bug to unify away.
 export const BLADEBURNER_STATE_FILE = "bladeburner-state.json";
+export const HACKNET_STATE_FILE = "hacknet-state.json"; // dashboard.js's HACKNET panel source (added 2026-08-28)
+
+// Hash -> dollars. In BN9 the Hacknet is the ENTIRE economy and hashes above the
+// cache cap auto-sell; the rate was derived live to within 0.1% by dividing
+// moneySources.hacknet by hashes produced-minus-held ($250,000.4/hash). It is the
+// "Sell for Money" upgrade's own rate (4 hashes -> $1m), which is the one hash
+// upgrade whose cost does NOT escalate -- see phase-43-bn9-opening.features.md 3.1.
+export const DOLLARS_PER_HASH = 250_000;
+
+/** Pure. The HACKNET panel's snapshot, given already-live-read values. */
+export function buildHacknetSnapshot({ nowMs, timeStr, nodeCount, maxNodes, stats, hashes, hashCapacity, earned }) {
+  const production = Number.isFinite(stats?.production) ? stats.production : null;
+  return {
+    timestamp: nowMs,
+    time: timeStr,
+    nodeCount: Number.isFinite(nodeCount) ? nodeCount : null,
+    maxNodes: Number.isFinite(maxNodes) ? maxNodes : null,
+    production,
+    dollarsPerSec: production === null ? null : production * DOLLARS_PER_HASH,
+    hashes: Number.isFinite(hashes) ? hashes : null,
+    hashCapacity: Number.isFinite(hashCapacity) ? hashCapacity : null,
+    // At the cap, production is not lost -- the overflow sells automatically. The
+    // panel says so, because "1024/1024" otherwise reads as a stall.
+    atCap: Number.isFinite(hashes) && Number.isFinite(hashCapacity) && hashes >= hashCapacity,
+    earned: Number.isFinite(earned) ? earned : null,
+    node0: stats
+      ? { level: stats.level ?? null, ram: stats.ram ?? null, cores: stats.cores ?? null, cache: stats.cache ?? null }
+      : null,
+  };
+}
 
 export const SAMPLE_INTERVAL_MS = 60_000; // 1 min -> RING_CAP below is 48h of history
 export const RING_CAP = 2880; // 2880 * 1min = 48h; oldest samples drop off the front
@@ -790,6 +820,28 @@ export async function main(ns) {
       lastLivenessStatus = verdict.status;
     }
     const liveness = { status: verdict.status, reason: verdict.reason, sinceMs: stuckSince, boundaryStartMs };
+
+    // HACKNET snapshot (2026-08-28). ~2.5 GB of ns.hacknet reads, added deliberately
+    // to this otherwise-cheap resident rather than spawning another process: in BN9
+    // the Hacknet is the whole economy and had no surface on the dashboard at all.
+    // Every call is wrapped -- ns.hacknet throws nothing here, but a node with zero
+    // hacknet nodes must degrade to a null panel rather than kill the resident.
+    try {
+      const nodeCount = ns.hacknet.numNodes();
+      const hnSnapshot = buildHacknetSnapshot({
+        nowMs,
+        timeStr: new Date(nowMs).toLocaleTimeString(),
+        nodeCount,
+        maxNodes: ns.hacknet.maxNumNodes(),
+        stats: nodeCount > 0 ? ns.hacknet.getNodeStats(0) : null,
+        hashes: ns.hacknet.numHashes(),
+        hashCapacity: ns.hacknet.hashCapacity(),
+        earned: hacknetCum,
+      });
+      ns.write(HACKNET_STATE_FILE, JSON.stringify(hnSnapshot, null, 2), "w");
+    } catch (err) {
+      /* no hacknet in this node/state -- the panel degrades to "no data yet" */
+    }
 
     const augState = readJsonTolerant(ns, AUGFARMER_STATE_FILE);
     const snapshot = buildSnapshot(series, augState, nowMs, liveness, currentNode, currentVisit);
