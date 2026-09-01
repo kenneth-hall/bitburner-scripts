@@ -91,9 +91,15 @@ export function pickNextSuccessLevel({ biLevel, doLevel, biCost, doCost, points,
 
 
 function buildPlan(successTarget) {
+  // 2026-09-01 (BN9 Stage A): Reaper BEFORE Overclock. Overclock only pays when action
+  // time binds; stamina is spent PER ACTION (Q10), so on Stage A's 41-78s contracts it
+  // buys no throughput at all -- measured live here at stamina fraction 0.553 against a
+  // 0.50 floor, i.e. stamina-bound, not time-bound. Reaper raises combat stats and so
+  // raises success chance NOW. Overclock stays in the plan because it mattered enormously
+  // on BN6's 185-7,377s black ops; it just must not out-rank a live lever to get there.
   return [
-    { skill: "Overclock", target: 90 },
     { skill: "Reaper", target: 50 },
+    { skill: "Overclock", target: 90 },
   ];
 }
 
