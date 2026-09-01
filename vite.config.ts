@@ -116,6 +116,7 @@ export default defineConfig({
         if (/^graftprereqprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/graftprereqprobe.js -- real getAugmentationPrereq chain for the graft catalog, the field graftrecon.js never read
         if (/^hacknetboost-\d+\.json$/.test(file)) return `logs/${file}`; // src/hacknetboost.js -- one-off cheap Hacknet headroom buy (cores + RAM), one file per run
         if (/^hacknetprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/hacknetprobe.js -- BN9 recon: hacknet-server economics, hash-upgrade catalog + costs, and the node's damage report, one file per run
+        if (/^hashexchangeprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/hashexchangeprobe.js -- Q1: measured rank/SP granted per Exchange for Bladeburner purchase, one file per run
         if (/^homeramprobe-\d+\.json$/.test(file)) return `logs/${file}`; // Phase 35 WI8 -- one-off D4/D10 verification probe, one file per run
         if (/^combatgateprobe-\d+\.json$/.test(file)) return `logs/${file}`; // src/combatgateprobe.js -- one-off: exp needed for combat level 100 (BN6 bladeburner join gate)
         if (file === 'combatgrind-log.json') return 'logs/combatgrind-log.json'; // src/combatgrind.js -- ring-capped combat-grind progress samples (BN6 bladeburner join gate)
