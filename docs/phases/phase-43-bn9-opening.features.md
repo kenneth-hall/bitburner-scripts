@@ -408,8 +408,9 @@ corporations; the stock market (§6).
 
 ## 6. Carried-forward hazards this phase must not rediscover the hard way
 
-- **🔴 Phase 42 (`phase-42-field-analysis.features.md`) is an unshipped stage-1 doc sitting in the
-  repo root, and its premise is node-local.** It was written because BN10's `Tracking` realised
+- **🔴 Phase 42 is an unshipped stage-1 doc, and its premise is node-local.** *(Filed to
+  `docs/phases/unshipped/phase-42-field-analysis.features.md` on 2026-09-05, per the spec's §12;
+  it sat in the repo root until then.)* It was written because BN10's `Tracking` realised
   **80%** success, below S-RF's `REALISED_FLOOR_MIN_SUCCESS = 0.9`, leaving selection exposed to a
   `pMin` that had decayed to ~500× wrong. **BN9's realised success rate is unknown and will be
   whatever BN9's combat mults make it.** Decide at WI5 whether Phase 42 is revived, rewritten, or
@@ -454,6 +455,16 @@ the first place to look — not more Hacknet levels.
 
 ## 7. Open questions — each with a default and a date
 
+**📋 CLOSE-OUT 2026-09-05.** Phase shipped 2026-08-26; this table is settled and needs no further
+action. **Q1 and Q4 were closed by measurement** (rows struck through below). **Q9 and Q12 were
+closed during implementation** — Q12 by the live RAM remeasure (`sleevemanager.js` = 21.70 GB
+exactly, `83c24c6`), Q9 the hard way: `dashboard.js`'s cloud panel did **not** degrade gracefully on
+the new `disabled` state fields and needed its own change (`db43f4a`). **Q2, Q3, Q5 and Q6 reached
+their expiry unanswered and lapsed to their stated defaults** — every one of those defaults was
+"no action", so nothing is owed and none of them blocked the phase. **Q7 remains a standing rail with
+no expiry: never install an augmentation in BN9.** The only live item is the spec's **Q10**
+(is `Mug` the right crime for BN9), expiring 2026-09-10 and moot unless the entry grind is restarted.
+
 | # | Question | Default if unanswered | Expires |
 |---|---|---|---|
 | ~~**Q1**~~ | ~~Rank and SP granted per `Exchange for Bladeburner …` purchase~~ | ✅ **ANSWERED 2026-09-01 — measured, and §3.3's call holds by an order of magnitude** (`logs/hashexchangeprobe-1788264590122.json`, `-1788264716196.json`). **Rank exchange: +100 rank, flat.** Purchase #1 cost 250 hashes, #2 cost 500 — **cost escalates linearly, the grant does not move.** D3 rejected this lever assuming an *implausible* +1,000/purchase; the truth is **10× worse than that upper bound**. **SP exchange: +10 SP, and it is strictly dominated** — the rank exchange grants ~33 SP as a byproduct for the same price, i.e. 3.3× more SP *plus* the rank. **Never buy the SP exchange.** 🔑 Byproduct constant: **SP accrues at rank/3** (100 rank → 33-34 SP). ⚠️ Whole-bankroll check at $84.5b: `k(k+1)/2 ≤ 1352` ⇒ **51 purchases = 5,100 rank = 1.4% of the 354k remaining**, i.e. ~5.9 h off a ~17-day run. Spending *all* projected node income (~$340b) reaches ~103 purchases = 11.9 h. **Feature not built. Closed.** | closed |
@@ -478,3 +489,8 @@ the first place to look — not more Hacknet levels.
 
 **Next stage:** spec (`phase-43-bn9-opening.spec.md`) + `spec-reviewer` — **not started, and not
 authorized by this doc.**
+
+> **✅ SUPERSEDED — the spec was authorized, written, cold-reviewed through three fix rounds, and
+> shipped 2026-08-26** (WI-A…WI-F, merged `6d45405`). See
+> [`phase-43-bn9-opening.spec.md`](phase-43-bn9-opening.spec.md) and the
+> [CHANGELOG](CHANGELOG.md) entry. Both docs graduated to `docs/phases/` 2026-09-05.

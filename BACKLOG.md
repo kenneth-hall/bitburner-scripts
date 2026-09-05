@@ -36,19 +36,10 @@ do, and what's broken?*
   - **Why it hid until now:** it was written in BN10, where the gate was approached from combat
     **91** with two broad augs, so pooling and min happened to agree. BN9 starts at **1/1/1/1**,
     where every stat binds at once. 📌 **An aggregate is not an objective.**
-  - Full corrected arithmetic: `phase-43-bn9-opening.features.md` §4.
-
-- **🔴 NEW 2026-08-25 (BN9) — `cloudmanager.js` and `resourcemanager.js` do not recognise a node
-  where purchased servers are DISABLED.** BN9's `CloudServerLimit` is **0**
-  (`logs/bitnodemults-1786922442524.json`), so `ns.cloud.purchaseServer` can never succeed. Live in
-  BN9: `cloudmanager.js: WARN: purchaseServer(cloud-0, 2) returned empty string -- retrying next
-  poll`, while `resourcemanager.js` holds a **$110.000k `bootstrap-server` reservation** against a
-  purchase that is impossible for the entire node.
-  - **Next action:** have `cloudmanager.js` read `ns.cloud.getServerLimit()` at startup and stand
-    down permanently at `0`, releasing the `bootstrap-server` reservation as it goes.
-  - **Why it matters:** it is a standing false reservation plus a permanent retry loop, and it is
-    the prime suspect for `daemon.js` not being alive in BN9 (see Q2 in
-    `phase-43-bn9-opening.features.md`).
+  - Full corrected arithmetic: `docs/phases/phase-43-bn9-opening.features.md` §4.
+  - ⚠️ **Still open in `graftrecon.js` as of 2026-09-05** — `graftrecon.js:137` still does
+    `cumFactor *= a.combatLevelFactor` with no `min()`. Phase 43's beam search (`graftmath.js`)
+    replaced the *planner*, so check which path is actually load-bearing before trusting either.
 
 - **🟡 NEW 2026-09-01 — `bbskillbuy.js`'s sequential plan ranked `Overclock` above a live
   lever, and the ordering is still regime-blind.** Fixed for BN9 Stage A by swapping `Reaper`

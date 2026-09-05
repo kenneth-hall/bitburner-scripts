@@ -6,6 +6,59 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-09-01
+
+- **🔑 Q1 closed: the `Exchange for Bladeburner Rank/SP` hash lever is measured, and it is 10× worse
+  than the bound that already rejected it** (`9c578aa`, `logs/hashexchangeprobe-1788264*.json`).
+  **Rank exchange: +100 rank, flat**, while cost escalates linearly (250 hashes, then 500, …).
+  Phase 43's D3 rejected the lever assuming an *implausibly generous* +1,000/purchase; the truth is
+  an order of magnitude below even that. Spending the entire bankroll buys ~1.4% of the remaining
+  rank. **The SP exchange is strictly dominated** — the rank exchange grants ~33 SP as a byproduct
+  at the same price. 🔑 Byproduct constant: **SP accrues at rank/3**. No feature built.
+- **`bbskillbuy.js`: two ordering fixes, one general and one regime-specific.** `89372cb` spends the
+  success pair (Blade's Intuition / Digital Observer) by **marginal value** instead of list order —
+  the multiplier is a *product*, and greedy list-order spending cost ~1.8× at equal spend when it
+  bit in BN10. `6bd31e6` then moved `Reaper` ahead of `Overclock` for BN9 Stage A, because stamina
+  is spent **per action** (Q10), so `Overclock`'s time cut buys zero throughput while stamina binds.
+  ⚠️ **The plan is still a hardcoded list, not a decision** — `Overclock` mattered enormously on
+  BN6's 185–7,377s black ops. Same skill, opposite answer, twice: **a measurement inherits the
+  regime it was taken in.** → `BACKLOG.md`.
+- **`dashboard.js` retargeted for BN9** (`0eecbdf`, `db43f4a`): the GOAL panel was tracking two dead
+  objectives, and the CLOUD panel reported "broken" where BN9 simply *disables* purchased servers.
+  Added a HACKNET panel — in BN9 that is the entire economy. This also answered Phase 43's **Q9**
+  the hard way: the cloud panel did **not** degrade gracefully on the new `disabled` state fields.
+
+## 2026-08-26
+
+- **✅ Phase 43 — BN9 opening — SHIPPED.** Spec cold-reviewed through three fix rounds, then WI-A…WI-F
+  merged (`6d45405`). Docs: [`phase-43-bn9-opening.features.md`](phase-43-bn9-opening.features.md),
+  [`phase-43-bn9-opening.spec.md`](phase-43-bn9-opening.spec.md).
+  - **WI-A** `hacknetramonce.js` — one-shot Hacknet Server RAM upgrade (1 → 64 GB).
+  - **WI-B** `cloudmanager.js` stands itself down permanently at `CloudServerLimit == 0`, and
+    `resourcemanager.js` stops reserving against a purchase that can never succeed. **Confirmed live
+    2026-09-05:** `logs/finance-state.json` reads `reservations: []`.
+  - **WI-C** `graftplanner.js`'s greedy selection replaced with a beam search in `graftmath.js`,
+    wired to the real BN9 prereq fixture. The k=11 graft ladder was **retracted** (`71a3857`) — it
+    ignored prerequisites and could not execute; k=10 confirmed against live prereq data.
+  - **WI-D** `bn9entry.js` — the BN9 entry state machine (calibration → graft ladder → grind → join).
+    `MAX_ENTROPY` corrected 12 → 16: it is a **runaway guard, not a plan cap**.
+  - **WI-E** `bn9companions.js` supervises `sleevemanager.js` + `bladeburnermanager.js`;
+    `srfcheck.js` re-verifies the realised-evidence floor. **WI-F** `sleevemanager.js` gains an
+    opt-in `syncThreshold` policy mode.
+  - **RAM gates measured live** (`83c24c6`): 4 pass, and **both failures were wrong gate *numbers*,
+    not wrong code** — `hacknetramonce` 5.10 GB (gate 4), `graftplanner` 30.60 GB (gate 30). Every
+    charged call is genuinely used. `sleevemanager.js` measured **21.70 GB exactly**, closing **Q12**.
+  - 📌 **Method note kept from `4acb1e4`:** a rename inside a log *writer* must not invalidate the
+    logs it already wrote — the verifier has to accept both shapes.
+  - **Open questions at close:** Q1/Q4/Q9/Q12 closed by measurement; Q2/Q3/Q5/Q6/Q11 lapsed to their
+    defaults (all "no action"); **Q7 is a standing rail with no expiry — never install in BN9**;
+    Q10 expires 2026-09-10 and is moot unless the grind restarts.
+- **Phase 42 (Field Analysis) filed to `unshipped/`** — a stage-1 features doc that Phase 43
+  leapfrogged, per that spec's own §12 instruction. `Field Analysis` is still absent from the
+  engine's action pool; the realised-evidence floor (S-RF) is what covers the gap.
+
+---
+
 ## 2026-08-25
 
 - **✅ BN10.1 (Digital Carbon) CLEARED — all 21 black ops, then `destroyW0r1dD43m0n(9)`.**

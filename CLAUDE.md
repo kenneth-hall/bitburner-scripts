@@ -9,10 +9,81 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **🟢 IN BN9.1 (Hacktocracy) as of 2026-08-25** —
-  entered straight off the BN10.1 clear. Confirmed live: Stats reads *"BitNode 9: Hacktocracy
-  (Level 1)"*, Augmentations lists **Source-File 10: Digital Carbon**. Held SFs:
-  **1 · 2 · 4 · 5 · 6 · 10**. Fresh node: all stats **1**, money **$1.26k**, nothing running.
+- **Current goal (keep this line current):** **🟢 IN BN9.1 (Hacktocracy), Stage A rank grind —
+  roughly ONE DAY from the 400,000 gate.** Entered 2026-08-25 straight off the BN10.1 clear.
+  Held SFs: **1 · 2 · 4 · 5 · 6 · 10**.
+  - **📊 Stamped 2026-09-05 ~08:13 UTC — this is a SNAPSHOT, recompute before quoting any of it.**
+    Source: `logs/bladeburner-state.json` (rewritten every engine loop, so it is never more than
+    seconds old) and `node tools/bb/cli.mjs stats`. 🔴 **The snapshot that used to sit here was
+    wrong on every single line within days of being written — do not quote a rate or an ETA out of
+    this file.**
+    - rank **286,183 / 400,000** · skill points **83,472 idle** · **9.3 days** into the node
+    - rate **1.378 rank/wall-sec** (24h; 1h reads 1.065) ⇒ **~23–30 h to the gate**
+    - combat **319 / 245 / 231 / 249** · hacking **132** · money **$259.1b**
+    - skills: Blade's Intuition **50** · Digital Observer **50** · Tracer **25** · Overclock **39**
+      · Reaper **50** · Evasive System **6**
+    - city **Sector-12**, chaos **49.7** against a target of 50 · duty **69.5%** rank-producing
+  - 🚨 **Rank 400,000 is the GATE, not the win condition** — BN6's hardest-won lesson, restated
+    here because it nearly cost that node. BN9 clears by running all **21 black ops in order** via
+    `src/bbblackop.js` (hard rail: it refuses `Operation Daedalus` without an explicit argument,
+    since completing that op destroys the node). **Nothing has run the ladder in BN9 yet** — the
+    newest `logs/bbblackop-*.json` is BN10's.
+  - 🔑 **The SP bank is again the unpulled lever: 83,472 points sitting idle.** They are
+    **node-local** and are destroyed on the clear, so spending them costs *nothing*. In BN10 this
+    moved Daedalus from `p[0.5164, 1.0000]` to `p[1.0000, 1.0000]` and made the entire back half
+    free. **Spend it before the ladder's back half.** `src/bbskillbuy.js` now spends the success
+    pair by marginal value rather than list order (`89372cb`), so the BN10 defect below is fixed.
+  - ✅ **`Diplomacy` finally has a real per-run number, and it settles BN6's two bad ones.**
+    **72 runs, 528.0 chaos removed ⇒ ~7.3 per run**, holding Sector-12 at **49.7** against its
+    target of 50. ⚠️ BN6's one clean sample read **645 removed in a single run**, and this file
+    warned that one sample could not distinguish an absolute effect from a proportional one —
+    **it was proportional.** Uncontrolled cities show what that looks like: Aevum **8,021**,
+    Ishima **8,235**. The retracted 174/run figure stays retracted.
+  - ⚠️ **Nothing carried over from BN10 but Source-Files, home scripts, and Intelligence.** Rank,
+    skill points, $195b, all augmentations, the fleet and every faction membership were destroyed
+    on the clear, and so was Grafting Entropy (`Aug. Success Chance mult: 81.7%`, i.e. 10 grafts).
+    **Expect the same on the BN9 clear** — including the 83,472 SP above, which is why spending
+    them is free.
+  - **Why BN9:** documented next step from the 2026-08-16 re-derivation — redo-tax **1.33x**
+    (second-cheapest), **~16 days (12–23)** via the Bladeburner ladder. Grants SF9 (Hacknet
+    Servers; L2 = 128GB home start, L3 = pre-upgraded Hacknet Server on node entry). ⚠️ **BN9 is
+    the "harshest node"**: max money **1%**, **private servers disabled**, home RAM cost raised,
+    hacking mults nerfed — so **the batcher economy that funded BN6/BN10 largely does not exist
+    here.** Bladeburner is not merely preferred, it is close to the only route. Expect the
+    funding model to need rethinking, not porting.
+  - 📌 **A STALENESS LESSON THIS LINE KEEPS TEACHING — the paragraph that lived here was itself
+    written as a correction of a claim that went stale within hours, and then went stale the same
+    way.** It asserted "Bladeburner is not joined, combat is 1/1/1/1, the entry gate is untouched"
+    on 2026-08-25; eleven days later rank read **286,183** and combat **319/245/231/249**. 🔑 **A
+    block labelled "CORRECTED" is not thereby durable — it is just a newer snapshot.** Write live
+    state with a stamp and a recompute command, or don't write it.
+  - 🔑 **The economy is the Hacknet, and the batcher never ran here — deliberately.** `daemon.js`
+    has produced **zero** batches in BN9, still true as of 2026-09-05: the newest
+    `daemon-batch-log.json` entry is 11 days old and reads `hackingLevel: 247`, i.e. it is BN10's.
+    §2 of the Phase 43 doc argues it should stay down, and it has. Overflow hashes auto-sell at
+    **exactly $250,000** each (derived to <0.1%), which prices every hash decision in dollars.
+  - 🔑 **`Exchange for Bladeburner Rank/SP` is MEASURED dead as a rank lever** (Q1, closed
+    2026-09-01, `logs/hashexchangeprobe-1788264590122.json` / `-1788264716196.json`): **+100 rank,
+    flat**, while cost escalates linearly (250 hashes, then 500, …). Spending the *entire* bankroll
+    buys ~1.4% of the remaining rank. **Never buy the SP exchange** — the rank exchange grants
+    ~33 SP as a byproduct at the same price. 🔑 Byproduct constant: **SP accrues at rank/3.**
+  - 🔑 **The entry gate was graft-FIRST, not grind-first — and that is the transferable lesson.**
+    BN9 combat mult **0.45** × player **1.3824** = **0.6221**, which puts combat 1→100 at
+    **~78,300 exp/stat ≈ 5.1 days** of grinding. Grafting to ~+50% mult first drops it to
+    **~14,100 exp/stat ≈ 0.9 days** — required exp collapses **super-exponentially** in the
+    multiplier (the BN2 *raise M, don't grind exp* lesson, in a new subsystem).
+  - **✅ Phase 43 (BN9 opening) SHIPPED 2026-08-26.** Stage 1 → stage 2 (cold review + three fix
+    rounds) → WI-A…WI-F merged (`6d45405`); RAM gates then measured live (`83c24c6`: 4 pass, and
+    the 2 failures were wrong *gate numbers*, not wrong code). Docs graduated to `docs/phases/`.
+    - **Open questions: Q1/Q4/Q9/Q12 closed by measurement. Q2/Q3/Q5/Q6/Q11 lapsed to their
+      defaults** — every default was "no action", so nothing is owed. **Q7 is a standing rail with
+      no expiry: NEVER install an augmentation in BN9** (an install is assumed to reset Hacknet
+      Servers, which are the node's entire income, and it is not testable without doing it).
+      **Q10 (is `Mug` the right crime for BN9) expires 2026-09-10** and is moot unless the grind
+      is restarted. Full table: `docs/phases/phase-43-bn9-opening.features.md` §7.
+
+  - **[✅ BN10 CLOSED 2026-08-25 — everything from here to the BN6 block below is CLOSED
+    HISTORY, kept for its lessons, not its plan. Do not read any of it as current.]**
   - **✅ BN10.1 CLEARED 2026-08-25** via the Bladeburner black-op ladder, same shape as BN6.
     **Operation Daedalus completed FIRST TRY, zero failed attempts**, at `p[1.0000, 1.0000]`,
     713s action time, rank **2,031,352 → 2,062,551** (+31,199). `getNextBlackOp()` then read
@@ -24,47 +95,11 @@ on request — hold to them even when the moment is uncomfortable.
       p[1.0000, 1.0000]**. ⚠️ **Do this again in BN9 before its ladder's back half** — and note
       the projection that the ladder would land ~1,000–1,500 rank SHORT of its gate never
       materialised here, because rank ran 5x over the gate long before the last three ops.
-    - 🔴 **`bbskillbuy.js` starved Digital Observer and reported `[ok]`** — greedy
-      list-order spending on a **product** multiplier. Cost ~1.8x at equal spend (x260 realised
-      vs ~x475 balanced). Harmless here, **will bite in BN9** where the bank re-grinds from 0
-      against a 1.33x redo-tax. → `BACKLOG.md`.
-  - ⚠️ **Nothing carried over but Source-Files, home scripts, and Intelligence.** BN10's rank,
-    skill points, $195b, all augmentations, the fleet and every faction membership are gone.
-    Grafting Entropy (`Aug. Success Chance mult: 81.7%`, i.e. 10 grafts) cleared with the node.
-  - **Why BN9:** documented next step from the 2026-08-16 re-derivation — redo-tax **1.33x**
-    (second-cheapest), **~16 days (12–23)** via the Bladeburner ladder. Grants SF9 (Hacknet
-    Servers; L2 = 128GB home start, L3 = pre-upgraded Hacknet Server on node entry). ⚠️ **BN9 is
-    the "harshest node"**: max money **1%**, **private servers disabled**, home RAM cost raised,
-    hacking mults nerfed — so **the batcher economy that funded BN6/BN10 largely does not exist
-    here.** Bladeburner is not merely preferred, it is close to the only route. Expect the
-    funding model to need rethinking, not porting.
-  - **🔴 CORRECTED 2026-08-25 (evening) — "the node is idle / nothing is running / home RAM is
-    32GB" was STALE within hours. Do not restate it.** Measured live 11.3h into the node
-    (`logs/hacknetprobe-1787699918752.json`, `logs/bn9econprobe-1787700319698.json`): **home RAM
-    512 GB** · money **$774m** · hacking **103** · **10 processes on home** · and **one Hacknet
-    *Server* at level 100 / 10 cores** that has earned **$3,379,627,520 — the node's entire
-    income.** What *is* still true: **Bladeburner is not joined** (`getRank()` throws) and combat
-    is **1/1/1/1**, so the entry gate is untouched.
-    - 🔑 **`moneySources` reads `hacknet: $3.38b` and `hacking: 0`. `daemon.js` is NOT running and
-      has produced ZERO batches in BN9** — the last `daemon-batch-log.json` entry is timestamped
-      **10.6 s before the node reset**, i.e. it is BN10's. The batcher is not merely weak here, it
-      is absent, and §2 of the Phase 43 doc argues it should stay that way.
-    - 🔑 **The BN9 economy is the Hacknet, and overflow hashes auto-sell at EXACTLY $250,000
-      each** (derived to <0.1%). That constant prices every hash decision in dollars — and it
-      kills `Exchange for Bladeburner Rank/SP` (**$62.5m for the 1st purchase, quadratic after**)
-      as a rank lever. Full arithmetic + the cost curves: `phase-43-bn9-opening.features.md`.
-    - 🔑 **The entry gate is graft-FIRST, not grind-first.** BN9 combat mult **0.45** × player
-      **1.3824** = **0.6221**, which puts combat 1→100 at **~78,300 exp/stat ≈ 5.1 days** of
-      grinding. Grafting to ~+50% mult first drops it to **~14,100 exp/stat ≈ 0.9 days** —
-      required exp collapses **super-exponentially** in the multiplier (the BN2 *raise M, don't
-      grind exp* lesson, in a new subsystem). ⚠️ The **~0.5–2.9 day** estimate below is only
-      reachable on the graft-first ordering.
-    - **📋 Stage 1 (brainstorm) is DONE: `phase-43-bn9-opening.features.md`.** Spec not started
-      and not authorized. Its load-bearing open question is **Q4 — is the 97-aug graft catalog
-      intact in BN9?** (`graftrecon.js`, one run, do it first).
-
-  - **[✅ BN10 CLOSED 2026-08-25 — everything from here to the BN6 block below is CLOSED
-    HISTORY, kept for its lessons, not its plan. Do not read any of it as current.]**
+    - ✅ **`bbskillbuy.js` starved Digital Observer and reported `[ok]`** — greedy list-order
+      spending on a **product** multiplier. Cost ~1.8x at equal spend (x260 realised vs ~x475
+      balanced). **FIXED 2026-09-01 (`89372cb`)** — the success pair is now spent by marginal
+      value, and BN9's BI/DO read **50/50**, i.e. balanced. (It was never filed to `BACKLOG.md`
+      as this line promised; it was fixed directly instead.)
   - **Why BN10:** cheapest Bladeburner redo-tax among reward-bearing nodes (**1.25×**) and the only
     candidate granting new *tools* — **Sleeves + Grafting**. Agreed by three independent sources
     (redo-tax derivation, cold audit, in-game guide). Estimate **~18 days (13–26)** via the
@@ -1190,6 +1225,11 @@ plan, and open questions live in [`docs/bn6-playbook.md`](docs/bn6-playbook.md).
 reference before writing any `ns.bladeburner` code (the whole API throws pre-join, and two
 RAM-analyzer footguns are recorded there), and the playbook before proposing anything about how BN6
 gets cleared.
+⚠️ **`bn6-playbook.md` is NODE-SPECIFIC and BN6 is long cleared — the engine's *mechanics* generalise,
+its BN6 numbers do not.** The **current** node's strategy lives in its phase docs:
+[`docs/phases/phase-43-bn9-opening.features.md`](docs/phases/phase-43-bn9-opening.features.md) (the
+BN9 decisions + open-question table) and its `.spec.md`. There is deliberately no `bn9-playbook.md` —
+if BN9 ever needs strategy churn beyond what the phase docs hold, that is the trigger to create one.
 
 **BitNode multipliers are MEASURED, not transcribed — `run bitnodemults.js`** (6.60 GB, read-only,
 needs SF5 which is held). `ns.getBitNodeMultipliers(n?, lvl?)` is a **pure hypothetical** lookup:
