@@ -501,7 +501,25 @@ but it moves the assumption from *speculative* to *supported by the game's own g
 2. **BN9** — 1.33× makes the node the counter-map called "the harshest seen so far" into an ordinary
    rank grind, because its brutality is aimed at *hacking* (Level 50% / Exp 5% / MaxMoney 1%), which
    a Bladeburner clear does not use.
-3. **BN13/BN14** — the 200%-skill-cost tier; enter once sleeves offset it.
+3. **BN13/BN14** — the 200%-skill-cost tier. ~~enter once sleeves offset it.~~
+   🔴 **THAT ENTRY CONDITION IS DEAD, corrected 2026-09-06.** Sleeves were measured on 2026-08-18
+   *competing* for the Tracking supply pool rather than adding to it (62–68% of its regeneration
+   consumed by one actor — see the risk section below, which settles it). **Nothing offsets the
+   200% skill cost**, so this tier is simply expensive and must be entered on its own merits.
+   The supersede marker went on the guide section at line ~463 and this line was missed —
+   📌 **the same "a true neighbouring claim is the easiest way to not check the one that matters"
+   pattern, one document over.**
+   - ⚠️ **This tier is NOT ranked internally, and the ordering above should not be read as one.**
+     On the redo-tax metric: **BN14 3.33× vs BN13 4.44×**, so BN14 is ~25% cheaper on the grind
+     that dominates both. Countervailing: BN13's combat-100 entry gate is far cheaper
+     (**~12.6k exp/stat** at mult 0.70 × 1.3824, vs BN14's **~47.1k** at 0.50 × 1.3824), but that
+     gap is worth well under a day against a ~9-day grind difference. BN13 also carries a one-way
+     sequencing trap (**accept Stanek's Gift before buying ANY augmentation**) and a far harsher
+     economy (Hacking Exp **10%**, Crime Money 40%, Darknet 10%).
+   - 🔑 **BN14 and BN7 are economically IDENTICAL on this metric** — both `RankGain 60% /
+     SkillCost 200%` = **3.33×**. So the choice between them is purely *which Source-File you
+     want*, never cost, and BN7's demotion at item 4 rests entirely on SF7's weak reward
+     (+8/12/14% Bladeburner mults; Simulacrum needs **three** clears), not on its tax.
 4. **BN7 — DEMOTED from 2nd.** SF6 L1 already grants "Bladeburner in other nodes"; SF7 repeats that
    clause and adds only +8/12/14% Bladeburner mults, plus **The Blade's Simulacrum at L3 = three
    clears at 3.33× each**. Opportunistic, not scheduled.
