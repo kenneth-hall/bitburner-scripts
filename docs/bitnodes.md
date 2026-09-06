@@ -442,7 +442,11 @@ didn't survive").
 
 ### The order that falls out
 
-**BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (repeatable, late) → BN15 → BN11.**
+🔴 **SUPERSEDED 2026-09-06 — BN10 is cleared and BN9 is in progress; this line still named both as
+upcoming.** ~~BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (repeatable, late) → BN15 →
+BN11.~~ Kept for the reasoning trail (still valid for BN9 vs the rest at the time it was written).
+**The current recommendation for the 8 nodes actually remaining (BN3, BN7, BN8, BN11, BN12, BN13,
+BN14, BN15) is in the "Remaining sequence" section below — read that, not this line.**
 
 #### ⚖️ BN12-first was seriously considered and REJECTED — by the in-game guide
 
@@ -587,6 +591,193 @@ parallelism case collapses to its bare 1.25× tax advantage.
   (×3.5 → ×100.3). Stamina augs are measured dead; analysis augs only feed an estimator that S-RF
   already makes selection immune to. The one exception worth separate tracking is **The Blade's
   Simulacrum**, which is a slot-parallelism question, not a success-chance one.
+
+## Remaining sequence — re-derived 2026-09-06 (BN10 cleared, BN9 in progress)
+
+**State this section assumes:** SF1/2/4/5/6/10 held. BN9 clearing now via the black-op ladder (not
+part of this ranking). **The 8 nodes this section orders: BN3, BN7, BN8, BN11, BN12, BN13, BN14,
+BN15.**
+
+### Drift found and fixed in this pass
+
+1. **Item 3 of the old order ("BN13/BN14 — enter once sleeves offset [the 200% skill cost]")
+   depended on sleeve-parallelism, which the risk section 32 lines below it retracted on
+   2026-08-18.** Fixed in commit `9eef4d5` before this session — confirmed still correct on
+   re-read; nothing left to do there.
+2. **BN3 was entirely absent from the redo-tax table, the combat-gate table, and the ETA table** —
+   the three places this doc actually compares nodes. It isn't a minor gap: BN3 turns out to
+   **tie for the cheapest node on the board** (see below). "Barely discussed" was doing the work
+   of "ruled out" without anyone actually ruling it out.
+3. **The 08-16 ETA table mixed corrected and uncorrected numbers under one header, unlabelled.**
+   `estimation-calibration.md`'s ÷1.4 correction was applied to BN10 only, in prose 80 lines
+   below the table — BN7's "~24d" and BN9's "~16d" are the **raw** `14 × (1/RankGain)` figures,
+   never divided by 1.4. Both looked equally authoritative sitting in the same table row shape.
+   Fixed by recomputing every remaining node the same way and labelling both columns (below).
+4. **The redo-tax metric was being applied as the time driver everywhere it appeared, but the
+   doc's own BN7 analysis (line ~351) says only `1/RankGain` drives grind *time*; `SkillCost`
+   drives *affordability*, a separate constraint.** For BN10 the two happened to coincide
+   (`SkillCost` 100%), which is why nobody noticed the conflation. Recomputed below using
+   `1/RankGain` for time, `SkillCost` flagged separately as a funding-gap risk.
+5. **The combat-100 gate (this doc's own newly-priced cost, added 2026-08-16) was only ever
+   computed for BN9/BN10.** Extended to all 8 remaining nodes below — it turns out to be a
+   sub-day-to-low-single-digit-hours cost everywhere except BN9/BN10-tier combat mults, i.e. it
+   does not change the ranking, only tightens the total-ETA figure by under a day in most cases.
+6. ⚠️ **Not fixed, flagged instead — a real inconsistency in the combat-gate formula's own
+   validation.** The task brief's formula (`mult = BitNodeCombatMult × 1.3824`) reproduces BN6's
+   measured 21,668-exp total only at **mult = 1.28** (SF1 L3 alone) — plugging in **1.3824**
+   (SF1 L3 × SF5 L1, the "corrected" base per the 2026-08-16 Stats-panel read) gives **17,729**,
+   an 18% miss, not the "0.01% off" the surrounding text claims for 1.28. Both can't be right.
+   Two live readings disagree with each other and neither has been re-checked. **Default: use the
+   1.3824 basis (it's the more recent, panel-confirmed reading) for the tables below, but treat
+   every combat-gate total in this section as ±18%, and re-run `combatgateprobe.js` once more
+   in-node to settle it.** Expires: next time a combat-100 gate is actually paid (BN3/BN7/BN11 are
+   the cheapest place to get a clean second reading — do it there, not in the doc).
+
+### BN3 belongs in the sequence, and it's near the top
+
+`ns.getBitNodeMultipliers(3, 1)` (`logs/bitnodemults-1786922442524.json`, the `matrix` run):
+`BladeburnerRank 1.00`, `BladeburnerSkillCost 1.00`, `StrengthLevelMultiplier 1.00`,
+`CloudServerLimit 1.00` (private servers **not** disabled), `ServerMaxMoney 0.04`,
+`WorldDaemonDifficulty 2.00` (gate 6,000). **Redo-tax 1.00× — tied for the cheapest node in the
+game, identical to BN6's own baseline** — and the combat-100 gate is the same ~17.7k-exp "short gym
+trip" tier as BN6/BN7/BN11 (§ above), not the BN9/BN10-tier wall. Unlike BN11 (same 1.00× tax),
+BN3 grants a real, unowned mechanic — **SF3: Corporations in other nodes, L3 the full Corp API** —
+a third money engine for whatever money-nerfed node comes after the Bladeburner-route nodes are
+done (BN13 at 33.75%, BN15's stock-adjacent squeeze, or just general wealth).
+⚠️ **The in-game guide's warning about BN3 ("very tough mechanic… advanced… writing a good script
+takes days/weeks") is about the *Corporation* mechanic specifically.** It does not apply here: BN3
+does not disable Bladeburner, so it is clearable via the exact black-op ladder already proven
+in BN6/BN9/BN10, without ever touching Corp. The guide's caution is real but scoped to a different
+win path than the one we run.
+- **Open question, not resolved here (flagged per the "estimate is not a measurement" rule):**
+  BN3's `HackingLevelMultiplier` is **0.80** — far better than BN6's 0.35, and paired with a live
+  economy (cloud servers on, 4% max money). That combination was never checked against the
+  iso-exp model this doc uses elsewhere (BN2/BN4's `level = mult × (32·ln(exp) − 200)`) — it's
+  plausible hacking clears BN3 faster than the ~10-day Bladeburner estimate below. **Default:
+  plan the Bladeburner route (below); revisit only if BN3 is reached and a cheap iso-exp check
+  says otherwise.** No expiry — it's cheap either way, this is a nice-to-check, not a blocker.
+
+### Redo-tax + combat-gate table, all 9 remaining nodes (BN9 included for reference)
+
+Computed from `logs/bitnodemults-1786922442524.json` (`matrix` mode, epoch 1786922442524 —
+**newest by epoch in the filename**, per the "mtimes are unreliable" note; verify with
+`ls logs/bitnodemults-*.json` and compare embedded epochs, not file mtimes). Combat-gate total
+uses the flagged-uncertain 1.3824 basis (see drift item 6 above).
+
+| Node | RankGain | SkillCost | **Redo-tax** | Combat mult | Combat-gate total (exp) | ~hours |
+|---|---|---|---|---|---|---|
+| BN3 | 100% | 100% | **1.00×** | 1.00 | 17,729 | ~1–2h |
+| BN11 | 100% | 100% | **1.00×** | 1.00 | 17,729 | ~1–2h |
+| BN12 | 98% | 102% | **1.04×** | 0.98 | 18,648 | ~1–2h (hacking route, not Bladeburner) |
+| BN7 | 60% | 200% | **3.33×** | 1.00 | 17,729 | ~1–2h |
+| BN14 | 60% | 200% | **3.33×** | 0.50 | 188,363 | ~9–17h |
+| BN13 | 45% | 200% | **4.44×** | 0.70 | 50,210 | ~2–5h |
+| BN15 | 20% | 300% | **15.0×** | 0.70 | 50,210 | ~2–5h |
+| BN9 (in progress) | 90% | 120% | 1.33× | 0.45 | 312,684 | ~14–29h |
+| BN8 | Bladeburner **disabled** | — | N/A | — | — | needs stock-market route instead |
+
+### ETA table, calibration-corrected uniformly (fixes drift item 3)
+
+Method: `raw_days = 14 × (1/RankGain)` (BN6's realised 14-day Bladeburner-only clear, scaled by
+the component that actually drives *time* — see drift item 4), `corrected_days = raw_days / 1.4`
+(`estimation-calibration.md`'s one directly-comparable data point: the 08-06 prediction ran 40%
+high with the range correct). Combat-gate hours from the table above add well under a day in every
+row and are folded into the range, not the center. **These are estimates scaled from a single
+comparable node (BN6, and partially BN10) — not measurements. Treat the range as the honest
+number, the center as illustrative.**
+
+| Node | Raw (1/RankGain × 14d) | Corrected central | Range | Note |
+|---|---|---|---|---|
+| BN3 | 14.0d | **~10d** | 7–14d | + real reward (SF3) |
+| BN11 | 14.0d | **~10d** | 7–14d | reward "counters nothing" |
+| BN7 | 23.3d | **~17d** | 12–24d | old table's "~24d" was the uncorrected raw figure |
+| BN14 | 23.3d | **~17d** | 12–24d | same RankGain as BN7; costlier combat gate, ~9-17h vs ~1-2h — negligible next to the grind |
+| BN13 | 31.1d | **~22d** | 16–32d | + Stanek's-Gift-before-any-aug trap (execution-time, not a scheduling constraint) |
+| BN15 | 70.0d | **~50d** | 36–71d | worst on the board; reward largely moot under our route (below) |
+| BN9 (live) | 15.6d | **~11d** | — | in progress; old "~16d" was the uncorrected raw figure — will get a real scorecard entry when it clears |
+| BN12 | — | **~5.5d** | 4–9d | hacking route, unaffected by this scaling — unchanged from the 08-16 table |
+| BN8 | — | **unmeasured** | — | needs a stock-market engine to be built; no comparable data point exists yet |
+
+⚠️ **A real, separate risk not folded into these numbers: `SkillCost` funds affordability, and it
+is 200%+ on BN7, BN13, BN14, BN15.** BN6's own ladder spent 91,460 SP; at 200% that's 182,920, at
+300% (BN15) it's 274,380 — both plausibly *more* than rank 400,000 has banked by the time the
+gate opens (the exact BN7 case already flagged at line ~356). **This means BN13/14/15's real
+elapsed time likely runs toward the top of their range, not the center** — the center assumes SP
+supply keeps pace, which BN6's own history says it may not once `SkillCost` clears ~150%.
+
+### BN15's SF15.1 reward is devalued under the route we actually run
+
+The old counter-map (2026-07-18, before Bladeburner was ever joined) counted BN15 as a designed
+**Daedalus rep-tax killer** — SF15.1 lets you buy The Red Pill from the darknet lab in every node
+except BN8, skipping the 2.5m-rep grind. **That reward is close to worthless for us now.** Every
+node from BN6 onward is cleared by the black-op ladder + `destroyW0r1dD43m0n(n)` — a route that
+never touches the **Daedalus faction**, its 2.5m-rep gate, or The Red Pill.
+- ⚠️ **NAME COLLISION — read this before "quoting" the sentence above.** Two unrelated things are
+  called Daedalus, and one of them we *do* touch every single clear: **`Operation Daedalus` is the
+  21st and final Bladeburner black op**, and completing it is exactly how the node dies. It has
+  nothing to do with the **Daedalus faction** (rep 2.5m → The Red Pill → backdoor `w0r1d_d43m0n`),
+  which is the thing SF15.1 short-circuits and which this route genuinely skips. Likewise
+  `destroyW0r1dD43m0n(n)` is a Singularity *call* named after the server — **the server is never
+  backdoored, and in BN9 it was not even a valid host** (Q5). 📌 Same shape as this repo's
+  standing "a true neighbouring claim is the easiest way to not check the one that matters" —
+  here the two claims share a *name*, which is worse. SF15's other effects (charisma → salary/rep, `.cache` xp/money) are
+also for a playstyle (charisma/company work, darknet caches) this run doesn't use. **Net: BN15 is
+the single most expensive node remaining (15.0× redo-tax, ~50d corrected central, likely worse per
+the SkillCost risk above) for a reward this strategy barely spends.** Worth naming plainly rather
+than burying in the ranking: this is the strongest *"maybe skip it"* candidate on the list, not
+just the node that sorts last.
+
+### The recommendation
+
+**BN3 → BN11 → BN7 → BN14 → BN13 → BN8 → BN15 → BN12 (repeatable, anytime after, background NFG).**
+
+1. **BN3** — ties for cheapest (1.00×), cheap combat gate, and the only pick in this tier with a
+   real reward (SF3, a third money engine). Do it first.
+2. **BN11** — same 1.00× cost tier, cheap gate, weak reward. No cost reason to defer a node this
+   cheap just because its reward is weak — clear it back-to-back with BN3 while the ladder tooling
+   is warm, rather than parking it at the tail for a reward-only reason that doesn't reduce its
+   price by waiting.
+3. **BN7** — cheapest node in the 3.33× tier (combat gate ~1-2h vs BN14's ~9-17h at the same
+   redo-tax). SF6 already grants "Bladeburner in other nodes," so SF7's own reward is thin
+   (+8/12/14% Bladeburner mults, Simulacrum needs 3 clears) — but see the objection below.
+4. **BN14** — same redo-tax as BN7, costlier gate, IPvGO reward not currently used by this
+   strategy (no faction-favor grinding under Bladeburner-primary). Takes the 3.33× tier's second
+   slot on cost alone.
+5. **BN13** — 4.44×, moderate gate. Stanek's Gift-before-any-aug rule is a same-node execution
+   constraint (not a cross-node ordering one — confirmed the restriction is local to being inside
+   BN13), so it doesn't force this position; cost does.
+6. **BN8** — Bladeburner disabled outright; needs a stock-market engine that doesn't exist yet.
+   Ordered after the Bladeburner-route nodes so building that engine doesn't interrupt ladder
+   cadence, not because anything blocks it earlier (SF10/grafting prerequisite already held since
+   BN10.1).
+7. **BN15** — worst redo-tax in the game (15.0×) for a reward this route mostly doesn't use (see
+   above). Last of the "clear it" nodes; genuinely worth a fresh look at whether it's worth
+   clearing at all versus stopping at BN14 total-SF-count.
+8. **BN12** — unchanged from the 08-16 analysis: hacking-viable (~5.5d) but the in-game guide's
+   own "do after unlocking all mechanics" holds — by the time items 1–7 are done, all mechanics
+   are unlocked, and BN12 becomes a background NFG ratchet run indefinitely after, not a one-time
+   stop in this sequence.
+
+**Strongest objection to this order: BN7 might be underpriced by treating its reward as thin.**
+"+8/12/14% Bladeburner mults" is not the same field as `BladeburnerRank` — if it multiplies rank
+*gain* rather than skill effectiveness, holding SF7 before BN13/BN14/BN15 would compound across
+every later grind: at L1 (+8%) alone, 8% of BN13+BN14+BN15's combined ~89 corrected-days is **~7
+days** of savings spread across the rest of this sequence — plausibly close to BN7's own ~17-day
+cost, and BN7 needs 3 clears (not 1) to reach L3's +14% and the Simulacrum aug. **This is not
+verified** — the exact mechanic `BladeburnerSkillCost`-adjacent bonus multiplies is not confirmed
+anywhere in this doc or `markdown/`, so this stays an objection, not a re-ranking, until checked.
+**Default: keep BN7 at position 3 as scheduled; check what "+bladeburner mults" actually
+multiplies (grep `markdown/bitburner.player.mults.md` or read the in-game Bladeburner skill panel)
+before the ladder reaches BN13, since that's the cheapest point to still front-load BN7 if the
+math holds up. Expires when BN14 is entered — after that, front-loading no longer has enough
+downstream grind left to pay for itself.**
+
+**What this order costs if it's wrong:** if BN3/BN11 turn out cheaper via hacking (the flagged open
+question above), we spend ~10 extra Bladeburner-route days each that a hacking climb might have
+undercut — bounded, not catastrophic, since both are cheap in absolute terms either way. If BN15's
+reward is skipped outright rather than cleared last, that's ~50+ days saved for a Source-File this
+strategy has shown zero use for so far — the real decision, when we get there, is likely "skip it,"
+not "when." Flagging that now rather than let the ranking imply it must be done.
 
 ---
 
