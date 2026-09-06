@@ -22,6 +22,38 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🔴 NEW 2026-09-06 — the dashboard GOAL panel reports `REACHED` while the node is under half
+  cleared. It displays the PROXY as if it were the win condition, which is the precise BN6
+  failure this repo has a durable lesson about.** Live at the time of writing: the panel read
+  `rank 412.07k/400.00k (gate 21ops) ~103.0% | REACHED` while **10 of 21 black ops were done —
+  47.6%**. Kenneth read it and reasonably asked whether the node was ready to end. It was not.
+  - **Root cause is a units mismatch, not a stale constant.** `goallog.js:633` computes
+    `rankPct = rankValue / RANK_TARGET` where `RANK_TARGET = 400_000`, and `dashboard.js:820`
+    prints it under a comment that literally says *"The win condition, leading"*. **Rank 400,000
+    is the rank *requirement on the 21st op*, not the win condition** — so the panel's headline
+    number saturates at 100% while the actual ladder can be anywhere from 0/21 to 21/21.
+  - ⚠️ **A label patch was already attempted and is NOT a fix.** `goallog.js:181` sets
+    `9: { rank: "gate 21ops" }`, which is why the panel says `(gate 21ops)`. It relabels the
+    target while still dividing by it — so the `~103.0%` and the `REACHED` are both still
+    rank-derived. **Do not "fix" this by editing the label again.**
+  - **Next action:** emit real ladder progress and lead with it.
+    `goallog.js` reads `ns.bladeburner.getNextBlackOp()` (2 GB) + `getBlackOpNames()` (0 GB),
+    derives `done = indexOf(nextOp)` (and `21` when it reads `null`), writes
+    `ladderProgress: { done, total, nextOp }` into `goal-state.json`; `goalPanel` then leads with
+    `ops done/21` and reserves `REACHED` for `done === total`. Keep the rank line — it is still
+    the right *gating* readout — but demote it below the ladder line.
+    ⚠️ `getNextBlackOp` **throws pre-join**, so guard it the way `goallog.js:241` already guards
+    `getRank()`, and note the panel must degrade to today's behaviour in a node where Bladeburner
+    is disabled entirely (**BN8**).
+  - **Why it is filed rather than fixed on the spot:** the fix does not advance the in-flight BN9
+    clear (~1–2h out) and would mean a code change plus a `goallog.js` restart while the black-op
+    ladder is mid-run. **Do it in BN3**, before the next ladder starts — every remaining node
+    clears by this same ladder, so the panel will mislead once per node until it is fixed.
+  - 📌 **The durable point, already in `CLAUDE.md` and now with a second instance: A PROGRESS
+    TARGET IS NOT A WIN CONDITION.** BN6 hit this in the engine (no black-op stage at all); BN9
+    hit it in the *instrumentation*. Both times the readout said "on track" or better while the
+    run could not finish. **Instrument the win condition, not the thing that correlates with it.**
+
 - **🔴 NEW 2026-08-25 — `graftrecon.js` POOLS the four combat stats, but every gate that
   matters is on the MINIMUM of them.** `combatLevelFactor` is the product of whatever stats an aug
   touches (`Wired Reflexes` = dex 1.05 × agi 1.05 → **1.1025**), and `cumulative.rawCombatFactor`
