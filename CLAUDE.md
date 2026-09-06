@@ -26,8 +26,29 @@ on request — hold to them even when the moment is uncomfortable.
   - 🚨 **Rank 400,000 is the GATE, not the win condition** — BN6's hardest-won lesson, restated
     here because it nearly cost that node. BN9 clears by running all **21 black ops in order** via
     `src/bbblackop.js` (hard rail: it refuses `Operation Daedalus` without an explicit argument,
-    since completing that op destroys the node). **Nothing has run the ladder in BN9 yet** — the
-    newest `logs/bbblackop-*.json` is BN10's.
+    since completing that op destroys the node).
+  - **🔴 LADDER IS LIVE as of 2026-09-06 — and the DESTINATION IS DECIDED: BN3.** Kenneth's call,
+    2026-09-06, off the re-derived sequence (`docs/bitnodes.md` § "Remaining sequence").
+    **Remaining steps, in order — do not skip step 2:**
+    1. `bbblackop.js 20` runs ops 1–20. (Started at rank 408,388 with the SP bank freshly spent;
+       zero failures through op 10.)
+    2. **Re-spend the SP the ladder itself earns** (`bbskillbuy.js <target>`) *before* firing
+       Daedalus. SP accrues at **rank/3** and the ladder's own rank rewards are large, so the bank
+       refills during the run. This is the BN10 lever that made Daedalus first-try.
+    3. `bbblackop.js 1 daedalus` — op 21. ⚠️ **Completing it does NOT destroy the node.**
+    4. `destroybn.js 3 confirm` — **THIS is the irreversible step.** It aborts on its own unless
+       `getNextBlackOp()` reads `null`, and `nextBN` is **MANDATORY** in this build.
+    - 🔑 **Why BN3, in one line:** it ties for the **cheapest node on the board** (redo-tax
+      **1.00×**, combat mult **1.00**) *and* is the only node in that tier with an unowned reward
+      (**SF3 — Corporations**). It was missing from all three of `bitnodes.md`'s comparison tables
+      until 2026-09-06; "barely discussed" was doing the work of "ruled out".
+    - ⚠️ **BN3 is money-starved** (`ServerMaxMoney` **0.04**, `AugmentationMoneyCost` **3×**,
+      crime/hacknet/company money all ~0.25). That would gut a batcher clear and **mostly does not
+      bite the Bladeburner route** — combat is unpenalised, so the entry gate is grindable without
+      grafting, and skill points come from rank, not cash. Do not port BN9's Hacknet-economy
+      assumptions into it; re-derive the funding model on entry.
+    - ⚠️ The in-game guide's BN3 warning ("very tough mechanic, scripts take days/weeks") is scoped
+      to the **Corporation mechanic**, which a black-op clear never touches.
   - 🔑 **The SP bank is again the unpulled lever: 83,472 points sitting idle.** They are
     **node-local** and are destroyed on the clear, so spending them costs *nothing*. In BN10 this
     moved Daedalus from `p[0.5164, 1.0000]` to `p[1.0000, 1.0000]` and made the entire back half
