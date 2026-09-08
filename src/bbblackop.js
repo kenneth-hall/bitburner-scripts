@@ -59,10 +59,60 @@ const START_VERIFY_MS = 8_000;
 // makes the win condition unreachable until it is re-ground. Both guards are checked
 // before every attempt AND after every failure, since a single failure can cross either.
 const RANK_FLOOR = 400_000;
-const RANK_LOSS_BUDGET = 40_000; // per run, across all ops
+
+// 2026-09-07: raised 40,000 -> 120,000. The budget exists as a runaway brake, but it was
+// sized when rank sat just over the floor; rank now reads ~732,000, i.e. ~332,000 of
+// headroom, and MAX_ATTEMPTS (40/op) already bounds a single bad op. At the measured
+// ~349 rank per failure the expected cost of the remaining ladder is ~18,000, so 40,000
+// would abort a merely UNLUCKY run partway rather than a runaway one. RANK_FLOOR is the
+// guard that actually protects the win condition and is unchanged.
+const RANK_LOSS_BUDGET = 120_000; // per run, across all ops
+
+// 🔴 THE FIX FOR WHAT KILLED THE 2026-09-06 RUN. Stamina below 50% of max applies a
+// success-chance PENALTY, and a black-op attempt costs more stamina than it regenerates
+// over its own runtime -- so firing retries back-to-back is a death spiral: fail -> less
+// stamina -> lower success -> more failures. Measured, in that run's own log:
+//   Operation Tyrell            start stamina 1.00 ->  5 failures
+//   Operation Wallace           start stamina 0.68 -> 10 failures
+//   Operation Shoulder of Orion start stamina 0.15 -> 37 failures, ABORTED, -12,927 rank
+// The tell that it is the penalty and not a real ceiling: Orion read pMax 0.6046 at
+// stamina 0.15 -- the ONLY op in the whole ladder history with pMax below 1.0000 -- and
+// reads 1.0000 again once stamina recovers. Nothing was wrong with the op.
+//
+// So: gate every attempt, the first and every retry, on stamina being back above
+// STAMINA_GATE. The wait is bounded so a stuck regen cannot hang the run forever.
+const STAMINA_GATE = 0.80;
+const STAMINA_WAIT_MAX_MS = 60 * 60_000;
+const STAMINA_POLL_MS = 5_000;
 
 function holdSlot(ns) {
   ns.write(SLOT_HOLD_FILE, JSON.stringify({ ts: Date.now(), holder: "bbblackop" }), "w");
+}
+
+/**
+ * Block until stamina is back above STAMINA_GATE, keeping the slot hold refreshed the
+ * whole time so no other claimant steals it during the rest. The slot is deliberately
+ * left EMPTY -- stamina regenerates on its own, and running anything in it would spend
+ * the stamina we are waiting on. Returns the wait record for the log.
+ */
+async function waitForStamina(ns, tag) {
+  const rec = { tag, waitedMs: 0 };
+  const [c0, m0] = ns.bladeburner.getStamina();
+  rec.fractionBefore = c0 / m0;
+  if (rec.fractionBefore >= STAMINA_GATE) { rec.fractionAfter = rec.fractionBefore; return rec; }
+
+  ns.bladeburner.stopBladeburnerAction();
+  while (rec.waitedMs < STAMINA_WAIT_MAX_MS) {
+    await ns.sleep(STAMINA_POLL_MS);
+    rec.waitedMs += STAMINA_POLL_MS;
+    holdSlot(ns);
+    const [c, m] = ns.bladeburner.getStamina();
+    if (c / m >= STAMINA_GATE) break;
+  }
+  const [c1, m1] = ns.bladeburner.getStamina();
+  rec.fractionAfter = c1 / m1;
+  rec.timedOut = rec.fractionAfter < STAMINA_GATE;
+  return rec;
 }
 
 /** @param {NS} ns */
@@ -165,6 +215,14 @@ export async function main(ns) {
         break;
       }
 
+      // Rest to the gate BEFORE reading the success chance -- the estimate itself is
+      // depressed by the stamina penalty, so reading it while tired logs a number that
+      // describes the rest state rather than the op.
+      opRec.staminaWaits = [];
+      opRec.staminaWaits.push(await waitForStamina(ns, "pre-op"));
+      const [stamGated, stamGatedMax] = ns.bladeburner.getStamina();
+      opRec.staminaFractionAtStart = stamGated / stamGatedMax;
+
       opRec.successChance = ns.bladeburner.getActionEstimatedSuccessChance("Black Operations", nextOp.name);
       opRec.actionTimeMs = ns.bladeburner.getActionTime("Black Operations", nextOp.name);
 
@@ -229,8 +287,13 @@ export async function main(ns) {
               " rank, over the " + RANK_LOSS_BUDGET + " budget, after " + attempts + " failed attempt(s)";
             break;
           }
+          // Rest before retrying. Without this the next attempt runs at a lower stamina
+          // than the one that just failed, which is the spiral described at STAMINA_GATE.
+          const waitRec = await waitForStamina(ns, "retry-" + attempts);
+          opRec.staminaWaits.push(waitRec);
+
           ns.bladeburner.startAction("Black Operations", nextOp.name);
-          deadline = Date.now() + opRec.actionTimeMs + 60_000;
+          deadline = Date.now() + opRec.actionTimeMs + 60_000; // clock restarts AFTER the rest
         }
       }
 
