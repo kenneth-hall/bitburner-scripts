@@ -9,9 +9,46 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **🟢 IN BN9.1 (Hacktocracy), Stage A rank grind —
-  roughly ONE DAY from the 400,000 gate.** Entered 2026-08-25 straight off the BN10.1 clear.
-  Held SFs: **1 · 2 · 4 · 5 · 6 · 10**.
+- **Current goal (keep this line current):** **🟢 IN BN3.1 (Corporatocracy), fresh entry
+  2026-09-18.** Held SFs: **1 · 2 · 4 · 5 · 6 · 9 · 10** (verified live on the Augmentations
+  screen after entry). Nothing carried in but Source-Files, home scripts and Intelligence
+  (**115 / 18.7k exp**) — money $1.262k, all combat/hacking stats 1, no augmentations.
+  - 🔴 **THE BN9 BLOCK BELOW IS CLOSED HISTORY AS OF 2026-09-18. BN9 WAS NEVER CLEARED BY
+    PLAY — SF9.1 WAS GRANTED IN A SAVE REBUILD AFTER A DISK-LEVEL SAVE LOSS.** Read it for its
+    lessons, never as current state, and do not cite SF9 as evidence that the Bladeburner
+    ladder completed in BN9. It did not; the run was ~1 day short of the 400,000 gate.
+  - **💥 SAVE LOSS + REBUILD, 2026-09-18** — full record: `docs/save-recovery-2026-09-18.md`.
+    - **Cause: an unclean shutdown at 2026-09-08 07:24:53** (System log `Kernel-Power 41` +
+      `EventLog 6008`). NTFS recovered file *metadata* and lost the unflushed data blocks, so
+      files came back **correct-sized and zero-filled**. The game's IndexedDB save blob was
+      **2,717,609 bytes of pure zeros**; `245 of 305` files in `logs/` went the same way.
+      All three disks report **Healthy** — this was a power event, not failing hardware.
+    - **Unrecoverable, verified not assumed.** The leveldb held 1,272 `bitburnerSave` records
+      but every one is ~985 bytes of *metadata pointing at the external blob*; the longest
+      nonzero run in the whole file is **31 bytes**. Steam Cloud's copy is from **2026-07-04**,
+      older than the backups. Corrupt artifacts archived to `bitburner-save-recovery-2026-09-18/`.
+    - **Rebuilt from `saves/bitburnerSave_1786895766_BN6x1.json.gz` (2026-08-16)** — SF9.1 and
+      SF10.1 injected, SF6.1 earned by an in-game clear, Intelligence extrapolated at the one
+      measured rate (**296.1 exp/day**, Jul 25 → Aug 16) to **18,422 exp = level 115**.
+    - 🔑 **The rebuild's real lesson: LET THE GAME PERFORM ITS OWN PRESTIGE.** A BitNode reset
+      rewrites servers, factions, augmentations, programs and skills together; hand-synthesizing
+      that is how a save gets subtly broken. The rebuild instead satisfied the *documented*
+      precondition and let the game do the work.
+    - 🔴 **AND THE TRAP THAT COST AN EXTRA IMPORT — `w0r1d_d43m0n` IS AN ORPHAN UNTIL THE RED
+      PILL IS *INSTALLED IN PLAY*.** In every save, WD carries `serversOnNetwork: []` and **no
+      server links to it**; installing The Red Pill is what wires it to `home`. Injecting the
+      aug into the save skips that wiring, so the server stays unreachable —
+      `ns.getServer("w0r1d_d43m0n")` throws **`Invalid host`**, and
+      **`destroyW0r1dD43m0n()` then fails SILENTLY, returning with no error and no effect.**
+      The fix is two edits: append `w0r1d_d43m0n` to `home.serversOnNetwork` and set WD's
+      `serversOnNetwork` to `["home"]`. 📌 Sibling to "a script can fail *after* it starts" —
+      here the *API call* failed after starting, with no modal at all.
+    - ⚠️ **What actually fired the clear was `backdoorwd.js`, not the Singularity call.** Once
+      WD was wired and rooted, the resident script backdoored it on its own within seconds and
+      the BitVerse appeared. Worth expecting: **the restored save's whole automation fleet comes
+      back up live**, and it acts.
+    - 📌 **The cadence lesson, which is the one that actually cost something: the last export was
+      33 days old.** Source-Files and Intelligence were reconstructable; the BN9 grind was not.
   - **📊 Stamped 2026-09-05 ~08:13 UTC — this is a SNAPSHOT, recompute before quoting any of it.**
     Source: `logs/bladeburner-state.json` (rewritten every engine loop, so it is never more than
     seconds old) and `node tools/bb/cli.mjs stats`. 🔴 **The snapshot that used to sit here was
