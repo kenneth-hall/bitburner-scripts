@@ -9,10 +9,111 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **🟢 IN BN3.1 (Corporatocracy), fresh entry
-  2026-09-18.** Held SFs: **1 · 2 · 4 · 5 · 6 · 9 · 10** (verified live on the Augmentations
-  screen after entry). Nothing carried in but Source-Files, home scripts and Intelligence
-  (**115 / 18.7k exp**) — money $1.262k, all combat/hacking stats 1, no augmentations.
+- **Current goal (keep this line current):** **🟢 IN BN3.1 (Corporatocracy) — entered
+  2026-09-18, day 2. Route: the Bladeburner black-op ladder, the same shape proven in
+  BN6/BN9/BN10.** Held SFs: **1 · 2 · 4 · 5 · 6 · 9 · 10** (verified live on the
+  Augmentations screen after entry). Nothing carried in but Source-Files, home scripts and
+  Intelligence (**115 / 18.7k exp**).
+  - **📊 Stamped 2026-09-19 ~14:26 UTC — SNAPSHOT, recompute before quoting any of it.**
+    Recompute: `node tools/bb/cli.mjs stats`, the tail of `logs/daemon-batch-log.json`, and
+    `node tools/bb/cli.mjs terminal "free"`.
+    - hacking **162**, climbing ~**1 level/min** · combat **1 / 1 / 1 / 1** · money **~$1.3k**
+    - Bladeburner **not joined** — the gate is combat **100**, so rank is 0 and the whole
+      `ns.bladeburner` fleet is idle. `daemon.js`'s startup line *"no Bladeburner access"* is
+      `inBladeburner()` reading false, **not** a missing API: SF6.1 satisfies the node half of
+      the gate, exactly as it did in BN9 and BN10.
+    - batcher **live** — 236 GB budget at 97.9% util, one target (`foodnstuff`), home **31.65 /
+      32.00 GB**. TOR + `BruteSSH.exe` bought, `FTPCrack.exe` reserved at $1.5m, **no cloud
+      fleet yet** (`logs/cloud-state.json` → `fleet: null`).
+  - 🚨 **THE OPENING IS BLOCKED ON HOME RAM — this is the next action, and it is not a money
+    problem.** Home is **32 GB** and the resident stack alone fills it (`daemon.js`,
+    `resourcemanager.js`, `cloudmanager.js`, `transactionsmonitor.js`, `dashboard.js` =
+    31.65 GB), so **`combatgrind.js` (8.70 GB) cannot start** — and neither can
+    `goallog.js` / `procureprograms.js` / `backdoorfactions.js` / `augfarmer.js` / `xpfarm.js` /
+    `ratchetlog.js` / `backdoorwd.js` / `gatewatch.js`, all of which the daemon logged as skipped.
+    ⚠️ `HOME_RESERVE_GB` is **160** against a 32 GB home, so the batcher is *not* the squatter
+    here; the residents are. And BN3 charges **150% Home RAM Cost**, so buying out of it is
+    pricier than usual on a 4%-max-money economy.
+    - 🔑 **Recommended unblock: don't fix the RAM — route around it.** The combat gate is
+      **17,729 exp total across the four stats (~1–2h)** and needs no automation at all: commit
+      a crime from the in-game UI (crimes auto-repeat) and the player-action slot does the work
+      at **zero RAM**. `combatgrind.js` is a convenience, not a requirement. Free home RAM later
+      for `joinbladeburner.js` (**7.60 GB**) and the ladder scripts, by which point the batcher
+      will have paid for a home upgrade.
+  - **The fresh-node ladder sequence for BN3** — re-derived, because the four-step list in the
+    BN9 block below was written mid-ladder at rank 408,388 and **does not apply from a cold
+    start**:
+    1. **Combat 1 → 100** (17,729 exp, ~1–2h; BN3's combat mult is **1.00**, so there is no
+       grafting detour — that was a BN9-only move forced by its 0.45 combat mult).
+    2. `joinbladeburner.js` → `joinBladeburnerDivision()`; verify with a `getRank()` read, never
+       the boolean.
+    3. `bladeburnermanager.js` grinds rank to **400,000**. ⚠️ **That is the GATE on the last
+       black op, not the win condition.**
+    4. `bbskillbuy.js <target>` — spend the SP bank (it accrues at **rank/3**) *before* the
+       ladder's back half. SP is node-local and destroyed on the clear, so spending it is free.
+    5. `bbblackop.js 20` (ops 1–20) → re-spend the SP the ladder itself earns →
+       `bbblackop.js 1 daedalus` (op 21). ⚠️ **Completing Daedalus does NOT destroy the node.**
+    6. `destroybn.js <nextBN> confirm` — **THIS is the irreversible step.** It aborts on its own
+       unless `getNextBlackOp()` reads `null`, and `nextBN` is **MANDATORY** in this build.
+    - **ETA ~10 days, range 7–14** (`docs/bitnodes.md` § "ETA table"). ⚠️ Scaled from BN6's one
+      comparable clear, not measured — read `docs/estimation-calibration.md` before quoting it.
+  - **✅ CLOSED 2026-09-19 BY CALCULATION — the hacking route is NOT competitive in BN3, and
+    `bitnodes.md` left this open pending exactly this check ("revisit only if BN3 is reached").**
+    BN3 is reached; here is the answer. BN3's `HackingLevelMultiplier` **0.80** really is far
+    better than BN6's 0.35 — the WD gate needs only **M ≈ 14–19** (vs BN6's 28–37), because
+    `6000 / 0.80 = 7,500` raw against BN6's `6000 / 0.35 = 17,143`. **The gate is 2.3× easier and
+    it does not matter**, because the *ratchet that raises M* is what BN3 starves:
+    - effective steal = `ServerMaxMoney 0.04 × StolenMoneyFromHack 0.20` = **0.008**, against
+      BN6's `0.20 × 0.75` = **0.15** — **18.75× worse**;
+    - `AugmentationMoneyCost` **3×** on top ⇒ aug-buying power ~**56× worse than BN6**;
+    - BN6 measured its ratchet at **~0.0045 M/hour** and still projected **240–323 days**. Scale
+      that by 1/56 and M≈16 is *orders of magnitude* out of reach.
+    ⚠️ **Honest framing: this is a computed estimate, not a measurement** — BN6's 0.0045 M/hour
+    came off a mature fleet and is being scaled by a money ratio. It survives being wrong by a
+    factor of 100. **Bladeburner stands as the route; do not reopen this on the 0.80 mult alone.**
+  - **What BN3's multiplier table actually does to us** (source: `docs/bitnodes.md` § BN3 —
+    ⚠️ its cited log is destroyed, see below):
+    - **Helps:** `BladeburnerRank` **1.00** / `BladeburnerSkillCost` **1.00** (redo-tax **1.00×**,
+      tied cheapest in the game) · combat mult **1.00** · hacking **exp** unpenalised · cloud
+      servers **not** disabled · `Favor to Donate` **50%** (donation unlocks at 75 favor, not 150).
+    - **Hurts:** `ServerMaxMoney` **4%** · `StolenMoneyFromHack` **20%** · `ServerGrowthRate` 20%
+      · `AugmentationMoneyCost` **300%** · **`AugmentationRepCost` 300%** · Home RAM Cost 150% ·
+      cloud base cost 2.00 / softcap 1.30 · crime money 25% · company 25% · darknet 40% ·
+      Hacknet production 25%.
+    - ⚠️ **Do not port BN9's Hacknet economy here** — Hacknet production is 25% and there are no
+      Hacknet *Servers* without SF9.2 (we hold SF9.**1**, which is also why home started at 32 GB
+      and not 128). Do not port BN6's batcher-as-funding-engine either: at 0.008 effective steal
+      the batcher funds a fleet and port openers, not an aug ratchet.
+    - ⚠️ The in-game guide's BN3 warning ("very tough mechanic, scripts take days/weeks") is
+      scoped to the **Corporation mechanic**, which a black-op clear never touches.
+  - **🔑 Why BN3 was chosen** (Kenneth's call, 2026-09-06): it ties for the **cheapest node on the
+    board** (redo-tax **1.00×**, combat mult **1.00**) *and* is the only node in that tier with an
+    unowned reward (**SF3 — Corporations**). It was missing from all three of `bitnodes.md`'s
+    comparison tables until 2026-09-06; "barely discussed" was doing the work of "ruled out".
+  - 🚨 **EVIDENCE LOSS — 108 of 313 files in `logs/` are still blank-filled from the 2026-09-08
+    power event, and some of them are cited as proof elsewhere in this file.** They are
+    correct-sized and contain nothing but spaces/nulls, so neither `ls` nor a size check catches
+    it — `tr -d '\000 \n\r\t' < f | wc -c` does.
+    - 🔴 **All five `logs/bitnodemults-*.json` are destroyed**, which breaks this file's own
+      standing instruction to *"quote this log, not the prose tables"* — and `docs/bitnodes.md`
+      sources its redo-tax, combat-gate and ETA tables from
+      `logs/bitnodemults-1786922442524.json`, now 146,834 bytes of blanks. **The prose tables are
+      all we have until `bitnodemults.js` (6.60 GB) is re-run** — itself blocked on the home-RAM
+      squeeze above. The 2026-08-16 sweep did verify every hand-written table against the engine
+      with zero discrepancies, so the prose is trustworthy; it is just no longer *backed*.
+    - Also destroyed, and cited by name in this file: `hashexchangeprobe-1788264590122.json` /
+      `-1788264716196.json` (Q1's hash-exchange verdict), `sleevepoolprobe-1787098052402.json`
+      (the sleeve-parallelism falsification), `q10probe-1787274944464.json` (the stamina
+      measurements). **Those conclusions stand as recorded here; their raw evidence does not.**
+    - Intact and still quotable: `bladeburner-state.json`, `bladeburner-attempts.json`,
+      `bladeburner-log.json`, `combatgateprobe-1785371660239.json`, `ratchet-log.json`.
+  - ⚠️ **`logs/backdoor-status.json` and `logs/goal-log.json` are BN9 CORPSES, not BN3 state.**
+    They read `hackingLevel: 6338` and `rank: 459,980` — the last BN9 samples, written before the
+    clear, and nothing has rewritten them because `goallog.js` and `backdoorfactions.js` are among
+    the scripts that do not fit on a 32 GB home. 📌 Same trap as the BN9 block's own staleness
+    lesson, in a new disguise: **a recent mtime is not a recent observation** — viteburner
+    re-syncs every log on dev-server restart, so `ls -t logs/` says "09:24 today" about a reading
+    from a node that no longer exists.
   - 🔴 **THE BN9 BLOCK BELOW IS CLOSED HISTORY AS OF 2026-09-18. BN9 WAS NEVER CLEARED BY
     PLAY — SF9.1 WAS GRANTED IN A SAVE REBUILD AFTER A DISK-LEVEL SAVE LOSS.** Read it for its
     lessons, never as current state, and do not cite SF9 as evidence that the Bladeburner
@@ -49,11 +150,11 @@ on request — hold to them even when the moment is uncomfortable.
       back up live**, and it acts.
     - 📌 **The cadence lesson, which is the one that actually cost something: the last export was
       33 days old.** Source-Files and Intelligence were reconstructable; the BN9 grind was not.
-  - **📊 Stamped 2026-09-05 ~08:13 UTC — this is a SNAPSHOT, recompute before quoting any of it.**
-    Source: `logs/bladeburner-state.json` (rewritten every engine loop, so it is never more than
-    seconds old) and `node tools/bb/cli.mjs stats`. 🔴 **The snapshot that used to sit here was
-    wrong on every single line within days of being written — do not quote a rate or an ETA out of
-    this file.**
+  - **📊 BN9's LAST READING, stamped 2026-09-05 ~08:13 UTC — DEAD STATE. This node no longer
+    exists and nothing below describes BN3.** Kept only so the BN9 lessons keep their numbers
+    attached. 🔴 **Do not quote a rate or an ETA out of it** — the snapshot that used to sit here
+    was wrong on every single line within days of being written, and this one is now wrong on
+    every line by construction. Source was `logs/bladeburner-state.json` + `cli.mjs stats`.
     - rank **286,183 / 400,000** · skill points **83,472 idle** · **9.3 days** into the node
     - rate **1.378 rank/wall-sec** (24h; 1h reads 1.065) ⇒ **~23–30 h to the gate**
     - combat **319 / 245 / 231 / 249** · hacking **132** · money **$259.1b**
@@ -61,31 +162,23 @@ on request — hold to them even when the moment is uncomfortable.
       · Reaper **50** · Evasive System **6**
     - city **Sector-12**, chaos **49.7** against a target of 50 · duty **69.5%** rank-producing
   - 🚨 **Rank 400,000 is the GATE, not the win condition** — BN6's hardest-won lesson, restated
-    here because it nearly cost that node. BN9 clears by running all **21 black ops in order** via
-    `src/bbblackop.js` (hard rail: it refuses `Operation Daedalus` without an explicit argument,
-    since completing that op destroys the node).
-  - **🔴 LADDER IS LIVE as of 2026-09-06 — and the DESTINATION IS DECIDED: BN3.** Kenneth's call,
-    2026-09-06, off the re-derived sequence (`docs/bitnodes.md` § "Remaining sequence").
-    **Remaining steps, in order — do not skip step 2:**
-    1. `bbblackop.js 20` runs ops 1–20. (Started at rank 408,388 with the SP bank freshly spent;
-       zero failures through op 10.)
-    2. **Re-spend the SP the ladder itself earns** (`bbskillbuy.js <target>`) *before* firing
-       Daedalus. SP accrues at **rank/3** and the ladder's own rank rewards are large, so the bank
-       refills during the run. This is the BN10 lever that made Daedalus first-try.
-    3. `bbblackop.js 1 daedalus` — op 21. ⚠️ **Completing it does NOT destroy the node.**
-    4. `destroybn.js 3 confirm` — **THIS is the irreversible step.** It aborts on its own unless
-       `getNextBlackOp()` reads `null`, and `nextBN` is **MANDATORY** in this build.
-    - 🔑 **Why BN3, in one line:** it ties for the **cheapest node on the board** (redo-tax
-      **1.00×**, combat mult **1.00**) *and* is the only node in that tier with an unowned reward
-      (**SF3 — Corporations**). It was missing from all three of `bitnodes.md`'s comparison tables
-      until 2026-09-06; "barely discussed" was doing the work of "ruled out".
-    - ⚠️ **BN3 is money-starved** (`ServerMaxMoney` **0.04**, `AugmentationMoneyCost` **3×**,
-      crime/hacknet/company money all ~0.25). That would gut a batcher clear and **mostly does not
-      bite the Bladeburner route** — combat is unpenalised, so the entry gate is grindable without
-      grafting, and skill points come from rank, not cash. Do not port BN9's Hacknet-economy
-      assumptions into it; re-derive the funding model on entry.
-    - ⚠️ The in-game guide's BN3 warning ("very tough mechanic, scripts take days/weeks") is scoped
-      to the **Corporation mechanic**, which a black-op clear never touches.
+    here because it nearly cost that node too. A Bladeburner node clears by running all **21 black
+    ops in order** via `src/bbblackop.js` (hard rail: it refuses `Operation Daedalus` without an
+    explicit argument, since completing that op destroys the node). **Durable — it carries
+    forward to BN3**, and is restated in the BN3 sequence above.
+  - **🔴 BN9's ladder run — IT NEVER FINISHED. Do not follow this list.** It was written
+    mid-ladder on 2026-09-06 at **rank 408,388 with ops 1–10 already done**, so every step assumes
+    state that no longer exists; the run then died ~1 day short of the gate and SF9.1 came from the
+    save rebuild instead. **The cold-start sequence that actually applies now is in the BN3 block
+    above.** Two things it still teaches:
+    1. **Never skip the mid-ladder SP re-spend** (`bbskillbuy.js <target>`, between the bulk ops
+       and Daedalus). SP accrues at **rank/3** and the ladder's own rank rewards are large, so the
+       bank refills *during* the run. This is the BN10 lever that made Daedalus first-try.
+    2. `bbblackop.js` now gates every attempt on stamina (`709623c`) — **the stamina spiral is
+       what killed this run.** The fix is in the tree and carries forward to BN3.
+    - 📌 The BN3 destination decision, its multiplier table and the "why BN3" reasoning have
+      **moved up into the BN3 block**. They were live plan sitting underneath a CLOSED-HISTORY
+      banner — exactly the shape of mistake this file keeps logging against itself.
   - 🔑 **The SP bank is again the unpulled lever: 83,472 points sitting idle.** They are
     **node-local** and are destroyed on the clear, so spending them costs *nothing*. In BN10 this
     moved Daedalus from `p[0.5164, 1.0000]` to `p[1.0000, 1.0000]` and made the entire back half
@@ -1284,10 +1377,16 @@ reference before writing any `ns.bladeburner` code (the whole API throws pre-joi
 RAM-analyzer footguns are recorded there), and the playbook before proposing anything about how BN6
 gets cleared.
 ⚠️ **`bn6-playbook.md` is NODE-SPECIFIC and BN6 is long cleared — the engine's *mechanics* generalise,
-its BN6 numbers do not.** The **current** node's strategy lives in its phase docs:
-[`docs/phases/phase-43-bn9-opening.features.md`](docs/phases/phase-43-bn9-opening.features.md) (the
-BN9 decisions + open-question table) and its `.spec.md`. There is deliberately no `bn9-playbook.md` —
-if BN9 ever needs strategy churn beyond what the phase docs hold, that is the trigger to create one.
+its BN6 numbers do not.** The same now goes for
+[`docs/phases/phase-43-bn9-opening.features.md`](docs/phases/phase-43-bn9-opening.features.md): it is
+**BN9's** opening, and BN9 is closed history (never cleared by play — see the goal block). Its Q7
+rail ("never install an augmentation") was a **BN9 Hacknet-Server** argument and **does not transfer
+to BN3**, which has no Hacknet Servers.
+🟢 **The current node is BN3.1, and its strategy lives in `CLAUDE.md`'s "Current goal" block plus
+`docs/bitnodes.md` § BN3 — there is no BN3 phase doc and no `bn3-playbook.md`.** That is deliberate:
+BN3 is being cleared with the existing, proven ladder tooling and has needed no new engine. **If BN3
+ever needs strategy churn beyond those two places, that is the trigger to open a phase doc** — don't
+let it accrete into the goal block instead.
 
 **BitNode multipliers are MEASURED, not transcribed — `run bitnodemults.js`** (6.60 GB, read-only,
 needs SF5 which is held). `ns.getBitNodeMultipliers(n?, lvl?)` is a **pure hypothetical** lookup:
@@ -1297,8 +1396,14 @@ Modes: no-arg = current node + all 15 + a derived **redo-tax** table · `sweep <
 node across levels · `matrix [maxNode] [maxLvl]` = everything. Established 2026-08-16: **all 15
 hand-transcribed tables in `bitnodes.md` are correct (zero discrepancies)**, **exactly 15 nodes
 exist** (16–20 throw), **only BN12 varies by SF level**, and **BN12's ramp law is exactly
-`1.02^level`** — effective difficulty doubling every ~17.5 levels. ⚠️ **Quote this log, not the
-prose tables, when a decision turns on a multiplier.**
+`1.02^level`** — effective difficulty doubling every ~17.5 levels.
+🔴 **CANNOT BE FOLLOWED AS WRITTEN AS OF 2026-09-19 — all five `logs/bitnodemults-*.json` were
+destroyed by the 2026-09-08 power event** (correct-sized, blank-filled, so `ls` will not tell you).
+~~⚠️ Quote this log, not the prose tables, when a decision turns on a multiplier.~~ **Until the
+script is re-run, `docs/bitnodes.md`'s prose tables are the only source** — they are trustworthy
+(the 08-16 sweep verified all 15 against the engine) but no longer *backed*. **Re-running
+`bitnodemults.js` is blocked on home RAM in BN3** (32 GB home, resident stack fills it); do it the
+moment 6.60 GB frees up, and check with `tr -d '\000 \n\r\t' < f | wc -c` that the output is real.
 
 **All things GRAFTING live in [`docs/grafting-reference.md`](docs/grafting-reference.md)** - gated
 the same way. Read it before any `ns.grafting.*` code or any graft-vs-install decision. 🔑 **Measured

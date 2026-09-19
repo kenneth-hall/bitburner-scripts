@@ -22,6 +22,38 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🔴 NEW 2026-09-19 — 108 of 313 files in `logs/` are blank-filled corpses from the
+  2026-09-08 power event, and four of them are cited as evidence in `CLAUDE.md`.** They are
+  correct-sized and contain only spaces/nulls, so `ls`, a size check and an mtime check all pass.
+  Detect with `tr -d '\000 \n\r\t' < f | wc -c`.
+  - **Worst case: all five `logs/bitnodemults-*.json` are gone**, which breaks `CLAUDE.md`'s
+    standing rule to *"quote this log, not the prose tables"* and un-backs every table in
+    `docs/bitnodes.md` § "Remaining sequence" (they cite `bitnodemults-1786922442524.json`).
+  - Also gone: `hashexchangeprobe-1788264590122.json` / `-1788264716196.json`,
+    `sleevepoolprobe-1787098052402.json`, `q10probe-1787274944464.json`. Intact:
+    `bladeburner-state.json`, `bladeburner-attempts.json`, `bladeburner-log.json`,
+    `combatgateprobe-1785371660239.json`, `ratchet-log.json`.
+  - **Next action: re-run `bitnodemults.js` (6.60 GB, read-only) and verify the output is non-blank.**
+    Blocked today on the BN3 home-RAM squeeze (32 GB home, resident stack uses 31.65). **Trigger:
+    the first moment 6.60 GB is free on home.** Nothing else is recoverable — the probes' game
+    state is gone with BN9 — so this is the only item here with an action.
+  - Docs already annotated (2026-09-19) so nobody quotes an unbacked number unknowingly; this entry
+    tracks the re-run, not the annotation.
+
+- **🟡 NEW 2026-09-19 — a 32 GB home cannot hold the resident stack, so eight companions never
+  launch in a fresh node.** In BN3.1 `daemon.js` + `resourcemanager.js` + `cloudmanager.js` +
+  `transactionsmonitor.js` + `dashboard.js` = **31.65 / 32.00 GB**, and the daemon logged
+  `goallog.js`, `procureprograms.js`, `backdoorfactions.js`, `procureformulas.js`,
+  `studybootstrap.js`, `augfarmer.js`, `xpfarm.js`, `ratchetlog.js`, `backdoorwd.js` and
+  `gatewatch.js` as skipped for RAM.
+  - **Consequence beyond the missing features: `goal-log.json` and `backdoor-status.json` keep
+    serving the *previous node's* readings**, because the scripts that would overwrite them are the
+    ones that don't fit. A stale-but-recent-mtime log is worse than a missing one.
+  - Not obviously a bug — the daemon handles it gracefully and relaunches on fit. The question is
+    whether the resident set should **shed** something on a small home (dashboard? transactions
+    monitor?) so the observability scripts win the race instead of losing it silently.
+  - BN3 charges **150% Home RAM Cost**, so this bites harder here than in BN1/BN5.
+
 - **🔴 NEW 2026-09-06 — the dashboard GOAL panel reports `REACHED` while the node is under half
   cleared. It displays the PROXY as if it were the win condition, which is the precise BN6
   failure this repo has a durable lesson about.** Live at the time of writing: the panel read

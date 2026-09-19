@@ -594,9 +594,19 @@ parallelism case collapses to its bare 1.25× tax advantage.
 
 ## Remaining sequence — re-derived 2026-09-06 (BN10 cleared, BN9 in progress)
 
-**State this section assumes:** SF1/2/4/5/6/10 held. BN9 clearing now via the black-op ladder (not
-part of this ranking). **The 8 nodes this section orders: BN3, BN7, BN8, BN11, BN12, BN13, BN14,
-BN15.**
+⚠️ **UPDATED 2026-09-18/19 — the state this section assumed has changed twice.** The ranking and
+its arithmetic are unaffected; the *status labels* in the tables below are not.
+- **BN9 is NOT in progress and was never cleared by play.** Its ladder run died ~1 day short of
+  the 400,000 gate; **SF9.1 was granted in a save rebuild** after the 2026-09-08 disk-level save
+  loss (`docs/save-recovery-2026-09-18.md`). Rows marked "BN9 (in progress)" / "BN9 (live)" below
+  are stale labels, not live status. **Never cite SF9 as evidence the ladder completed.**
+- **BN3 is the live node** — entered 2026-09-18. It is item 1 of the recommendation below, so the
+  sequence is being executed as written; it is just no longer "next", it is "now".
+- **Held SFs are now 1/2/4/5/6/9/10.** SF9.1 does not change any ranking here (its level-2 perk,
+  the 128 GB home start, is not held — BN3 started on a 32 GB home).
+
+**State this section assumes:** SF1/2/4/5/6/9/10 held. **The 8 nodes this section orders: BN3,
+BN7, BN8, BN11, BN12, BN13, BN14, BN15** — BN3 is in progress, the other 7 are unstarted.
 
 ### Drift found and fixed in this pass
 
@@ -635,6 +645,16 @@ BN15.**
 
 ### BN3 belongs in the sequence, and it's near the top
 
+🟢 **ENTERED 2026-09-18 — this is the live node.** Current state, the opening blocker and the
+re-derived cold-start ladder sequence live in `CLAUDE.md`'s "Current goal" block, not here.
+
+🔴 **SOURCE LOG DESTROYED.** Every number in this section and the two tables below was computed
+from `logs/bitnodemults-1786922442524.json`, which the 2026-09-08 power event blank-filled (all
+five `bitnodemults-*.json` went the same way — correct-sized, zero content). The figures are still
+trustworthy — the 2026-08-16 sweep verified all 15 hand-transcribed tables against the engine with
+zero discrepancies — but they are **no longer backed by a readable artifact**. Re-run
+`bitnodemults.js` (6.60 GB) when home RAM allows.
+
 `ns.getBitNodeMultipliers(3, 1)` (`logs/bitnodemults-1786922442524.json`, the `matrix` run):
 `BladeburnerRank 1.00`, `BladeburnerSkillCost 1.00`, `StrengthLevelMultiplier 1.00`,
 `CloudServerLimit 1.00` (private servers **not** disabled), `ServerMaxMoney 0.04`,
@@ -649,13 +669,27 @@ takes days/weeks") is about the *Corporation* mechanic specifically.** It does n
 does not disable Bladeburner, so it is clearable via the exact black-op ladder already proven
 in BN6/BN9/BN10, without ever touching Corp. The guide's caution is real but scoped to a different
 win path than the one we run.
-- **Open question, not resolved here (flagged per the "estimate is not a measurement" rule):**
-  BN3's `HackingLevelMultiplier` is **0.80** — far better than BN6's 0.35, and paired with a live
-  economy (cloud servers on, 4% max money). That combination was never checked against the
-  iso-exp model this doc uses elsewhere (BN2/BN4's `level = mult × (32·ln(exp) − 200)`) — it's
-  plausible hacking clears BN3 faster than the ~10-day Bladeburner estimate below. **Default:
-  plan the Bladeburner route (below); revisit only if BN3 is reached and a cheap iso-exp check
-  says otherwise.** No expiry — it's cheap either way, this is a nice-to-check, not a blocker.
+- **✅ CLOSED 2026-09-19 — the iso-exp check ran on entry, and hacking is NOT competitive here.**
+  The question was: BN3's `HackingLevelMultiplier` **0.80** is far better than BN6's 0.35 and the
+  economy is live (cloud servers on), so might hacking beat the ~10-day Bladeburner estimate?
+  **No, by about three orders of magnitude.**
+  - **The gate really is much easier.** Against `level = nodeMult × M × (32·ln(exp + 534.6) − 200)`,
+    WD 6,000 at 0.80 needs **M ≈ 14–19** (M≈16.2 at a 1e9 exp stack, 19.3 at 1e8, 14.0 at 1e10) —
+    versus BN6's 28–37. In raw terms `6000/0.80 = 7,500` against BN6's `6000/0.35 = 17,143`, so
+    **BN3's hacking gate is 2.3× cheaper than BN6's.**
+  - **And it does not matter, because BN3 starves the ratchet that raises M.** Effective steal is
+    `ServerMaxMoney 0.04 × StolenMoneyFromHack 0.20` = **0.008**, against BN6's
+    `0.20 × 0.75` = **0.15** — **18.75× worse.** `AugmentationMoneyCost` **300%** on top puts
+    aug-buying power at roughly **56× worse than BN6**, and `AugmentationRepCost` is **300%** as
+    well. BN6 measured its ratchet at **~0.0045 M/hour** and still projected **240–323 days** to
+    M 28–37; scaled by 1/56, M≈16 is unreachable.
+  - ⚠️ **This is a computed estimate, not a measurement** — BN6's 0.0045 M/hour came off a mature
+    fleet and is being scaled by a money ratio, which is the kind of step this doc elsewhere warns
+    about. It is quoted here because the margin survives being wrong by a factor of 100, not
+    because the arithmetic is trusted to 2 significant figures.
+  - **Verdict: plan and run the Bladeburner route. Do not reopen this on the 0.80 mult alone** —
+    that number was never the binding constraint. Hacking **exp** is unpenalised in BN3, so the
+    batcher is still worth running as a fleet/opener funder; it is just not a win path.
 
 ### Redo-tax + combat-gate table, all 9 remaining nodes (BN9 included for reference)
 
@@ -673,7 +707,7 @@ uses the flagged-uncertain 1.3824 basis (see drift item 6 above).
 | BN14 | 60% | 200% | **3.33×** | 0.50 | 188,363 | ~9–17h |
 | BN13 | 45% | 200% | **4.44×** | 0.70 | 50,210 | ~2–5h |
 | BN15 | 20% | 300% | **15.0×** | 0.70 | 50,210 | ~2–5h |
-| BN9 (in progress) | 90% | 120% | 1.33× | 0.45 | 312,684 | ~14–29h |
+| BN9 (abandoned; SF9.1 via save rebuild) | 90% | 120% | 1.33× | 0.45 | 312,684 | ~14–29h |
 | BN8 | Bladeburner **disabled** | — | N/A | — | — | needs stock-market route instead |
 
 ### ETA table, calibration-corrected uniformly (fixes drift item 3)
@@ -694,7 +728,7 @@ number, the center as illustrative.**
 | BN14 | 23.3d | **~17d** | 12–24d | same RankGain as BN7; costlier combat gate, ~9-17h vs ~1-2h — negligible next to the grind |
 | BN13 | 31.1d | **~22d** | 16–32d | + Stanek's-Gift-before-any-aug trap (execution-time, not a scheduling constraint) |
 | BN15 | 70.0d | **~50d** | 36–71d | worst on the board; reward largely moot under our route (below) |
-| BN9 (live) | 15.6d | **~11d** | — | in progress; old "~16d" was the uncorrected raw figure — will get a real scorecard entry when it clears |
+| BN9 (abandoned) | 15.6d | **~11d** | — | 🔴 **never cleared by play** — the run died ~1 day short of the gate and SF9.1 came from the 2026-09-18 save rebuild, so this row yields **no** calibration data point |
 | BN12 | — | **~5.5d** | 4–9d | hacking route, unaffected by this scaling — unchanged from the 08-16 table |
 | BN8 | — | **unmeasured** | — | needs a stock-market engine to be built; no comparable data point exists yet |
 
@@ -732,7 +766,8 @@ just the node that sorts last.
 **BN3 → BN11 → BN7 → BN14 → BN13 → BN8 → BN15 → BN12 (repeatable, anytime after, background NFG).**
 
 1. **BN3** — ties for cheapest (1.00×), cheap combat gate, and the only pick in this tier with a
-   real reward (SF3, a third money engine). Do it first.
+   real reward (SF3, a third money engine). Do it first. 🟢 **IN PROGRESS since 2026-09-18** —
+   live state and the cold-start ladder sequence are in `CLAUDE.md`'s "Current goal" block.
 2. **BN11** — same 1.00× cost tier, cheap gate, weak reward. No cost reason to defer a node this
    cheap just because its reward is weak — clear it back-to-back with BN3 while the ladder tooling
    is warm, rather than parking it at the tail for a reward-only reason that doesn't reduce its
@@ -912,7 +947,7 @@ until it does.
 across the install — faction rep does **not** survive, answering that open question with a
 measurement.
 
-### BN3: Corporatocracy — owned **SF3 level 0 / 3** (not cleared)
+### BN3: Corporatocracy — owned **SF3 level 0 / 3** (🟢 ENTERED 2026-09-18, IN PROGRESS)
 SF3: create corporations in other nodes (some disable it), **L3 unlocks full Corp API** + charisma/company-salary L1 8 / L2 12 / L3 14%. Multiplier table (rest baseline):
 - **General** — `w0r1d_d43m0n` Difficulty: **200%** · Hacknet Production: **25%**
 - **Skills** — Hacking Level: **80%**
@@ -1029,7 +1064,7 @@ node listed one). Multiplier table:
 - **Bladeburner** — **Disabled**
 - **Stanek's Gift** — Base Size Modifier: **−99.00000** (no Gift Power row — effectively unusable)
 
-### BN9: Hacktocracy — owned **SF9 level 0 / 3** (not cleared)
+### BN9: Hacktocracy — owned **SF9 level 1 / 3** (🔴 NOT cleared by play — SF9.1 granted in the 2026-09-18 save rebuild; the ladder run died ~1 day short of the 400,000 gate)
 Hacknet Server replaces Hacknet Node. SF9: L1 permanent Hacknet Server elsewhere, L2 start
 128GB home RAM, L3 pre-upgraded Hacknet Server on new-node entry (entry-only, not on aug
 install); +hacknet production / −costs L1 12 / L2 18 / L3 21%. **Confirmed the harshest node
@@ -1047,7 +1082,7 @@ servers are disabled outright (matches the comprehensive guide's warning). Multi
 - **Bladeburner** — Rank Gain: **90%** · Skill Cost: **120%**
 - **Stanek's Gift** — Gift Power: **50%** · Base Size Modifier: **+2.00000**
 
-### BN10: Digital Carbon — owned **SF10 level 0 / 3** (ENTERED 2026-08-16, in progress)
+### BN10: Digital Carbon — owned **SF10 level 1 / 3** (BN10.1 CLEARED 2026-08-25)
 Unlocks Sleeves + Grafting (Grafting via VitaLife, New Tokyo). SF10: Sleeve + Grafting API
 elsewhere; **+1 Sleeve per level**. Multiplier table:
 - **General** — `w0r1d_d43m0n` Difficulty: **200%** · Hacknet Production: **50%** · Coding Contract Reward: **50%**
