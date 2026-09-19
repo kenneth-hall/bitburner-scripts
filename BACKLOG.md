@@ -706,6 +706,35 @@ do, and what's broken?*
 
 ## Ideas
 
+- **🟢 NEW 2026-09-19 — coding contracts are BN3's ONLY unnerfed money source, and `src/` has no
+  solver.** BN3's multiplier table lists no `CodingContractMoney` entry, i.e. **baseline 100%**, in a
+  node where server max money is 4%, crime 25%, company work 25%, darknet 40% and Hacknet 25%. For
+  contrast BN10 nerfed contracts to 50%, BN9 to 25%, BN8 to 0%. Zero files in `src/` reference
+  `codingcontract`.
+  - **Why it might matter:** BN3's clear is money-independent past the bootstrap (TOR + five port
+    openers + a small fleet + one home upgrade) — see `docs/bn3-playbook.md` §5.1 — and the
+    bootstrap is exactly where a 4%-max-money node hurts. Contracts could cover it outright.
+  - ⚠️ **Magnitude is UNMEASURED. Do not plan around it yet.** The cheap first step is a **census,
+    not a solver**: count `.cct` files on the rooted network and read one reward. If the total is
+    small, this closes for the cost of one probe.
+  - API is cheap and complete: `getContractTypes()`, `getContract(file, host)`, `getContractType`,
+    `getData`, `getNumTriesRemaining`, `attempt(answer, file, host)`. Some contracts award faction
+    **reputation** rather than money, which is worth less here (`AugmentationRepCost` 300%).
+  - Tracked as **Q3-2** in `docs/bn3-playbook.md` §8. Default: no action. Revive early if the
+    bootstrap stalls. Expires **2026-10-03**.
+
+- **🟡 NEW 2026-09-19 — is the full `ns.corporation` API callable in BN3 at SF3 level 0?**
+  `docs/bitnodes.md` records that **SF3 level 3** unlocks the full Corp API, which leaves levels 0–2
+  undefined. The Bladeburner precedent (SF6 grants the mechanic; the API works in-node) suggests
+  in-node access is fine, but that is an inference, not a measurement.
+  - **Why it matters — and it is NOT about clearing BN3.** We are not using Corp (`bn3-playbook.md`
+    §6.2). It matters because SF3's *reward* is framed in `bitnodes.md` as "a third money engine",
+    and that framing does not distinguish **mechanic** from **API**. At level 1 it may mean manual
+    UI play in the mechanic the in-game guide calls the worst one to play blindly.
+  - **Cheap to settle:** `canCreateCorporation(selfFund)` is **0 GB** and `hasCorporation()` needs no
+    API access, so a ~1.7 GB read-only probe answers it. Blocked today on the home-RAM squeeze.
+  - Tracked as **Q3-1**. Default: no action. Expires **2026-10-19**.
+
 ### Game / progression
 - **🟡 PARKED 2026-08-18 — a graft budget is still UNRESERVED against the fleet.**
   `resourcemanager.js` has no graft reservation source, so `cloudmanager.js` can spend money a

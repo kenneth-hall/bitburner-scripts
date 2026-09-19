@@ -105,8 +105,12 @@ on request — hold to them even when the moment is uncomfortable.
       `-1788264716196.json` (Q1's hash-exchange verdict), `sleevepoolprobe-1787098052402.json`
       (the sleeve-parallelism falsification), `q10probe-1787274944464.json` (the stamina
       measurements). **Those conclusions stand as recorded here; their raw evidence does not.**
-    - Intact and still quotable: `bladeburner-state.json`, `bladeburner-attempts.json`,
-      `bladeburner-log.json`, `combatgateprobe-1785371660239.json`, `ratchet-log.json`.
+    - Intact and readable: `bladeburner-state.json`, `bladeburner-attempts.json`,
+      `bladeburner-log.json`, `combatgateprobe-1785371660239.json`, `ratchet-log.json`. ⚠️ **Readable
+      is not current** — the first three hold **BN9's** run (rank 286,183, Sector-12, chaos 49.7).
+      `bladeburnermanager.js` will reject `bladeburner-state.json` on its `bitNode` stamp when it
+      starts here; until then it is an intact file describing a node that no longer exists, which is
+      more dangerous than a corrupt one.
   - ⚠️ **`logs/backdoor-status.json` and `logs/goal-log.json` are BN9 CORPSES, not BN3 state.**
     They read `hackingLevel: 6338` and `rank: 459,980` — the last BN9 samples, written before the
     clear, and nothing has rewritten them because `goallog.js` and `backdoorfactions.js` are among
@@ -1382,11 +1386,16 @@ its BN6 numbers do not.** The same now goes for
 **BN9's** opening, and BN9 is closed history (never cleared by play — see the goal block). Its Q7
 rail ("never install an augmentation") was a **BN9 Hacknet-Server** argument and **does not transfer
 to BN3**, which has no Hacknet Servers.
-🟢 **The current node is BN3.1, and its strategy lives in `CLAUDE.md`'s "Current goal" block plus
-`docs/bitnodes.md` § BN3 — there is no BN3 phase doc and no `bn3-playbook.md`.** That is deliberate:
-BN3 is being cleared with the existing, proven ladder tooling and has needed no new engine. **If BN3
-ever needs strategy churn beyond those two places, that is the trigger to open a phase doc** — don't
-let it accrete into the goal block instead.
+🟢 **The current node is BN3.1, and its strategy lives in
+[`docs/bn3-playbook.md`](docs/bn3-playbook.md)** — gated the same way as the others. **Read it before
+proposing anything about how BN3 gets cleared**, or planning income/tooling in this node. It opens
+with a **routing table** saying which facts live there and which live elsewhere; honour it, because
+the doc was opened over a standing objection that a fourth home for a number is a fourth place for
+it to rot. Live state stays in the "Current goal" block above; cross-node comparisons stay in
+`docs/bitnodes.md`.
+⚠️ **There is still no BN3 *phase* doc, deliberately** — BN3 is being cleared with existing, proven
+tooling and has needed no new engine. **If it ever needs a work item with a spec and a test gate,
+that is the trigger to open `phase-NN-*.features.md`** — don't let it accrete into the playbook.
 
 **BitNode multipliers are MEASURED, not transcribed — `run bitnodemults.js`** (6.60 GB, read-only,
 needs SF5 which is held). `ns.getBitNodeMultipliers(n?, lvl?)` is a **pure hypothetical** lookup:
