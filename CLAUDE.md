@@ -22,29 +22,44 @@ on request — hold to them even when the moment is uncomfortable.
       `ns.bladeburner` fleet is idle. `daemon.js`'s startup line *"no Bladeburner access"* is
       `inBladeburner()` reading false, **not** a missing API: SF6.1 satisfies the node half of
       the gate, exactly as it did in BN9 and BN10.
-    - batcher **live** — 236 GB budget at 97.9% util, one target (`foodnstuff`), home **31.65 /
-      32.00 GB**. TOR + `BruteSSH.exe` bought, `FTPCrack.exe` reserved at $1.5m, **no cloud
-      fleet yet** (`logs/cloud-state.json` → `fleet: null`).
-  - 🚨 **THE OPENING IS BLOCKED ON HOME RAM — this is the next action, and it is not a money
-    problem.** Home is **32 GB** and the resident stack alone fills it (`daemon.js`,
-    `resourcemanager.js`, `cloudmanager.js`, `transactionsmonitor.js`, `dashboard.js` =
-    31.65 GB), so **`combatgrind.js` (8.70 GB) cannot start** — and neither can
-    `goallog.js` / `procureprograms.js` / `backdoorfactions.js` / `augfarmer.js` / `xpfarm.js` /
-    `ratchetlog.js` / `backdoorwd.js` / `gatewatch.js`, all of which the daemon logged as skipped.
-    ⚠️ `HOME_RESERVE_GB` is **160** against a 32 GB home, so the batcher is *not* the squatter
-    here; the residents are. And BN3 charges **150% Home RAM Cost**, so buying out of it is
-    pricier than usual on a 4%-max-money economy.
-    - 🔑 **Recommended unblock: don't fix the RAM — route around it.** The combat gate is
-      **17,729 exp total across the four stats (~1–2h)** and needs no automation at all: commit
-      a crime from the in-game UI (crimes auto-repeat) and the player-action slot does the work
-      at **zero RAM**. `combatgrind.js` is a convenience, not a requirement. Free home RAM later
-      for `joinbladeburner.js` (**7.60 GB**) and the ladder scripts, by which point the batcher
-      will have paid for a home upgrade.
+    - batcher 🔴 **INERT, not "live"** — 236 GB budget at **0.0% util**, 0 batches ever placed,
+      income **$0.0/s**; see the retraction below. Home **31.65 / 32.00 GB**. ⚠️ **TOR is NOT
+      bought** (the Alpha Enterprises panel still offers it at $200k — this line was wrong);
+      `BruteSSH.exe` came from **Create Program**, not the darkweb, and `FTPCrack.exe` (req
+      hacking 100, we have 222) is creatable the same way rather than the $1.5m reserved for it.
+      Cloud fleet is now **1 × 2 GB** (`cloud-0`, bought 2026-09-19 11:08).
+  - 🔴 **RETRACTED 2026-09-19 ~11:10 UTC — "THE OPENING IS BLOCKED ON HOME RAM" WAS WRONG ON
+    BOTH HALVES.** It was not a RAM problem and it *was* a money problem — and the money was free.
+    Home RAM is still 31.65/32.00 and every skipped-companion fact below still holds; what was
+    wrong is that it was called *the blocker*. Full measured record: `docs/bn3-playbook.md` §5.4.
+    - 🔑 **The actual cause: the player-action slot was on `Study Computer Science`** — 2 h 13 m
+      spent for 11,039 hacking exp, on the route §1.1 of the playbook had already closed. Nothing
+      was pointed at the goal, so nothing moved. **Combat sat at 1/1/1/1 for a full day.**
+    - 🔑 **`Rob Store` is 100.00% success at combat 1/1/1/1** (it is hacking/dex-weighted and
+      hacking is 222) and measures **~$2.27k/s ≈ $8.2m/h** in BN3 terms. Started 2026-09-19.
+      ⚠️ It trains **dexterity and agility only** — no strength, no defense — so it funds the
+      node but never clears the gate.
+    - 🔑 **Buy cloud RAM, never home RAM.** Cloud is **$110k/GB** flat (2/4/8 GB read live at
+      $220k/$440k/$880k); home `32 → 64 GB` is **$15.124m = $472k/GB**. **4.3×.**
+      `bladeburnermanager.js` is **99.00 GB** (92 of it = 23 `ns.bladeburner.*` methods at a flat
+      4 GB each), so ~**$15.5m / 1.9 h of crime** buys a 128 GB host and the opening is over.
+    - 🔴 **AND THE BATCHER IS INERT IN BN3, NOT "live" — realised income is exactly $0/s.**
+      `daemon.js`'s own skip diagnosis, 265 consecutive ticks: `blockedBy: "total-ram"`,
+      `batchCostGb` **797.3**, `largestJobGb` **708.75**, `totalFreeGb` **236**, `shortfallGb`
+      **561.3**, at `fractionTried` **0.015625** — it had already shrunk the batch to 1/64 and
+      still could not place it. Cause is `ServerGrowthRate` **20%**: the grow leg needs ~5× the
+      threads to refill a 4%-capped server. **It stays $0 until the fleet passes ~800 GB.**
+      ⚠️ `cloudmanager.js` is queued to buy exactly that (`growth.ramGb: 1024`, ≈**$165m**,
+      ~8.6 h of crime) — **do not let it**; rank is the clock, not money.
   - **The fresh-node ladder sequence for BN3** — re-derived, because the four-step list in the
     BN9 block below was written mid-ladder at rank 408,388 and **does not apply from a cold
     start**:
-    1. **Combat 1 → 100** (17,729 exp, ~1–2h; BN3's combat mult is **1.00**, so there is no
-       grafting detour — that was a BN9-only move forced by its 0.45 combat mult).
+    1. **Combat 1 → 100** — 🔴 **44,981 exp total, 11,245 per stat.** The "17,729 / ~1–2h" this
+       line used to carry was BN6's number at *its* player mult **1.3824**; BN3 is a fresh node
+       with no augs, so the mult is **1.00** and the gate is **2.54× bigger** (corrected
+       2026-09-19). Still no grafting detour — that was a BN9-only move forced by its 0.45 mult.
+       `Powerhouse Gym` is **$2.4k/s per stat**, one stat at a time; `Mug` is free but measured at
+       0.179 exp/s/stat in BN6, i.e. ~17 h. **Fund the gym with `Rob Store`.**
     2. `joinbladeburner.js` → `joinBladeburnerDivision()`; verify with a `getRank()` read, never
        the boolean.
     3. `bladeburnermanager.js` grinds rank to **400,000**. ⚠️ **That is the GATE on the last

@@ -157,7 +157,7 @@ does not have. That list is preserved in `CLAUDE.md`'s BN9 block, marked as neve
 
 | # | Step | Tool | Notes |
 |---|---|---|---|
-| 1 | Combat 1 → 100 | crime (see §4.1) | **17,729 exp total**, 4,432 per stat at player mult 1.3824. ~1–2h |
+| 1 | Combat 1 → 100 | gym or crime (see §4.1) | 🔴 **44,981 exp total, 11,245 per stat.** The old "17,729 / 4,432" was BN6's number at *its* player mult **1.3824**; BN3 is a fresh node with no augs, so the mult is **1.00** and the gate is **2.54× bigger**. Not ~1–2h |
 | 2 | Join the division | `joinbladeburner.js` (7.60 GB) | Verify with a `getRank()` read, **never** the boolean — `startAction` returning `true` has been measured lying |
 | 3 | Grind rank → 400,000 | `bladeburnermanager.js` | Auto-launches once `inBladeburner()` is true |
 | 4 | Spend the SP bank | `bbskillbuy.js <target>` | SP accrues at **rank/3**. Node-local and destroyed on the clear, so spending is **free** |
@@ -225,7 +225,18 @@ Walk the list of things money buys on this route:
 
 🔑 **So: the money BN3 actually needs is the early-game bootstrap — TOR, five port openers, a small
 fleet, and one home upgrade.** That is a five-to-six-figure problem, not a trillion-dollar one, and
-the crippled batcher can cover it. Everything past that is optional.
+🔴 ~~the crippled batcher can cover it~~ — **RETRACTED 2026-09-19 BY MEASUREMENT. The batcher is not
+crippled in BN3; it is inert, and structurally so.** Everything past the bootstrap is still optional.
+
+- `daemon.js`'s own skip diagnosis, 265 consecutive ticks: `blockedBy: "total-ram"`, `batchCostGb:
+  797.3`, `largestJobGb: 708.75`, `totalFreeGb: 236`, `shortfallGb: 561.3`, at `fractionTried:
+  0.015625` — i.e. it had already shrunk the batch to **1/64** and still could not place it.
+- **Cause is `ServerGrowthRate` 20%.** The grow leg needs ~5× the threads to restore a 4%-capped
+  server, so one HWGW batch against `foodnstuff` (max **$2.00m**) costs **797 GB**. The whole rooted
+  network is 236 GB and its largest host is 32 GB.
+- **Realised income is therefore exactly $0/s**, and it stays $0 until the fleet passes ~800 GB.
+  ⚠️ `cloudmanager.js` is currently queued to buy its way there (`growth.ramGb: 1024`,
+  ≈**$165m**) — see §5.4 before letting it.
 
 📌 **This is why a money-starved node was a *good* pick for this route**, and it is the single most
 important thing to not forget when BN3's economy looks alarming.
@@ -264,6 +275,46 @@ money-bound is the "tooling that doesn't advance the goal" trap.
 than ~2 days on the crippled batcher. Read [`gang-engine.md`](gang-engine.md) first — the
 hacking-vs-combat decision, the catalog corrections and the two respect↔money reversals are all
 recorded there and must not be re-derived.
+
+---
+
+### 5.4 🔑 The real BN3 funding engine: **Rob Store**, measured 2026-09-19
+
+The bootstrap does not come from hacking. It comes from the player-action slot, and it was free the
+whole time.
+
+| Fact | Number | How |
+|---|---|---|
+| `Rob Store` success chance at combat **1/1/1/1** | **100.00%** | Read off The Slums panel. It is hacking/dex-weighted, and hacking was already **222** |
+| Realised income | **~$2.27k/s ≈ $8.2m/h** | Measured over a clean 70 s window, net of a $220k `cloud-0` purchase mid-window |
+| Next-best crime | `Larceny` ≈ $1.35k/s | 60.83% at combat 1. Recheck as dex/agi climb — `Larceny` at 100% would beat `Rob Store` |
+
+⚠️ **`Rob Store` trains dexterity and agility ONLY — no strength, no defense.** It will never clear
+the combat gate on its own. It is the *money* phase; §4.1 handles the gate.
+
+**RAM is priced per GB, and cloud beats home 4.3×:**
+
+| Buy | Price | Per GB |
+|---|---|---|
+| Cloud server (2 / 4 / 8 GB, read live) | $220k / $440k / $880k | **$110k/GB**, linear — `55,000 × CloudServerCost 2.00` |
+| Home `32 → 64 GB` | **$15.124m** | **$472k/GB** — this is the 150% Home RAM Cost line doing its work |
+
+🔑 **So the whole node's machine budget is one cloud server, not a home upgrade.**
+`bladeburnermanager.js` is **99.00 GB** — and 92 of that is **23 distinct `ns.bladeburner.*` methods
+at a flat 4 GB each**, so its cost is API-surface count, not complexity. Peak concurrent need is
+`bladeburnermanager` + `destroybn.js` (40.60 GB) ≈ **140 GB**; a 256 GB cloud server (≈$34m, ~4 h of
+`Rob Store`) covers the node end to end, and 128 GB (≈$15.5m, ~1.9 h) covers everything up to the
+final op.
+
+⚠️ **Do not let `cloudmanager.js` chase its 1024 GB batcher-ranking target (≈$165m, ~8.6 h of
+crime).** It would buy a fleet that unlocks an economy this route does not need, and it costs ~6.7
+hours of rank clock to do it. **Rank is the binding constraint in BN3, not money** (§5.1) — spend the
+crime bootstrap on the smallest host that runs the ladder, and get into the division.
+
+📌 **The lesson this section is really recording:** the node was logged as "blocked on home RAM" for
+a day while the player-action slot sat on **Study Computer Science** — 2 h 13 m for 11,039 hacking exp
+on the route §1.1 had already closed. The blocker was never RAM or money; it was that nothing was
+pointed at the goal.
 
 ---
 
@@ -351,7 +402,8 @@ BN3 is ever considered for a second or third clear.
   Servers. It has **no force in BN3**. (Installing is still not obviously useful here — see §5.1 —
   but it is not forbidden.)
 - 🔴 **BN9's graft-first entry-gate strategy.** That was forced by BN9's 0.45 combat mult putting the
-  gate at ~78,300 exp/stat. BN3's combat mult is **1.00** and the gate is **4,432 exp/stat**. Grafting
+  gate at ~78,300 exp/stat. BN3's combat mult is **1.00**, which puts the gate at **11,245 exp/stat**
+  (corrected 2026-09-19 — this line previously read 4,432, which is the figure at BN6's mult 1.3824). Grafting
   here would cost Entropy for nothing.
 - 🔴 **BN6's batcher-as-funding-engine.** At 0.008 effective steal it funds a bootstrap, not a
   ratchet.
