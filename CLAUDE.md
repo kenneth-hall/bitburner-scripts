@@ -10,24 +10,42 @@ solutions — work from game mechanics and the API.
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** **🟢 IN BN3.1 (Corporatocracy) — entered
-  2026-09-18, day 2. Route: the Bladeburner black-op ladder, the same shape proven in
+  2026-09-18, day 3. Route: the Bladeburner black-op ladder, the same shape proven in
   BN6/BN9/BN10.** Held SFs: **1 · 2 · 4 · 5 · 6 · 9 · 10** (verified live on the
   Augmentations screen after entry). Nothing carried in but Source-Files, home scripts and
   Intelligence (**115 / 18.7k exp**).
-  - **📊 Stamped 2026-09-19 ~14:26 UTC — SNAPSHOT, recompute before quoting any of it.**
-    Recompute: `node tools/bb/cli.mjs stats`, the tail of `logs/daemon-batch-log.json`, and
-    `node tools/bb/cli.mjs terminal "free"`.
-    - hacking **162**, climbing ~**1 level/min** · combat **1 / 1 / 1 / 1** · money **~$1.3k**
-    - Bladeburner **not joined** — the gate is combat **100**, so rank is 0 and the whole
-      `ns.bladeburner` fleet is idle. `daemon.js`'s startup line *"no Bladeburner access"* is
-      `inBladeburner()` reading false, **not** a missing API: SF6.1 satisfies the node half of
-      the gate, exactly as it did in BN9 and BN10.
-    - batcher 🔴 **INERT, not "live"** — 236 GB budget at **0.0% util**, 0 batches ever placed,
-      income **$0.0/s**; see the retraction below. Home **31.65 / 32.00 GB**. ⚠️ **TOR is NOT
-      bought** (the Alpha Enterprises panel still offers it at $200k — this line was wrong);
-      `BruteSSH.exe` came from **Create Program**, not the darkweb, and `FTPCrack.exe` (req
-      hacking 100, we have 222) is creatable the same way rather than the $1.5m reserved for it.
-      Cloud fleet is now **1 × 2 GB** (`cloud-0`, bought 2026-09-19 11:08).
+  - **📊 Stamped 2026-09-20 ~16:05 UTC — SNAPSHOT, recompute before quoting any of it.**
+    Recompute: `node tools/bb/cli.mjs stats`; for Bladeburner, `connect pserv-128gb-0` →
+    `scp bladeburner-state.json home` → read `logs/bladeburner-state.json` (see the landmine below).
+    - **✅ LADDER STEPS 1 AND 2 ARE DONE.** combat **212 / 212 / 227 / 227** against a gate of
+      **100** — the 44,981-exp grind is paid. hacking **245** · charisma 8 · money **~$219m**.
+    - **✅ Bladeburner division JOINED 2026-09-20** (`joinbladeburner.js` → `joined=true`,
+      `inBladeburner=true`, and the **Bladeburner nav entry is present**). Rank is climbing from 0;
+      first reading **2.8** at 4 min, running `Tracking`, stamina 89.3%, duty 0.31 while it spins up.
+    - **✅ `bladeburnermanager.js` (99.00 GB) is LIVE on `pserv-128gb-0`** — a **128 GB** cloud
+      server bought for **$18.304m**, exactly the "buy cloud RAM, never home RAM" call below.
+      Home is now **64.00 GB** (24.70 free), which still cannot host the manager.
+    - batcher still 🔴 **INERT** — `daemon.js` is **not running at all**; income is **$0/s** and
+      that is fine (rank is the clock). `src/cloud-upgrade-off.txt` is in place, so `cloudmanager.js`
+      is correctly blocked from the ≈$165m growth buy.
+  - 🚨 **TWO LANDMINES FOUND 2026-09-20 WHILE STARTING THE LADDER — both cost real time, both recur.**
+    - 🔑 **`bladeburner-off.txt` survived the node change on `home` and silently held the engine
+      OFF.** The manager started, wrote `off: true` / `holdReason: "off-marker"` / `rank: 0`, and did
+      nothing — with **no error, no popup, and a healthy `ps` line**. It is **gitignored and absent
+      from `src/`**, so viteburner never re-pushes it; `rm bladeburner-off.txt` on `home` is the fix.
+      📌 Sibling to "a script can fail *after* it starts": here it *ran perfectly and did nothing*.
+      **Check the off marker before diagnosing a silent Bladeburner engine.**
+    - 🔑 **Running the manager off `home` sends its logs to the HOST it runs on.** `ns.write` is
+      host-scoped, so `bladeburner-state.json` / `-log.json` / `-attempts.json` land on
+      `pserv-128gb-0` and **never reach viteburner**, i.e. never reach `logs/`. The repo copy of
+      `logs/bladeburner-state.json` therefore reads as a stale BN9 corpse until pulled by hand:
+      `connect pserv-128gb-0` → `scp bladeburner-state.json home`. ⚠️ **A fresh mtime on that file
+      still means nothing** — same trap as `backdoor-status.json`, new cause.
+    - ⚠️ Related UI trap: while a **focused** player action runs, the left nav is hidden and every
+      CDP `terminal`/`goto` times out on the missing Terminal button, and the character-overview
+      panel **intercepts** a click on *"Do something else simultaneously"*. Collapse the overview
+      first (`getByRole('button', {name: 'expand or collapse character overview'})`), then unfocus.
+      A Playwright `force: true` click does **not** help — it still lands on the overlay.
   - 🔴 **RETRACTED 2026-09-19 ~11:10 UTC — "THE OPENING IS BLOCKED ON HOME RAM" WAS WRONG ON
     BOTH HALVES.** It was not a RAM problem and it *was* a money problem — and the money was free.
     Home RAM is still 31.65/32.00 and every skipped-companion fact below still holds; what was
@@ -54,15 +72,15 @@ on request — hold to them even when the moment is uncomfortable.
   - **The fresh-node ladder sequence for BN3** — re-derived, because the four-step list in the
     BN9 block below was written mid-ladder at rank 408,388 and **does not apply from a cold
     start**:
-    1. **Combat 1 → 100** — 🔴 **44,981 exp total, 11,245 per stat.** The "17,729 / ~1–2h" this
+    1. **✅ DONE 2026-09-20 — Combat 1 → 100** (overshot to 212/212/227/227) — 🔴 **44,981 exp total, 11,245 per stat.** The "17,729 / ~1–2h" this
        line used to carry was BN6's number at *its* player mult **1.3824**; BN3 is a fresh node
        with no augs, so the mult is **1.00** and the gate is **2.54× bigger** (corrected
        2026-09-19). Still no grafting detour — that was a BN9-only move forced by its 0.45 mult.
        `Powerhouse Gym` is **$2.4k/s per stat**, one stat at a time; `Mug` is free but measured at
        0.179 exp/s/stat in BN6, i.e. ~17 h. **Fund the gym with `Rob Store`.**
-    2. `joinbladeburner.js` → `joinBladeburnerDivision()`; verify with a `getRank()` read, never
+    2. **✅ DONE 2026-09-20.** `joinbladeburner.js` → `joinBladeburnerDivision()`; verify with a `getRank()` read, never
        the boolean.
-    3. `bladeburnermanager.js` grinds rank to **400,000**. ⚠️ **That is the GATE on the last
+    3. **🟢 RUNNING since 2026-09-20, on `pserv-128gb-0` (128 GB, $18.304m).** `bladeburnermanager.js` grinds rank to **400,000**. ⚠️ **That is the GATE on the last
        black op, not the win condition.**
     4. `bbskillbuy.js <target>` — spend the SP bank (it accrues at **rank/3**) *before* the
        ladder's back half. SP is node-local and destroyed on the clear, so spending it is free.
