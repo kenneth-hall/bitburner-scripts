@@ -28,6 +28,31 @@ on request — hold to them even when the moment is uncomfortable.
     - batcher still 🔴 **INERT** — `daemon.js` is **not running at all**; income is **$0/s** and
       that is fine (rank is the clock). `src/cloud-upgrade-off.txt` is in place, so `cloudmanager.js`
       is correctly blocked from the ≈$165m growth buy.
+  - **🔑 THE BINDING CONSTRAINT IN THE BN3 OPENING IS STAMINA, NOT SUPPLY AND NOT HP** (measured
+    2026-09-20, `logs/bladeburner-attempts.json` + the manager's own duty counters). Do not spend
+    effort on contract supply or healing until this changes.
+    - duty cycle **0.31** · `rankProducingSec` **839.1** vs `overheadSec` **806.8** — i.e. **49% of
+      all action time is `Hyperbolic Regeneration Chamber`**.
+    - 🔑 **HRC is firing for STAMINA, not healing.** Every attempt logs `hpFraction: 1` with
+      `staminaFraction` oscillating **0.491 → 0.553** against the manager's `STAMINA_FLOOR_FRACTION`
+      0.5 / `STAMINA_RESUME_FRACTION` 0.55. **`staminaMax` is only 78–81**, against BN6's 136–335.
+    - ⚠️ **The sleeve cannot fix this and neither can crime.** `staminaMax` tracks agility, and at
+      agility 227 the stat already holds ~620k exp (`exp = e^((lvl+200)/32) − 534.6`); a sleeve on
+      `Mug` transfers ~0.14 exp/s after sync, i.e. **+2% of the bank per day**. Rounding error.
+    - ✅ **It self-resolves, and BN6 is the precedent** — Bladeburner actions train combat for free
+      (BN6: combat 1 → 171/202/195 in 26 h from actions alone), combat raises `staminaMax`, and
+      regen is **not flat** in `staminaMax` (2.45× regen for 3.77× max). BN6 ended at duty **99.4%**.
+      SP is **0** at rank 27 (it accrues at rank/3), so `Reaper` / `Evasive System` are not yet
+      buyable; revisit them once the bank is real.
+  - **🟢 SLEEVE: on `Infiltrate Synthoids` since 2026-09-20, and that is the right call by
+    elimination.** It **generates** contracts and operations (the game's own task text — full record
+    and the measured rates: `docs/sleeve-grafting-reference.md` §6). ⚠️ It is aimed at the
+    constraint that binds **next**, not the one binding now: aggregate contract regen is
+    **~3.0/min** against **~1.49/min** consumption at duty 0.31, a 2× surplus — but consumption
+    scales with duty (`5 × duty` per min at the current 12 s action time), so at BN6's duty ~1.0 it
+    becomes **~5/min against 3.0/min** and `Tracking` re-pins exactly as it did in BN6.
+    ⚠️ **Attribution is NOT established** — every rate was measured with the sleeve already
+    infiltrating; a matched sleeve-idle control has not been run.
   - 🚨 **TWO LANDMINES FOUND 2026-09-20 WHILE STARTING THE LADDER — both cost real time, both recur.**
     - 🔑 **`bladeburner-off.txt` survived the node change on `home` and silently held the engine
       OFF.** The manager started, wrote `off: true` / `holdReason: "off-marker"` / `rank: 0`, and did

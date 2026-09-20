@@ -183,6 +183,47 @@ three sleeve-only specials (`SpecialBladeburnerActionEnumTypeForSleeve`):
 - The in-game guide says *"Contract/op generation is slow → **Sleeves help**"* and sleeves are
   *"great with Gang/Bladeburner"*.
 
+
+### ✅ ANSWERED 2026-09-20 — `Infiltrate Synthoids` GENERATES supply. It is the sleeve's job in a Bladeburner node.
+
+**The game says so outright.** Committed in BN3.1 and read off the sleeve card:
+
+> *"This sleeve is currently attempting to infiltrate synthoid communities to **generate additional
+> contracts and operations**. This activity is less efficient the more sleeves are assigned to it."*
+
+📌 **Method note: the Sleeves panel only describes the COMMITTED task.** Picking an action in the
+dropdown does not change the description text, so this cannot be read without assigning. That is
+why the question sat open from BN10 — not because the answer was hard.
+
+- **Cycle time ≈ 60 s** — progress ran 86.33% → 94.67% in 5 s (1.67 %/s), stable across samples.
+- **The diminishing-returns clause is free for us.** It only bites with multiple sleeves; SF10.**1**
+  grants one and the second costs **$10t**, so there is never more than one actor on it.
+- ⚠️ **It is the OPPOSITE of `Take on contracts`** (the section above): that one drains the pool,
+  this one fills it. Do not conflate them because both are "sleeve Bladeburner work".
+
+**Measured supply rates in BN3.1, 10.05-minute window, `bladeburneractionprobe.js` run twice**
+(`logs/bladeburneractionprobe-1789920522962.json` → `-1789921126078.json`), sleeve on Infiltrate
+throughout, player rank 18.68 → 24.93:
+
+| Action | count/min | note |
+|---|---|---|
+| Bounty Hunter | **+1.000** | contract, zero consumption |
+| Retirement | **+0.988** | contract, zero consumption |
+| Tracking | **−0.490** | contract, the ONLY action the engine consumes |
+| Investigation / Undercover / Sting / Raid | +0.80 / +0.81 / +0.77 / +0.76 | operations, zero consumption |
+| Stealth Retirement / Assassination | +0.63 / +0.63 | operations, zero consumption |
+
+- 🔑 **Contracts regenerate uniformly at ~1.00/min; operations at 0.63–0.81/min.** Tracking's
+  gross is the same ~1.00 — its negative net is consumption, measured at **~1.49/min**, which
+  closes against the engine's own 12 s action time at duty 0.31 (`0.31 × 60/12 = 1.55`).
+- ⚠️ **ATTRIBUTION IS NOT ESTABLISHED.** Every number above was taken *with* the sleeve
+  infiltrating. BN6 measured Tracking regeneration at **0.499/min** and this reads **1.000/min** —
+  suggestively exactly 2× — but that is a **cross-node comparison, not a control**, and BN6's
+  figure came from a different node, rank and population. 📌 The standing lesson applies: a
+  baseline from somewhere else is not a control. **Closing this needs a matched window with the
+  sleeve idle.**
+
+
 ### 🔴 ANSWERED 2026-08-18 — THEY COMPETE. Do not put a sleeve on contracts.
 
 **Measured** (`src/sleevepoolprobe.js`, `logs/sleevepoolprobe-*.json`, engine paused for clean
@@ -269,7 +310,7 @@ superseded by this file.
 - ❓ **Do sleeve contracts add or compete for Bladeburner contract supply?** (§6) — **the one that
   matters most**; blocks nothing but validates the node order.
 - ❓ **What does `"Support main sleeve"` actually do?** Name-only in the API.
-- ❓ **What does `"Infiltrate Synthoids"` yield** — rank, chaos reduction, population intel?
+- ✅ **CLOSED 2026-09-20 — `"Infiltrate Synthoids"` generates additional contracts and operations** (§6). Rate measured in BN3.1; **attribution still needs a sleeve-idle control window.**
 - ❓ **Sleeve cost curve.** `getSleeveCost()` is the next price; the escalation law is undocumented.
   The in-game guide says up to **5** are purchasable from **The Covenant**, the last at **100q**.
 - ❓ **Memory upgrade cost curve**, and whether memory is worth buying before or after sleeves.
