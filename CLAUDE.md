@@ -1439,13 +1439,15 @@ node across levels · `matrix [maxNode] [maxLvl]` = everything. Established 2026
 hand-transcribed tables in `bitnodes.md` are correct (zero discrepancies)**, **exactly 15 nodes
 exist** (16–20 throw), **only BN12 varies by SF level**, and **BN12's ramp law is exactly
 `1.02^level`** — effective difficulty doubling every ~17.5 levels.
-🔴 **CANNOT BE FOLLOWED AS WRITTEN AS OF 2026-09-19 — all five `logs/bitnodemults-*.json` were
-destroyed by the 2026-09-08 power event** (correct-sized, blank-filled, so `ls` will not tell you).
-~~⚠️ Quote this log, not the prose tables, when a decision turns on a multiplier.~~ **Until the
-script is re-run, `docs/bitnodes.md`'s prose tables are the only source** — they are trustworthy
-(the 08-16 sweep verified all 15 against the engine) but no longer *backed*. **Re-running
-`bitnodemults.js` is blocked on home RAM in BN3** (32 GB home, resident stack fills it); do it the
-moment 6.60 GB frees up, and check with `tr -d '\000 \n\r\t' < f | wc -c` that the output is real.
+✅ **RE-BACKED 2026-09-20 — quote `logs/bitnodemults-1789920276346.json`** (matrix mode, 103,826
+non-blank bytes, verified with `tr -d '\000 \n\r\t' < f | wc -c`). ⚠️ **Quote this log, not the
+prose tables, when a decision turns on a multiplier.** It re-confirms the engine still reports
+**exactly 15 nodes** and **only BN12 varying by SF level**, and BN3 spot-checks clean against the
+prose: `BladeburnerRank` 1 · `BladeburnerSkillCost` 1 · `ServerMaxMoney` 0.04 · `ScriptHackMoney`
+0.20 · `ServerGrowthRate` 0.20 · `AugmentationMoneyCost` 3 · `AugmentationRepCost` 3 ·
+`HackingLevelMultiplier` 0.80 · `HomeComputerRamCost` 1.5 · `CrimeMoney` 0.25 · combat 1.00.
+The five 2026-09-08 blank-filled corpses are still in `logs/` — ignore them by timestamp; the
+2026-09-20 file is the live one.
 
 **All things GRAFTING live in [`docs/grafting-reference.md`](docs/grafting-reference.md)** - gated
 the same way. Read it before any `ns.grafting.*` code or any graft-vs-install decision. 🔑 **Measured

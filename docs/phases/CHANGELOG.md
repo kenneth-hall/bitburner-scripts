@@ -6,6 +6,31 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-09-20
+
+- **BN3.1 Bladeburner ladder started: steps 1–3 are done or running.** Combat cleared the gate at
+  **212/212/227/227** (gate 100), `joinbladeburner.js` joined the division (`joined=true`,
+  `inBladeburner=true`, Bladeburner nav entry present), and `bladeburnermanager.js` (99.00 GB) went
+  live on a new **128 GB cloud server `pserv-128gb-0` ($18.304m)** — the "buy cloud RAM, never home
+  RAM" call, paid at $143k/GB against home's $472k/GB. Rank climbing from 0 on `Tracking`.
+- **Two landmines recorded in `CLAUDE.md`'s goal block.** (1) `bladeburner-off.txt` **survived the
+  node change on `home`** and held the engine off with no error, no popup and a healthy `ps` line —
+  check the off marker before diagnosing a silent engine. (2) Running the manager off `home` writes
+  its logs to **that host**, so `logs/` never sees them; pull with `scp` before reading, and treat
+  a fresh mtime on `logs/bladeburner-state.json` as meaningless.
+- **🔑 `logs/bitnodemults-*.json` is re-backed** (`bitnodemults-1789920276346.json`, matrix mode,
+  103,826 non-blank bytes) — the 2026-09-08 power event had blanked all five copies, and the re-run
+  was blocked on a 32 GB home until this session's 64 GB freed the 6.60 GB. Engine still reports
+  **exactly 15 nodes**, **only BN12 varying by SF level**, and BN3 matches the prose tables exactly.
+  `CLAUDE.md`'s "quote this log, not the prose tables" rule is followable again.
+- **Sleeve census + a bug found, no sleeve work done.** `sleeverecon.js`: **1 sleeve**, sync 77.8,
+  shock 0, memory 1, combat 1/1/1/1, on `Synchronize`; second sleeve costs **$10t** (44,000× the
+  bankroll), so there will be exactly one all node. Filed a bug: **`sleevemanager.js` treats
+  `getTask() === null` as idle and would yank a sleeve off any Bladeburner task**, which is the only
+  assignment class worth considering here. → `BACKLOG.md`.
+
+---
+
 ## 2026-09-01
 
 - **🔑 Q1 closed: the `Exchange for Bladeburner Rank/SP` hash lever is measured, and it is 10× worse

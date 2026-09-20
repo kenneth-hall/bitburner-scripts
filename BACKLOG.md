@@ -22,23 +22,31 @@ do, and what's broken?*
 
 ## Bugs
 
-- **🔴 NEW 2026-09-19 — 108 of 313 files in `logs/` are blank-filled corpses from the
-  2026-09-08 power event, and four of them are cited as evidence in `CLAUDE.md`.** They are
-  correct-sized and contain only spaces/nulls, so `ls`, a size check and an mtime check all pass.
-  Detect with `tr -d '\000 \n\r\t' < f | wc -c`.
-  - **Worst case: all five `logs/bitnodemults-*.json` are gone**, which breaks `CLAUDE.md`'s
-    standing rule to *"quote this log, not the prose tables"* and un-backs every table in
-    `docs/bitnodes.md` § "Remaining sequence" (they cite `bitnodemults-1786922442524.json`).
-  - Also gone: `hashexchangeprobe-1788264590122.json` / `-1788264716196.json`,
-    `sleevepoolprobe-1787098052402.json`, `q10probe-1787274944464.json`. Intact:
-    `bladeburner-state.json`, `bladeburner-attempts.json`, `bladeburner-log.json`,
-    `combatgateprobe-1785371660239.json`, `ratchet-log.json`.
-  - **Next action: re-run `bitnodemults.js` (6.60 GB, read-only) and verify the output is non-blank.**
-    Blocked today on the BN3 home-RAM squeeze (32 GB home, resident stack uses 31.65). **Trigger:
-    the first moment 6.60 GB is free on home.** Nothing else is recoverable — the probes' game
-    state is gone with BN9 — so this is the only item here with an action.
-  - Docs already annotated (2026-09-19) so nobody quotes an unbacked number unknowingly; this entry
-    tracks the re-run, not the annotation.
+- **🟠 NEW 2026-09-20 — `sleevemanager.js` will yank a sleeve OFF any Bladeburner task, silently.**
+  Its idle test is `getTask() === null -> commit crime` (`src/sleevemanager.js:89-90`), and
+  `docs/sleeve-grafting-reference.md` §6 records `getTask` reading **null on all 36 samples while a
+  sleeve's Bladeburner task was provably running** (the supply pool was draining the whole time).
+  So the instrument cannot see a Bladeburner task, and the manager reads "no task" as "idle".
+  - **Why it matters now:** BN3's only candidate sleeve assignments are Bladeburner ones
+    (`Infiltrate Synthoids`, `Field Analysis`, `Diplomacy`). The manager would undo any of them and
+    it would look like the assignment "didn't stick".
+  - **Not currently firing** — `sleevemanager.js` is not running in BN3. ⚠️ But `bn9companions.js`
+    launches it, so anything that revives the BN9 companion set re-arms this.
+  - **Next action: none required while it stays down.** If it is ever launched here, drop
+    `sleevemanager-pause.txt` on `home` first. A real fix needs `getTask` to report Bladeburner
+    tasks at all, which is an engine-observability question, not a constant tweak.
+
+- **🟡 STANDING 2026-09-19 — 108 of 313 files in `logs/` are blank-filled corpses from the
+  2026-09-08 power event.** They are correct-sized and contain only spaces/nulls, so `ls`, a size
+  check and an mtime check all pass. Detect with `tr -d '\000 \n\r\t' < f | wc -c`.
+  - ✅ **The one actionable item is CLOSED 2026-09-20: `bitnodemults.js` was re-run**
+    (`logs/bitnodemults-1789920276346.json`, 103,826 non-blank bytes, matrix mode) the moment home
+    RAM freed up, so `docs/bitnodes.md`'s tables are **backed by a live engine read again** and
+    `CLAUDE.md`'s "quote this log, not the prose tables" rule is followed-able. Spot-checked BN3:
+    every number matches the prose exactly.
+  - **Nothing else here is recoverable** — `hashexchangeprobe-*`, `sleevepoolprobe-*` and
+    `q10probe-*` describe game state destroyed with BN9. Their **conclusions stand as recorded in
+    `CLAUDE.md`; their raw evidence does not.** This entry stays only as the detection recipe.
 
 - **🟡 NEW 2026-09-19 — a 32 GB home cannot hold the resident stack, so eight companions never
   launch in a fresh node.** In BN3.1 `daemon.js` + `resourcemanager.js` + `cloudmanager.js` +
