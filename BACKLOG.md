@@ -22,20 +22,6 @@ do, and what's broken?*
 
 ## Bugs
 
-- **🟠 NEW 2026-09-20 — `sleevemanager.js` will yank a sleeve OFF any Bladeburner task, silently.**
-  Its idle test is `getTask() === null -> commit crime` (`src/sleevemanager.js:89-90`), and
-  `docs/sleeve-grafting-reference.md` §6 records `getTask` reading **null on all 36 samples while a
-  sleeve's Bladeburner task was provably running** (the supply pool was draining the whole time).
-  So the instrument cannot see a Bladeburner task, and the manager reads "no task" as "idle".
-  - **Why it matters now:** BN3's only candidate sleeve assignments are Bladeburner ones
-    (`Infiltrate Synthoids`, `Field Analysis`, `Diplomacy`). The manager would undo any of them and
-    it would look like the assignment "didn't stick".
-  - **Not currently firing** — `sleevemanager.js` is not running in BN3. ⚠️ But `bn9companions.js`
-    launches it, so anything that revives the BN9 companion set re-arms this.
-  - **Next action: none required while it stays down.** If it is ever launched here, drop
-    `sleevemanager-pause.txt` on `home` first. A real fix needs `getTask` to report Bladeburner
-    tasks at all, which is an engine-observability question, not a constant tweak.
-
 - **🟡 STANDING 2026-09-19 — 108 of 313 files in `logs/` are blank-filled corpses from the
   2026-09-08 power event.** They are correct-sized and contain only spaces/nulls, so `ls`, a size
   check and an mtime check all pass. Detect with `tr -d '\000 \n\r\t' < f | wc -c`.

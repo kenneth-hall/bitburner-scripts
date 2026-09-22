@@ -105,7 +105,7 @@ compounding value.
 |---|---|
 | `getNumSleeves(): number` | |
 | `getSleeve(n): SleevePerson` | extends `Person`; adds **`memory`**, **`shock`**, **`sync`**, **`storedCycles`** (bonus time) |
-| `getTask(n): SleeveTask \| null` | union of 9 task shapes — see §4 |
+| `getTask(n): SleeveTask \| null` | union of 9 task shapes — see §4. ✅ **Does report Bladeburner work** (`INFILTRATE` / `BLADEBURNER`), measured 2026-09-21; the old "blind" claim is retracted in §6 |
 | `setToIdle(n): void` | the only setter returning `void`, not `boolean` |
 | `setToCommitCrime(n, crimeType)` | |
 | `setToUniversityCourse(n, university, course)` | |
@@ -216,13 +216,64 @@ throughout, player rank 18.68 → 24.93:
 - 🔑 **Contracts regenerate uniformly at ~1.00/min; operations at 0.63–0.81/min.** Tracking's
   gross is the same ~1.00 — its negative net is consumption, measured at **~1.49/min**, which
   closes against the engine's own 12 s action time at duty 0.31 (`0.31 × 60/12 = 1.55`).
-- ⚠️ **ATTRIBUTION IS NOT ESTABLISHED.** Every number above was taken *with* the sleeve
-  infiltrating. BN6 measured Tracking regeneration at **0.499/min** and this reads **1.000/min** —
-  suggestively exactly 2× — but that is a **cross-node comparison, not a control**, and BN6's
-  figure came from a different node, rank and population. 📌 The standing lesson applies: a
-  baseline from somewhere else is not a control. **Closing this needs a matched window with the
-  sleeve idle.**
+- ✅ **ATTRIBUTION ESTABLISHED 2026-09-21** — the matched sleeve-idle window this paragraph asked
+  for was run (`src/sleevebbprobe.js`, `logs/sleevebbprobe-1790037196715.json`, six interleaved
+  12-minute phases). The "suggestively exactly 2×" hunch was right, and the mechanism is cleaner
+  than proportional doubling:
 
+| channel | sleeve idle | sleeve infiltrating | lift |
+|---|---|---|---|
+| Bounty Hunter (contract) | 0.5087/min | 1.0059/min | **+0.4971** |
+| Retirement (contract) | 0.4984/min | 0.9976/min | **+0.4992** |
+| Sting Operation (operation) | 0.2687/min | 0.7686/min | **+0.4999** |
+
+🔑 **`Infiltrate Synthoids` adds a FLAT +0.4987/min to every action's count regeneration.** The
+  three lifts agree to within 0.6% of each other across channels whose *base* rates differ by
+  1.9×, so the effect is **additive, not multiplicative**. Contracts look like "2×" only because
+  their base happens to be ~0.5; operations at base 0.27 get **2.86×** from the same constant.
+  📌 This is why the cross-node comparison was untrustworthy even though it landed on the right
+  answer — it would have predicted 2× for operations too, and that is wrong.
+- 🔑 **It is what keeps `Tracking` from starving.** `Tracking` net rate measured **−0.045/min with
+  the sleeve idle** and **+0.133/min while infiltrating**; the engine landed ~10.5 Tracking
+  successes per 12 min in the infiltrate arms against ~6.4 otherwise. `countRemaining` for Tracking
+  sits at ~2.6, so the engine's best action is living hand-to-mouth and the sleeve is the margin.
+
+
+### 🟡 RE-ANSWERED 2026-09-21 — they compete **AND** they add rank. The conclusion below was right for the wrong reason.
+
+**Measured** (`src/sleevebbprobe.js`, `logs/sleevebbprobe-1790037196715.json`, BN3.1, engine LIVE,
+six interleaved phases, sleeve on `Bounty Hunter` so it could not steal the engine's earner):
+
+| arm | rank/h | player's Bounty Hunter successes | Bounty Hunter count/min |
+|---|---|---|---|
+| idle (×2) | 199.2 | **+0** | +0.509 |
+| contracts (×2) | **342.1** | **+34.5** | **−5.819** |
+| infiltrate (×2) | 211.2 | +0 | +1.006 |
+
+- ✅ **Positive control passed decisively** — a 6.33/min swing in drain, so "the sleeve was running"
+  is established from the pool rather than from a setter's return value. This is the thing the
+  2026-08-18 run could not do, and why it self-reported INCONCLUSIVE.
+- 🔑 **Sleeve contract completions DO credit the player.** The player's own success counter for a
+  contract the sleeve was running moved **0 → +34.5/phase**, while engine drift across the whole
+  run was only **+3.65 rank/h**. Rate ratio **1.717**. The rank half is answered: **they add.**
+- 🔑 **Yield: 0.851 player rank per sleeve success; 0.676 rank per contract CONSUMED.** The sleeve
+  trains fast — success rate ran **16% in the first arm and 79.4% in the second**, at an unchanged
+  ~6/min consumption. Treat the second as steady state; the first is a cold sleeve.
+- 🔴 **AND IT IS STILL THE WRONG ASSIGNMENT, on arithmetic rather than on the old false premise.**
+  Consumption is **~12× the regeneration rate**, so this is a burn-down of a finite stock, not an
+  income. Burning the entire ~1,782 Bounty Hunter bank yields **~1,204 rank over ~5.0 h** — which
+  is **0.30% of a 400,000 gate**, about **6 hours** saved on a run measured in weeks — and during
+  those 5 hours `Tracking` stops accumulating (net −0.005/min vs +0.133 on Infiltrate). Infiltrate's
+  **+0.4987/min is permanent and grows in value as duty rises**: at the current duty ~0.57 Tracking
+  consumption is ~0.55/min against a 0.51/min base regen, and at BN6's terminal duty ~1.0 it would
+  run ~0.95/min — i.e. **deeply negative without the sleeve's contribution.**
+- 📌 **The lesson worth keeping: the 2026-08-18 recommendation survived, but its stated reason did
+  not.** "Do not put a sleeve on contracts" is still correct; "because they add ≈0 rank" was never
+  measured and is false. **A right answer resting on an untested premise is not a settled question**
+  — it is a coincidence waiting to mislead the next decision that leans on the premise instead of
+  the conclusion.
+
+[SUPERSEDED — the 2026-08-18 record, kept for the drain measurement, which stands]
 
 ### 🔴 ANSWERED 2026-08-18 — THEY COMPETE. Do not put a sleeve on contracts.
 
@@ -237,9 +288,19 @@ task, by design.
   `INCONCLUSIVE` (`taskHeldSamples: 0` of 36). **The drain is the only real signal.**
 - 📌 **A CONTROL THAT CANNOT MOVE IS NOT A CONTROL.** Check the baseline could have shown the
   effect before treating its absence as a result.
-- ⚠️ **`getTask` read `null` on all 36 samples while the counter drained** — the instrument cannot
-  currently observe a sleeve's Bladeburner task at all. Any re-test needs that fixed first, plus a
-  **live** engine.
+- 🔴 **RETRACTED 2026-09-21 — "`getTask` cannot observe a sleeve's Bladeburner task at all" is
+  FALSE in this build. Do not restate it.** ~~`getTask` read `null` on all 36 samples while the
+  counter drained — the instrument cannot currently observe a sleeve's Bladeburner task at all.~~
+  Measured live across 6 phases: it reports **`{type: "INFILTRATE", cyclesWorked, cyclesNeeded}`**
+  for `Infiltrate Synthoids` and **`{type: "BLADEBURNER"}`** for `Take on contracts`, on every
+  sample of every arm. Whatever produced the 36 nulls in BN10, it is not a blanket blindness.
+  ⚠️ **Two conclusions rested on this and both fall with it:** the claim that a re-test was blocked
+  on fixing the instrument (it was not — only the paused engine was ever the blocker), and the
+  `sleevemanager.js` bug filed in `BACKLOG.md`, whose premise was that the manager reads a
+  Bladeburner task as "no task". It does not: `decideSleeveAction` assigns crime **only** on a
+  `null` task and returns `{act: "none"}` for every non-`CRIME` type, naming Bladeburner and
+  Infiltrate explicitly.
+- 📌 The re-test still needed a **live** engine, and that half was right.
 
 [SUPERSEDED — the question as it stood]
 **Do sleeve contracts ADD rank throughput, or COMPETE for the same supply?** BN6 measured
@@ -307,10 +368,15 @@ superseded by this file.
 
 ## 9. Open questions
 
-- ❓ **Do sleeve contracts add or compete for Bladeburner contract supply?** (§6) — **the one that
-  matters most**; blocks nothing but validates the node order.
+- ✅ **CLOSED 2026-09-21 — sleeve contracts do BOTH: they compete for supply *and* they add player
+  rank** (§6). The competing half was never in doubt; the rank half had never been tested against a
+  control that could move. It can now: **+0.851 player rank per sleeve success, at 79.4% success
+  once the sleeve has trained up.** The 2026-08-18 reading of "adds ≈0" is overturned as a *fact*
+  while its *recommendation* survives on different grounds — see §6.
 - ❓ **What does `"Support main sleeve"` actually do?** Name-only in the API.
-- ✅ **CLOSED 2026-09-20 — `"Infiltrate Synthoids"` generates additional contracts and operations** (§6). Rate measured in BN3.1; **attribution still needs a sleeve-idle control window.**
+- ✅ **CLOSED 2026-09-21 — `"Infiltrate Synthoids"` generates supply, attribution now ESTABLISHED**
+  against the matched sleeve-idle control this line used to ask for (§6). The lift is
+  **+0.4987/min, flat and additive on every action type.**
 - ❓ **Sleeve cost curve.** `getSleeveCost()` is the next price; the escalation law is undocumented.
   The in-game guide says up to **5** are purchasable from **The Covenant**, the last at **100q**.
 - ❓ **Memory upgrade cost curve**, and whether memory is worth buying before or after sleeves.

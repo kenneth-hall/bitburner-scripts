@@ -17,6 +17,26 @@ on request — hold to them even when the moment is uncomfortable.
   - **📊 Stamped 2026-09-20 ~16:05 UTC — SNAPSHOT, recompute before quoting any of it.**
     Recompute: `node tools/bb/cli.mjs stats`; for Bladeburner, `connect pserv-128gb-0` →
     `scp bladeburner-state.json home` → read `logs/bladeburner-state.json` (see the landmine below).
+    - 📊 **RE-STAMPED 2026-09-21 ~19:20 UTC — quote THIS, not the 09-20 lines below it.**
+      rank **3,772 → 4,135 / 400,000** (0.94%) after **32.3 h** of engine uptime. Rate is
+      **accelerating**: cumulative **116.9 rank/h** · 24 h **135.4** · 1 h **212.9**. Rank-producing
+      share is climbing too but slowly — cumulative **48.8%** · 24 h **50.8%** · 1 h **57.1%**
+      (BN6 ran **99.4%**, so closing that gap alone is a **1.74× rate multiplier** — still the
+      largest lever on the table). `Tracking` **L61**, 100% success, **3.15 rank/action**, growing
+      **+3.9%/level** at ~1.5 levels/h. staminaMax **112.9** (was 78–81) — the self-resolution
+      predicted below is real, just slower than "self-resolves" implies.
+      combat **229/229/265/265** · hacking **246** · charisma **216** · money **$2.758b**.
+    - 🔴 **THE ~10-DAY ETA DOES NOT SURVIVE CONTACT — plan on ~16–20 days.** Frozen-rate at the
+      *best* window is **77.5 days**; that is not the right number either (every frozen-rate ETA in
+      this file has run pessimistic, and the rate compounds). But **BN6 — same route, same
+      `BladeburnerRank` 1.00 — took 17 days join-to-clear**, and BN3 is averaging **117 rank/h**
+      against BN6's ~201 over its first week. **No window supports "7–14".**
+    - 🔴 **"Income is $0/s and that is fine" is STALE AND WRONG.** Money went **$219m → $2.758b**
+      with `daemon.js` still not running at all — **Bladeburner contract payouts fund the node at
+      ~$22k/s**, ~10× what `Rob Store` measured. The ≈$165m `cloudmanager` growth buy is now petty
+      cash rather than an 8.6 h opportunity cost, so the reason to block it is *focus*, not price.
+    - ⚠️ **`pserv-128gb-1` exists, is EMPTY, and cost $18.304m** (bought 2026-09-20 11:08; `ps`
+      returns nothing). Either a stray purchase or a companion that never launched. Unexplained.
     - **✅ LADDER STEPS 1 AND 2 ARE DONE.** combat **212 / 212 / 227 / 227** against a gate of
       **100** — the 44,981-exp grind is paid. hacking **245** · charisma 8 · money **~$219m**.
     - **✅ Bladeburner division JOINED 2026-09-20** (`joinbladeburner.js` → `joined=true`,
@@ -31,6 +51,13 @@ on request — hold to them even when the moment is uncomfortable.
   - **🔑 THE BINDING CONSTRAINT IN THE BN3 OPENING IS STAMINA, NOT SUPPLY AND NOT HP** (measured
     2026-09-20, `logs/bladeburner-attempts.json` + the manager's own duty counters). Do not spend
     effort on contract supply or healing until this changes.
+    - ⚠️ **CORRECTED 2026-09-21 — "supply is not a constraint" is only true because the SLEEVE is
+      holding it up, and the number usually quoted for it is the wrong number.** `Tracking`'s own
+      `countRemaining` reads **~2.6**, not the ~3,340 in `cityStock.contractCount` — that figure is
+      an **aggregate across all contracts**, and the stock sits in Bounty Hunter (~1,782) and
+      Retirement, which the engine barely touches. Tracking runs net **−0.045/min sleeve-idle** and
+      **+0.133/min while infiltrating**. 📌 **Do not quote the aggregate as Tracking's headroom** —
+      that error was made on 2026-09-21 and produced a confident "49-hour buffer" that was false.
     - duty cycle **0.31** · `rankProducingSec` **839.1** vs `overheadSec` **806.8** — i.e. **49% of
       all action time is `Hyperbolic Regeneration Chamber`**.
     - 🔑 **HRC is firing for STAMINA, not healing.** Every attempt logs `hpFraction: 1` with
@@ -44,15 +71,27 @@ on request — hold to them even when the moment is uncomfortable.
       regen is **not flat** in `staminaMax` (2.45× regen for 3.77× max). BN6 ended at duty **99.4%**.
       SP is **0** at rank 27 (it accrues at rank/3), so `Reaper` / `Evasive System` are not yet
       buyable; revisit them once the bank is real.
-  - **🟢 SLEEVE: on `Infiltrate Synthoids` since 2026-09-20, and that is the right call by
-    elimination.** It **generates** contracts and operations (the game's own task text — full record
-    and the measured rates: `docs/sleeve-grafting-reference.md` §6). ⚠️ It is aimed at the
-    constraint that binds **next**, not the one binding now: aggregate contract regen is
-    **~3.0/min** against **~1.49/min** consumption at duty 0.31, a 2× surplus — but consumption
-    scales with duty (`5 × duty` per min at the current 12 s action time), so at BN6's duty ~1.0 it
-    becomes **~5/min against 3.0/min** and `Tracking` re-pins exactly as it did in BN6.
-    ⚠️ **Attribution is NOT established** — every rate was measured with the sleeve already
-    infiltrating; a matched sleeve-idle control has not been run.
+  - **✅ SLEEVE: stays on `Infiltrate Synthoids` — MEASURED 2026-09-21, no longer "by elimination".**
+    Full record: `docs/sleeve-grafting-reference.md` §6/§9; raw
+    `logs/sleevebbprobe-1790037196715.json` (six interleaved 12-min phases, live engine, positive
+    control passed).
+    - 🔑 **Infiltrate adds a FLAT `+0.4987/min` to EVERY action's count regeneration** — Bounty
+      Hunter +0.4971, Retirement +0.4992, Sting +0.4999, agreeing to 0.6% across channels whose base
+      rates differ 1.9×. **Additive, not multiplicative.** Contracts read "2×" only because their
+      base is ~0.5; operations get **2.86×** from the same constant. ⚠️ The old "suggestively
+      exactly 2×" hunch was right by luck and would have mispredicted operations.
+    - 🔑 **It is what keeps `Tracking` alive.** Tracking net **−0.045/min sleeve-idle** vs
+      **+0.133/min infiltrating**; engine Tracking successes ~10.5 per 12 min infiltrating vs ~6.4
+      otherwise. Its value **grows as duty rises** — consumption is ~0.55/min at the current duty
+      0.57 against a 0.51/min base regen, and would be ~0.95/min at BN6's terminal duty ~1.0.
+    - 🔴 **Sleeve CONTRACTS were tested and beaten on arithmetic, not on the old false premise.**
+      They *do* credit the player (**0.851 rank/success, 79.4% success once trained**, rate ratio
+      **1.717**) — the 2026-08-18 "adds ≈0 rank" is **overturned as a fact**. But consumption runs
+      **~12× regeneration**, so it is a burn-down: the whole ~1,782 Bounty Hunter bank is
+      **~1,204 rank over ~5 h = 0.30% of the gate**, ~6 h saved on a multi-week run, and `Tracking`
+      stalls meanwhile. **Not worth the churn.**
+    - 📌 **Durable lesson: a right answer resting on an untested premise is not a settled question.**
+      The 2026-08-18 *recommendation* survived; its *stated reason* was never measured and is false.
   - 🚨 **TWO LANDMINES FOUND 2026-09-20 WHILE STARTING THE LADDER — both cost real time, both recur.**
     - 🔑 **`bladeburner-off.txt` survived the node change on `home` and silently held the engine
       OFF.** The manager started, wrote `off: true` / `holdReason: "off-marker"` / `rank: 0`, and did

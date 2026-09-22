@@ -6,6 +6,33 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-09-21
+
+- **Sleeve A/B/C probe run: both open sleeve questions closed by measurement, and three recorded
+  claims retracted.** `src/sleevebbprobe.js` rebuilt as six interleaved 12-minute phases
+  (idle / contracts / infiltrate, ×2) with a `getActionCountRemaining` **positive control**, run
+  against a **live** engine — the thing the 2026-08-18 attempt lacked, which is why it self-reported
+  INCONCLUSIVE. Output: `logs/sleevebbprobe-1790037196715.json`.
+- **🔑 `Infiltrate Synthoids` adds a FLAT +0.4987/min to every action's regeneration** — Bounty
+  Hunter +0.4971, Retirement +0.4992, Sting +0.4999, agreeing to 0.6% across channels whose base
+  rates differ 1.9×. **Additive, not multiplicative:** contracts look like "2×" only because their
+  base is ~0.5; operations get 2.86× from the same constant. Attribution against a matched idle
+  control is now established, closing `sleeve-grafting-reference.md` §9's standing request.
+- **🔑 Sleeve contract work DOES credit the player: 0.851 rank per sleeve success, 79.4% success
+  once trained** (16% cold — the sleeve learns fast). Overturns the 2026-08-18 "adds ≈0 rank" as a
+  *fact*, while its *recommendation* survives on arithmetic: consumption runs **~12× regeneration**,
+  so burning the whole ~1,782 Bounty Hunter bank is **~1,204 rank over ~5 h = 0.30% of the gate**,
+  and it stalls `Tracking` while it runs. **Sleeve stays on Infiltrate.**
+- **🔴 Retracted: "`getTask` cannot observe a sleeve's Bladeburner task."** It reports `INFILTRATE`
+  and `BLADEBURNER` on every sample. The `sleevemanager.js` bug filed 2026-09-20 rested entirely on
+  that premise and is **deleted from `BACKLOG.md`** — `decideSleeveAction` assigns crime only on a
+  `null` task and defers to every non-`CRIME` type by name.
+- **🔴 Corrected: `Tracking` is supply-limited in BN3, `countRemaining` ~2.6.** The manager's
+  `cityStock.contractCount` ~3,340 is an **aggregate across all contracts**, and the stock sits in
+  Bounty Hunter/Retirement, which the engine barely touches. Tracking net runs **−0.045/min with
+  the sleeve idle vs +0.133/min while infiltrating** — the sleeve is the margin keeping the engine's
+  best action alive, and that value *grows* as duty rises.
+
 ## 2026-09-20
 
 - **BN3.1 Bladeburner ladder started: steps 1–3 are done or running.** Combat cleared the gate at
