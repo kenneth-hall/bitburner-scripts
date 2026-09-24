@@ -22,6 +22,19 @@ do, and what's broken?*
 
 ## Bugs
 
+- **🟢 NEW 2026-09-24 — `augcheck.js` output never reaches `logs/`; there is no `vite.config.ts`
+  filter for it.** `docs/scripts.md` says it writes `logs/augcheck-<epoch>.txt`, and the script does
+  call `ns.write("logs/augcheck-" + ts + ".txt", ...)` (`src/augcheck.js:54`) — but no `location()`
+  branch matches, so the file stays on `home` and is invisible to the repo. Hit 2026-09-24 while
+  pricing Bladeburner augs; had to read the results off CDP terminal scrollback instead, which is
+  exactly the lossy path `CLAUDE.md` says to avoid.
+  - **Fix:** add `if (/^logs\/augcheck-\d+\.txt$/.test(file)) return file;` near the other one-file-
+    per-run filters (~line 120). ⚠️ Note it writes an **already-`logs/`-prefixed literal filename**,
+    unlike every neighbouring filter which matches a bare name and maps it in — so the pattern is
+    genuinely different and should be verified with a real run, not assumed.
+  - **Why it was not done on the spot:** editing `vite.config.ts` requires restarting `npm run dev`,
+    and that was outside the session's scope. Low cost, no urgency — nothing depends on it.
+
 - **🟡 STANDING 2026-09-19 — 108 of 313 files in `logs/` are blank-filled corpses from the
   2026-09-08 power event.** They are correct-sized and contain only spaces/nulls, so `ls`, a size
   check and an mtime check all pass. Detect with `tr -d '\000 \n\r\t' < f | wc -c`.

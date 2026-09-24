@@ -17,20 +17,23 @@ on request — hold to them even when the moment is uncomfortable.
   - **📊 Stamped 2026-09-20 ~16:05 UTC — SNAPSHOT, recompute before quoting any of it.**
     Recompute: `node tools/bb/cli.mjs stats`; for Bladeburner, `connect pserv-128gb-0` →
     `scp bladeburner-state.json home` → read `logs/bladeburner-state.json` (see the landmine below).
-    - 📊 **RE-STAMPED 2026-09-21 ~19:20 UTC — quote THIS, not the 09-20 lines below it.**
-      rank **3,772 → 4,135 / 400,000** (0.94%) after **32.3 h** of engine uptime. Rate is
-      **accelerating**: cumulative **116.9 rank/h** · 24 h **135.4** · 1 h **212.9**. Rank-producing
-      share is climbing too but slowly — cumulative **48.8%** · 24 h **50.8%** · 1 h **57.1%**
-      (BN6 ran **99.4%**, so closing that gap alone is a **1.74× rate multiplier** — still the
-      largest lever on the table). `Tracking` **L61**, 100% success, **3.15 rank/action**, growing
-      **+3.9%/level** at ~1.5 levels/h. staminaMax **112.9** (was 78–81) — the self-resolution
-      predicted below is real, just slower than "self-resolves" implies.
-      combat **229/229/265/265** · hacking **246** · charisma **216** · money **$2.758b**.
-    - 🔴 **THE ~10-DAY ETA DOES NOT SURVIVE CONTACT — plan on ~16–20 days.** Frozen-rate at the
-      *best* window is **77.5 days**; that is not the right number either (every frozen-rate ETA in
-      this file has run pessimistic, and the rate compounds). But **BN6 — same route, same
-      `BladeburnerRank` 1.00 — took 17 days join-to-clear**, and BN3 is averaging **117 rank/h**
-      against BN6's ~201 over its first week. **No window supports "7–14".**
+    - 📊 **RE-STAMPED 2026-09-24 ~23:10 UTC — quote THIS; every line below it is older.**
+      rank **42,349 / 400,000 = 10.59%** after **102.4 h** uptime, **0 restarts**. Rate:
+      cumulative **413.7 rank/h** · 24 h **781.0** · 1 h **957.7**. Rank-producing share
+      cumulative **64.9%** · 24 h **78.8%** · 1 h **83.6%**. staminaMax **133.3**. SP **11,852
+      idle** (all six skills at their `SKILL_LEVEL_CAP` — deliberate, see step 4). Sector-12 chaos
+      **46.3** vs target 50, so **`Diplomacy` is about to fire for the first time in BN3 — do not
+      misread it as a fault.** combat **259/259/326/326** · hacking **246** · charisma **304** ·
+      money **$34.545b**. Recompute: `cli.mjs stats` + the `scp` dance below; `ladderstatus.js` for
+      the ladder.
+    - ✅ **THE STAMINA PREDICTION PAID OFF — this is the one forecast in this file that landed.**
+      Rank-producing share **57.1% → 83.6%** and rate **×4.5** in three days, from combat growth
+      alone, exactly as "it self-resolves" argued. Remaining headroom to BN6's **99.4%** is now only
+      ~1.19×, so **stamina is no longer the top lever** — it spent itself down.
+    - **ETA: ~15.6 days remaining** at the 1 h rate, 19.1 at the 24 h rate ⇒ **~19.6–23 days total
+      from join**, and still shrinking as the rate climbs. 📌 **Calibration note: the "~16–20 days
+      total" called on 2026-09-21 was slightly OPTIMISTIC**, where BN6's error ran 40% pessimistic.
+      🔴 The original **"~10 days, range 7–14" is dead** — no window ever supported it.
     - 🔴 **"Income is $0/s and that is fine" is STALE AND WRONG.** Money went **$219m → $2.758b**
       with `daemon.js` still not running at all — **Bladeburner contract payouts fund the node at
       ~$22k/s**, ~10× what `Rob Store` measured. The ≈$165m `cloudmanager` growth buy is now petty
@@ -148,8 +151,37 @@ on request — hold to them even when the moment is uncomfortable.
        black op, not the win condition.**
     4. `bbskillbuy.js <target>` — spend the SP bank (it accrues at **rank/3**) *before* the
        ladder's back half. SP is node-local and destroyed on the clear, so spending it is free.
+       - 🔑 **MEASURED TRIGGER, set 2026-09-24: do this at rank ~275,000 (SP ~91,500), NOT
+         earlier.** `bbskillbuy.js dry` at rank 42.7k priced the full plan:
+         **Reaper L6→50 = 2,629 SP · Overclock L17→90 = 5,636 SP**, and the success pair
+         **`Blade's Intuition`+`Digital Observer` 25/25 → 200/200 = 83,195 SP**
+         (`docs/bladeburner-reference.md` §, table at line ~276). Total ≈ **91,460 SP** — which is
+         *exactly* what BN6 spent. Since SP = rank/3, the bank only reaches that at rank ~275k.
+       - 🔴 **DO NOT part-spend it early expecting the ladder to open.** At rank 42.7k the bank was
+         **11,852 SP = 14% of what the success pair alone needs**; Overclock+Reaper would eat 8,265
+         of it and leave ~3,587 for BI/DO, taking the success multiplier from **×3.50 to only
+         ~×7.5** against the **×63.00** that took every BN6 op to `pMax 1.0000`. A spend that small
+         buys nothing that matters and is the *same total cost* later.
+       - ⚠️ **`Overclock` buys ~nothing during Stage A** — Q10's per-action stamina finding caps
+         throughput at ~55.8 actions/h regardless of action time, so its 10× only lands on the
+         hours-long black ops. It is a ladder purchase, not a grind purchase.
     5. `bbblackop.js 20` (ops 1–20) → re-spend the SP the ladder itself earns →
        `bbblackop.js 1 daedalus` (op 21). ⚠️ **Completing Daedalus does NOT destroy the node.**
+       - 🔑 **RANK-ELIGIBLE IS NOT THE SAME AS WORTH FIRING, measured 2026-09-24.**
+         `ladderstatus.js` at rank 42,732 read **10 ops already rank-eligible, 0 done** — Typhoon
+         needs only rank 2,500 — but at BI/DO 25/25 their success chances run **p[0.179, 0.409]
+         (Typhoon) down to p[0.020, 0.047] (Deckard)**, with Daedalus at **p[0.0045, 0.0102]**.
+       - 🔴 **NOW IS THE WORST TIME TO RUN THEM, and the reason generalises.** BN6 measured rank
+         loss per failure as **nearly FLAT in the reward** (`reward^0.24`, 943/failure on a 3,000
+         op vs 1,066 on a 5,000 one) while the *rewards* grow with op index. So the early ops carry
+         the **worst reward-to-failure-cost ratio on the ladder**, and low success multiplies the
+         number of failures. **Rank-eligibility never expires, so waiting is strictly free.**
+       - ⚠️ **Nothing fires these automatically** — the manager has no black-op stage, by design.
+         This is the exact shape of BN6's near-miss, which is why step 4 now carries a number.
+       - ⚠️ `bbblackop.js` must run **on `home`**: it writes the pause markers with a bare
+         `ns.write` while the manager reads `ns.fileExists(BB_OFF_MARKER, "home")` and the cleanup
+         does `ns.rm(..., "home")`. Run it off `home` and the manager never sees the pause, so both
+         fight for the single player-action slot.
     6. `destroybn.js <nextBN> confirm` — **THIS is the irreversible step.** It aborts on its own
        unless `getNextBlackOp()` reads `null`, and `nextBN` is **MANDATORY** in this build.
     - **ETA ~10 days, range 7–14** (`docs/bitnodes.md` § "ETA table"). ⚠️ Scaled from BN6's one

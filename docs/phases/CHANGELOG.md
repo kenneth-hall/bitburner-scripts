@@ -6,6 +6,30 @@ one-or-two-line summary; the full design/validation story lives in the linked ph
 
 ---
 
+## 2026-09-24
+
+- **Ladder re-derived live; a proposed early black-op run was priced and CANCELLED before firing.**
+  `ladderstatus.js` at rank 42,732 read **10 of 21 ops already rank-eligible, 0 done** (Typhoon
+  needs only rank 2,500). That looked like free progress. `bbskillbuy.js dry` priced the enabling
+  spend and killed it: the bank held **11,852 SP = 14%** of the **83,195 SP** the success pair
+  (`Blade's Intuition`+`Digital Observer` 25/25 → 200/200) needs on its own. Overclock+Reaper would
+  eat 8,265, leaving ~3,587 for BI/DO — success multiplier **×3.50 → ~×7.5** against the **×63.00**
+  that took every BN6 op to `pMax 1.0000`. Ops would have stayed at p[0.02, 0.41].
+- **🔑 Early ops are the worst ops to fire, and the reason generalises.** BN6 measured rank loss per
+  failure as **nearly flat in the reward** (`reward^0.24`) while rewards *grow* with op index, so
+  the early ladder carries the worst reward-to-failure ratio — and low success multiplies the
+  failures. **Rank-eligibility never expires, so waiting is strictly free.** A measured trigger is
+  now recorded in `CLAUDE.md` step 4: spend at **rank ~275,000 (SP ~91,500 ≈ BN6's 91,460)**, since
+  SP accrues at rank/3. Nothing fires these automatically — the manager has no black-op stage.
+- **✅ The stamina forecast landed.** Rank-producing share **57.1% → 83.6%**, staminaMax
+  **112.9 → 133.3**, rate **×4.5** to 957.7 rank/h in three days, from combat growth alone. Stamina
+  is no longer the top lever; remaining headroom to BN6's 99.4% is ~1.19×.
+- **⚠️ Recorded: `bbblackop.js` must run on `home`.** It writes its pause markers with a bare
+  `ns.write` (host-scoped) while the manager reads `ns.fileExists(BB_OFF_MARKER, "home")` — run it
+  elsewhere and the manager never sees the pause, so both contend for the one player-action slot.
+- **⚠️ `augcheck.js` has no `vite.config.ts` filter**, so its `augcheck-<epoch>.txt` never reaches
+  `logs/` despite `docs/scripts.md` saying it does. Read off terminal scrollback this time.
+
 ## 2026-09-21
 
 - **Sleeve A/B/C probe run: both open sleeve questions closed by measurement, and three recorded
