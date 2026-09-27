@@ -17,7 +17,14 @@ on request — hold to them even when the moment is uncomfortable.
   - **📊 Stamped 2026-09-20 ~16:05 UTC — SNAPSHOT, recompute before quoting any of it.**
     Recompute: `node tools/bb/cli.mjs stats`; for Bladeburner, `connect pserv-128gb-0` →
     `scp bladeburner-state.json home` → read `logs/bladeburner-state.json` (see the landmine below).
-    - 📊 **RE-STAMPED 2026-09-24 ~23:10 UTC — quote THIS; every line below it is older.**
+    - 📊 **RE-STAMPED 2026-09-27 ~18:38 UTC — quote THIS; every line below it is older.**
+      rank **131,091 / 400,000 = 32.8%** after **152.3 h** uptime, **1 restart**. Rate: 24 h
+      **2,251 rank/h** · 1 h **1,871** (duty 1 h **100%**, 24 h **92.6%**). ⇒ **~5–6 days to the
+      gate** — rate has roughly doubled again since 09-24. SP **41,305 idle**, still short of the
+      ~91,500 step-4 trigger (rank ~275k, ~2.7 days out). Sector-12 chaos **49.0**; `Diplomacy` has
+      fired (9 runs, ~10 chaos/run). combat **284/284/361/360** · money **$108.5b**. Ladder: 0/21
+      done, 14 rank-eligible, Typhoon p[0.19, 0.73] — still not worth firing before the SP spend.
+    - 📊 *Stamped 2026-09-24 ~23:10 UTC — superseded by the line above:*
       rank **42,349 / 400,000 = 10.59%** after **102.4 h** uptime, **0 restarts**. Rate:
       cumulative **413.7 rank/h** · 24 h **781.0** · 1 h **957.7**. Rank-producing share
       cumulative **64.9%** · 24 h **78.8%** · 1 h **83.6%**. staminaMax **133.3**. SP **11,852
