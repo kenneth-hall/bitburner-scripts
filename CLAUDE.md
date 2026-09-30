@@ -17,7 +17,17 @@ on request — hold to them even when the moment is uncomfortable.
   - **📊 Stamped 2026-09-20 ~16:05 UTC — SNAPSHOT, recompute before quoting any of it.**
     Recompute: `node tools/bb/cli.mjs stats`; for Bladeburner, `connect pserv-128gb-0` →
     `scp bladeburner-state.json home` → read `logs/bladeburner-state.json` (see the landmine below).
-    - 📊 **RE-STAMPED 2026-09-27 ~18:38 UTC — quote THIS; every line below it is older.**
+    - 📊 **RE-STAMPED 2026-09-30 ~23:22 UTC — quote THIS; every line below it is older.**
+      rank **293,427 / 400,000 = 73.4%** after **228.1 h** uptime, **1 restart**. Rate: 24 h
+      **2,409 rank/h** · 1 h **2,558** (duty 1 h **100%**, 24 h **97.8%**) ⇒ **~42–44 h to the gate.**
+      ✅ **STEP 4 DONE 2026-09-30 23:22** — `bbskillbuy.js` spent **95,416 → 3,936 SP**: success
+      **×3.50 → ×63.00**, action time **×0.83 → ×0.10** (Reaper 50, Overclock 90, BI/DO 200/200).
+      `ladderstatus.js` after: **ops 1–8 at p[1.0000, 1.0000]**, K 0.85 · Deckard 0.66 · Ultron 0.19
+      · Daedalus **p[0.1424, 1.0000]**; 18 of 21 rank-eligible, 0 done. Money **$243.7b**, combat
+      306/306/386/386, Sector-12 chaos 70.3. ⚠️ **scp landmine addendum:** after
+      `scp bladeburner-state.json home`, wait for the repo file's mtime to change — reading
+      immediately returns the *previous* sync (read a 3-day-old state as current on 09-30).
+    - 📊 *Stamped 2026-09-27 ~18:38 UTC — superseded by the line above:*
       rank **131,091 / 400,000 = 32.8%** after **152.3 h** uptime, **1 restart**. Rate: 24 h
       **2,251 rank/h** · 1 h **1,871** (duty 1 h **100%**, 24 h **92.6%**). ⇒ **~5–6 days to the
       gate** — rate has roughly doubled again since 09-24. SP **41,305 idle**, still short of the
