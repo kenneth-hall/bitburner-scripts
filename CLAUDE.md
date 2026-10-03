@@ -49,7 +49,7 @@ on request — hold to them even when the moment is uncomfortable.
        pair" argument still holds — it was about BI/DO, not these two). Cost if wrong: ~8.3k SP
        bought ~1 day earlier than BN3 did, which is free (SP is node-local).
        ⚠️ This **contradicts** the BN3 block's "Overclock buys ~nothing during Stage A" — that line
-       is now suspect, not settled. \`bbskillbuy.js\` has no Reaper+Overclock-only mode — check its
+       is now suspect, not settled. `bbskillbuy.js` has no Reaper+Overclock-only mode — check its
        args before running, or buy them in the Bladeburner UI.
     5. **Once rank > 400k:** re-spend SP to a high target (`run bbskillbuy.js 400` spent everything
        in BN3), then `run bbblackop.js 20` on `home`. Then re-spend again,
