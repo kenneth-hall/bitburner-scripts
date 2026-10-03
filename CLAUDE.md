@@ -9,7 +9,18 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **🟢 IN BN3.1 (Corporatocracy) — entered
+- **Current goal (keep this line current):** **🟢 IN BN11.1 (The Big Crash) — entered
+  2026-10-03 ~14:36 UTC.** ✅ **BN3.1 CLEARED** — Daedalus completed on attempt 3 (2 failures,
+  pMin 0.4312), final rank **880,167**, then `destroybn.js 11 confirm`. Held SFs now
+  **1.3 · 2 · 3 · 4.3 · 5 · 6 · 9 · 10** (read live via `bitnodemults.js`). Intelligence **119**.
+  Home is **32 GB**, nothing running, only `cloud-upgrade-off.txt` on `home` (no stray off/pause
+  markers). BN11 key mults (live): `HackingLevelMultiplier` 0.6 · `BladeburnerRank` 1 ·
+  `BladeburnerSkillCost` 1 · `ServerMaxMoney` 0.01 · `AugmentationMoneyCost` 2 ·
+  `WorldDaemonDifficulty` 1.5. **First task: the hacking-vs-ladder check `bitnodes.md` leaves open
+  for BN11**, before committing to the ladder again. 📌 BN3 ladder lesson: **re-spend SP right
+  before the back half** — the 09-30 spend lifted the grind rate 4.4×, and Centurion still failed
+  7× at pMin 0.43. Everything below is the **BN3 record — CLOSED HISTORY.**
+- **[CLOSED 2026-10-03] BN3 goal block:** **🟢 IN BN3.1 (Corporatocracy) — entered
   2026-09-18, day 3. Route: the Bladeburner black-op ladder, the same shape proven in
   BN6/BN9/BN10.** Held SFs: **1 · 2 · 4 · 5 · 6 · 9 · 10** (verified live on the
   Augmentations screen after entry). Nothing carried in but Source-Files, home scripts and

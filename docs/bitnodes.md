@@ -766,7 +766,7 @@ just the node that sorts last.
 **BN3 → BN11 → BN7 → BN14 → BN13 → BN8 → BN15 → BN12 (repeatable, anytime after, background NFG).**
 
 1. **BN3** — ties for cheapest (1.00×), cheap combat gate, and the only pick in this tier with a
-   real reward (SF3, a third money engine). Do it first. 🟢 **IN PROGRESS since 2026-09-18** —
+   real reward (SF3, a third money engine). Do it first. ✅ **CLEARED 2026-10-03** (SF3.1 held; BN11 entered) —
    live state and the cold-start ladder sequence are in `CLAUDE.md`'s "Current goal" block.
 2. **BN11** — same 1.00× cost tier, cheap gate, weak reward. No cost reason to defer a node this
    cheap just because its reward is weak — clear it back-to-back with BN3 while the ladder tooling
