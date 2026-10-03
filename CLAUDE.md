@@ -16,8 +16,16 @@ on request — hold to them even when the moment is uncomfortable.
   Home is **32 GB**, nothing running, only `cloud-upgrade-off.txt` on `home` (no stray off/pause
   markers). BN11 key mults (live): `HackingLevelMultiplier` 0.6 · `BladeburnerRank` 1 ·
   `BladeburnerSkillCost` 1 · `ServerMaxMoney` 0.01 · `AugmentationMoneyCost` 2 ·
-  `WorldDaemonDifficulty` 1.5. **First task: the hacking-vs-ladder check `bitnodes.md` leaves open
-  for BN11**, before committing to the ladder again. 📌 BN3 ladder lesson: **re-spend SP right
+  `WorldDaemonDifficulty` 1.5. ✅ Hacking route closed by calculation (`bitnodes.md` BN11 entry).
+  - ✅ **LADDER STEPS 1–3 DONE 2026-10-03 ~19:00 UTC, ~4.4 h after entry** (BN3 took ~2 days):
+    combat 141 via Mug (`CrimeMoney` 3.0), `joinbladeburner.js` → `joined=true`, and
+    **`bladeburnermanager.js` runs on `home`, not a cloud host** — home bought 32 → **256 GB**
+    (~$80m) because `hosts.js` `HOME_RESERVE_GB = 160` keeps daemon workers off home, so manager
+    (99) + residents (~32) fit inside the reserve. 🔑 **Logs therefore land in `logs/` directly —
+    the BN3 `scp` dance is NOT needed this node.** ⚠️ A cloud server bought first (`pserv-128gb-0`,
+    $14.08m) was filled by daemon workers within seconds and could not host the manager; it is now
+    just daemon capacity. Sleeve set to `Infiltrate Synthoids` (shock **76** at the time — its
+    effect at high shock is unmeasured). 📌 BN3 ladder lesson: **re-spend SP right
   before the back half** — the 09-30 spend lifted the grind rate 4.4×, and Centurion still failed
   7× at pMin 0.43. Everything below is the **BN3 record — CLOSED HISTORY.**
 - **[CLOSED 2026-10-03] BN3 goal block:** **🟢 IN BN3.1 (Corporatocracy) — entered
