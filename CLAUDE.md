@@ -17,7 +17,15 @@ on request — hold to them even when the moment is uncomfortable.
   - **📊 Stamped 2026-09-20 ~16:05 UTC — SNAPSHOT, recompute before quoting any of it.**
     Recompute: `node tools/bb/cli.mjs stats`; for Bladeburner, `connect pserv-128gb-0` →
     `scp bladeburner-state.json home` → read `logs/bladeburner-state.json` (see the landmine below).
-    - 📊 **RE-STAMPED 2026-09-30 ~23:22 UTC — quote THIS; every line below it is older.**
+    - 📊 **RE-STAMPED 2026-10-03 ~00:31 UTC — quote THIS; every line below it is older.**
+      🟢 **GATE PASSED — rank 746,590 (1.87× the 400k gate), all 21 ops rank-eligible, 0 done.**
+      SP **154,991 idle** (re-spend owed before the back half). Rate 24 h **10,565 rank/h** —
+      **4.4× the pre-spend 2,409**, at duty only **0.347** (HRC is back to ~65% of time, stamina
+      0.53, staminaMax 245). ⚠️ **This contradicts "Overclock buys ~nothing during Stage A"** —
+      but Reaper 6→50, Overclock 17→90 and BI/DO 25→200 all landed at once, so the cause is
+      **confounded, not attributed**. Ladder p: ops 1–8 1.00 · Deckard 0.67 · Ultron 0.19 ·
+      Daedalus **p[0.1439, 1.0000]**. Sector-12 chaos **178.1** and rising. Money **$621.5b**.
+    - 📊 *Stamped 2026-09-30 ~23:22 UTC — superseded by the line above:*
       rank **293,427 / 400,000 = 73.4%** after **228.1 h** uptime, **1 restart**. Rate: 24 h
       **2,409 rank/h** · 1 h **2,558** (duty 1 h **100%**, 24 h **97.8%**) ⇒ **~42–44 h to the gate.**
       ✅ **STEP 4 DONE 2026-09-30 23:22** — `bbskillbuy.js` spent **95,416 → 3,936 SP**: success
