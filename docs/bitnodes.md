@@ -768,7 +768,13 @@ just the node that sorts last.
 1. **BN3** — ties for cheapest (1.00×), cheap combat gate, and the only pick in this tier with a
    real reward (SF3, a third money engine). Do it first. ✅ **CLEARED 2026-10-03** (SF3.1 held; BN11 entered) —
    live state and the cold-start ladder sequence are in `CLAUDE.md`'s "Current goal" block.
-2. **BN11** — same 1.00× cost tier, cheap gate, weak reward. No cost reason to defer a node this
+2. **BN11** — 🟢 **ENTERED 2026-10-03.** ✅ **Hacking route CLOSED BY CALCULATION the same day**
+   (live mults, `logs/bitnodemults-1791038219863.json`): WD gate `3000 × 1.5 / 0.6` = **7,500 raw —
+   identical to BN3's**, but with `HackExpGain` **0.5** (BN3 1.0). Aug-buying power is only ~1.9×
+   BN3's (steal `0.01 × 1.00` vs 0.008, aug cost 2× vs 3×), against a BN3 hacking path already
+   computed as orders of magnitude out of reach. **Win path = the Bladeburner ladder, same as BN3**
+   (rank 1.00, skill cost 1.00, combat 1.00). The one real difference: **`CrimeMoney` 3.0** (BN3
+   0.25) — the crime-funded opening is ~12× faster. Same 1.00× cost tier, cheap gate, weak reward. No cost reason to defer a node this
    cheap just because its reward is weak — clear it back-to-back with BN3 while the ladder tooling
    is warm, rather than parking it at the tail for a reward-only reason that doesn't reduce its
    price by waiting.
