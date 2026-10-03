@@ -17,7 +17,15 @@ on request — hold to them even when the moment is uncomfortable.
   - **📊 Stamped 2026-09-20 ~16:05 UTC — SNAPSHOT, recompute before quoting any of it.**
     Recompute: `node tools/bb/cli.mjs stats`; for Bladeburner, `connect pserv-128gb-0` →
     `scp bladeburner-state.json home` → read `logs/bladeburner-state.json` (see the landmine below).
-    - 📊 **RE-STAMPED 2026-10-03 ~00:31 UTC — quote THIS; every line below it is older.**
+    - 📊 **RE-STAMPED 2026-10-03 ~13:17 UTC — quote THIS; every line below it is older.**
+      ✅ **LADDER OPS 1–20 DONE** (`logs/bbblackop-1790989048537.json`, 00:57→~04:00 UTC): 19 of 20
+      first try; **Centurion took 8 attempts (7 failures) at pMin 0.4267 and netted −22,210 rank**
+      — i.e. the lower bound was not pessimistic here. Money **$621.5b → $346.7b** over the run,
+      plausibly the 7 failure hospitalisations (not isolated; no transaction log covers it). Rank
+      now **862,218**; re-spent **37,202 SP** → success **×184.55**; **Daedalus p[0.4312, 1.0000]**.
+      ⚠️ `bladeburner-state.json` on `pserv-128gb-0` **stopped updating at 00:31 UTC** (the
+      `bbblackop` pause) while the manager kept grinding — read rank live via `ladderstatus.js`.
+    - 📊 *Stamped 2026-10-03 ~00:31 UTC — superseded by the line above:*
       🟢 **GATE PASSED — rank 746,590 (1.87× the 400k gate), all 21 ops rank-eligible, 0 done.**
       SP **154,991 idle** (re-spend owed before the back half). Rate 24 h **10,565 rank/h** —
       **4.4× the pre-spend 2,409**, at duty only **0.347** (HRC is back to ~65% of time, stamina
