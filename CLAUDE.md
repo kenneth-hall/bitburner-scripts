@@ -10,24 +10,69 @@ solutions — work from game mechanics and the API.
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** **🟢 IN BN11.1 (The Big Crash) — entered
-  2026-10-03 ~14:36 UTC.** ✅ **BN3.1 CLEARED** — Daedalus completed on attempt 3 (2 failures,
-  pMin 0.4312), final rank **880,167**, then `destroybn.js 11 confirm`. Held SFs now
-  **1.3 · 2 · 3 · 4.3 · 5 · 6 · 9 · 10** (read live via `bitnodemults.js`). Intelligence **119**.
-  Home is **32 GB**, nothing running, only `cloud-upgrade-off.txt` on `home` (no stray off/pause
-  markers). BN11 key mults (live): `HackingLevelMultiplier` 0.6 · `BladeburnerRank` 1 ·
-  `BladeburnerSkillCost` 1 · `ServerMaxMoney` 0.01 · `AugmentationMoneyCost` 2 ·
-  `WorldDaemonDifficulty` 1.5. ✅ Hacking route closed by calculation (`bitnodes.md` BN11 entry).
-  - ✅ **LADDER STEPS 1–3 DONE 2026-10-03 ~19:00 UTC, ~4.4 h after entry** (BN3 took ~2 days):
-    combat 141 via Mug (`CrimeMoney` 3.0), `joinbladeburner.js` → `joined=true`, and
-    **`bladeburnermanager.js` runs on `home`, not a cloud host** — home bought 32 → **256 GB**
-    (~$80m) because `hosts.js` `HOME_RESERVE_GB = 160` keeps daemon workers off home, so manager
-    (99) + residents (~32) fit inside the reserve. 🔑 **Logs therefore land in `logs/` directly —
-    the BN3 `scp` dance is NOT needed this node.** ⚠️ A cloud server bought first (`pserv-128gb-0`,
-    $14.08m) was filled by daemon workers within seconds and could not host the manager; it is now
-    just daemon capacity. Sleeve set to `Infiltrate Synthoids` (shock **76** at the time — its
-    effect at high shock is unmeasured). 📌 BN3 ladder lesson: **re-spend SP right
-  before the back half** — the 09-30 spend lifted the grind rate 4.4×, and Centurion still failed
-  7× at pMin 0.43. Everything below is the **BN3 record — CLOSED HISTORY.**
+  2026-10-03 ~14:36 UTC. Route: the Bladeburner black-op ladder, same as BN3** (hacking closed by
+  calculation — `docs/bitnodes.md` BN11 entry). Held SFs **1.3 · 2 · 3 · 4.3 · 5 · 6 · 9 · 10**
+  (read live via `bitnodemults.js`; SF3.1 is new). Intelligence **119**.
+  - **📊 STAMPED 2026-10-03 ~20:16 UTC — SNAPSHOT, recompute before quoting.** rank **18.4** /
+    400,000 · SP 0 · staminaMax **56** (HRC-bound, expected at combat ~145 — BN3 opened at 78–81
+    and self-resolved) · combat **144/144/149/149** · money **$108m**. Recompute:
+    `node tools/bb/cli.mjs stats` + read `logs/bladeburner-state.json` **directly** (no `scp` this
+    node, see below) + `run ladderstatus.js` (14.6 GB, reads rank/odds live).
+  - **Node facts (live, `logs/bitnodemults-1791038219863.json`):** `BladeburnerRank` 1 ·
+    `BladeburnerSkillCost` 1 · combat 1.00 — **identical ladder cost to BN3**. `CrimeMoney` **3.0**
+    (BN3 0.25) · `ServerMaxMoney` 0.01 · `HackExpGain` 0.5 · `HackingLevelMultiplier` 0.6 ·
+    `AugmentationMoneyCost` 2 · `WorldDaemonDifficulty` 1.5 · `HomeComputerRamCost` 1 ·
+    `CloudServerCost` 1.
+  - **ETA ~2 weeks, range 10–18 days** — scaled from BN3's one clear (entry → clear 15 days), not
+    measured. Read `docs/estimation-calibration.md` before quoting.
+  - **THE SEQUENCE — this is the live procedure; the BN3 block below is history.**
+    1. ✅ **DONE 2026-10-03 ~19:00 UTC (~4.4 h after entry; BN3 took ~2 days).** Combat 141 via
+       `Mug`, `joinbladeburner.js` → `joined=true`.
+    2. ✅ **DONE.** `bladeburnermanager.js` (99 GB) **runs on `home`**, bought 32 → **256 GB**
+       (~$80m, by hand at Alpha Enterprises — so not in the transaction log). Works because
+       `hosts.js` `HOME_RESERVE_GB = 160` keeps daemon workers off home; manager + residents (~32)
+       fit inside it. 🔑 **So its logs land in `logs/` directly — the BN3 `scp` dance is NOT
+       needed, and `bbblackop.js` (must run on `home`) shares a host with it.** ⚠️ A cloud server
+       bought first (`pserv-128gb-0`, $14.08m) was **filled by daemon workers within seconds** and
+       could not host the manager — **with `daemon.js` running, a fresh cloud host is never free.**
+       It is daemon capacity now.
+    3. ✅ **DONE.** Sleeve on `Infiltrate Synthoids` (set via the Sleeves UI — no script sets it;
+       `sleevemanager.js` only does crime). Shock was **76**; Infiltrate's effect at high shock is
+       **unmeasured**.
+    4. **SP spend — `run bbskillbuy.js` (default BI/DO 200 + Reaper 50 + Overclock 90 ≈ 91,460 SP).**
+       BN3 trigger was rank ~275k. 🔑 **BN3 evidence says go EARLIER here:** the 09-30 spend lifted
+       the grind rate **2,409 → 10,565 rank/h (4.4×)**, i.e. it was a *grind* lever, not just a
+       ladder one. Cause **confounded** (Reaper/Overclock/BI-DO all landed together).
+       **Default: at rank ~25k (SP ~8.3k), spend Reaper 6→50 + Overclock 17→90 ONLY**, and compare
+       the 24 h rank rate before vs after — that isolates the two grind candidates. **BI/DO stay
+       unspent until the bank covers the full ~83k pair** (the BN3 "don't part-spend the success
+       pair" argument still holds — it was about BI/DO, not these two). Cost if wrong: ~8.3k SP
+       bought ~1 day earlier than BN3 did, which is free (SP is node-local).
+       ⚠️ This **contradicts** the BN3 block's "Overclock buys ~nothing during Stage A" — that line
+       is now suspect, not settled. \`bbskillbuy.js\` has no Reaper+Overclock-only mode — check its
+       args before running, or buy them in the Bladeburner UI.
+    5. **Once rank > 400k:** re-spend SP to a high target (`run bbskillbuy.js 400` spent everything
+       in BN3), then `run bbblackop.js 20` on `home`. Then re-spend again,
+       `run bbblackop.js 1 daedalus`, then 🔴 `run destroybn.js 7 confirm` (next node per
+       `bitnodes.md`: **BN7**) — **the irreversible step; restate it at execution.**
+  - 🚨 **LADDER LANDMINES learned in BN3's run (2026-10-02/03) — all recur:**
+    - **`bbblackop.js` refuses EVERY op below rank 400,000** (`RANK_FLOOR`, line ~204), not just
+      Daedalus. Early cheap ops cannot be run during the grind without changing that guard.
+    - **First op waits for stamina ≥ 0.80** — 31 min from 0.51 in BN3; later ops rest 1–4 min.
+    - **pMin is not pessimistic on the back half:** Centurion failed **7×** at pMin 0.4267
+      (−22,210 net rank, and money **$621b → $347b**, plausibly the hospitalisations); Daedalus
+      failed 2× at 0.4312. Budget for failures; rank above the floor is the buffer.
+    - **The manager's state file stopped updating after the `bbblackop` pause** while it kept
+      grinding (BN3, 00:31 → 13:17 UTC). After a ladder run, read rank via `ladderstatus.js`.
+    - **`cli.mjs dismiss` does NOT catch the Source-File popup** after a destroy — press Escape
+      via Playwright (`page.keyboard.press('Escape')`).
+  - ⚠️ **Running on `home`, all residents (2026-10-03):** `daemon` · `augfarmer` · `xpfarm` ·
+    `cloudmanager` (blocked by `cloud-upgrade-off.txt`) · `dashboard` · `goallog` · `ratchetlog`
+    · `resourcemanager` · `transactionsmonitor`. `ratchet-mode.txt` = **`observe`** (no auto
+    installs). **`augfarmer` is a player-slot claimant and is active** (targeting `Neurotrainer I`,
+    has bought 1 aug) — it should yield to the manager's slot hold; **suspect it first if rank
+    stalls.** `auto-port-opener` spent **$286.5m** on all five openers in the first hours —
+    expected bootstrap, not a leak.
 - **[CLOSED 2026-10-03] BN3 goal block:** **🟢 IN BN3.1 (Corporatocracy) — entered
   2026-09-18, day 3. Route: the Bladeburner black-op ladder, the same shape proven in
   BN6/BN9/BN10.** Held SFs: **1 · 2 · 4 · 5 · 6 · 9 · 10** (verified live on the
@@ -1567,9 +1612,10 @@ its BN6 numbers do not.** The same now goes for
 **BN9's** opening, and BN9 is closed history (never cleared by play — see the goal block). Its Q7
 rail ("never install an augmentation") was a **BN9 Hacknet-Server** argument and **does not transfer
 to BN3**, which has no Hacknet Servers.
-🟢 **The current node is BN3.1, and its strategy lives in
-[`docs/bn3-playbook.md`](docs/bn3-playbook.md)** — gated the same way as the others. **Read it before
-proposing anything about how BN3 gets cleared**, or planning income/tooling in this node. It opens
+🟢 **The current node is BN11.1** (live state + procedure in the "Current goal" block). **BN3's strategy lived in
+[`docs/bn3-playbook.md`](docs/bn3-playbook.md)** — now a closed node's record (BN3 cleared
+2026-10-03). Its mechanics findings mostly transfer to BN11 (same ladder cost); its money numbers
+do not (BN11 `CrimeMoney` 3.0 vs 0.25). It opens
 with a **routing table** saying which facts live there and which live elsewhere; honour it, because
 the doc was opened over a standing objection that a fourth home for a number is a fourth place for
 it to rot. Live state stays in the "Current goal" block above; cross-node comparisons stay in
