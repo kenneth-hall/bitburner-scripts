@@ -13,7 +13,14 @@ on request — hold to them even when the moment is uncomfortable.
   2026-10-03 ~14:36 UTC. Route: the Bladeburner black-op ladder, same as BN3** (hacking closed by
   calculation — `docs/bitnodes.md` BN11 entry). Held SFs **1.3 · 2 · 3 · 4.3 · 5 · 6 · 9 · 10**
   (read live via `bitnodemults.js`; SF3.1 is new). Intelligence **119**.
-  - **📊 STAMPED 2026-10-03 ~20:16 UTC — SNAPSHOT, recompute before quoting.** rank **18.4** /
+  - **📊 RE-STAMPED 2026-10-09 ~23:57 UTC — quote THIS.** rank **79,431** · SP 24,084 → **15,819
+    after the step-4 spend below** · combat 261/261/343/343 · money **$63.7b** · 4 manager restarts.
+    🔑 **PRE-SPEND BASELINE (compare at ~2026-10-11 00:00 UTC):** 24 h **954 rank/h** · 1 h **744** ·
+    rank-producing share 24 h **78%** (rest is HRC for *stamina* — Tracking runs at stamina 0.50–0.57)
+    · `Tracking` L118, **83% success** (not 100% as in BN3) · ~153 s/action. ⇒ ~14 days to the gate
+    at the baseline rate. ⚠️ Two `Kernel-Power 41` unclean shutdowns on **2026-10-05** (07:43, 18:28);
+    the run survived and spot-checked logs are non-blank, but check before trusting an old log.
+  - *Stamped 2026-10-03 ~20:16 UTC — superseded by the line above:* rank **18.4** /
     400,000 · SP 0 · staminaMax **56** (HRC-bound, expected at combat ~145 — BN3 opened at 78–81
     and self-resolved) · combat **144/144/149/149** · money **$108m**. Recompute:
     `node tools/bb/cli.mjs stats` + read `logs/bladeburner-state.json` **directly** (no `scp` this
@@ -49,8 +56,17 @@ on request — hold to them even when the moment is uncomfortable.
        pair" argument still holds — it was about BI/DO, not these two). Cost if wrong: ~8.3k SP
        bought ~1 day earlier than BN3 did, which is free (SP is node-local).
        ⚠️ This **contradicts** the BN3 block's "Overclock buys ~nothing during Stage A" — that line
-       is now suspect, not settled. `bbskillbuy.js` has no Reaper+Overclock-only mode — check its
-       args before running, or buy them in the Bladeburner UI.
+       is now suspect, not settled. 🔑 **`run bbskillbuy.js 25` IS the Reaper+Overclock-only mode**
+       (success target = current BI/DO level, so it buys nothing there). Needs 21.6 GB free on home —
+       `kill backdoorwd.js` first (inert this node), relaunch after.
+       ✅ **DONE 2026-10-09 ~23:57 UTC — LATE, at rank 79k not 25k** (missed for ~6 days):
+       Reaper 6→50, Overclock 17→90, 8,265 SP, action time ×0.83→×0.10 (`logs/bbskillbuy-1791590222533.json`).
+       **Next: compare the 24 h rate on 10-11 against the baseline in the stamp above.**
+       🔑 **New evidence reopening "don't part-spend BI/DO":** that rule assumed `Tracking` was
+       saturated at 100% success, so success skills bought nothing in the grind. In BN11 it runs
+       **83%**, so BI/DO now buy grind rate directly (fewer failures + autolevel settles higher, ~+4%
+       yield/level). **Default: after the 10-11 comparison, `run bbskillbuy.js <N>` with the ~15.8k
+       remaining + accrued SP** (dry-run first to pick N).
     5. **Once rank > 400k:** re-spend SP to a high target (`run bbskillbuy.js 400` spent everything
        in BN3), then `run bbblackop.js 20` on `home`. Then re-spend again,
        `run bbblackop.js 1 daedalus`, then 🔴 `run destroybn.js 7 confirm` (next node per
