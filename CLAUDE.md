@@ -9,7 +9,24 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **🟢 IN BN11.1 (The Big Crash) — entered
+- **Current goal (keep this line current):** **🟢 IN BN7 (expected; entered 2026-10-16 ~18:00 UTC —
+  node id NOT yet read back, verify with `bitnodemults.js` once home RAM allows).** BN11.1 CLEARED
+  2026-10-16 (entry 2026-10-03 → clear 13 days; ETA was ~14). Held SFs now **1.3 · 2 · 3 · 4.3 · 5 · 6 ·
+  9 · 10 · 11** (SF11 L1 new, read on the Augmentations screen). Fresh node: HP 10, $1.26k.
+  - **BN11 clear record (lessons that transfer):** the 2026-10-09 Reaper/Overclock spend lifted the
+    grind **954 → ~9,700 rank/h (~10×)** (cause not isolated from BI/DO, which were still 25/25). Gate
+    passed ~10-12; `bbskillbuy.js 400` (×3.50→×149) → `bbblackop.js 20` (all 20 done, **Vindictus cost
+    ~15.9k rank and money $575b→$95b** via failures, same as BN3's Centurion) → re-spend (→×269,
+    Daedalus pMin 0.60) → `bbblackop.js 1 daedalus` (1 failure, then done) → `destroybn.js 7 confirm`.
+    ⚠️ `destroybn.js` needs **40.6 GB free on home**: kill `daemon.js` FIRST (its supervisor relaunches
+    anything else you kill), then the residents. `backdoorwd.js` must also be dead for `bbblackop.js`
+    (27.8 GB).
+  - **BN7 notes (`docs/bitnodes.md`):** redo-tax **3.33×** (RankGain 60% / SkillCost 200%), ETA
+    ~17–24 d; full ladder skill stack ≈182,920 SP, more than the ~133k banked at the gate, so expect
+    to grind past it. ⚠️ `joinBladeburnerDivision()` under SF7.3 would lock out Stanek's Gift (SF7.3
+    not held). Combat-100 gate must be paid first. **Check `bladeburner-off.txt` on home (absent at
+    entry) before diagnosing a silent engine.** `daemon.js` was restarted by hand on the fresh node.
+  - **[CLOSED 2026-10-16] BN11 goal block:** **🟢 IN BN11.1 (The Big Crash) — entered
   2026-10-03 ~14:36 UTC. Route: the Bladeburner black-op ladder, same as BN3** (hacking closed by
   calculation — `docs/bitnodes.md` BN11 entry). Held SFs **1.3 · 2 · 3 · 4.3 · 5 · 6 · 9 · 10**
   (read live via `bitnodemults.js`; SF3.1 is new). Intelligence **119**.
