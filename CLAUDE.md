@@ -9,8 +9,8 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **🟢 IN BN7 (expected; entered 2026-10-16 ~18:00 UTC —
-  node id NOT yet read back, verify with `bitnodemults.js` once home RAM allows).** BN11.1 CLEARED
+- **Current goal (keep this line current):** **🟢 IN BN7 (entered 2026-10-16 ~18:00 UTC —
+  VERIFIED live: `logs/bitnodemults-1792191516668.json` `currentNode` 7).** BN11.1 CLEARED
   2026-10-16 (entry 2026-10-03 → clear 13 days; ETA was ~14). Held SFs now **1.3 · 2 · 3 · 4.3 · 5 · 6 ·
   9 · 10 · 11** (SF11 L1 new, read on the Augmentations screen). Fresh node: HP 10, $1.26k.
   - **BN11 clear record (lessons that transfer):** the 2026-10-09 Reaper/Overclock spend lifted the
@@ -21,6 +21,11 @@ on request — hold to them even when the moment is uncomfortable.
     ⚠️ `destroybn.js` needs **40.6 GB free on home**: kill `daemon.js` FIRST (its supervisor relaunches
     anything else you kill), then the residents. `backdoorwd.js` must also be dead for `bbblackop.js`
     (27.8 GB).
+  - **BN7 live multipliers (same log):** `BladeburnerRank` 0.6 · `BladeburnerSkillCost` 2 · combat 1.00 ·
+    `HackingLevelMultiplier` **0.35** (= BN6's, which measured 240-323 days → hacking closed, **route is the
+    Bladeburner ladder**) · `HackExpGain` 0.25 · `ServerMaxMoney` 0.2 · `ScriptHackMoney` 0.5 ·
+    `CrimeMoney` 0.75 · `AugmentationMoneyCost` 3 · `HomeComputerRamCost` 1 · `CloudServerCost` 1 ·
+    `WorldDaemonDifficulty` 2.
   - **BN7 notes (`docs/bitnodes.md`):** redo-tax **3.33×** (RankGain 60% / SkillCost 200%), ETA
     ~17–24 d; full ladder skill stack ≈182,920 SP, more than the ~133k banked at the gate, so expect
     to grind past it. ⚠️ `joinBladeburnerDivision()` under SF7.3 would lock out Stanek's Gift (SF7.3
