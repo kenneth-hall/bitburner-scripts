@@ -1,0 +1,1242 @@
+# BitNode history (moved out of CLAUDE.md, 2026-10-18)
+
+Verbatim archive of the closed "Current goal" blocks that used to live in `CLAUDE.md`
+(BN11 → BN3 → BN9 → BN10 → BN6 → BN2/BN5/BN1, newest first). **Closed history: read it for its
+lessons and evidence, never as current state.** Live state is in `CLAUDE.md`; the proven ladder
+procedure is in `docs/bladeburner-ladder-runbook.md`; the distilled transferable lessons are in
+`CLAUDE.md` § "Durable lessons". Nothing was reworded in the move, so internal phrases like
+"the block above/below" refer to this file's order, and stamped numbers are as stale as their stamps.
+
+- **[CLOSED 2026-10-16] BN11 goal block:** **🟢 IN BN11.1 (The Big Crash) — entered
+2026-10-03 ~14:36 UTC. Route: the Bladeburner black-op ladder, same as BN3** (hacking closed by
+calculation — `docs/bitnodes.md` BN11 entry). Held SFs **1.3 · 2 · 3 · 4.3 · 5 · 6 · 9 · 10**
+(read live via `bitnodemults.js`; SF3.1 is new). Intelligence **119**.
+- **📊 RE-STAMPED 2026-10-09 ~23:57 UTC — quote THIS.** rank **79,431** · SP 24,084 → **15,819
+  after the step-4 spend below** · combat 261/261/343/343 · money **$63.7b** · 4 manager restarts.
+  🔑 **PRE-SPEND BASELINE (compare at ~2026-10-11 00:00 UTC):** 24 h **954 rank/h** · 1 h **744** ·
+  rank-producing share 24 h **78%** (rest is HRC for *stamina* — Tracking runs at stamina 0.50–0.57)
+  · `Tracking` L118, **83% success** (not 100% as in BN3) · ~153 s/action. ⇒ ~14 days to the gate
+  at the baseline rate. ⚠️ Two `Kernel-Power 41` unclean shutdowns on **2026-10-05** (07:43, 18:28);
+  the run survived and spot-checked logs are non-blank, but check before trusting an old log.
+- *Stamped 2026-10-03 ~20:16 UTC — superseded by the line above:* rank **18.4** /
+  400,000 · SP 0 · staminaMax **56** (HRC-bound, expected at combat ~145 — BN3 opened at 78–81
+  and self-resolved) · combat **144/144/149/149** · money **$108m**. Recompute:
+  `node tools/bb/cli.mjs stats` + read `logs/bladeburner-state.json` **directly** (no `scp` this
+  node, see below) + `run ladderstatus.js` (14.6 GB, reads rank/odds live).
+- **Node facts (live, `logs/bitnodemults-1791038219863.json`):** `BladeburnerRank` 1 ·
+  `BladeburnerSkillCost` 1 · combat 1.00 — **identical ladder cost to BN3**. `CrimeMoney` **3.0**
+  (BN3 0.25) · `ServerMaxMoney` 0.01 · `HackExpGain` 0.5 · `HackingLevelMultiplier` 0.6 ·
+  `AugmentationMoneyCost` 2 · `WorldDaemonDifficulty` 1.5 · `HomeComputerRamCost` 1 ·
+  `CloudServerCost` 1.
+- **ETA ~2 weeks, range 10–18 days** — scaled from BN3's one clear (entry → clear 15 days), not
+  measured. Read `docs/estimation-calibration.md` before quoting.
+- **THE SEQUENCE — this is the live procedure; the BN3 block below is history.**
+  1. ✅ **DONE 2026-10-03 ~19:00 UTC (~4.4 h after entry; BN3 took ~2 days).** Combat 141 via
+     `Mug`, `joinbladeburner.js` → `joined=true`.
+  2. ✅ **DONE.** `bladeburnermanager.js` (99 GB) **runs on `home`**, bought 32 → **256 GB**
+     (~$80m, by hand at Alpha Enterprises — so not in the transaction log). Works because
+     `hosts.js` `HOME_RESERVE_GB = 160` keeps daemon workers off home; manager + residents (~32)
+     fit inside it. 🔑 **So its logs land in `logs/` directly — the BN3 `scp` dance is NOT
+     needed, and `bbblackop.js` (must run on `home`) shares a host with it.** ⚠️ A cloud server
+     bought first (`pserv-128gb-0`, $14.08m) was **filled by daemon workers within seconds** and
+     could not host the manager — **with `daemon.js` running, a fresh cloud host is never free.**
+     It is daemon capacity now.
+  3. ✅ **DONE.** Sleeve on `Infiltrate Synthoids` (set via the Sleeves UI — no script sets it;
+     `sleevemanager.js` only does crime). Shock was **76**; Infiltrate's effect at high shock is
+     **unmeasured**.
+  4. **SP spend — `run bbskillbuy.js` (default BI/DO 200 + Reaper 50 + Overclock 90 ≈ 91,460 SP).**
+     BN3 trigger was rank ~275k. 🔑 **BN3 evidence says go EARLIER here:** the 09-30 spend lifted
+     the grind rate **2,409 → 10,565 rank/h (4.4×)**, i.e. it was a *grind* lever, not just a
+     ladder one. Cause **confounded** (Reaper/Overclock/BI-DO all landed together).
+     **Default: at rank ~25k (SP ~8.3k), spend Reaper 6→50 + Overclock 17→90 ONLY**, and compare
+     the 24 h rank rate before vs after — that isolates the two grind candidates. **BI/DO stay
+     unspent until the bank covers the full ~83k pair** (the BN3 "don't part-spend the success
+     pair" argument still holds — it was about BI/DO, not these two). Cost if wrong: ~8.3k SP
+     bought ~1 day earlier than BN3 did, which is free (SP is node-local).
+     ⚠️ This **contradicts** the BN3 block's "Overclock buys ~nothing during Stage A" — that line
+     is now suspect, not settled. 🔑 **`run bbskillbuy.js 25` IS the Reaper+Overclock-only mode**
+     (success target = current BI/DO level, so it buys nothing there). Needs 21.6 GB free on home —
+     `kill backdoorwd.js` first (inert this node), relaunch after.
+     ✅ **DONE 2026-10-09 ~23:57 UTC — LATE, at rank 79k not 25k** (missed for ~6 days):
+     Reaper 6→50, Overclock 17→90, 8,265 SP, action time ×0.83→×0.10 (`logs/bbskillbuy-1791590222533.json`).
+     **Next: compare the 24 h rate on 10-11 against the baseline in the stamp above.**
+     🔑 **New evidence reopening "don't part-spend BI/DO":** that rule assumed `Tracking` was
+     saturated at 100% success, so success skills bought nothing in the grind. In BN11 it runs
+     **83%**, so BI/DO now buy grind rate directly (fewer failures + autolevel settles higher, ~+4%
+     yield/level). **Default: after the 10-11 comparison, `run bbskillbuy.js <N>` with the ~15.8k
+     remaining + accrued SP** (dry-run first to pick N).
+  5. **Once rank > 400k:** re-spend SP to a high target (`run bbskillbuy.js 400` spent everything
+     in BN3), then `run bbblackop.js 20` on `home`. Then re-spend again,
+     `run bbblackop.js 1 daedalus`, then 🔴 `run destroybn.js 7 confirm` (next node per
+     `bitnodes.md`: **BN7**) — **the irreversible step; restate it at execution.**
+- 🚨 **LADDER LANDMINES learned in BN3's run (2026-10-02/03) — all recur:**
+  - **`bbblackop.js` refuses EVERY op below rank 400,000** (`RANK_FLOOR`, line ~204), not just
+    Daedalus. Early cheap ops cannot be run during the grind without changing that guard.
+  - **First op waits for stamina ≥ 0.80** — 31 min from 0.51 in BN3; later ops rest 1–4 min.
+  - **pMin is not pessimistic on the back half:** Centurion failed **7×** at pMin 0.4267
+    (−22,210 net rank, and money **$621b → $347b**, plausibly the hospitalisations); Daedalus
+    failed 2× at 0.4312. Budget for failures; rank above the floor is the buffer.
+  - **The manager's state file stopped updating after the `bbblackop` pause** while it kept
+    grinding (BN3, 00:31 → 13:17 UTC). After a ladder run, read rank via `ladderstatus.js`.
+  - **`cli.mjs dismiss` does NOT catch the Source-File popup** after a destroy — press Escape
+    via Playwright (`page.keyboard.press('Escape')`).
+- ⚠️ **Running on `home`, all residents (2026-10-03):** `daemon` · `augfarmer` · `xpfarm` ·
+  `cloudmanager` (blocked by `cloud-upgrade-off.txt`) · `dashboard` · `goallog` · `ratchetlog`
+  · `resourcemanager` · `transactionsmonitor`. `ratchet-mode.txt` = **`observe`** (no auto
+  installs). **`augfarmer` is a player-slot claimant and is active** (targeting `Neurotrainer I`,
+  has bought 1 aug) — it should yield to the manager's slot hold; **suspect it first if rank
+  stalls.** `auto-port-opener` spent **$286.5m** on all five openers in the first hours —
+  expected bootstrap, not a leak.
+- **[CLOSED 2026-10-03] BN3 goal block:** **🟢 IN BN3.1 (Corporatocracy) — entered
+2026-09-18, day 3. Route: the Bladeburner black-op ladder, the same shape proven in
+BN6/BN9/BN10.** Held SFs: **1 · 2 · 4 · 5 · 6 · 9 · 10** (verified live on the
+Augmentations screen after entry). Nothing carried in but Source-Files, home scripts and
+Intelligence (**115 / 18.7k exp**).
+- **📊 Stamped 2026-09-20 ~16:05 UTC — SNAPSHOT, recompute before quoting any of it.**
+  Recompute: `node tools/bb/cli.mjs stats`; for Bladeburner, `connect pserv-128gb-0` →
+  `scp bladeburner-state.json home` → read `logs/bladeburner-state.json` (see the landmine below).
+  - 📊 **RE-STAMPED 2026-10-03 ~13:17 UTC — quote THIS; every line below it is older.**
+    ✅ **LADDER OPS 1–20 DONE** (`logs/bbblackop-1790989048537.json`, 00:57→~04:00 UTC): 19 of 20
+    first try; **Centurion took 8 attempts (7 failures) at pMin 0.4267 and netted −22,210 rank**
+    — i.e. the lower bound was not pessimistic here. Money **$621.5b → $346.7b** over the run,
+    plausibly the 7 failure hospitalisations (not isolated; no transaction log covers it). Rank
+    now **862,218**; re-spent **37,202 SP** → success **×184.55**; **Daedalus p[0.4312, 1.0000]**.
+    ⚠️ `bladeburner-state.json` on `pserv-128gb-0` **stopped updating at 00:31 UTC** (the
+    `bbblackop` pause) while the manager kept grinding — read rank live via `ladderstatus.js`.
+  - 📊 *Stamped 2026-10-03 ~00:31 UTC — superseded by the line above:*
+    🟢 **GATE PASSED — rank 746,590 (1.87× the 400k gate), all 21 ops rank-eligible, 0 done.**
+    SP **154,991 idle** (re-spend owed before the back half). Rate 24 h **10,565 rank/h** —
+    **4.4× the pre-spend 2,409**, at duty only **0.347** (HRC is back to ~65% of time, stamina
+    0.53, staminaMax 245). ⚠️ **This contradicts "Overclock buys ~nothing during Stage A"** —
+    but Reaper 6→50, Overclock 17→90 and BI/DO 25→200 all landed at once, so the cause is
+    **confounded, not attributed**. Ladder p: ops 1–8 1.00 · Deckard 0.67 · Ultron 0.19 ·
+    Daedalus **p[0.1439, 1.0000]**. Sector-12 chaos **178.1** and rising. Money **$621.5b**.
+  - 📊 *Stamped 2026-09-30 ~23:22 UTC — superseded by the line above:*
+    rank **293,427 / 400,000 = 73.4%** after **228.1 h** uptime, **1 restart**. Rate: 24 h
+    **2,409 rank/h** · 1 h **2,558** (duty 1 h **100%**, 24 h **97.8%**) ⇒ **~42–44 h to the gate.**
+    ✅ **STEP 4 DONE 2026-09-30 23:22** — `bbskillbuy.js` spent **95,416 → 3,936 SP**: success
+    **×3.50 → ×63.00**, action time **×0.83 → ×0.10** (Reaper 50, Overclock 90, BI/DO 200/200).
+    `ladderstatus.js` after: **ops 1–8 at p[1.0000, 1.0000]**, K 0.85 · Deckard 0.66 · Ultron 0.19
+    · Daedalus **p[0.1424, 1.0000]**; 18 of 21 rank-eligible, 0 done. Money **$243.7b**, combat
+    306/306/386/386, Sector-12 chaos 70.3. ⚠️ **scp landmine addendum:** after
+    `scp bladeburner-state.json home`, wait for the repo file's mtime to change — reading
+    immediately returns the *previous* sync (read a 3-day-old state as current on 09-30).
+  - 📊 *Stamped 2026-09-27 ~18:38 UTC — superseded by the line above:*
+    rank **131,091 / 400,000 = 32.8%** after **152.3 h** uptime, **1 restart**. Rate: 24 h
+    **2,251 rank/h** · 1 h **1,871** (duty 1 h **100%**, 24 h **92.6%**). ⇒ **~5–6 days to the
+    gate** — rate has roughly doubled again since 09-24. SP **41,305 idle**, still short of the
+    ~91,500 step-4 trigger (rank ~275k, ~2.7 days out). Sector-12 chaos **49.0**; `Diplomacy` has
+    fired (9 runs, ~10 chaos/run). combat **284/284/361/360** · money **$108.5b**. Ladder: 0/21
+    done, 14 rank-eligible, Typhoon p[0.19, 0.73] — still not worth firing before the SP spend.
+  - 📊 *Stamped 2026-09-24 ~23:10 UTC — superseded by the line above:*
+    rank **42,349 / 400,000 = 10.59%** after **102.4 h** uptime, **0 restarts**. Rate:
+    cumulative **413.7 rank/h** · 24 h **781.0** · 1 h **957.7**. Rank-producing share
+    cumulative **64.9%** · 24 h **78.8%** · 1 h **83.6%**. staminaMax **133.3**. SP **11,852
+    idle** (all six skills at their `SKILL_LEVEL_CAP` — deliberate, see step 4). Sector-12 chaos
+    **46.3** vs target 50, so **`Diplomacy` is about to fire for the first time in BN3 — do not
+    misread it as a fault.** combat **259/259/326/326** · hacking **246** · charisma **304** ·
+    money **$34.545b**. Recompute: `cli.mjs stats` + the `scp` dance below; `ladderstatus.js` for
+    the ladder.
+  - ✅ **THE STAMINA PREDICTION PAID OFF — this is the one forecast in this file that landed.**
+    Rank-producing share **57.1% → 83.6%** and rate **×4.5** in three days, from combat growth
+    alone, exactly as "it self-resolves" argued. Remaining headroom to BN6's **99.4%** is now only
+    ~1.19×, so **stamina is no longer the top lever** — it spent itself down.
+  - **ETA: ~15.6 days remaining** at the 1 h rate, 19.1 at the 24 h rate ⇒ **~19.6–23 days total
+    from join**, and still shrinking as the rate climbs. 📌 **Calibration note: the "~16–20 days
+    total" called on 2026-09-21 was slightly OPTIMISTIC**, where BN6's error ran 40% pessimistic.
+    🔴 The original **"~10 days, range 7–14" is dead** — no window ever supported it.
+  - 🔴 **"Income is $0/s and that is fine" is STALE AND WRONG.** Money went **$219m → $2.758b**
+    with `daemon.js` still not running at all — **Bladeburner contract payouts fund the node at
+    ~$22k/s**, ~10× what `Rob Store` measured. The ≈$165m `cloudmanager` growth buy is now petty
+    cash rather than an 8.6 h opportunity cost, so the reason to block it is *focus*, not price.
+  - ⚠️ **`pserv-128gb-1` exists, is EMPTY, and cost $18.304m** (bought 2026-09-20 11:08; `ps`
+    returns nothing). Either a stray purchase or a companion that never launched. Unexplained.
+  - **✅ LADDER STEPS 1 AND 2 ARE DONE.** combat **212 / 212 / 227 / 227** against a gate of
+    **100** — the 44,981-exp grind is paid. hacking **245** · charisma 8 · money **~$219m**.
+  - **✅ Bladeburner division JOINED 2026-09-20** (`joinbladeburner.js` → `joined=true`,
+    `inBladeburner=true`, and the **Bladeburner nav entry is present**). Rank is climbing from 0;
+    first reading **2.8** at 4 min, running `Tracking`, stamina 89.3%, duty 0.31 while it spins up.
+  - **✅ `bladeburnermanager.js` (99.00 GB) is LIVE on `pserv-128gb-0`** — a **128 GB** cloud
+    server bought for **$18.304m**, exactly the "buy cloud RAM, never home RAM" call below.
+    Home is now **64.00 GB** (24.70 free), which still cannot host the manager.
+  - batcher still 🔴 **INERT** — `daemon.js` is **not running at all**; income is **$0/s** and
+    that is fine (rank is the clock). `src/cloud-upgrade-off.txt` is in place, so `cloudmanager.js`
+    is correctly blocked from the ≈$165m growth buy.
+- **🔑 THE BINDING CONSTRAINT IN THE BN3 OPENING IS STAMINA, NOT SUPPLY AND NOT HP** (measured
+  2026-09-20, `logs/bladeburner-attempts.json` + the manager's own duty counters). Do not spend
+  effort on contract supply or healing until this changes.
+  - ⚠️ **CORRECTED 2026-09-21 — "supply is not a constraint" is only true because the SLEEVE is
+    holding it up, and the number usually quoted for it is the wrong number.** `Tracking`'s own
+    `countRemaining` reads **~2.6**, not the ~3,340 in `cityStock.contractCount` — that figure is
+    an **aggregate across all contracts**, and the stock sits in Bounty Hunter (~1,782) and
+    Retirement, which the engine barely touches. Tracking runs net **−0.045/min sleeve-idle** and
+    **+0.133/min while infiltrating**. 📌 **Do not quote the aggregate as Tracking's headroom** —
+    that error was made on 2026-09-21 and produced a confident "49-hour buffer" that was false.
+  - duty cycle **0.31** · `rankProducingSec` **839.1** vs `overheadSec` **806.8** — i.e. **49% of
+    all action time is `Hyperbolic Regeneration Chamber`**.
+  - 🔑 **HRC is firing for STAMINA, not healing.** Every attempt logs `hpFraction: 1` with
+    `staminaFraction` oscillating **0.491 → 0.553** against the manager's `STAMINA_FLOOR_FRACTION`
+    0.5 / `STAMINA_RESUME_FRACTION` 0.55. **`staminaMax` is only 78–81**, against BN6's 136–335.
+  - ⚠️ **The sleeve cannot fix this and neither can crime.** `staminaMax` tracks agility, and at
+    agility 227 the stat already holds ~620k exp (`exp = e^((lvl+200)/32) − 534.6`); a sleeve on
+    `Mug` transfers ~0.14 exp/s after sync, i.e. **+2% of the bank per day**. Rounding error.
+  - ✅ **It self-resolves, and BN6 is the precedent** — Bladeburner actions train combat for free
+    (BN6: combat 1 → 171/202/195 in 26 h from actions alone), combat raises `staminaMax`, and
+    regen is **not flat** in `staminaMax` (2.45× regen for 3.77× max). BN6 ended at duty **99.4%**.
+    SP is **0** at rank 27 (it accrues at rank/3), so `Reaper` / `Evasive System` are not yet
+    buyable; revisit them once the bank is real.
+- **✅ SLEEVE: stays on `Infiltrate Synthoids` — MEASURED 2026-09-21, no longer "by elimination".**
+  Full record: `docs/sleeve-grafting-reference.md` §6/§9; raw
+  `logs/sleevebbprobe-1790037196715.json` (six interleaved 12-min phases, live engine, positive
+  control passed).
+  - 🔑 **Infiltrate adds a FLAT `+0.4987/min` to EVERY action's count regeneration** — Bounty
+    Hunter +0.4971, Retirement +0.4992, Sting +0.4999, agreeing to 0.6% across channels whose base
+    rates differ 1.9×. **Additive, not multiplicative.** Contracts read "2×" only because their
+    base is ~0.5; operations get **2.86×** from the same constant. ⚠️ The old "suggestively
+    exactly 2×" hunch was right by luck and would have mispredicted operations.
+  - 🔑 **It is what keeps `Tracking` alive.** Tracking net **−0.045/min sleeve-idle** vs
+    **+0.133/min infiltrating**; engine Tracking successes ~10.5 per 12 min infiltrating vs ~6.4
+    otherwise. Its value **grows as duty rises** — consumption is ~0.55/min at the current duty
+    0.57 against a 0.51/min base regen, and would be ~0.95/min at BN6's terminal duty ~1.0.
+  - 🔴 **Sleeve CONTRACTS were tested and beaten on arithmetic, not on the old false premise.**
+    They *do* credit the player (**0.851 rank/success, 79.4% success once trained**, rate ratio
+    **1.717**) — the 2026-08-18 "adds ≈0 rank" is **overturned as a fact**. But consumption runs
+    **~12× regeneration**, so it is a burn-down: the whole ~1,782 Bounty Hunter bank is
+    **~1,204 rank over ~5 h = 0.30% of the gate**, ~6 h saved on a multi-week run, and `Tracking`
+    stalls meanwhile. **Not worth the churn.**
+  - 📌 **Durable lesson: a right answer resting on an untested premise is not a settled question.**
+    The 2026-08-18 *recommendation* survived; its *stated reason* was never measured and is false.
+- 🚨 **TWO LANDMINES FOUND 2026-09-20 WHILE STARTING THE LADDER — both cost real time, both recur.**
+  - 🔑 **`bladeburner-off.txt` survived the node change on `home` and silently held the engine
+    OFF.** The manager started, wrote `off: true` / `holdReason: "off-marker"` / `rank: 0`, and did
+    nothing — with **no error, no popup, and a healthy `ps` line**. It is **gitignored and absent
+    from `src/`**, so viteburner never re-pushes it; `rm bladeburner-off.txt` on `home` is the fix.
+    📌 Sibling to "a script can fail *after* it starts": here it *ran perfectly and did nothing*.
+    **Check the off marker before diagnosing a silent Bladeburner engine.**
+  - 🔑 **Running the manager off `home` sends its logs to the HOST it runs on.** `ns.write` is
+    host-scoped, so `bladeburner-state.json` / `-log.json` / `-attempts.json` land on
+    `pserv-128gb-0` and **never reach viteburner**, i.e. never reach `logs/`. The repo copy of
+    `logs/bladeburner-state.json` therefore reads as a stale BN9 corpse until pulled by hand:
+    `connect pserv-128gb-0` → `scp bladeburner-state.json home`. ⚠️ **A fresh mtime on that file
+    still means nothing** — same trap as `backdoor-status.json`, new cause.
+  - ⚠️ Related UI trap: while a **focused** player action runs, the left nav is hidden and every
+    CDP `terminal`/`goto` times out on the missing Terminal button, and the character-overview
+    panel **intercepts** a click on *"Do something else simultaneously"*. Collapse the overview
+    first (`getByRole('button', {name: 'expand or collapse character overview'})`), then unfocus.
+    A Playwright `force: true` click does **not** help — it still lands on the overlay.
+- 🔴 **RETRACTED 2026-09-19 ~11:10 UTC — "THE OPENING IS BLOCKED ON HOME RAM" WAS WRONG ON
+  BOTH HALVES.** It was not a RAM problem and it *was* a money problem — and the money was free.
+  Home RAM is still 31.65/32.00 and every skipped-companion fact below still holds; what was
+  wrong is that it was called *the blocker*. Full measured record: `docs/bn3-playbook.md` §5.4.
+  - 🔑 **The actual cause: the player-action slot was on `Study Computer Science`** — 2 h 13 m
+    spent for 11,039 hacking exp, on the route §1.1 of the playbook had already closed. Nothing
+    was pointed at the goal, so nothing moved. **Combat sat at 1/1/1/1 for a full day.**
+  - 🔑 **`Rob Store` is 100.00% success at combat 1/1/1/1** (it is hacking/dex-weighted and
+    hacking is 222) and measures **~$2.27k/s ≈ $8.2m/h** in BN3 terms. Started 2026-09-19.
+    ⚠️ It trains **dexterity and agility only** — no strength, no defense — so it funds the
+    node but never clears the gate.
+  - 🔑 **Buy cloud RAM, never home RAM.** Cloud is **$110k/GB** flat (2/4/8 GB read live at
+    $220k/$440k/$880k); home `32 → 64 GB` is **$15.124m = $472k/GB**. **4.3×.**
+    `bladeburnermanager.js` is **99.00 GB** (92 of it = 23 `ns.bladeburner.*` methods at a flat
+    4 GB each), so ~**$15.5m / 1.9 h of crime** buys a 128 GB host and the opening is over.
+  - 🔴 **AND THE BATCHER IS INERT IN BN3, NOT "live" — realised income is exactly $0/s.**
+    `daemon.js`'s own skip diagnosis, 265 consecutive ticks: `blockedBy: "total-ram"`,
+    `batchCostGb` **797.3**, `largestJobGb` **708.75**, `totalFreeGb` **236**, `shortfallGb`
+    **561.3**, at `fractionTried` **0.015625** — it had already shrunk the batch to 1/64 and
+    still could not place it. Cause is `ServerGrowthRate` **20%**: the grow leg needs ~5× the
+    threads to refill a 4%-capped server. **It stays $0 until the fleet passes ~800 GB.**
+    ⚠️ `cloudmanager.js` is queued to buy exactly that (`growth.ramGb: 1024`, ≈**$165m**,
+    ~8.6 h of crime) — **do not let it**; rank is the clock, not money.
+- **The fresh-node ladder sequence for BN3** — re-derived, because the four-step list in the
+  BN9 block below was written mid-ladder at rank 408,388 and **does not apply from a cold
+  start**:
+  1. **✅ DONE 2026-09-20 — Combat 1 → 100** (overshot to 212/212/227/227) — 🔴 **44,981 exp total, 11,245 per stat.** The "17,729 / ~1–2h" this
+     line used to carry was BN6's number at *its* player mult **1.3824**; BN3 is a fresh node
+     with no augs, so the mult is **1.00** and the gate is **2.54× bigger** (corrected
+     2026-09-19). Still no grafting detour — that was a BN9-only move forced by its 0.45 mult.
+     `Powerhouse Gym` is **$2.4k/s per stat**, one stat at a time; `Mug` is free but measured at
+     0.179 exp/s/stat in BN6, i.e. ~17 h. **Fund the gym with `Rob Store`.**
+  2. **✅ DONE 2026-09-20.** `joinbladeburner.js` → `joinBladeburnerDivision()`; verify with a `getRank()` read, never
+     the boolean.
+  3. **🟢 RUNNING since 2026-09-20, on `pserv-128gb-0` (128 GB, $18.304m).** `bladeburnermanager.js` grinds rank to **400,000**. ⚠️ **That is the GATE on the last
+     black op, not the win condition.**
+  4. `bbskillbuy.js <target>` — spend the SP bank (it accrues at **rank/3**) *before* the
+     ladder's back half. SP is node-local and destroyed on the clear, so spending it is free.
+     - 🔑 **MEASURED TRIGGER, set 2026-09-24: do this at rank ~275,000 (SP ~91,500), NOT
+       earlier.** `bbskillbuy.js dry` at rank 42.7k priced the full plan:
+       **Reaper L6→50 = 2,629 SP · Overclock L17→90 = 5,636 SP**, and the success pair
+       **`Blade's Intuition`+`Digital Observer` 25/25 → 200/200 = 83,195 SP**
+       (`docs/bladeburner-reference.md` §, table at line ~276). Total ≈ **91,460 SP** — which is
+       *exactly* what BN6 spent. Since SP = rank/3, the bank only reaches that at rank ~275k.
+     - 🔴 **DO NOT part-spend it early expecting the ladder to open.** At rank 42.7k the bank was
+       **11,852 SP = 14% of what the success pair alone needs**; Overclock+Reaper would eat 8,265
+       of it and leave ~3,587 for BI/DO, taking the success multiplier from **×3.50 to only
+       ~×7.5** against the **×63.00** that took every BN6 op to `pMax 1.0000`. A spend that small
+       buys nothing that matters and is the *same total cost* later.
+     - ⚠️ **`Overclock` buys ~nothing during Stage A** — Q10's per-action stamina finding caps
+       throughput at ~55.8 actions/h regardless of action time, so its 10× only lands on the
+       hours-long black ops. It is a ladder purchase, not a grind purchase.
+  5. `bbblackop.js 20` (ops 1–20) → re-spend the SP the ladder itself earns →
+     `bbblackop.js 1 daedalus` (op 21). ⚠️ **Completing Daedalus does NOT destroy the node.**
+     - 🔑 **RANK-ELIGIBLE IS NOT THE SAME AS WORTH FIRING, measured 2026-09-24.**
+       `ladderstatus.js` at rank 42,732 read **10 ops already rank-eligible, 0 done** — Typhoon
+       needs only rank 2,500 — but at BI/DO 25/25 their success chances run **p[0.179, 0.409]
+       (Typhoon) down to p[0.020, 0.047] (Deckard)**, with Daedalus at **p[0.0045, 0.0102]**.
+     - 🔴 **NOW IS THE WORST TIME TO RUN THEM, and the reason generalises.** BN6 measured rank
+       loss per failure as **nearly FLAT in the reward** (`reward^0.24`, 943/failure on a 3,000
+       op vs 1,066 on a 5,000 one) while the *rewards* grow with op index. So the early ops carry
+       the **worst reward-to-failure-cost ratio on the ladder**, and low success multiplies the
+       number of failures. **Rank-eligibility never expires, so waiting is strictly free.**
+     - ⚠️ **Nothing fires these automatically** — the manager has no black-op stage, by design.
+       This is the exact shape of BN6's near-miss, which is why step 4 now carries a number.
+     - ⚠️ `bbblackop.js` must run **on `home`**: it writes the pause markers with a bare
+       `ns.write` while the manager reads `ns.fileExists(BB_OFF_MARKER, "home")` and the cleanup
+       does `ns.rm(..., "home")`. Run it off `home` and the manager never sees the pause, so both
+       fight for the single player-action slot.
+  6. `destroybn.js <nextBN> confirm` — **THIS is the irreversible step.** It aborts on its own
+     unless `getNextBlackOp()` reads `null`, and `nextBN` is **MANDATORY** in this build.
+  - **ETA ~10 days, range 7–14** (`docs/bitnodes.md` § "ETA table"). ⚠️ Scaled from BN6's one
+    comparable clear, not measured — read `docs/estimation-calibration.md` before quoting it.
+- **✅ CLOSED 2026-09-19 BY CALCULATION — the hacking route is NOT competitive in BN3, and
+  `bitnodes.md` left this open pending exactly this check ("revisit only if BN3 is reached").**
+  BN3 is reached; here is the answer. BN3's `HackingLevelMultiplier` **0.80** really is far
+  better than BN6's 0.35 — the WD gate needs only **M ≈ 14–19** (vs BN6's 28–37), because
+  `6000 / 0.80 = 7,500` raw against BN6's `6000 / 0.35 = 17,143`. **The gate is 2.3× easier and
+  it does not matter**, because the *ratchet that raises M* is what BN3 starves:
+  - effective steal = `ServerMaxMoney 0.04 × StolenMoneyFromHack 0.20` = **0.008**, against
+    BN6's `0.20 × 0.75` = **0.15** — **18.75× worse**;
+  - `AugmentationMoneyCost` **3×** on top ⇒ aug-buying power ~**56× worse than BN6**;
+  - BN6 measured its ratchet at **~0.0045 M/hour** and still projected **240–323 days**. Scale
+    that by 1/56 and M≈16 is *orders of magnitude* out of reach.
+  ⚠️ **Honest framing: this is a computed estimate, not a measurement** — BN6's 0.0045 M/hour
+  came off a mature fleet and is being scaled by a money ratio. It survives being wrong by a
+  factor of 100. **Bladeburner stands as the route; do not reopen this on the 0.80 mult alone.**
+- **What BN3's multiplier table actually does to us** (source: `docs/bitnodes.md` § BN3 —
+  ⚠️ its cited log is destroyed, see below):
+  - **Helps:** `BladeburnerRank` **1.00** / `BladeburnerSkillCost` **1.00** (redo-tax **1.00×**,
+    tied cheapest in the game) · combat mult **1.00** · hacking **exp** unpenalised · cloud
+    servers **not** disabled · `Favor to Donate` **50%** (donation unlocks at 75 favor, not 150).
+  - **Hurts:** `ServerMaxMoney` **4%** · `StolenMoneyFromHack` **20%** · `ServerGrowthRate` 20%
+    · `AugmentationMoneyCost` **300%** · **`AugmentationRepCost` 300%** · Home RAM Cost 150% ·
+    cloud base cost 2.00 / softcap 1.30 · crime money 25% · company 25% · darknet 40% ·
+    Hacknet production 25%.
+  - ⚠️ **Do not port BN9's Hacknet economy here** — Hacknet production is 25% and there are no
+    Hacknet *Servers* without SF9.2 (we hold SF9.**1**, which is also why home started at 32 GB
+    and not 128). Do not port BN6's batcher-as-funding-engine either: at 0.008 effective steal
+    the batcher funds a fleet and port openers, not an aug ratchet.
+  - ⚠️ The in-game guide's BN3 warning ("very tough mechanic, scripts take days/weeks") is
+    scoped to the **Corporation mechanic**, which a black-op clear never touches.
+- **🔑 Why BN3 was chosen** (Kenneth's call, 2026-09-06): it ties for the **cheapest node on the
+  board** (redo-tax **1.00×**, combat mult **1.00**) *and* is the only node in that tier with an
+  unowned reward (**SF3 — Corporations**). It was missing from all three of `bitnodes.md`'s
+  comparison tables until 2026-09-06; "barely discussed" was doing the work of "ruled out".
+- 🚨 **EVIDENCE LOSS — 108 of 313 files in `logs/` are still blank-filled from the 2026-09-08
+  power event, and some of them are cited as proof elsewhere in this file.** They are
+  correct-sized and contain nothing but spaces/nulls, so neither `ls` nor a size check catches
+  it — `tr -d '\000 \n\r\t' < f | wc -c` does.
+  - 🔴 **All five `logs/bitnodemults-*.json` are destroyed**, which breaks this file's own
+    standing instruction to *"quote this log, not the prose tables"* — and `docs/bitnodes.md`
+    sources its redo-tax, combat-gate and ETA tables from
+    `logs/bitnodemults-1786922442524.json`, now 146,834 bytes of blanks. **The prose tables are
+    all we have until `bitnodemults.js` (6.60 GB) is re-run** — itself blocked on the home-RAM
+    squeeze above. The 2026-08-16 sweep did verify every hand-written table against the engine
+    with zero discrepancies, so the prose is trustworthy; it is just no longer *backed*.
+  - Also destroyed, and cited by name in this file: `hashexchangeprobe-1788264590122.json` /
+    `-1788264716196.json` (Q1's hash-exchange verdict), `sleevepoolprobe-1787098052402.json`
+    (the sleeve-parallelism falsification), `q10probe-1787274944464.json` (the stamina
+    measurements). **Those conclusions stand as recorded here; their raw evidence does not.**
+  - Intact and readable: `bladeburner-state.json`, `bladeburner-attempts.json`,
+    `bladeburner-log.json`, `combatgateprobe-1785371660239.json`, `ratchet-log.json`. ⚠️ **Readable
+    is not current** — the first three hold **BN9's** run (rank 286,183, Sector-12, chaos 49.7).
+    `bladeburnermanager.js` will reject `bladeburner-state.json` on its `bitNode` stamp when it
+    starts here; until then it is an intact file describing a node that no longer exists, which is
+    more dangerous than a corrupt one.
+- ⚠️ **`logs/backdoor-status.json` and `logs/goal-log.json` are BN9 CORPSES, not BN3 state.**
+  They read `hackingLevel: 6338` and `rank: 459,980` — the last BN9 samples, written before the
+  clear, and nothing has rewritten them because `goallog.js` and `backdoorfactions.js` are among
+  the scripts that do not fit on a 32 GB home. 📌 Same trap as the BN9 block's own staleness
+  lesson, in a new disguise: **a recent mtime is not a recent observation** — viteburner
+  re-syncs every log on dev-server restart, so `ls -t logs/` says "09:24 today" about a reading
+  from a node that no longer exists.
+- 🔴 **THE BN9 BLOCK BELOW IS CLOSED HISTORY AS OF 2026-09-18. BN9 WAS NEVER CLEARED BY
+  PLAY — SF9.1 WAS GRANTED IN A SAVE REBUILD AFTER A DISK-LEVEL SAVE LOSS.** Read it for its
+  lessons, never as current state, and do not cite SF9 as evidence that the Bladeburner
+  ladder completed in BN9. It did not; the run was ~1 day short of the 400,000 gate.
+- **💥 SAVE LOSS + REBUILD, 2026-09-18** — full record: `docs/save-recovery-2026-09-18.md`.
+  - **Cause: an unclean shutdown at 2026-09-08 07:24:53** (System log `Kernel-Power 41` +
+    `EventLog 6008`). NTFS recovered file *metadata* and lost the unflushed data blocks, so
+    files came back **correct-sized and zero-filled**. The game's IndexedDB save blob was
+    **2,717,609 bytes of pure zeros**; `245 of 305` files in `logs/` went the same way.
+    All three disks report **Healthy** — this was a power event, not failing hardware.
+  - **Unrecoverable, verified not assumed.** The leveldb held 1,272 `bitburnerSave` records
+    but every one is ~985 bytes of *metadata pointing at the external blob*; the longest
+    nonzero run in the whole file is **31 bytes**. Steam Cloud's copy is from **2026-07-04**,
+    older than the backups. Corrupt artifacts archived to `bitburner-save-recovery-2026-09-18/`.
+  - **Rebuilt from `saves/bitburnerSave_1786895766_BN6x1.json.gz` (2026-08-16)** — SF9.1 and
+    SF10.1 injected, SF6.1 earned by an in-game clear, Intelligence extrapolated at the one
+    measured rate (**296.1 exp/day**, Jul 25 → Aug 16) to **18,422 exp = level 115**.
+  - 🔑 **The rebuild's real lesson: LET THE GAME PERFORM ITS OWN PRESTIGE.** A BitNode reset
+    rewrites servers, factions, augmentations, programs and skills together; hand-synthesizing
+    that is how a save gets subtly broken. The rebuild instead satisfied the *documented*
+    precondition and let the game do the work.
+  - 🔴 **AND THE TRAP THAT COST AN EXTRA IMPORT — `w0r1d_d43m0n` IS AN ORPHAN UNTIL THE RED
+    PILL IS *INSTALLED IN PLAY*.** In every save, WD carries `serversOnNetwork: []` and **no
+    server links to it**; installing The Red Pill is what wires it to `home`. Injecting the
+    aug into the save skips that wiring, so the server stays unreachable —
+    `ns.getServer("w0r1d_d43m0n")` throws **`Invalid host`**, and
+    **`destroyW0r1dD43m0n()` then fails SILENTLY, returning with no error and no effect.**
+    The fix is two edits: append `w0r1d_d43m0n` to `home.serversOnNetwork` and set WD's
+    `serversOnNetwork` to `["home"]`. 📌 Sibling to "a script can fail *after* it starts" —
+    here the *API call* failed after starting, with no modal at all.
+  - ⚠️ **What actually fired the clear was `backdoorwd.js`, not the Singularity call.** Once
+    WD was wired and rooted, the resident script backdoored it on its own within seconds and
+    the BitVerse appeared. Worth expecting: **the restored save's whole automation fleet comes
+    back up live**, and it acts.
+  - 📌 **The cadence lesson, which is the one that actually cost something: the last export was
+    33 days old.** Source-Files and Intelligence were reconstructable; the BN9 grind was not.
+- **📊 BN9's LAST READING, stamped 2026-09-05 ~08:13 UTC — DEAD STATE. This node no longer
+  exists and nothing below describes BN3.** Kept only so the BN9 lessons keep their numbers
+  attached. 🔴 **Do not quote a rate or an ETA out of it** — the snapshot that used to sit here
+  was wrong on every single line within days of being written, and this one is now wrong on
+  every line by construction. Source was `logs/bladeburner-state.json` + `cli.mjs stats`.
+  - rank **286,183 / 400,000** · skill points **83,472 idle** · **9.3 days** into the node
+  - rate **1.378 rank/wall-sec** (24h; 1h reads 1.065) ⇒ **~23–30 h to the gate**
+  - combat **319 / 245 / 231 / 249** · hacking **132** · money **$259.1b**
+  - skills: Blade's Intuition **50** · Digital Observer **50** · Tracer **25** · Overclock **39**
+    · Reaper **50** · Evasive System **6**
+  - city **Sector-12**, chaos **49.7** against a target of 50 · duty **69.5%** rank-producing
+- 🚨 **Rank 400,000 is the GATE, not the win condition** — BN6's hardest-won lesson, restated
+  here because it nearly cost that node too. A Bladeburner node clears by running all **21 black
+  ops in order** via `src/bbblackop.js` (hard rail: it refuses `Operation Daedalus` without an
+  explicit argument, since completing that op destroys the node). **Durable — it carries
+  forward to BN3**, and is restated in the BN3 sequence above.
+- **🔴 BN9's ladder run — IT NEVER FINISHED. Do not follow this list.** It was written
+  mid-ladder on 2026-09-06 at **rank 408,388 with ops 1–10 already done**, so every step assumes
+  state that no longer exists; the run then died ~1 day short of the gate and SF9.1 came from the
+  save rebuild instead. **The cold-start sequence that actually applies now is in the BN3 block
+  above.** Two things it still teaches:
+  1. **Never skip the mid-ladder SP re-spend** (`bbskillbuy.js <target>`, between the bulk ops
+     and Daedalus). SP accrues at **rank/3** and the ladder's own rank rewards are large, so the
+     bank refills *during* the run. This is the BN10 lever that made Daedalus first-try.
+  2. `bbblackop.js` now gates every attempt on stamina (`709623c`) — **the stamina spiral is
+     what killed this run.** The fix is in the tree and carries forward to BN3.
+  - 📌 The BN3 destination decision, its multiplier table and the "why BN3" reasoning have
+    **moved up into the BN3 block**. They were live plan sitting underneath a CLOSED-HISTORY
+    banner — exactly the shape of mistake this file keeps logging against itself.
+- 🔑 **The SP bank is again the unpulled lever: 83,472 points sitting idle.** They are
+  **node-local** and are destroyed on the clear, so spending them costs *nothing*. In BN10 this
+  moved Daedalus from `p[0.5164, 1.0000]` to `p[1.0000, 1.0000]` and made the entire back half
+  free. **Spend it before the ladder's back half.** `src/bbskillbuy.js` now spends the success
+  pair by marginal value rather than list order (`89372cb`), so the BN10 defect below is fixed.
+- ✅ **`Diplomacy` finally has a real per-run number, and it settles BN6's two bad ones.**
+  **72 runs, 528.0 chaos removed ⇒ ~7.3 per run**, holding Sector-12 at **49.7** against its
+  target of 50. ⚠️ BN6's one clean sample read **645 removed in a single run**, and this file
+  warned that one sample could not distinguish an absolute effect from a proportional one —
+  **it was proportional.** Uncontrolled cities show what that looks like: Aevum **8,021**,
+  Ishima **8,235**. The retracted 174/run figure stays retracted.
+- ⚠️ **Nothing carried over from BN10 but Source-Files, home scripts, and Intelligence.** Rank,
+  skill points, $195b, all augmentations, the fleet and every faction membership were destroyed
+  on the clear, and so was Grafting Entropy (`Aug. Success Chance mult: 81.7%`, i.e. 10 grafts).
+  **Expect the same on the BN9 clear** — including the 83,472 SP above, which is why spending
+  them is free.
+- **Why BN9:** documented next step from the 2026-08-16 re-derivation — redo-tax **1.33x**
+  (second-cheapest), **~16 days (12–23)** via the Bladeburner ladder. Grants SF9 (Hacknet
+  Servers; L2 = 128GB home start, L3 = pre-upgraded Hacknet Server on node entry). ⚠️ **BN9 is
+  the "harshest node"**: max money **1%**, **private servers disabled**, home RAM cost raised,
+  hacking mults nerfed — so **the batcher economy that funded BN6/BN10 largely does not exist
+  here.** Bladeburner is not merely preferred, it is close to the only route. Expect the
+  funding model to need rethinking, not porting.
+- 📌 **A STALENESS LESSON THIS LINE KEEPS TEACHING — the paragraph that lived here was itself
+  written as a correction of a claim that went stale within hours, and then went stale the same
+  way.** It asserted "Bladeburner is not joined, combat is 1/1/1/1, the entry gate is untouched"
+  on 2026-08-25; eleven days later rank read **286,183** and combat **319/245/231/249**. 🔑 **A
+  block labelled "CORRECTED" is not thereby durable — it is just a newer snapshot.** Write live
+  state with a stamp and a recompute command, or don't write it.
+- 🔑 **The economy is the Hacknet, and the batcher never ran here — deliberately.** `daemon.js`
+  has produced **zero** batches in BN9, still true as of 2026-09-05: the newest
+  `daemon-batch-log.json` entry is 11 days old and reads `hackingLevel: 247`, i.e. it is BN10's.
+  §2 of the Phase 43 doc argues it should stay down, and it has. Overflow hashes auto-sell at
+  **exactly $250,000** each (derived to <0.1%), which prices every hash decision in dollars.
+- 🔑 **`Exchange for Bladeburner Rank/SP` is MEASURED dead as a rank lever** (Q1, closed
+  2026-09-01, `logs/hashexchangeprobe-1788264590122.json` / `-1788264716196.json`): **+100 rank,
+  flat**, while cost escalates linearly (250 hashes, then 500, …). Spending the *entire* bankroll
+  buys ~1.4% of the remaining rank. **Never buy the SP exchange** — the rank exchange grants
+  ~33 SP as a byproduct at the same price. 🔑 Byproduct constant: **SP accrues at rank/3.**
+- 🔑 **The entry gate was graft-FIRST, not grind-first — and that is the transferable lesson.**
+  BN9 combat mult **0.45** × player **1.3824** = **0.6221**, which puts combat 1→100 at
+  **~78,300 exp/stat ≈ 5.1 days** of grinding. Grafting to ~+50% mult first drops it to
+  **~14,100 exp/stat ≈ 0.9 days** — required exp collapses **super-exponentially** in the
+  multiplier (the BN2 *raise M, don't grind exp* lesson, in a new subsystem).
+- **✅ Phase 43 (BN9 opening) SHIPPED 2026-08-26.** Stage 1 → stage 2 (cold review + three fix
+  rounds) → WI-A…WI-F merged (`6d45405`); RAM gates then measured live (`83c24c6`: 4 pass, and
+  the 2 failures were wrong *gate numbers*, not wrong code). Docs graduated to `docs/phases/`.
+  - **Open questions: Q1/Q4/Q9/Q12 closed by measurement. Q2/Q3/Q5/Q6/Q11 lapsed to their
+    defaults** — every default was "no action", so nothing is owed. **Q7 is a standing rail with
+    no expiry: NEVER install an augmentation in BN9** (an install is assumed to reset Hacknet
+    Servers, which are the node's entire income, and it is not testable without doing it).
+    **Q10 (is `Mug` the right crime for BN9) expires 2026-09-10** and is moot unless the grind
+    is restarted. Full table: `docs/phases/phase-43-bn9-opening.features.md` §7.
+
+- **[✅ BN10 CLOSED 2026-08-25 — everything from here to the BN6 block below is CLOSED
+  HISTORY, kept for its lessons, not its plan. Do not read any of it as current.]**
+- **✅ BN10.1 CLEARED 2026-08-25** via the Bladeburner black-op ladder, same shape as BN6.
+  **Operation Daedalus completed FIRST TRY, zero failed attempts**, at `p[1.0000, 1.0000]`,
+  713s action time, rank **2,031,352 → 2,062,551** (+31,199). `getNextBlackOp()` then read
+  `null` and `destroybn.js 9 confirm` fired. **SF10 (Sleeves + Grafting) is banked** — the
+  tool argument that justified the BN10 detour is now permanent across all future nodes.
+  - 🔑 **The lever that made Daedalus free: the SP bank.** 535,869 skill points sat idle;
+    they are **node-local** and would have been destroyed regardless, so spending them cost
+    nothing. Blade's Intuition **250 → 756** took Daedalus from **p[0.5164, 1.0000] →
+    p[1.0000, 1.0000]**. ⚠️ **Do this again in BN9 before its ladder's back half** — and note
+    the projection that the ladder would land ~1,000–1,500 rank SHORT of its gate never
+    materialised here, because rank ran 5x over the gate long before the last three ops.
+  - ✅ **`bbskillbuy.js` starved Digital Observer and reported `[ok]`** — greedy list-order
+    spending on a **product** multiplier. Cost ~1.8x at equal spend (x260 realised vs ~x475
+    balanced). **FIXED 2026-09-01 (`89372cb`)** — the success pair is now spent by marginal
+    value, and BN9's BI/DO read **50/50**, i.e. balanced. (It was never filed to `BACKLOG.md`
+    as this line promised; it was fixed directly instead.)
+- **Why BN10:** cheapest Bladeburner redo-tax among reward-bearing nodes (**1.25×**) and the only
+  candidate granting new *tools* — **Sleeves + Grafting**. Agreed by three independent sources
+  (redo-tax derivation, cold audit, in-game guide). Estimate **~18 days (13–26)** via the
+  Bladeburner path; hacking is **not** viable here (gate ~6,000 at 35% — BN6 measured that exact
+  combination at 240–323 days). Full reasoning: `docs/bitnodes.md` § "Node order, re-derived".
+- **✅ ENTRY GATE CLEARED 2026-08-18 — in the Bladeburner division, rank grind live.** Combat
+  **91 → 109** (gate 100) via **two grafts**, not a multi-day crime grind;
+  `joinBladeburnerDivision()` verified through a subsequent `getRank()`. **Phase 41 is CLOSED**
+  (`docs/phases/phase-41-bn10-entry.spec.md`). `bladeburnermanager.js` auto-launched and is
+  grinding. **Next: the same shape as BN6 — rank to 400,000, then all 21 black ops via
+  `bbskillbuy.js` + `bbblackop.js`.** ⚠️ Rank 400,000 is a GATE, not the win condition.
+- 🔑 **GRAFTING IS THE CHEAP ROUTE, and this file previously implied the opposite.** Measured
+  across all 97 graftable augs: **graft price = 0.600 × purchase price, with ZERO reputation**.
+  Its real costs are **Entropy** (exactly `0.98^k` on *every* multiplier, cleared only by an
+  install) and **serial focused time**. ⚠️ `getPlayer().mults` **already includes** that debuff —
+  a planner applying `0.98^k` on top double-counts. Full mechanic:
+  **`docs/grafting-reference.md`** (authoritative; `docs/grafting.md` is superseded).
+- 🔴 **CLOSED 2026-08-18 ON EVIDENCE — THE SLEEVE-PARALLELISM PLANK IS UNSUPPORTED. Do not
+  restate it as a reason BN10 leads.** The claim was that sleeves add rank throughput rather than
+  competing for `Tracking`'s supply cap. **Two probes, both showing a sleeve draining the SAME
+  counter:** 0.308/min (run 1) and ~0.34/min (run 2) against a measured **0.499/min** regeneration
+  — i.e. **62–68% of the pool's entire regrowth, consumed by one sleeve.** BN10's lead now rests
+  on its bare **1.25× redo-tax** edge over BN9, which is still the correct call and is unaffected;
+  we are already in the node, so nothing is actionable — this closes a *claim*, not a plan.
+  - ⚠️ **NEITHER PROBE EVER TESTED THE RANK HALF, and the earlier "produced zero player rank"
+    reading is WITHDRAWN as evidence.** `rankDelta` reads **0 in the idle control phase too**
+    (`logs/sleevepoolprobe-1787098052402.json`) — the engine was paused, so player rank could not
+    move in *either* phase. The probe's own verdict is
+    **`"INCONCLUSIVE -- sleeve task did not persist and never completed anything"`**
+    (`taskHeldSamples: 0` of 36, `completionsObserved: 0`). **The drain is the only real signal
+    either run produced.**
+  - 📌 **The method error worth keeping: A CONTROL THAT CANNOT MOVE IS NOT A CONTROL.** "Zero rank
+    under treatment" looked like a finding for two days; it was guaranteed by the setup, and the
+    idle phase said so in the same file. **Check that your baseline could have shown the effect
+    before crediting its absence.**
+  - **Reopens only on:** a probe run with the engine LIVE (so player rank can actually move) *and*
+    a way to confirm the sleeve is working — `getTask` read `null` on all 36 samples while the
+    counter drained, so the instrument cannot currently see a sleeve's Bladeburner task at all.
+  - Sleeve #2 costs **$10t** and we hold one, so even a reversal is bounded by a single extra actor.
+- **✅ SLEEVE MEMORY — DECIDED 2026-08-18: DROPPED, not deferred again.** +1 memory is **$1.000t**
+  (47.8× the bankroll at the join), the +99 cap **$305t**. Killed by measurement, not by price:
+  sync reached its **100 cap on its own** during the graft ladder (27.17 → 100) and shock decayed
+  **21.18 → 0**, so the head start memory buys is **obtainable free with idle time**. Memory is
+  BN10-exclusive and permanent across future nodes, which is the only argument left for it, and it
+  is not enough at 47.8× bankroll. **Reopens only if** a sleeve is ever measured to add rank
+  throughput (see the plank closed above) — the 2026-08-25 expiry is retired, not renewed.
+- ⚠️ **Nothing carried over but Source-Files and scripts.** BN6's 513,931 rank and 260/260 skills
+  are **gone** — they are node-local. Expect to re-grind from 0.
+- 📌 **Before quoting any ETA, read `docs/estimation-calibration.md`.** BN6's only comparable
+  prediction ran **40% high on the point with the range correct**, and every measured ETA was
+  pessimistic because it froze a rising rate.
+
+**✅ BN6.1 CLEARED 2026-08-16 — [everything below this line is CLOSED HISTORY, kept for its
+lessons, not its plan].** Cleared via the **Bladeburner black-op ladder**, all 21 ops, final rank
+513,931. 🔑 **Two things nearly stopped it, both worth carrying forward:** (1) *rank 400,000 is a
+GATE, not the goal* — the engine had no black-op stage at all and would have ground `Tracking`
+forever; (2) **completing the final black op does NOT destroy the node** — that needs
+`ns.singularity.destroyW0r1dD43m0n(nextBN)`, and ⚠️ **`nextBN` is MANDATORY in this build despite
+the bundled docs calling it optional.** Scripts: `src/bbskillbuy.js`, `src/bbblackop.js`,
+`src/destroybn.js`. **🔵 WIN PATH FLIPPED BACK TO BLADEBURNER-PRIMARY 2026-08-02, on Kenneth's call,
+with measured support.** Bladeburner is now **the win condition**; the batcher is **its economy,
+not a second win path**. This is the third position on this question — the trail is
+`docs/bn6-playbook.md` §1; read it before reopening, and note the two prior flips were each driven
+by new evidence, as is this one.
+- **The evidence that justifies it (measured 2026-08-02, not argued).** BN6's multiplier table
+  penalises hacking **four ways** (`HackExpGain` 0.25 · `HackingLevelMultiplier` 0.35 ·
+  `ServerMaxMoney` 0.20 · `CloudServerSoftcap` 2.0) and Bladeburner **zero ways**
+  (`BladeburnerRank` 1.0 · `BladeburnerSkillCost` 1.0 · **no combat-exp penalty at all**). Live
+  proof in one window: **26h after install #37, hacking climbed 1 → 167 while combat climbed
+  1 → 171/171/202/195** — and the combat climb came free, purely from Bladeburner actions. 🔴
+  **Corrected same day:** an earlier draft set that 167 against "BN5 reached 4,867 post-install,"
+  which is **not apples-to-apples** (4,867 was a *late*-BN5 install at M=6.43 with a mature fleet,
+  vs BN6's *first* install at M=1.59). The clean comparison is the table: **BN6
+  `HackingLevelMultiplier` 0.35 vs BN5's 1.00**, gate 6,000 vs 4,500 → BN6 needs ~**5× the mult BN5
+  cleared at**. ⚠️ **But BN6's ratchet economics are BETTER than BN5's** (no aug-cost penalty), so
+  **the batcher path is slower, not foreclosed** ~~— estimate 10–20 days.~~ (that estimate is
+  retracted, see the next bullet).
+- **🔴 RETRACTED 2026-08-06 — "the batcher is probably the faster bet" is FALSE, by measurement.**
+  ~~On raw time-to-clear the batcher is probably the faster bet (10–20 days vs a Bladeburner path
+  measured at ~570 days for contracts alone, needing a 40–70× undemonstrated improvement).~~
+  ~~**Never restate this as "Bladeburner is faster."**~~ Both halves rested on numbers nobody had
+  re-measured. Measured 2026-08-06 (`docs/bn6-go-no-go.md`): **Bladeburner ~9–25 days** vs
+  **batcher ~240–323 days** to the M≈28–37 gate. The batcher figure is per-install
+  `deltaMultHacking` normalised by elapsed wall time — **~0.0045 M/hour, flat** across installs
+  #37–43 — against `mHacking` **2.10 → 28–37 needed**; the retracted "10–20 days" had **no
+  derivation anywhere in the repo**. Bladeburner is now **faster *and* banks the engine**, so the
+  engine-value argument for the flip still stands — it is simply no longer a sacrifice. That
+  argument, unchanged: BN7 is next and the hacking-walled back half (BN9/10/13/14) needs an
+  alt-destroy engine; clearing BN6 by hacking banks nothing new. ⚠️ This is the **fourth** position
+  on this question and reopens under the "new evidence" clause; trail in `docs/bn6-playbook.md` §1.
+  ~~Hard tripwire: if
+  the Stage B operation crossover isn't reached within **~2 weeks**, revert to batcher-primary.~~
+  **✅ TRIPWIRE RETIRED 2026-08-05 — do NOT revert to batcher.** C2 fired 2026-08-03 (crossover
+  reached, so it never triggered), and the premise behind it is now dead anyway: it assumed Stage A
+  was a ~570-day path, but **Stage A alone measures in days, not months** (~32–38 at the time;
+  re-measured **~9–25 on 2026-08-06** — quote the stamped snapshot below, not either of these).
+  ~~Stage B is separately closed permanently (Raid destroys cities irreversibly…).~~ 🔴 **That
+  Stage B closure is RETRACTED** — see the Stage B bullet below; it was never measured. Full
+  record: `docs/bn6-playbook.md` §1.1.
+- **✅ DISSOLVED 2026-08-05 — the install↔rep deadlock is no longer a constraint, and no "rep
+  window / install freeze" is needed.** It only ever bit because the 12.5k–62.5k-rep aug tier was
+  the prize; that tier measured **inert** (every Bladeburner aug multiplies success chance, stamina
+  or analysis — and we run at **100% success / 99.9% duty**, so all of it buys nothing). With the
+  tier worthless, faction rep resetting on every install costs **nothing**. Phase 39's **S4a
+  decision — "no aug chase, no install freeze" — stands, and this is now its durable reason.**
+  ⚠️ **Do not reopen it on rep-rate grounds:** the rate did improve ~11× (0.086 → ~0.95 rep/s), that
+  was checked, and rep was simply never the binding variable. Full record: `bn6-playbook.md` §1.1 +
+  `bladeburner-reference.md` §7.
+- **Second structural constraint: there is ONE player-action slot.** Bladeburner actions block
+  gym/crime/faction work. `The Blade's Simulacrum` removes exactly this (rep req 1.25k — we
+  already qualify; price **$1.029t**). So "fund combat stats at the gym" is never free — it costs
+  rank time. Mitigated by the finding above: **Bladeburner actions regenerate their own combat-stat
+  prerequisite**, so the post-install combat grind is not a recurring tax.
+- **Batcher's new job: funding engine only** (decided 2026-08-02). The WD-gate hacking climb is
+  **dropped as a goal** — optimise for $/s to pay for Bladeburner augs and fleet. Do not re-derive
+  the M≈28–37 / 35-aug Daedalus plan as if it were still the target.
+- **✅ Phase 38 CLOSED 2026-08-02 — shipped, but superseded before it delivered its verdict.** All
+  four work items shipped; the deliverable was a *decision* and **neither checkpoint ever fired**.
+  Docs graduated to `docs/phases/`, CHANGELOG entry written, all open items carried forward
+  explicitly — full done-vs-left record in that spec's **Close-out** section. 🔑 **Its durable
+  lesson, worth more than the phase:** *an engine that measures itself must be validated against an
+  independent source before its numbers are trusted.* Every defect was invisible in
+  `bladeburner-state.json` and obvious in the in-game panel. ⚠️ **Do not treat any rank rate
+  produced by Phase 38 as evidence** — the engine was mis-tuned three separate ways and the
+  objective function it optimised (rank/second) is itself now in question.
+- **✅ PHASE 40 SHIPPED 2026-08-11 — all three work items landed and live-validated. Its verdict
+  is a FALSIFICATION, and that is worth more than the feature.** WI1 (Revision 3 instrument), WI2
+  (governor) and **WI3 (activation, `7ac604f`)** are all on `master`; `npm test` **1395 green**.
+  Docs graduated to `docs/phases/`.
+  - 🔴 **WHAT IT ACTUALLY DELIVERED — the premise it was built on is FALSE. Do not re-derive the
+    phase's own pitch as if it were still true.** The dose-response curve that justified Phase 40
+    put `Investigation`'s peak at **L26–29 ≈ 9–10 rank/action**. The governor drove it there and
+    measured: **L29 → 0/20 · L25 → 0/20 · L33 → 0/258 · L21 → 2/682**. The peak is *absent where
+    it was predicted*. `Investigation` is **not rescuable by levelling** at any level tested. This
+    is logged dropped-objection #1 landing ("the phase rests on a curve reconstructed from a broken
+    instrument"). Tracked as **Q40-17**, open, Kenneth's call.
+  - 🔴 **DO NOT CREDIT THE RATE CLIMB TO THIS PHASE** (the spec's own Rev 3 anti-claim list forbids
+    it, and it is the easiest mistake to make here). The rate did roughly double, but that is
+    `Tracking`'s **ungoverned autolevel** (L110→L130, **19.77 → 47.56** realised rank/action). The
+    governor's *own* measured effect is `Investigation` **0.00 → 0.061 rank/action** — real, and
+    immaterial (0.13% of rank). ⚠️ The phase's pitched "+34%, ETA ~20 → ~15 days" was an
+    extrapolation off the false curve; **never restate it**.
+  - 🔑 **THE DURABLE LESSON, and it is why features ship inert:** WI2's shadow mode proved its own
+    design broken **in production, on real data, at zero risk** — and then the *replacement* got
+    its premise falsified the same way. A phase that shipped "active" on either would have found
+    this by damaging the run. ⚠️ Sibling lesson from WI1's death: **the implementation matched the
+    spec and no unit test could have caught it** — `detectActionBoundary` bailed on `!sameAction`
+    while the engine alternates on **99.3%** of consecutive starts, so the pure functions passed
+    and the live loop never fed them. **A mechanism can be wrong while the code is right.**
+  - **Left running deliberately:** the governor will walk `Investigation` to `LEVEL_FLOOR = 1` at
+    ≤12 levels/24h, finding nothing. Harmless, and it completes the **L33→L1 sweep** that settles
+    Q40-17 by measurement rather than argument.
+  - ✅ **TWO CALLS — RULED BY KENNETH 2026-08-08. Shipped as specced; do NOT reopen either.**
+    (1) **Q40-12** — the governor **never automatically releases ownership**; once it takes an
+    action, autolevel stays off permanently. Rationale: handing autolevel back re-arms the exact
+    loop being fixed, with no self-exit. The *danger* is addressed instead, via the cohort guard +
+    a ≤12-levels-per-24h drop budget; the *stickiness* is accepted. Cost accepted: on a healthy
+    action the governor climbs slower than autolevel would. (2) **S2.3** — with only one action
+    sampled, the cohort guard is **overridden** and a level drop proceeds with a warn, because
+    holding would disable the phase entirely whenever the pool narrows to one. Cost accepted: a
+    wrongly-lowered healthy action in a rare degraded state. **Both are bounded and reversible,
+    both carry expiry dates, and both are Kenneth's call — not the spec author's default.**
+  - ⚠️ **WI3 activation was reverted once (`8c2cd99`) and re-landed (`7ac604f`) — know which state
+    you are reading.** The revert was because active mode **parked the engine on one action**;
+    `5b259d2` fixed the settlement starvation underneath it. Re-landed on live evidence: duty cycle
+    **1.0** (24h 0.99999997), **50/50 alternation** over 300 starts, 3 forced `setActionLevel`
+    restarts costing nothing measurable. 🔴 **Landmine that caused the confusion and will again:**
+    viteburner pushes the **working tree**, so `active` ran live in the game for over a day while
+    `master` still said `shadow`. **Git and the running game can disagree silently — check
+    `git status`, not just the log, before believing either.**
+- **✅ Phase 39 SHIPPED 2026-08-03** (`docs/phases/phase-39-bladeburner-primary.spec.md` — spec
+  drafted, cold review, implemented, live-validated, 1246 tests green; commits 36e788f/7fe288e).
+  Its go/no-go deliverable **C2 fired 2026-08-03**. ✅ Docs graduated to `docs/phases/` 2026-08-08.
+  🔴 **This bullet used to say the 2026-08-05 branch "closed Stage B permanently" — that is
+  RETRACTED** (see the Stage B bullet below; the closure was never measured). ⚠️ And **C2 itself
+  is now suspect**: it fired on `getActionEstimatedSuccessChance`, which was measured on
+  2026-08-08 to be biased **high** at its lower bound — see `bn6-go-no-go.md` §11.5.
+- **🔴 LANDMINE — FOUR scripts contend for the single player-action slot.**
+  `bladeburnermanager.js`, `augfarmer.js` (faction work), `backdoorfactions.js` and
+  `backdoorwd.js` (`installBackdoor`) all claim it. Any probe or feature needing the slot must
+  quiesce **all four**, not just the obvious one. This defeated four attempts at a single
+  measurement on 2026-08-02, and each claimant produced an **identical** symptom from a **different**
+  cause — which is exactly why it took four tries. ⚠️ Related API trap: **`startAction` returning
+  `true` does NOT mean the action is running** (confirmed live: `true` returned while
+  `getCurrentAction()` read `null` across 60 samples). Verify with `getCurrentAction()`, never the
+  boolean. Full table of claimants and failure modes: `docs/bladeburner-reference.md` §8.
+- **📊 Current standing — this is a SNAPSHOT, not a fact. Recompute before quoting it.**
+  🔴 **Never quote a percentage, a rank rate, or an ETA out of this file.** They stale within a
+  day and have caused two wrong answers already: "4.9%" written 08-05 read **8.4%** on 08-06, and
+  a rate recorded here as "0.1371/wall-sec" was ~24% low within a day. **Every number below is
+  stamped; if the stamp isn't today's, go get the live one** — `node tools/bb/cli.mjs stats`, or
+  the last entry of `logs/goal-log.json` (`rank` field, 60s samples, ~2 days deep). *Durable*
+  facts, safe to quote: ~~the goal is **rank 400,000** (`Operation Daedalus`)~~, and rank and skill
+  points **survive installs** (⚠️ **installs only — NOT node changes**; see the BN10 bullet below,
+  they are node-local and re-grind from 0 on entry). 🔴 **"The rank rate has been rising, not decaying" was listed here
+  as durable and is now FALSE — do not restate it** (measured flat over 35 clean hours, §11.2).
+  What is still rising is the **action level**, which is a different claim.
+  - 🚨 **CORRECTED 2026-08-15 — "the goal is rank 400,000" was listed here as a DURABLE FACT and
+    it is MISLEADING. Rank 400,000 is a GATE, not the goal.** The node clears by completing all
+    **21 black ops in order**, ending at `Operation Daedalus`; 400,000 is only the rank
+    *requirement* on that last one. Checked live at rank 349,057: `getNextBlackOp()` read
+    **`Operation Typhoon`** — the **first** op — with **zero of 21 done**, and
+    `bladeburnermanager.js` has **no black-op stage at all**. The engine would have hit 400,000
+    and ground `Tracking` forever. 📌 **Durable lesson: A PROGRESS TARGET IS NOT A WIN CONDITION** —
+    every snapshot in this file read *on track* while the run could not finish, because the missing
+    step was never instrumented. **Re-derive the goal periodically; don't trust the proxy.**
+    Ladder runner: `src/bbblackop.js` (hard rail — refuses `Operation Daedalus` without an explicit
+    argument, since completing it **destroys the BitNode**). Full record: `bn6-playbook.md` Stage 4.
+  - 🔑 **The skill-point bank was the unpulled lever, and it settles the ladder** (measured
+    2026-08-15, `src/bbskillbuy.js`). ~114,000 SP sat idle for weeks because Stage A never needed
+    them — `Tracking` runs at 100% realised success, so success skills bought nothing *there*.
+    Spent 91,460: `Blade's Intuition`+`Digital Observer` 25/25 → **200/200** (multiplier is the
+    **product** `(1+0.03·BI)(1+0.04·DO)`, so **×3.50 → ×63.00**) and `Overclock` 17 → **90**
+    (action time **×0.83 → ×0.10**). **Every one of the 21 ops' `pMax` went to `1.0000`** — the
+    back half's *falling* upper bounds (Daedalus `[0.0062, 0.0670]`, a real 6.7% ceiling) became
+    `[0.1746, 1.0000]`. Ladder serial time **16.56h → 1.88h**.
+  - 🔴 **`Overclock` "is measured DEAD — do NOT buy more" is RETRACTED 2026-08-15. It was bought to
+    90 and it works.** Q10's measurement stands; its **scope** did not. Stamina being per-action
+    makes action time cancel **only while stamina binds** — true for 13–150s contracts, false for
+    **185–7,377s** black ops running ~0.5 actions/hour against a 55.8/hour ceiling. 📌 **Sibling
+    rule to "an estimate is not a measurement": A MEASUREMENT INHERITS THE REGIME IT WAS TAKEN IN.
+    When recording a "closed permanently," record what would have to change to reopen it** — here
+    it was one unwritten word, *short* actions.
+  - 🔑 **The ladder pays most of its own gate — but it is MARGINAL, not comfortable.** Black-op
+    rank rewards from Typhoon to Vindictus total **~73,400** gross, which *looked* like ~350k →
+    **~424k**. 🔴 **That figure is GROSS and was wrong to state as the outcome — corrected
+    2026-08-15 the same day it was written.** Failed attempts **cost rank**, and the back half runs
+    at `pMin` 0.19–0.35, so ~13.6 failures are expected across the last four ops. Net projection is
+    **~398,500–399,000 against the 400,000 gate — i.e. ~1,000–1,500 SHORT**, with a real spread of
+    roughly 390k–406k because the failure count is geometric. **Do not plan on the ladder clearing
+    the gate unaided.**
+    - **Measured failure cost** (`logs/bbblackop-*.json`): `Hyron` 2 fails on a 3,000-reward op →
+      **943/failure**; `Ion Storm` 4 fails on a 5,000-reward op → **1,066/failure**. Reward grew
+      67%, cost grew 13% ⇒ **loss scales as `reward^0.24` — nearly FLAT, not proportional.** The
+      proportional reading would have made the last three ops rank-*negative*; it is ruled out.
+    - **Failures also hospitalise** (HP jumps to max — `hpFraction` 0.860 → 1.000 across a failed
+      op), so each one costs money as well as rank and time. Third cost, easy to miss.
+    - **Recovery if it lands short is trivial and safe:** `bbblackop.js` blocks on its own rank
+      check rather than attempting Daedalus, so unpause the engine, let `Tracking` cover the gap at
+      **~1,435 rank/h** (~1 hour per 1,500 rank), then fire the last op.
+    - 📌 **The mistake worth keeping: a GROSS total was stated as a NET outcome.** The rank rewards
+      were read straight off the ladder table without pricing the failures that the same table's
+      success chances implied. **When a projection sums rewards, check whether the attempt itself
+      can cost the thing being summed.**
+  - *Stamped 2026-08-06 ~01:40 UTC:* rank **33,793** · skill points **8,819** banked · Blade's
+    Intuition / Digital Observer / Tracer **25** each · team size **0** · city **Ishima** ·
+    running **Tracking**, at 100% success.
+  - *Stamped 2026-08-07 ~02:08 UTC:* rank **34,083** · skill points **8,912** · Ishima chaos
+    **15.68** (the *cleanest* city — Sector-12 1,491 / Chongqing 651 / Aevum 108).
+  - *Stamped 2026-08-07 ~12:20 UTC:* rank **41,271** · `Tracking` **103 / 103** ·
+    `Investigation` **29 / 29** · ⚠️ **its rate figures are SUPERSEDED, do not quote:**
+    ~~"0.2161 and still climbing (0.1743 → 0.2161 monotonically over 11h; latest 5-min window
+    0.2798) · ETA ~15–19 days"~~ — that was an 11h read that did not persist (§11.2).
+  - *Stamped 2026-08-08 ~13:42 UTC* — fit on a **clean 35h window** (install #43 fired
+    2026-08-07T00:40:12Z; that window + 2h recovery excluded), full record `bn6-go-no-go.md` §11:
+    rank **59,008** · skill points **17,259** idle · `Tracking` **110** (still climbing ~1 level /
+    3.5h, **no cap observed through 110**) · `Investigation` **33** · Ishima chaos **66.34**
+    (**4.2× in 35h**, was 15.68) · duty cycle **99.4%** · rate **0.1952 rank/s = 703 rank/h,
+    FLAT** (hourly buckets 625–806, no trend) · ETA **~20.2 days**.
+  - *Stamped 2026-08-11 ~12:25 UTC* (`logs/bladeburner-state.json`, 12 s old at read): rank
+    **132,077** / 400,000 · skill points **41,615** idle · `Tracking` **L127** · `Investigation`
+    **L21** (governed down from 33) · duty cycle **1.0** (24h 0.99999997) · rate **0.3986
+    rank/wall-sec = 1,435 rank/h** (1h; 24h reads 0.3818). 🔴 **Do NOT credit the doubling since
+    08-08 to Phase 40's governor** — it is `Tracking`'s **ungoverned autolevel** climb
+    (L110→L127, realised **19.77 → 47.56 rank/action**), which is exactly the attribution the
+    spec's Rev 3 anti-claim list forbids. The governor's own measured effect is `Investigation`
+    **0.00 → 0.061 rank/action**: real, and immaterial.
+  - 🔑 **The model still closes, and the closure is now damning: `Tracking` alone accounts for
+    100.4% of the measured rate.** `Tracking` 30.3 starts/h × 47.56 = **1,441 rank/h** vs **1,435
+    measured**. `Investigation` runs the *other half of every action the engine takes* (30.3
+    starts/h, a 50/50 alternation) and contributes **1.8 rank/h — 0.13%**. ⚠️ Still **not** an
+    argument to drop it (§11.4's supply cap holds — `Tracking` is dry at 30.3/h of ~60/h
+    capacity); it is an argument that the **filler slot is unpriced**. `Bounty Hunter` estimates
+    **1.25 rank/action** and has **never been run once** (0 attempts, ever) — 20× `Investigation`'s
+    realised, worth ~**+2.5%** of rate. Small in rank; the reason it matters is *why* the engine
+    picks `Investigation` — see the estimator finding below.
+  - 🔑 **The trajectory is SELF-IMPROVING, and the ETA is therefore conservative** (measured
+    2026-08-11, `logs/bladeburner-attempts.json`). Two rates govern everything:
+    · `Tracking` **yield** grows **+4.03%/level** (multiplicative, L121→127).
+    · `Tracking` **action time** grows **~1.78 s/level, linear** (84 s @ L121 → 100 s @ L130).
+    Multiplicative beats linear, so **rank/hour rises ~2.2%/level and accelerates**. There is no
+    cliff ahead. ⚠️ **`Tracking` is supply-capped for real** — `countRemaining` is **pinned at
+    1.00** (never above 1.01, n=200) against `Investigation`'s ~4,600 banked, so it is
+    *regeneration*-limited at **~30 actions/h** and cannot simply be run more.
+  - **Predicted, not yet observed — worth recognising rather than re-diagnosing when it happens:**
+    at ~30 actions/h, `Tracking` currently consumes **83%** of the hour (100 s × 30). It fills
+    **100%** at ~**120 s ⇒ ~L141** (~1.6 days at the observed ~6.7 levels/day). At that point
+    `Investigation` is **squeezed out naturally, with no code change** — the filler slot closes
+    itself. Past L141 `Tracking` becomes *time*-capped rather than supply-capped and actions/h
+    starts falling, but yield still outruns it. **Do not read the disappearance of `Investigation`
+    as a governor action or a bug.**
+  - ⚠️ *Data note:* `Tracking` L123 reads a 300 s median action time against smooth 86 s/89 s
+    neighbours — that is the 2026-08-10 settlement park, not a level effect. Exclude it.
+  - 🔑 **The throughput model now CLOSES (§11.4), and it changes what the levers are.** Measured
+    realised rank/action: `Tracking` **19.77** (n=965, zero failures) vs `Investigation` **4.27**
+    (n=960, median **0.00**, 68.9% pay nothing, and **decaying — 9.75 → 0.88** across the window).
+    `Tracking` is **supply-capped at ~30 actions/h** (count pinned at 1.13, regen +0.008/h) while
+    stamina permits ~56/h, so `30×19.77 + 26×4.27 = 704` vs 703 measured. ⚠️ **Therefore "just
+    drop Investigation" is WRONG — it is filler on capacity Tracking cannot supply.** The two
+    actions moving in opposite directions is *why* the aggregate looks flat.
+  - 🔴 **The estimator's LOWER bound is biased HIGH, not merely uncertain (§11.5).**
+    `Investigation` predicted `evPerAction` **14.23** at pMin **0.764**; realised **0.88** →
+    true success ~**7%**. Even the *converged* pMin-1.0 case (`Tracking`) runs **17% hot**.
+    ⚠️ **Checkpoint C2 ("operations lead contracts", fired 2026-08-03) and `Raid`'s 45.72/action
+    both come from this same estimator and have NEVER been realised.** Do not quote 45.72 as a
+    measurement; it is the strongest lever on the table *and* the least trustworthy number.
+  - 🔴 **SUPERSEDED 2026-08-11 — "biased high" was too kind, and "17% hot on `Tracking`" has
+    REVERSED SIGN. Do not quote either.** The estimator's error is neither small nor
+    signed-consistent, so it **cannot be corrected for**:
+    · `Investigation` L21 predicts **`pMin` 1.0000** — a *converged* `[1.0, 1.0]`, maximum
+    confidence — and realises **2/270 = 0.74%**. Wrong by ~**135×**, while reporting certainty.
+    · `Tracking` L127 predicts **42.85** rank/action and realises **47.56** — now ~**10% COLD**,
+    where 08-08 measured it 17% *hot*.
+    🔑 **The consequence that matters: the failure is on an OPERATION.** `Investigation` and
+    `Raid` are the same action class, so `Raid`'s **47.03 rank/action** is not "an estimate to
+    treat with caution" — it is output from a function caught, live, claiming certainty about a
+    sibling Operation it had wrong by two orders of magnitude. **C2 is void as evidence**, not
+    merely suspect. This is what closes Stage B on measurement (see the Stage B bullet).
+    ⚠️ **And it is a live selection defect, not just a reporting one:** the engine picks
+    `Investigation` (est. **8.51**/action, realised **0.061**) over `Bounty Hunter` (est. **1.25**,
+    never run) — because selection reads the estimator while Phase 40's ledger now holds the
+    *realised* number and is not consulted for it. → Q40-17 / the `objectiveMode` phase.
+  - 🚨 **THE SELECTION DEFECT NOW HAS A DATE, AND IT LANDS BEFORE THE CLEAR (measured
+    2026-08-13).** This is no longer a latent design smell — it is a projected run-killer inside
+    the ETA window. `Tracking`'s **estimated** `pMin` is collapsing while its **realised** success
+    stays **100%**: `pMin` 0.8884 @ L126 → **0.2505 @ L136** (n=1,250), against 723/725 realised
+    and rising yield. Selection (`pickRankAction`, `bladeburnermanager.js:452`) takes the **strict
+    max** of the estimator's score and **drops any candidate scoring `<= 0`** (line 460). Fitting
+    the decay at **−0.0268 `pMin`/level**:
+    · **~L143 (~1.2 days):** `Tracking`'s est. `evPerSec` (0.048) falls **below `Investigation`'s**
+      (0.058) → the engine switches to the action realising **0.061 rank/action** over the one
+      realising **68.14**. Rate collapse ~99%.
+    · **~L145.5 (~1.7 days):** `pMin` reaches 0 → `Tracking` is **dropped from the pool entirely**.
+    ⚠️ **The clear needs ~3.2 days, so both dates land inside the window.** ⚠️ **Do not "fix" this
+    by flipping `objectiveMode` to `per-action`** — `evPerAction` decays too (17.06 → 0); the
+    per-second/per-action axis is orthogonal to this failure.
+    ✅ **CONFOUND RESOLVED SAME DAY (2026-08-13) — BOTH are real drivers, and `level` is NOT
+    established as one.** Two *independent* interventions each moved `pMin` while holding the
+    other variable still, which is exactly what the correlations could not do:
+    · **Field Analysis** — chaos held **flat** (274.8 → 274.7), level held 136, `pMin`
+      **0.2507 → 0.4444** ⇒ **intel is a driver.**
+    · **Diplomacy** — chaos **717 → 72.8**, level *rose* 136 → 139 (which should have *lowered*
+      `pMin`), `pMin` **0.4444 → 1.0000** ⇒ **chaos is a driver.**
+    🔴 **`pMin` rose while level increased, twice — so the "level-driven decay" reading is not
+    supported.** Read the paragraph below as the superseded reasoning, kept for the method.
+    ⚠️ **The cliff is currently GONE, not deferred** (`pMin` reads a converged **1.0000** against
+    100% realised). But **chaos regrows at 3.22%/h**, so it returns to ~700 in **~3.0 days**
+    against a **~3.3-day** clear — i.e. right at the finish. S-RF is the backstop for that.
+    🔑 **Method note worth keeping: two collinear candidates were separated by INTERVENING on each
+    in turn, not by more observation.** The correlations (−0.95 vs −0.97) were never going to
+    settle it; one 15-minute probe and one accidental `Diplomacy` run did.
+
+    [SUPERSEDED 2026-08-13 — kept for the method, not the conclusion]
+    🔑 **Driver is CONFOUNDED and I could not separate it — do not assert either cause.** Ishima
+    chaos rose **278% in 42h** (72.8 → 274.9, doubling every ~21.9h) while `Tracking` climbed
+    L126→L136. The two are collinear, so both fit: `corr(pMin, level) = −0.95`,
+    `corr(pMin, log chaos) = −0.97`. It matters only for *which* fix applies (Diplomacy vs a level
+    ceiling); the risk is identical either way. ⚠️ Note chaos is **falsified as a driver of
+    *realised* yield** (2026-08-08) — so this is an estimate-only effect, which is exactly why it
+    is dangerous: **nothing is actually wrong with `Tracking`.**
+    ⚠️ **Diplomacy still cannot fire** (chaos 274.9 vs `CHAOS_TARGET` 50, `runs: 0`): 24h
+    `rankProducingSec == actionSec` (85,607 == 85,607), so `pickRankAction` never returns `null`
+    and `pickOverheadAction` is never reached. The starvation documented 2026-08-08 is unchanged.
+  - **✅ CAUSE FOUND AND FIXED, SAME DAY (2026-08-13) — it was LOST INTEL, not decline, and the
+    tell was sitting in the data the whole time.** 🔑 **The estimate's UPPER bound never moved off
+    `1.0000`** while the lower bound collapsed 0.89 → 0.25. The range was **widening**, not
+    shifting down — the game was reporting *"I am less sure"*, never *"this got worse"*, and the
+    truth (100%) sat inside the range at the top the entire time. Because scoring reads the
+    **pessimistic** bound, "uncertain" and "bad" are **indistinguishable at the call site**.
+    📌 **Durable rule: read `getActionEstimatedSuccessChance` as a PAIR. A widening `[pMin, pMax]`
+    is an intelligence problem; only a falling `pMax` is a real decline.**
+    - **Measured counter** (`src/fieldanalysisprobe.js`, `logs/fieldanalysisprobe-*.json`):
+      `Field Analysis` restores `pMin` at **+0.684/hour**, monotonic over 8 min with zero
+      reversals, **while city chaos stayed pinned at 274.8** — so it rebuilds the population
+      estimate and is **not** a chaos lever. Decay is **0.158/day**, so steady state costs
+      **~14 min/day (~1% of wall time)**; a full 0.25 → 0.89 restore takes **~1 hour**.
+    - ⚠️ **It raises EVERY action's estimate, including worthless ones** (`Investigation` gained
+      *more* `pMin` than `Tracking`). It only nets out because `Tracking`'s `rankGain` is ~50×
+      larger. **Field Analysis restores PRECISION, not ACCURACY** — it does not make the
+      estimator trustworthy.
+    - ⚠️ **S-RF IS ARMED BUT NOT YET LOAD-BEARING — do not claim it "is holding the run."**
+      Checked 2026-08-13: it *is* supplying the score in use (floor **0.6649** > estimator
+      **0.6453** evPerSec), but the estimator alone would make the **same** pick — `Tracking`
+      0.6453 vs `Investigation` 0.0604, a 10× margin — because `Diplomacy` + `Field Analysis`
+      restored `pMin` to **1.0000**. It is **insurance that has not been called on**. Its live
+      proof so far is narrower and worth stating exactly: it survived **four `Tracking` level-ups
+      (L136→L140)** without the deadlock its first draft would have hit.
+    - **✅ SHIPPED — S-RF, the realised-evidence floor.** `pickRankAction` now takes
+      `max(estimated, realised)` for any action with **≥50 attempts at its current level and ≥90%
+      realised success**, reading Phase 40's ledger. **Strictly one-directional**: it can only
+      *raise* a proven action, never lowers anything, never promotes an unproven one, and with no
+      ledger passed it is byte-for-byte the old behaviour. This makes selection immune to the
+      estimator in **both** its failure directions. 9 tests, incl. a replay of the measured cliff.
+    - 🔴 **STILL OPEN — the engine cannot self-heal its intel.** `Field Analysis` is *still* not in
+      the action pool, so `pMin` keeps decaying; S-RF makes selection immune, but nothing restores
+      the estimate on its own. Wiring it in is a **spec question** (trigger threshold, duty
+      budget), not a constant tweak. → `BACKLOG.md`.
+  - 🔴 **ENGINE DEFECT, real — but CORRECTED 2026-08-08 (evening): `Diplomacy` HAS run, and
+    `effect.runs: 0` is NOT a cumulative count.** ~~"`Diplomacy` has never run … `effect.runs: 0`
+    cumulative"~~ was wrong on both halves. `bladeburner-log.json` holds **two** `diplomacy-effect`
+    records (both 2026-08-03), and `diplomacyEffect` is an **in-memory accumulator reset to
+    `emptyDiplomacyEffect()` on every process start** — with **17 restarts** logged and the last
+    startup at 2026-08-07T00:40Z, `runs: 0` means *"none since the last restart,"* never *"never."*
+    ⚠️ **Fifth instance of the same pattern: a counter was read as cumulative without checking
+    whether anything persists it.**
+    - **The defect underneath is real, and it is a DIFFERENT mechanism than the one fixed
+      2026-08-03.** That fix made the chaos branch *reachable*; it is now **starved of slack**.
+      `pickOverheadAction` is only called when `pickRankAction` returns `null`
+      (`bladeburnermanager.js:1592`), and the engine now runs **24h `dutyCycle` 0.9998 with
+      `rankProducingSec == actionSec`** — `Investigation` always backfills, so overhead is never
+      picked at all. Every guard on the branch itself currently *passes* (Ishima chaos **69.02** >
+      `CHAOS_TARGET` 50, `budgetRemainingMs` 720,000 > 0, `hpFraction` 1, stamina 0.986 not
+      recovering) — it is simply never reached.
+    - 🔴 **Diplomacy's strength is UNMEASURED — do not quote 174 chaos/run.** Of the two records,
+      the second was correctly **discarded** (`city changed Volhaven -> Ishima`) and the first
+      (`removed: 174.15`, Sector-12 177.5 → 3.39) **predates the same-city guard** — it carries no
+      `cityName` field, and it is precisely the contaminated sample
+      `bladeburnermanager.js:1671-1674` was written to catch ("makes it look ~50× stronger than it
+      is"). One clean sample has never been taken.
+    - **✅ FIRST CLEAN SAMPLE TAKEN 2026-08-13 — `Diplomacy` removed `645.03` chaos in ONE run**
+      (Ishima ~717 → 72.8, same city throughout, so it passed the `cityName` guard rather than
+      predating it). It fired **on its own**, unprompted: the overhead branch documented as
+      permanently starved *did* reach `pickOverheadAction`. ⚠️ **Do not read 645 as a per-run
+      constant** — it removed ~90% of the standing chaos, so one sample cannot distinguish an
+      absolute effect from a proportional one. What it does settle: **the branch works, and the
+      lever is far stronger than the retracted 174 figure.**
+    - 🔴 **AND THE LEVER IS AIMED AT THE WRONG TARGET — chaos is FALSIFIED as `Investigation`'s
+      cause (2026-08-08 evening).** Chaos is **city-scoped**, so `Tracking` is a free control: over
+      the same window, same city, while chaos rose **7.2×** (9.3 → 66.5), `Tracking`'s zero-rate
+      stayed at **0–1%** and its yield *rose* (29.92 → 24.52 rank/action, level 99 → 112) while
+      `Investigation` collapsed 5.81 → **0.23** (8% → **99%** zero). Whatever is killing
+      `Investigation` is **action-specific**, and chaos cannot be. ⚠️ **Do not quote
+      `bn6-go-no-go.md` §11.8's "+230 rank/h from fixing Diplomacy"** — its premise is contradicted.
+    - 🔑 **The real cause is the action's own LEVEL, and the engine has never managed it.**
+      `Investigation` yield by level is a clean dose-response: rises to a **peak at L26–29 (~9–10
+      rank/action)**, then cliffs — L30 6.67, L31 4.77, L32 1.33, **L33 0.21 (99% zero)**. It is
+      **stuck at L33**: `autolevel` only advances on success, so it locked itself at a level it
+      cannot clear. `bladeburnermanager.js` **never calls `setActionAutolevel`/`setActionLevel`** —
+      `autolevel: true` is the game default, ungoverned. Install #43 is ruled out as the driver:
+      the by-level curve runs **smooth and monotonic straight through** the install boundary (L21
+      pre 21% zero → L22 post 23%). → **Phase 40**, `phase-40-autolevel-governor.features.md`.
+    - *Stamped 2026-08-08 ~18:20 UTC:* Ishima chaos **69.02** (15.68 on 08-07 → 66.34 on 08-08
+      13:42 → 69.02) — still climbing, and now **not known to be costing anything**.
+  - 🔴 **RETRACTED 2026-08-07 — "the action level caps at 100 / the acceleration is over / ~25
+    days" was WRONG.** `Tracking` read 100/100, then **103/103** fourteen hours later — `maxLevel`
+    keeps growing. The honest statement is **"no cap observed through level 103,"** not "no cap."
+    ⚠️ **How it went wrong, because it is the fourth instance of one pattern:** `current == max` is
+    the *normal* state for every action (the doc said so and reasoned around it anyway), 100 being
+    round was coincidence, and the "rate stopped climbing" reading was **taken across install
+    #43's recovery window**. 🔑 **New rule, sibling to "an estimate is not a measurement":
+    A TREND READ ACROSS A KNOWN DISTURBANCE IS NOT A TREND** — installs are timestamped in
+    `ratchet-log.json`; exclude those windows before fitting anything. And **two weak signals
+    agreeing is not evidence when both derive from the same uninformed reading.** Full record:
+    `docs/bn6-go-no-go.md` §10.
+  - **Overclock 17/90 — do NOT buy more, it is measured DEAD** (stamina is per-action, so action
+    time is irrelevant to sustainable throughput). ⚠️ The "×0.10 ceiling = 8.3× throughput" claim
+    this bullet used to carry was wrong; never restate it.
+  - ⚠️ Also obsolete, do not quote: "150 days / 0.0307 rank/s / ~50× stack", and "32–38 days /
+    0.1371 rank/s" — both superseded by the stamped figures above.
+- **🚨 STAGE B REOPENED 2026-08-06 (evening) — the "Raid permanently kills a city" finding is
+  RETRACTED. It was never measured.** Volhaven's population `0` and its actions scoring `0` both
+  mean **"unknown," not "zero"**: `getActionEstimatedSuccessChance` returns a **[MIN, MAX]** range,
+  and in Volhaven every one of the nine contracts/operations reads **`[0.0000, 1.0000]`** (maximum
+  uncertainty) vs Ishima's **`[1.0000, 1.0000]`** (converged). The engine scores on **`pMin`**
+  (`bladeburnermanager.js:304`), so an **unscouted city is indistinguishable from a dead one**.
+  Volhaven's inventory is intact: 2,727 Raids · 3,496 Undercover · 1,432 Assassinations.
+  ⚠️ **`Field Analysis` is not in the engine's pool**, so it can never rebuild lost intel — it reads
+  a fixable intelligence problem as a permanent loss. **Raid's true city cost is UNKNOWN**;
+  Stage B is gated on Q11 + new **Q14** (does scouting restore a drained city?).
+  - **DEFAULT + DATE (set 2026-08-08, per the "open decisions carry a default and a date" rule —
+    this gate had neither for two days): Stage B stays CLOSED, expiring 2026-08-15.** If Q14 is
+    not run by then, Stage B is closed for the rest of BN6 and Stage A carries the clear alone.
+    **Why closed is the right default even though Raid is the biggest number on the table:** the
+    45.72 rank/action that makes Stage B attractive comes from `getActionEstimatedSuccessChance`,
+    and that estimator's **lower** bound was measured biased *high* on 2026-08-08 (§11.5) — so the
+    lever's headline figure is the least trustworthy number we hold. Q11 is separately moot in
+    Ishima (commit `fff3849`). **What it costs if wrong:** we forgo the largest single lever for a
+    week against a ~20-day Stage A ETA. **What reopens it early:** a positive Q14 (see the Ideas
+    entry in `BACKLOG.md`), nothing else.
+  - **✅ RESOLVED EARLY 2026-08-11 — Stage B closes on MEASUREMENT, not on the default expiring.**
+    The 08-15 date can simply pass; nothing needs to be run, and **Q14 is moot** (we do not need
+    Volhaven). The estimator that produces Raid's headline number was measured live against the
+    only Operation the engine actually runs, and it did not merely read high — **it reported
+    certainty and was wrong by ~135×**: `Investigation` at L21 predicts **`pMin` 1.0000**
+    (a converged `[1.0, 1.0]`, maximum confidence) and realises **2 successes in 270 attempts
+    (0.74%)**. 🔑 **Same action class.** `Investigation` and `Raid` are both Operations, so this is
+    not a generic caveat about estimates — it is a same-class, live falsification of the exact
+    function whose output (`Raid` **47.03 rank/action**) is Stage B's entire case, and Raid spends
+    a city **irreversibly** on that say-so. ⚠️ Note the bias is **not a consistent direction** and
+    so cannot be corrected for: on `Tracking` the same estimator reads **~10% cold** (predicts
+    42.85, realises 47.56). 🔴 **By the same argument, checkpoint C2 — which fired 2026-08-03 on
+    `operationLeadsPerAction` — is void as evidence, not merely suspect.** It is still reading
+    `true` today, computed from `Raid` 47.03 vs a `bestContract` that reads **1.25** whenever
+    `Tracking`'s supply is dry.
+- **📌 The method rule this cost three commits to learn: an ESTIMATE is not a MEASUREMENT.** Any
+  `ns.bladeburner` value whose name contains `Estimated` must be read as a **range**; a
+  single-point read of one is not evidence. Three successive wrong conclusions were each
+  "confirmed" by re-reading the same uninformed number through a different lens.
+- **🔴 Q10 ANSWERED 2026-08-06: stamina is spent PER ACTION → `Overclock` is DEAD.** *(Unaffected by
+  the retraction above — this probe timed real stamina deltas against a wall clock, no estimate in
+  the chain.)* Measured
+  (`src/q10probe.js`, 593 samples): stamina fell exactly **9 times in 449 producing seconds**, every
+  drop precisely **2.162**, every one on a rank tick, spaced at the 51s action time; regen is
+  continuous at 0.03352/s. Sustainable actions/hour = `regen × 3600 / cost` = **55.8, independent of
+  action time** — Overclock 90 would permit 585.9/hour by the clock and change nothing. ⚠️ **Never
+  quote the "×8.3 → ~4 days" figure again**; the ~4,000 banked SP were correctly *not* spent.
+- **🔴 RE-CLOSED 2026-08-06 (measured) — the aug tier is inert after all, and `Cyber's Edge` is
+  worthless. Buy neither; the ~8,912 SP stay parked.** ~~We are stamina-limited, which partly
+  REOPENS the aug tier … `bladeburner_stamina_gain` multiplies the rank rate directly.~~ That
+  reopening rested on an assumption nobody had measured. `src/leverprobe.js` measured regen at
+  **0.03274/s at `staminaMax` 88.96** vs Q10's **0.03352/s at ~136.5** — max moved ~35%, regen
+  moved **2.3%**. ~~**Stamina regen is FLAT, independent of max.**~~ 🔴 **RETRACTED 2026-08-21 —
+  REGEN IS NOT FLAT, and this was a regime-limited reading. Do not quote "flat".** Measured
+  live (`logs/q10probe-1787274944464.json`): **0.08026/s at `staminaMax` 335.3** — vs
+  leverprobe's 0.03274/s at 88.96, i.e. **max 3.77x, regen 2.45x**. The two original samples
+  spanned 88.96-136.5, a 1.5x band in which the effect is invisible; across 3.8x it is
+  obvious. 📌 **Fourth instance of "A MEASUREMENT INHERITS THE REGIME IT WAS TAKEN IN"** —
+  same lesson as `Overclock`, which was declared "measured DEAD" on short actions and then
+  mattered enormously on black ops. ⚠️ **The conclusions that rested on flatness are now
+  UNSOUND, not merely stale**: `Cyber's Edge`/max-stamina augs were dismissed *because*
+  regen was flat, and the "raising max only makes each rest longer in wall-clock" argument
+  inverts if regen scales with the same stat. Neither is re-opened here — nothing is
+  actionable in BN10 — but neither may be cited as settled. **What actually drove it is not
+  isolated**: combat rose ~10x and `staminaMax` 3.8x together, so `agility` and
+  `bladeburner_stamina_gain` are confounded exactly as chaos/level once were; separating
+  them needs an intervention on one, not more observation. So sustainable actions/hour is
+  `regen × 3600 / cost` = **55.0** and *nothing* about max stamina can raise it. ⚠️ `Cyber's Edge`
+  is **neutral-to-harmful**, not merely useless: the guards are *fractions* of max
+  (`STAMINA_FLOOR_FRACTION` 0.5 / `STAMINA_RESUME_FRACTION` 0.55) while regen is a flat *absolute*
+  rate, so raising max only makes each rest **longer** in wall-clock. Success-chance augs remain
+  worthless (100% success). Full record: `docs/bn6-go-no-go.md` §8.2.
+- **🔑 The correct objective is rank-PER-ACTION, and the engine uses the wrong one.** Follows
+  directly from the above: `rank/sec = 55/hour × rank-per-action / 3600`, and **actions/hour is
+  fixed by arithmetic regardless of action time**. `bladeburnermanager.js` runs
+  `objectiveMode: "per-second"`, which systematically prefers *short* actions — exactly backwards
+  when time is free and stamina is the currency. ⚠️ **This is a diagnosis, not a shipped fix** —
+  it needs a phase branch + the 1246-test suite, and the size of the gain is **not** established
+  (operation scores derive from `Estimated` ranges). `docs/bn6-go-no-go.md` §8.3.
+- **➡️ Q13 is partly ANSWERED and no longer the next measurement.** Per-action stamina cost
+  measures **~62% flat / 38% time-proportional** (`bn6-go-no-go.md` §2.5), cross-validated by
+  Q10's 55.8 actions/hour vs an independently derived 52.7. **The open question is now whether
+  operations actually pay more rank-per-action than a capped `Tracking`** — that is what gates
+  the `objectiveMode` flip and Stage B.
+- **⚠️ Install cadence STOPPED 2026-08-06** (`src/ratchet-mode.txt` → `observe`; installs cost a
+  measured **5.4%** of Bladeburner wall-time). 🔴 **That file is pushed from the repo by viteburner
+  AND is gitignored** — an in-game write alone silently reverts on the next dev-server restart, and
+  did: it re-enabled installs and #43 fired 7 min later, killing a running probe. Edit the repo
+  copy, then verify with `run setratchetmode.js`.
+- **✅ BN2.1 CLEARED 2026-07-23** — `w0r1d_d43m0n` backdoored (`backdoorwd.js` auto-fired once
+  hacking crossed the gate), confirmed on the BitVerse screen (`bb-shot.png`). **Cleared at
+  M≈34.3, NOT the M≈45 target**: the exp stack overshot (13.9B exp) and put the level at
+  **15,019 ≥ the 15,000 gate** first. Full record + retrospective in
+  [`docs/gang-engine.md`](docs/gang-engine.md).
+- **✅ BN5.1 CLEARED 2026-07-29** — `w0r1d_d43m0n` backdoored, confirmed live: BitVerse selection
+  screen (`bb-shot.png`), `logs/ratchet-log.json` install #35 (3:16:01 PM), and a fresh in-node
+  `auginfo.js` run reading `mults.hacking: 1.3824` = `1.28 × 1.08` — exactly SF5 level 1's +8% on
+  the 1.28 SF1.3 floor (SF2 L1's +24% crime/charisma also confirmed still intact). Full record:
+  `docs/bitnodes.md`'s BN5 section.
+  - **The armed tripwire never fired — resolved by outcome, not by checking the date.** The
+    2026-07-23 decision was: build a gang if sustained batcher income stayed under ~$15M/s past
+    2026-08-02. BN5 cleared first. **Batcher-only was sufficient for BN5, end to end** — real
+    evidence for the next node's version of this same question, not just an expired clock.
+  - **Left undone, still open:** the `getBitNodeMultipliers()` live-signature verification never
+    ran before the clear. Not a missed window — SF5 persists across nodes, so it's still doable
+    from BN6 or anywhere, whenever it's worth the ~10-minute detour.
+- **📕 ALL THINGS BN6 LIVE IN TWO DOCS — read them before planning or coding anything here.**
+  - **[`docs/bladeburner-reference.md`](docs/bladeburner-reference.md)** — the interface: access
+    model, complete static catalog, every method's semantics + RAM, gotchas, and an explicit
+    "not knowable until we join" list. Gated the same way `batcher-engine.md` is: read it before
+    designing against the Bladeburner API.
+  - **[`docs/bn6-playbook.md`](docs/bn6-playbook.md)** — the strategy: the win-path decision and
+    its arithmetic, node facts, the staged plan, and the open questions with defaults/dates.
+  - **✅ FIRST TASK DONE 2026-07-29 — the full interface read happened before any design.** Both
+    docs above are its output. Key results: the **entire `ns.bladeburner` API throws until you
+    join the division** (uniform error; even six 0 GB methods throw — the gang lesson repeating),
+    but the **complete static catalog was recovered from the enum types anyway** (3 contracts, 6
+    operations, **21 black ops ending at `Operation Daedalus`**, 6 general actions, 12 skills).
+    Two gates verified live: **combat stats ≥ 100** for the division, **rank ≥ 25** for the
+    faction. `src/bladeburnerprobe.js` + `src/combatgateprobe.js` are the reusable probes.
+  - **🔑 Two facts that drive everything:** **Bladeburner rank and skill points SURVIVE
+    augmentation installs** (faction rep does not, and can only be earned via Bladeburner
+    actions) — the only monotonic progress axis we've ever had. And **combat 1→100 is only
+    21,668 exp** (measured), so the prerequisite is a gym trip, not a grind.
+  - **⚠️ Unlike gangs, measuring IS correct here.** `formulas.bladeburner` has exactly **one**
+    method and the in-game doc is three paragraphs, so action yields/skill effects/chaos/stamina
+    are genuinely empirical — the opposite of Phase 27, where the formulas module already had the
+    answers. The lesson was *read the interface first, then find out which you need*; we read, and
+    the answer came back "measure."
+- **✅ STAGE 1 DONE 2026-07-30 — combat gate cleared (overshot to 172/172/172/172, target was
+  100), Bladeburner division joined.** Route measured, not assumed: Iron Gym priced out ($120/s
+  per stat, one stat at a time, vs ~$3.9k banked at $0/s income); crime (Mug) measured at
+  **0.179 exp/sec/stat**, settling the failed-crime-exp question empirically (neither of the
+  predicted bounds). `combatgrind.js` died mid-run (its own documented RAM-contention risk) but
+  the `commitCrime` player action it started kept running unattended past the gate with nothing
+  alive to stop it — harmless overshoot, ~90 min of pointless Mug. New `src/joinbladeburner.js`
+  stopped the action and called `joinBladeburnerDivision()` → `true`.
+- **[SUPERSEDED 2026-08-02 by the Bladeburner-primary flip at the top of this section — kept for
+  the trial numbers and the lesson, not the conclusion]
+  🔴 DECISION FLIPPED 2026-07-30 — HACKING IS NOW THE PRIMARY PATH, NOT BLADEBURNER.** The
+  ~3-week flip condition set at Stage 1 (see the superseded reasoning below) was re-checked live
+  and failed decisively. `bladeburnerprobe.js` + two sibling probes first found a bad *predicted*
+  rate at zero investment (~5–6 months to the rank-400,000 `Operation Daedalus` gate, ~8x past
+  the bar). A ~75-minute, 3-version live trial (`src/bladeburnertrial.js`, Kenneth's go-ahead)
+  then tested every lever that could plausibly close that gap — `Field Analysis` scouting
+  (confirmed real, but only narrows uncertainty, not the rate), skill investment (13 SP across 10
+  skills — a one-time step, not a trend change), and a `Diplomacy` chaos-countermeasure (a small,
+  consistent bump, 2–3x smaller than the decay it was fighting). **All three were insufficient
+  against a steady, undocumented decay in success chance** that hit regardless of which action
+  ran or how many skills were bought — almost certainly the game's chaos mechanic, city-scoped
+  and never mitigated by anything tested. **The actual achieved rate (real rank gained ÷ real
+  elapsed time, not the pre-action prediction) was 0.0144 rank/sec — projecting ~10.5 months, a
+  number *worse* than the original naive zero-investment estimate.** Every mitigation tried made
+  the outcome worse than doing nothing, not better — this is off the 3-week bar by roughly two
+  orders of magnitude, not one, and is a load-bearing result, not a hedge.
+  **Bladeburner rank/skills are not wasted** — they persist across installs (the fact that made
+  trying this worth it) — but building the Stage 3 engine is no longer justified by what's
+  measured, so it's shelved, not scheduled. **One untested lever is logged, not closed:** city
+  rotation (every cycle ran in one city) — revisit only if the hacking path also stalls badly, or
+  on request for one more cheap experiment. Full record: `docs/bladeburner-reference.md`
+  §3/§6/§8/§9/§10, `docs/bn6-playbook.md` §1 (has the actual rate math + the full trial log
+  trail) and its 2026-07-30 changelog entries.
+- **⚠️ CORRECTION 2026-07-31, propagated here 2026-08-01 — the "non-viable" verdict just above is
+  UNSOUND, not a closed verdict.** `bladeburnertrial.js`'s model had four real flaws
+  (`docs/bladeburner-reference.md` §5, found by reading the in-game panel the original trial never
+  opened): fixed action time (misses `Overclock`'s up-to-10× cut), 13 SP tested against ~133,000
+  banked by rank 400,000, zero team size, and ignored that action success levels — and their rank
+  payout — grow with use. Hacking-primary is **not** reversed by this (BN2/BN5's 5–6-day
+  same-engine precedents independently support it as fast and proven), but treating Bladeburner as
+  *closed* was wrong. **Phase 38** (`phase-38-bladeburner-engine.spec.md`,
+  `src/bladeburnermanager.js`, branch `phase-38-slice-b`) exists to re-measure it properly:
+  opportunistic slack-time grinding only, unconditional stand-down for
+  `backdoorwd.js`/`backdoorfactions.js`/`studybootstrap.js`, two real checkpoints (24h smoke @
+  0.043 rank/held-sec, 1-week viability @ 0.1543 rank/held-sec). **As of 2026-08-01: zero data
+  yet**, stood down for `backdoorfactions.js` since it started — expected, not forced early, per
+  the spec. An adversarial cold-review agent independently re-confirmed all of this from raw logs
+  2026-08-01 after Kenneth flagged the "skipping Bladeburner in the Bladeburner node" framing as
+  off. Full trail: `docs/bn6-playbook.md` §1's correction block and its 2026-07-31/2026-08-01
+  changelog entries.
+- **[SUPERSEDED 2026-08-02 — do not do this]** The old "next action: re-derive the hacking-path
+  plan using the M≈28–37 / +35-aug-Daedalus math" is retired with the batcher's demotion to
+  funding engine. The math itself is still correct and still in `docs/bn6-playbook.md` §1 if the
+  fallback ever needs reviving; it is simply no longer the plan.
+- **[SUPERSEDED 2026-07-30 by the flip above — kept for the numbers, not the conclusion]
+  Original decision: clear BN6 via the Bladeburner black-op path, not hacking** (2026-07-29, high
+  confidence on ordering *at the time* — the flip condition this section itself set was then
+  triggered by the live re-check). The hacking path is **not** the cheap option: computed
+  **M ≈ 28–37** (WD gate 6,000 at Hacking Level mult 0.35) — squarely BN2 territory — **plus 35
+  augs** for the Daedalus invite. And clearing by hacking would forfeit the whole reason BN6 is
+  next: banking a working alt-destroy **engine** for the hacking-walled back half
+  (BN9/BN10/BN13/BN14). SF6 drops either way; the engine is the actual deliverable. Full argument
+  + the flip condition (now triggered) in the playbook.
+- **🧮 BN6 is economically *better* than BN5 for the mult ratchet** — a computed result worth not
+  re-deriving: effective steal is `ServerMaxMoney × ScriptHackMoney` = 0.2 × 0.75 = **0.15,
+  identical to BN5's** 1.0 × 0.15, and BN6 has **no aug-cost penalty** where BN5 carried 200% →
+  **2× the aug-buying power at equal income**. The real regressions are exp (**0.25**, 2× slower
+  than BN5) and fleet cost (`CloudServerSoftcap` **2.0** vs 1.2), so ⚠️ **post-install re-climbs
+  are worse than BN5's 1–4h** and "rank survives installs" does *not* rescue the batcher's climb.
+- **🔴 BN7-NEXT IS RETRACTED 2026-08-16. The next node is BN10.** ~~This is the counter-map's
+  predicted next step, not a fresh decision … **BN7 is the expected follow-on once BN6 clears**~~ —
+  that reopened under the "new evidence" clause and the evidence is decisive. Full re-derivation:
+  `docs/bitnodes.md` § "Node order, re-derived after actually running Bladeburner". Cold-audited
+  independently; the audit and the derivation agree.
+  - 🔑 **The fact that flipped it: rank and skill points are NODE-LOCAL.** This file says
+    repeatedly that they "survive augmentation installs" — **true, and a different claim.** The
+    game's own text: *"Bladeburner skills add a persistent bonus **while in the BitNode where they
+    were purchased**."* A node change persists only Source-Files, scripts on home, and
+    Intelligence. So every node entry re-grinds rank from **0**. 📌 **A true neighbouring claim is
+    the easiest way to not check the one that matters.**
+  - **The metric that follows: redo-tax = `(1 / BladeburnerRank) × BladeburnerSkillCost`.**
+    BN10 **1.25×** · BN9 **1.33×** · BN7 **3.33×** · BN13 4.44× · BN15 15× · BN8 **Bladeburner
+    disabled**. **BN7 is tied for third-worst**, and SF7.3's free Simulacrum needs **three** BN7
+    clears at 3.33× each.
+  - **Order: BN10 → BN9 → BN13/BN14 → BN7 (deferred) → BN8 → BN12 (repeatable, LATE) → BN15 → BN11.**
+    **Three independent sources agree on BN10 next:** the redo-tax derivation, an independent cold
+    audit, and the **in-game recommendation guide**.
+    - **Estimates** (⚠️ read with `docs/estimation-calibration.md` — BN6's comparable prediction ran
+      **40% high on the point, correct on the range**): BN12 **~5.5 d** (hacking) · BN9 **~16 d** ·
+      BN10 **~18 d** · BN7 **~24 d**. **Hacking is viable in BN12 ONLY** (gate ~3,060 @ 98% vs
+      ~6,000 @ 35–50% elsewhere; BN6 at exactly 6,000/35% measured **240–323 days**).
+    - ⚖️ **BN12-first was considered and REJECTED.** It is ~3× faster than anything else, and the
+      in-game guide files it *"Save for later … SF is relatively weak for the rising effort"* /
+      *"do after unlocking all mechanics."* 📌 **The error it corrects: optimising for SPEED
+      instead of VALUE** — a first clear buys **one** NeuroFlux level for a week, the worst
+      per-day return of the four.
+    - 🔴 **A 3.33× redo-tax is NOT a 3.33× clear time.** `BladeburnerRank` scales grind *time*;
+      `BladeburnerSkillCost` scales what you can *afford*. BN7 is **~24 days, not ~40** (an error
+      made and corrected 2026-08-16).
+  - 🔴 **ITS HIGHEST-RISK ASSUMPTION WAS MEASURED 2026-08-18 AND DID NOT SURVIVE — the order still
+    holds, but NOT for this reason.** BN10 led partly because sleeves may parallelise `Tracking`;
+    two probes instead measured a sleeve draining **62–68% of the same supply pool's
+    regeneration**. `Tracking` is supply-capped (`countRemaining` pinned 1.00, ~30 actions/h) and
+    was ~100% of BN6's rank, so a shared pool means sleeves add ≈0 to rank. **BN10-next remains
+    correct on the 1.25× redo-tax alone** — the tool argument is what died. Full record and the
+    reopen condition: the BN10 goal block above. (Two earlier errors here are also now closed: it
+    was **not** circular — the API is live from node entry, SF10 only grants it *elsewhere*.)
+  - ⚠️ **In BN7, `joinBladeburnerDivision()` under SF7.3 permanently locks out Stanek's Gift** —
+    restate at execution time. Note it only bites while **SF7.3 is held**, so it does not
+    constrain a first BN7 entry.
+- **⚠️ Ordering lesson carried out of BN2 — don't repeat it.** The counter-map put BN2 before BN5
+  because "the gang is a rep-tax killer." But in BN2 **rep saturated and was a non-issue**; the
+  binding constraint was money→mult. Worse, BN2's gate is *mult*-gated while BN5's reward is **+8%
+  hacking mult**, so BN5-first would have made BN2 cheaper — we did it in the harder order.
+  **Before committing to a node order, check which constraint actually binds in the target node**
+  rather than trusting the general map.
+- **Reusable decision lesson from the BN2 commit (kept — it generalises):** a BitNode restart is
+  cheap when the node holds no progress, so "permanent/irreversible" was mispriced as a blocker —
+  deciding wrong and restarting beats deliberating for five more sessions.
+- **Gang history is closed but not deleted:** why hacking-not-combat, the catalog corrections, the
+  two respect↔money reversals, the QLink-trap math, territory's deferral, and `gangmanager.js`'s
+  architecture all live in [`docs/gang-engine.md`](docs/gang-engine.md). Read it before any future
+  gang work (a BN2.2 repeat, or a Sleeves-backed gang elsewhere) so it isn't re-derived from
+  scratch.
+- **Phase 25's aug-ratchet controller is the reusable asset going forward** (Phase 25 L7 passed
+  2026-07-17; supervision/stall-detection/gate-release all added by Phase 26). Whatever node
+  comes next that still fits BN1-shaped mechanics can reuse this toolchain largely unchanged —
+  see `docs/phases/phase-25-faction-strategy.closeout.md` for that phase's own record.
+- **BN1.2 was cleared 2026-07-15** — `w0r1d_d43m0n` backdoored (confirmed live via a
+  BitVerse-selection-screen screenshot; SF1.2 grant itself not yet independently re-verified via a
+  save/aug-info read, but the backdoor firing + landing back on the BitVerse screen is strong
+  evidence it landed). That clear was the live debut of Phase 25's aug-ratchet controller
+  (`docs/phases/phase-25-faction-strategy.spec.md`) plus same-day extensions Kenneth authorized
+  live: auto-donate to Daedalus, auto-buy The Red Pill, and a new `src/backdoorwd.js` that
+  auto-backdoors WD — see that spec's "Close-out (2026-07-15)" section for the full done-vs-left
+  record (auto-*install* specifically is still unexercised, deliberately skipped for that run's
+  final install).
+- **[CLOSED 2026-07-29 — superseded by outcome]** The old pre-1.3 "stop at BN1.2, make BN5 the
+  next extending node" plan, and the node-order deliberation that followed it, are moot: the
+  counter-map order actually ran (BN1→BN2→BN5→BN6, see `docs/bitnodes.md`), not this line's
+  reasoning. Kept only so the superseded reasoning isn't re-derived from scratch; the batcher
+  engine itself (architecture/lifecycle/strategy) is still `docs/batcher-engine.md`.
+- **(a) Phase 20 XP-farm engine shipped 2026-07-13** (`docs/phases/phase-20-xpfarm.spec.md`) —
+  hack-saturation of surplus fleet RAM, S7 ON/OFF A/B gate measured 5.15× exp/sec.
+- **Open strategic Q — RESOLVED BY ACTION, 2026-07-29.** The "no new engine" constraint that
+  picked BN5 over BN2's rep-tax-killer tradeoff is now explicitly abandoned: **entering BN6 means
+  building Bladeburner, a genuinely new engine**, precisely because it's the counter-map's next
+  rep-tax/hacking-wall killer. Not a silent drift — the counter-map already named this tradeoff on
+  2026-07-18, and BN6 is the node where it's finally paid down rather than deferred again. IPvGO/
+  darknet remain available as *other* second-engine options later, just no longer the only ones.
+- **Note on Singularity — UPDATED 2026-07-12:** `ns.singularity.*` is now available. Phase 21
+  granted SF4 level 3 via a deliberate save edit (`docs/phases/phase-21-sf4-grant.spec.md`) — a
+  permanent grant on the current save, not tied to this BN1.2 run, so it persists across future
+  installs/resets. The 1× RAM discount is live (confirmed via `sf4check.js` + `ramcheck.js`, ≈7.65
+  GB). The previously-parked SF4-gated backlog items (auto-backdoor, aug-planner execution, TOR
+  ladder, rep watchers) are now buildable — each is still its own future phase, not automatically
+  in scope.
