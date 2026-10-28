@@ -46,3 +46,9 @@ Interface/mechanics: `docs/bladeburner-reference.md`. Estimates: `docs/estimatio
 - While a focused player action runs the left nav is hidden and CDP `terminal`/`goto` time out;
   collapse the character overview, then unfocus.
 - BN7 only: `joinBladeburnerDivision()` with SF7.3 held locks out Stanek's Gift (SF7.3 not held).
+
+## BN7 live experiment — Reaper-only intervention (2026-10-23)
+Step 5 (early SP spend) split to separate collinear causes: bought **Reaper L6→43 only** (`run bbskillbuy.js 25 reaper`; the
+`reaper` arg is new). **Baseline:** rank 26,164.8 at epoch 1792799351 (~18:49 CDT), measured wall rate 0.135–0.151 rank/s
+(~544/h) over the prior 24h. **Next:** re-read rank ~2h later, compare rate; then buy Overclock (17→54) the same way.
+Overclock stays unbought until then (Q10: dead on stamina-bound short contracts).

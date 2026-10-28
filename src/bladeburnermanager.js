@@ -2797,7 +2797,14 @@ export async function main(ns) {
             }
           }
           // Step 2 -- set the level, read back.
-          ns.bladeburner.setActionLevel(c.type, c.name, decision.toLevel);
+          // The game THROWS ("Level must be between 1 and N") when toLevel exceeds the action's
+          // max, it does not clamp. Swallow it so a raise past the max degrades to the
+          // clamp path below (read-back stays low -> hard ceiling) instead of killing the manager.
+          try {
+            ns.bladeburner.setActionLevel(c.type, c.name, decision.toLevel);
+          } catch (err) {
+            logEntries = appendBbLog(logEntries, { ...ts(), kind: "warn", reason: "level-set-threw", type: c.type, name: c.name, toLevel: decision.toLevel, error: String(err).slice(0, 160) });
+          }
           const readLevel = ns.bladeburner.getActionCurrentLevel(c.type, c.name);
           // Step 3 -- read-back disagreement handled by direction: a raise reading back
           // low is a max-level clamp (not an error); a lower reading back wrong is a

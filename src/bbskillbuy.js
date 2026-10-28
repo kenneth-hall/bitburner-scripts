@@ -109,7 +109,9 @@ export async function main(ns) {
 
   const argTarget = ns.args.map(Number).find((n) => Number.isFinite(n) && n > 0);
   const successTarget = argTarget ?? DEFAULT_SUCCESS_TARGET;
-  const BUY_PLAN = buildPlan(successTarget);
+  // `reaper` / `overclock` restricts the plan to that skill alone (intervene on one lever, then measure).
+  const only = ["Reaper", "Overclock"].filter((s) => ns.args.includes(s.toLowerCase()));
+  const BUY_PLAN = buildPlan(successTarget).filter((p) => only.length === 0 || only.includes(p.skill));
 
   const outRec = {
     ts: Date.now(),
