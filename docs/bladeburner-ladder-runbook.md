@@ -66,3 +66,7 @@ ETA to rank 400k at this rate: ~80 h (~3.3 d), still 0/21 ops done. Recompute wi
 rank 186,313.0 at epoch 1793191183). `run bbskillbuy.js` (target 200) spent 42,142 SP: BI 25→101, DO 25→104, Reaper
 43→44 (short: see BACKLOG bbskillbuy ordering bug). Success mult ×3.5→×20.8. **Next:** re-read after ≥2h and compare
 with 4,815/h. Since the rate was already climbing on its own, only a clear jump counts as an effect.
+**Re-read 2026-10-28 09:47 CDT** (`logs/ladderstatus-1793198837215.json`): rank 204,790.2, i.e. +18,477 in 2.13 h =
+**~8,690 rank/h, ~1.8× the pre-spend 4,815/h**. That counts as a clear jump: the drift alone took ~10 h to go ×1.46
+(3,289→4,815/h), and this went ×1.8 in 2 h. The BI/DO spend is landing. ETA to 400k: ~22.5 h. Recompute, don't quote.
+Lesson for future nodes: spend success-chance SP early, not just Reaper/Overclock.
