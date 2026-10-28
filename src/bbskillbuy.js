@@ -153,47 +153,6 @@ export async function main(ns) {
   for (const sp of ["Blade's Intuition", "Digital Observer"]) outRec.before.levels[sp] = ns.bladeburner.getSkillLevel(sp);
   flush("before");
 
-  // Interleaved success-skill pass -- see pickNextSuccessLevel above. Runs before the
-  // sequential plan so the product-valued pair is never starved by list order.
-  const SUCCESS_PAIR = ["Blade's Intuition", "Digital Observer"];
-  outRec.successPass = { target: successTarget, bought: { "Blade's Intuition": 0, "Digital Observer": 0 }, steps: 0 };
-  for (let guard = 0; guard < 100000; guard += 1) {
-    const biLevel = ns.bladeburner.getSkillLevel("Blade's Intuition");
-    const doLevel = ns.bladeburner.getSkillLevel("Digital Observer");
-    const points = ns.bladeburner.getSkillPoints();
-    const choice = pickNextSuccessLevel({
-      biLevel,
-      doLevel,
-      biCost: ns.bladeburner.getSkillUpgradeCost("Blade's Intuition", 1),
-      doCost: ns.bladeburner.getSkillUpgradeCost("Digital Observer", 1),
-      points,
-      target: successTarget,
-    });
-    if (choice === null) break;
-    if (outRec.dryRun) {
-      outRec.successPass.bought[choice] += 1;
-      outRec.successPass.steps += 1;
-      // Dry run cannot advance real levels, so stop after recording the first pick.
-      outRec.successPass.dryRunNote = "first pick only -- levels cannot advance without buying";
-      break;
-    }
-    ns.bladeburner.upgradeSkill(choice, 1);
-    const after = ns.bladeburner.getSkillLevel(choice);
-    const expected = (choice === "Blade's Intuition" ? biLevel : doLevel) + 1;
-    if (after !== expected) {
-      outRec.successPass.abort = "MISMATCH on " + choice + " -- level did not advance";
-      break;
-    }
-    outRec.successPass.bought[choice] += 1;
-    outRec.successPass.steps += 1;
-    if (outRec.successPass.steps % 50 === 0) await ns.sleep(20);
-  }
-  outRec.successPass.levelsAfter = {
-    "Blade's Intuition": ns.bladeburner.getSkillLevel("Blade's Intuition"),
-    "Digital Observer": ns.bladeburner.getSkillLevel("Digital Observer"),
-  };
-  flush("success-pass");
-
   for (const entry of BUY_PLAN) {
     const spName = entry.skill;
     const curLevel = ns.bladeburner.getSkillLevel(spName);
@@ -248,6 +207,48 @@ export async function main(ns) {
     flush("step-" + spName);
     await ns.sleep(50);
   }
+
+  // Interleaved success-skill pass -- see pickNextSuccessLevel above. Runs AFTER the plan:
+  // the plan is bounded (Reaper 50, Overclock 90), so it can only take a capped bite, while
+  // this pass absorbs everything left. (2026-10-28: running it first starved Reaper to 1 level.)
+  const SUCCESS_PAIR = ["Blade's Intuition", "Digital Observer"];
+  outRec.successPass = { target: successTarget, bought: { "Blade's Intuition": 0, "Digital Observer": 0 }, steps: 0 };
+  for (let guard = 0; guard < 100000; guard += 1) {
+    const biLevel = ns.bladeburner.getSkillLevel("Blade's Intuition");
+    const doLevel = ns.bladeburner.getSkillLevel("Digital Observer");
+    const points = ns.bladeburner.getSkillPoints();
+    const choice = pickNextSuccessLevel({
+      biLevel,
+      doLevel,
+      biCost: ns.bladeburner.getSkillUpgradeCost("Blade's Intuition", 1),
+      doCost: ns.bladeburner.getSkillUpgradeCost("Digital Observer", 1),
+      points,
+      target: successTarget,
+    });
+    if (choice === null) break;
+    if (outRec.dryRun) {
+      outRec.successPass.bought[choice] += 1;
+      outRec.successPass.steps += 1;
+      // Dry run cannot advance real levels, so stop after recording the first pick.
+      outRec.successPass.dryRunNote = "first pick only -- levels cannot advance without buying";
+      break;
+    }
+    ns.bladeburner.upgradeSkill(choice, 1);
+    const after = ns.bladeburner.getSkillLevel(choice);
+    const expected = (choice === "Blade's Intuition" ? biLevel : doLevel) + 1;
+    if (after !== expected) {
+      outRec.successPass.abort = "MISMATCH on " + choice + " -- level did not advance";
+      break;
+    }
+    outRec.successPass.bought[choice] += 1;
+    outRec.successPass.steps += 1;
+    if (outRec.successPass.steps % 50 === 0) await ns.sleep(20);
+  }
+  outRec.successPass.levelsAfter = {
+    "Blade's Intuition": ns.bladeburner.getSkillLevel("Blade's Intuition"),
+    "Digital Observer": ns.bladeburner.getSkillLevel("Digital Observer"),
+  };
+  flush("success-pass");
 
   outRec.after = {
     skillPoints: ns.bladeburner.getSkillPoints(),

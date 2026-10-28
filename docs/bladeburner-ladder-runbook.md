@@ -70,3 +70,7 @@ with 4,815/h. Since the rate was already climbing on its own, only a clear jump 
 **~8,690 rank/h, ~1.8× the pre-spend 4,815/h**. That counts as a clear jump: the drift alone took ~10 h to go ×1.46
 (3,289→4,815/h), and this went ×1.8 in 2 h. The BI/DO spend is landing. ETA to 400k: ~22.5 h. Recompute, don't quote.
 Lesson for future nodes: spend success-chance SP early, not just Reaper/Overclock.
+**2026-10-28 18:20 CDT: third spend** (`logs/bbskillbuy-1793229592352.json`; pre-spend rank 296,643 at epoch 1793229565,
+~10,760 rank/h): 36,663 SP → BI 101→136, DO 104→141, success ×20.8→×33.7. Reaper is still 44: this ran the OLD order,
+because the dev server had stopped pushing (it was still pulling logs) and the fix hadn't synced. After a dev-server
+restart the fix is live. Check `dist/src/<file>` before trusting a run of freshly edited code.

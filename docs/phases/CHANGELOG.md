@@ -1,4 +1,10 @@
-# Changelog — completed work
+# Ch## 2026-10-28
+
+- **`bbskillbuy.js` now buys the bounded plan (Reaper 50 / Overclock 90) before the BI/DO success pass.**
+  The old order let the uncapped success pass take all the SP and starved Reaper (43→44 on a 42k-SP spend), and the dry run
+  hid it. Also: BN7 early SP spends measured ~3.1× (Overclock) and ~1.8× (BI/DO) rank-rate jumps; see the ladder runbook.
+
+angelog — completed work
 
 Condensed record of finished phases and one-off changes, newest first. Each entry is a
 one-or-two-line summary; the full design/validation story lives in the linked phase doc

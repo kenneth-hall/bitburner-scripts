@@ -22,15 +22,6 @@ do, and what's broken?*
 
 ## Bugs
 
-- **🟢 NEW 2026-10-28 — `bbskillbuy.js` runs the BI/DO success pass BEFORE `BUY_PLAN`, so Reaper
-  gets only the leftovers; the dry run hides it.** `buildPlan`'s comment says Reaper comes first ("raises
-  success chance NOW"), but `main` spends the success pass first. The dry run previews only one
-  success-pass pick, so it reports the full Reaper buy. Hit live (`logs/bbskillbuy-1793191232167.json`
-  dry: Reaper 43→50 for 1,380 SP, vs `logs/bbskillbuy-1793191256174.json` real: BI/DO took 41,957 SP,
-  Reaper 43→44 on the last 211). Cost this time: ~6 Reaper levels.
-  - **Fix:** move the `BUY_PLAN` loop above the success pass, or make the dry run simulate the
-    whole pass. Workaround: `run bbskillbuy.js 25 reaper` before a full spend.
-
 - **🟢 NEW 2026-09-24 — `augcheck.js` output never reaches `logs/`; there is no `vite.config.ts`
   filter for it.** `docs/scripts.md` says it writes `logs/augcheck-<epoch>.txt`, and the script does
   call `ns.write("logs/augcheck-" + ts + ".txt", ...)` (`src/augcheck.js:54`) — but no `location()`
