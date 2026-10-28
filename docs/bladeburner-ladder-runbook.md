@@ -52,3 +52,9 @@ Step 5 (early SP spend) split to separate collinear causes: bought **Reaper L6�
 `reaper` arg is new). **Baseline:** rank 26,164.8 at epoch 1792799351 (~18:49 CDT), measured wall rate 0.135–0.151 rank/s
 (~544/h) over the prior 24h. **Next:** re-read rank ~2h later, compare rate; then buy Overclock (17→54) the same way.
 Overclock stays unbought until then (Q10: dead on stamina-bound short contracts).
+**The 2h re-read never happened.** By 2026-10-27 the rank was 129,853 (epoch 1793146508), i.e. ~0.30 rank/s (~1,075/h)
+averaged over 4 days. That is ~2× the baseline, but it can't be credited to Reaper: rank level and stat growth stack on it.
+**Overclock L17→90 bought 2026-10-27** (`run bbskillbuy.js 25 overclock`, 11,271 SP, 23,374 SP left; action time
+×0.83→×0.10). **Baseline:** rank 129,931.7 at epoch 1793146635. No clean 2h pre-buy window was taken, so compare against the
+~1,075/h 4-day average. **Next:** re-read rank (`run ladderstatus.js`) after ≥2h. A rate near 1,075/h means stamina-bound
+(Q10 confirmed); a multiple of it means the time cut is landing.
