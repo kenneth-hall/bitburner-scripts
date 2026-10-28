@@ -62,3 +62,7 @@ averaged over 4 days. That is ~2× the baseline, but it can't be credited to Rea
 **~3,289 rank/h, ~3.1× the 4-day average**. The time cut is landing, so Q10 ("Overclock is dead") doesn't hold here.
 Caveat: the comparison point is a 4-day average, not a matched pre-buy window, so the true multiple may be somewhat lower.
 ETA to rank 400k at this rate: ~80 h (~3.3 d), still 0/21 ops done. Recompute with `run ladderstatus.js`; don't quote this.
+**2026-10-28 07:40 CDT: second early spend.** Rate before the spend: ~4,815 rank/h over 10.3 h (`ladderstatus-1793191182959.json`,
+rank 186,313.0 at epoch 1793191183). `run bbskillbuy.js` (target 200) spent 42,142 SP: BI 25→101, DO 25→104, Reaper
+43→44 (short: see BACKLOG bbskillbuy ordering bug). Success mult ×3.5→×20.8. **Next:** re-read after ≥2h and compare
+with 4,815/h. Since the rate was already climbing on its own, only a clear jump counts as an effect.
