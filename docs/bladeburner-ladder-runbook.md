@@ -58,3 +58,7 @@ averaged over 4 days. That is ~2× the baseline, but it can't be credited to Rea
 ×0.83→×0.10). **Baseline:** rank 129,931.7 at epoch 1793146635. No clean 2h pre-buy window was taken, so compare against the
 ~1,075/h 4-day average. **Next:** re-read rank (`run ladderstatus.js`) after ≥2h. A rate near 1,075/h means stamina-bound
 (Q10 confirmed); a multiple of it means the time cut is landing.
+**Re-read 2026-10-27 21:23 CDT** (`logs/ladderstatus-1793154198825.json`): rank 136,841.6, i.e. +6,910 in 2.10 h =
+**~3,289 rank/h, ~3.1× the 4-day average**. The time cut is landing, so Q10 ("Overclock is dead") doesn't hold here.
+Caveat: the comparison point is a 4-day average, not a matched pre-buy window, so the true multiple may be somewhat lower.
+ETA to rank 400k at this rate: ~80 h (~3.3 d), still 0/21 ops done. Recompute with `run ladderstatus.js`; don't quote this.
