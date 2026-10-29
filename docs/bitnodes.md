@@ -763,7 +763,24 @@ just the node that sorts last.
 
 ### The recommendation
 
-**BN3 → BN11 → BN7 → BN14 → BN13 → BN8 → BN15 → BN12 (repeatable, anytime after, background NFG).**
+**BN3 → BN11 → BN7 → BN13 → BN14 → BN8 → BN15 → BN12 (repeatable, anytime after, background NFG).**
+
+> 🔄 **REVISED 2026-10-28: BN13 now comes before BN14** (was BN14 → BN13). Reason: SF13.1 makes
+> Stanek's Gift available in every later node. Both nodes have to be cleared anyway, and SF14 does
+> nothing for BN13, so the swap costs ~0 days if the Gift turns out useless. If it works, BN14 gains
+> an estimated ~0.5–2.5 d and BN15 ~2.5–7 d (**inferred**, could be off by 2×). Take **SF13.1 only**:
+> each extra BN13 clear costs ~22 d for about one more fragment. Full pricing:
+> [`sf13-stanek-pricing.md`](sf13-stanek-pricing.md). Use the Gift in BN14, BN15 and BN12 (measured
+> Gift power 0.5 / 0.7 / 1.02). Skip it in BN8 (size −99, so unusable).
+> **Open dependency (default: the swap stands, expires at BN7's destroy):** a Gift node means zero
+> augs for the whole node. That is free *only if* augs are worth nothing on a long Bladeburner
+> grind. It was checked for BN7's last day, not for a 22-day node. See "Aug policy on the Bladeburner
+> route" below. If augs turn out to pay, the swap still holds (it's free), but using the Gift in BN14
+> and BN15 becomes a real trade-off.
+> ⚠️ **Execution landmine, irreversible per node:** buying *any* aug before `acceptGift()` loses the
+> Gift for that node (NeuroFlux excepted), and `augfarmer.js` buys automatically. Before
+> `destroybn.js 13 confirm`, block augfarmer purchases and check the block on entry. Accept the Gift
+> before anything else runs.
 
 1. **BN3** — ties for cheapest (1.00×), cheap combat gate, and the only pick in this tier with a
    real reward (SF3, a third money engine). Do it first. ✅ **CLEARED 2026-10-03** (SF3.1 held; BN11 entered) —
@@ -781,12 +798,14 @@ just the node that sorts last.
 3. **BN7** — cheapest node in the 3.33× tier (combat gate ~1-2h vs BN14's ~9-17h at the same
    redo-tax). SF6 already grants "Bladeburner in other nodes," so SF7's own reward is thin
    (+8/12/14% Bladeburner mults, Simulacrum needs 3 clears) — but see the objection below.
-4. **BN14** — same redo-tax as BN7, costlier gate, IPvGO reward not currently used by this
-   strategy (no faction-favor grinding under Bladeburner-primary). Takes the 3.33× tier's second
-   slot on cost alone.
-5. **BN13** — 4.44×, moderate gate. Stanek's Gift-before-any-aug rule is a same-node execution
-   constraint (not a cross-node ordering one — confirmed the restriction is local to being inside
-   BN13), so it doesn't force this position; cost does.
+   🟢 **ENTERED 2026-10-16, in progress** (live state in `CLAUDE.md`).
+4. **BN13** — 4.44×, moderate gate. **Moved ahead of BN14 on 2026-10-28** because SF13.1 is an
+   enabler for the nodes after it (see the revision note above). Cost alone would rank it after BN14.
+   The swap is ~free because both nodes have to be cleared. The Gift-before-any-aug rule is still a
+   same-node execution constraint, and its landmine is above.
+5. **BN14** — same redo-tax as BN7, costlier gate, IPvGO reward not currently used by this
+   strategy (no faction-favor grinding under Bladeburner-primary). Runs with SF13.1's Gift, power
+   0.5 and size −1, so the gain is small.
 6. **BN8** — Bladeburner disabled outright; needs a stock-market engine that doesn't exist yet.
    Ordered after the Bladeburner-route nodes so building that engine doesn't interrupt ladder
    cadence, not because anything blocks it earlier (SF10/grafting prerequisite already held since
@@ -812,6 +831,39 @@ multiplies (grep `markdown/bitburner.player.mults.md` or read the in-game Bladeb
 before the ladder reaches BN13, since that's the cheapest point to still front-load BN7 if the
 math holds up. Expires when BN14 is entered — after that, front-loading no longer has enough
 downstream grind left to pay for itself.**
+
+### Aug policy on the Bladeburner route (checked 2026-10-28)
+
+**Finding: the no-aug setup was never decided for Bladeburner nodes. It was left over from BN6.**
+`ratchet-mode.txt` = `observe` was set **2026-08-06 in BN6**, because installs measured **5.4%** of
+Bladeburner wall-time. It then carried into BN3, BN11 and BN7 without being looked at again. On top
+of that, nothing calls `joinBladeburnerFaction()` (only `joinbladeburner.js`, which does the
+division), so **we have never held Bladeburners faction rep**. Their shop was never reachable.
+
+**The Bladeburners faction shop, measured live in BN7** (`augcheck.js faction "Bladeburners"`,
+2026-10-28; prices already reflect BN7's 3× aug cost and one queued NFG):
+- 13 augs carry `bladeburner_success_chance`. Their combined product is **×1.92**.
+- Cheapest: Eyewear $0.9b (×1.03), EMS-4 $1.5b (×1.03), ORION $3.0b (×1.04), Tesla Armor $7.5b
+  (×1.03), IPU $6.0b (×1.02).
+- Top end: Omnibeam $150b (×1.10, needs Unibeam $90b). Rep requirements run from 1.25k to 62.5k.
+- Each purchase raises the price of the rest (escalation ×1.9 per aug, read from
+  `augfarmer-state.json`), so the full stack is out of reach on any one income.
+- The Blade's Simulacrum: $821b. It's a utility aug, not a success-chance mult.
+
+**Verdict for BN7: leave installs OFF (`observe`).** Rank was ~296k against the 400k gate at
+~10.8k rank/h (2026-10-28, `ladderstatus-1793229449818.json`), so under a day of grind is left.
+In that window we'd have to join the faction, earn rep from scratch, buy at 1.9× escalation, and
+then pay the install's wall-time. ×1.92 is the most the full stack could give, and we'd only get
+part of it. Three earlier ladder clears (BN6, BN3, BN11) went aug-free. The black-op
+chance ranges currently read `[pMin, 1.0]` (low pMins, pMax 1). That's an intel gap, not a measured
+shortfall. **What would reopen this: black ops actually failing at full intel.**
+
+**Still open for long nodes (BN13/BN14/BN15, ~17–50 d each):** in a node that long, joining the
+Bladeburners faction early and doing one install to bank the cheap success augs (×1.16 for
+~$52b once escalation is included, buying the most expensive first) could pay. In a Gift node that's ruled out. **Re-price this at BN13 entry
+against the Gift's measured fragment values.** Comparison point: the BN7 SP spend from success
+×3.5 to ×20.8 moved the rank rate ×1.8. Success mults hit diminishing returns quickly at this
+skill level.
 
 **What this order costs if it's wrong:** if BN3/BN11 turn out cheaper via hacking (the flagged open
 question above), we spend ~10 extra Bladeburner-route days each that a hacking climb might have
