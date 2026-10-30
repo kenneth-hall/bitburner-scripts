@@ -101,6 +101,12 @@ const RATCHET_LOG_FILE = "ratchet-log.json";
 // rule -- this file only needs the filename string). Read-only from here.
 const GOAL_STATE_FILE = "goal-state.json";
 export const PAUSE_FILE = "augfarmer-pause.txt";
+// Hard purchase block (2026-10-29), separate from PAUSE_FILE because bbblackop.js
+// clears that one in its `finally`. Stanek's Gift is refused once ANY aug has been
+// bought in a node (NFG excepted), so this must hold across a node change: it lives
+// on home, is never deleted by this script, and blocks NFG too (simpler, cheap loss).
+// Delete it by hand after acceptGift().
+export const AUG_BUY_OFF_FILE = "aug-buy-off.txt";
 export const TRAVEL_COST = 200_000;
 const DAEDALUS_AUG_GATE = 30;
 
@@ -2950,6 +2956,10 @@ export async function main(ns) {
             if (key !== lastFailureKey) tprintTs(ns, `WARN: donateToFaction(${action.faction}) returned false -- retrying next poll`);
             lastFailureKey = key;
           }
+        } else if (action.type === "buy" && ns.fileExists(AUG_BUY_OFF_FILE, "home")) {
+          const key = `buyblock:${action.aug}`;
+          if (key !== lastFailureKey) tprintTs(ns, `HOLD: ${AUG_BUY_OFF_FILE} present -- not buying ${action.aug}`);
+          lastFailureKey = key;
         } else if (action.type === "buy") {
           // `action.price` is a PROJECTION -- spendDownPlan ladders NFG_PRICE_LADDER
           // (1.9) forward from one live read, but the game's own escalation is

@@ -23,6 +23,8 @@ Interface/mechanics: `docs/bladeburner-reference.md`. Estimates: `docs/estimatio
    the ladder's rank) → `bbblackop.js 1 daedalus` → 🔴 `destroybn.js <nextBN> confirm`
    (**irreversible: restate at execution**; `nextBN` is mandatory; it aborts unless
    `getNextBlackOp()` is `null`).
+   **Unattended form (2026-10-29): `run bnclear.js <nextBN> confirm`** does all of step 7, frees home RAM
+   itself, and writes `aug-buy-off.txt` first (remove it after `acceptGift()` in a Stanek node).
 
 ## Landmines (all recurred)
 - `bbblackop.js` refuses every op below rank 400,000 (`RANK_FLOOR`). Rank-eligible ≠ worth firing:
