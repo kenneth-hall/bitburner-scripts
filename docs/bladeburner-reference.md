@@ -1138,6 +1138,12 @@ mechanics.
   read **100%** for us) yields team members; usable on **Operations and BlackOps only**; larger team
   ⇒ better success. `Team Size` was **0** for the entire 7/30 trial, i.e. every operation was run
   with the team bonus at zero.
+  - **🧮 MEASURED 2026-10-30 (BN7, `logs/bbteam-1793364219734.json`): the team effect is SMALL.**
+    Recruitment took **168 s** each at 100% (Overclock 90), so 30 min gave **10 members**. A
+    same-instant A/B on `Operation Vindictus` read pMin **0.1805 at team 0 → 0.2035 at team 10**
+    (**+13% relative**; pMax 1.0 both times). Team size was 0 on every black op in every node
+    before this. `bbblackop.js` now assigns the full team before each attempt. **Unmeasured:**
+    whether the curve keeps rising past 10, and how many members a failed black op kills.
 - **✅ ANSWERED 2026-07-31 (UI) — action levels.** Higher levels unlock **by completing an action
   successfully**, and *"grant more rank, experience, and money."* Observed live: **Tracking reached
   Level 8/8 with 100.0% success at 12s** — versus the probe's level-1 reading of 84.8% at 11s.
