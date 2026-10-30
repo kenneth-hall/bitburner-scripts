@@ -85,6 +85,13 @@ const STAMINA_GATE = 0.80;
 const STAMINA_WAIT_MAX_MS = 60 * 60_000;
 const STAMINA_POLL_MS = 5_000;
 
+/** Put every available team member on the op; returns the size the game actually set. */
+function assignTeam(ns, opName) {
+  const available = ns.bladeburner.getTeamSize();
+  if (available <= 0) return 0;
+  return ns.bladeburner.setTeamSize("Black Operations", opName, available);
+}
+
 function holdSlot(ns) {
   ns.write(SLOT_HOLD_FILE, JSON.stringify({ ts: Date.now(), holder: "bbblackop" }), "w");
 }
@@ -223,6 +230,9 @@ export async function main(ns) {
       const [stamGated, stamGatedMax] = ns.bladeburner.getStamina();
       opRec.staminaFractionAtStart = stamGated / stamGatedMax;
 
+      // Teams were 0 in every node until 2026-10-30 (BN7 Vindictus failed 13x at p~0.18).
+      // Assign every available member; set before the estimate so the log shows its effect.
+      opRec.teamSize = assignTeam(ns, nextOp.name);
       opRec.successChance = ns.bladeburner.getActionEstimatedSuccessChance("Black Operations", nextOp.name);
       opRec.actionTimeMs = ns.bladeburner.getActionTime("Black Operations", nextOp.name);
 
@@ -292,6 +302,7 @@ export async function main(ns) {
           const waitRec = await waitForStamina(ns, "retry-" + attempts);
           opRec.staminaWaits.push(waitRec);
 
+          assignTeam(ns, nextOp.name); // failures can kill members; re-read what's left
           ns.bladeburner.startAction("Black Operations", nextOp.name);
           deadline = Date.now() + opRec.actionTimeMs + 60_000; // clock restarts AFTER the rest
         }

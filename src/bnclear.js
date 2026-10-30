@@ -33,7 +33,7 @@
 const FINAL_OP = "Operation Daedalus";
 const AUG_BUY_OFF_FILE = "aug-buy-off.txt"; // must match augfarmer.js
 const KEEP = ["bladeburnermanager.js"];
-const MAX_ROUNDS = 12;
+const MAX_ROUNDS = 40;
 const RETRY_WAIT_MS = 30 * 60_000;
 const POLL_MS = 10_000;
 
