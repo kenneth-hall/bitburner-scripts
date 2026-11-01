@@ -1,11 +1,32 @@
 # BitNode history (moved out of CLAUDE.md, 2026-10-18)
 
 Verbatim archive of the closed "Current goal" blocks that used to live in `CLAUDE.md`
-(BN11 → BN3 → BN9 → BN10 → BN6 → BN2/BN5/BN1, newest first). **Closed history: read it for its
+(BN7 → BN11 → BN3 → BN9 → BN10 → BN6 → BN2/BN5/BN1, newest first). **Closed history: read it for its
 lessons and evidence, never as current state.** Live state is in `CLAUDE.md`; the proven ladder
 procedure is in `docs/bladeburner-ladder-runbook.md`; the distilled transferable lessons are in
 `CLAUDE.md` § "Durable lessons". Nothing was reworded in the move, so internal phrases like
 "the block above/below" refer to this file's order, and stamped numbers are as stale as their stamps.
+
+- **[CLOSED 2026-10-31] BN7 goal block** — cleared by `bnclear.js` (`logs/bnclear-1793366061343.json`):
+  Operation Vindictus fell on round 15, Operation Daedalus on round 16 (rank ~431k), then "ladder
+  complete; destroying into BN13" at **2026-10-31 03:07 UTC**. Entry → clear ≈ **14.4 days** against
+  the ~17–24 d ETA below. SF7.1 gained (verified live, `logs/bitnodemults-1793544771810.json`
+  `ownedSF`). The Vindictus wall (rounds 1–14, rank oscillating 382k–400k) is recorded in commits
+  3e81475 / 8b1fd86. Verbatim block as it stood:
+  **🟢 IN BN7 (entered 2026-10-16 ~18:00 UTC —
+  VERIFIED live: `logs/bitnodemults-1792191516668.json` `currentNode` 7).** Route: the Bladeburner
+  ladder — procedure and landmines in [`docs/bladeburner-ladder-runbook.md`](bladeburner-ladder-runbook.md).
+  Held SFs **1.3 · 2 · 3 · 4.3 · 5 · 6 · 9 · 10 · 11**.
+  - **BN7 live multipliers (same log):** `BladeburnerRank` 0.6 · `BladeburnerSkillCost` 2 · combat 1.00 ·
+    `HackingLevelMultiplier` **0.35** (= BN6's, which measured 240-323 days → hacking closed) ·
+    `HackExpGain` 0.25 · `ServerMaxMoney` 0.2 · `ScriptHackMoney` 0.5 · `CrimeMoney` 0.75 ·
+    `AugmentationMoneyCost` 3 · `HomeComputerRamCost` 1 · `CloudServerCost` 1 · `WorldDaemonDifficulty` 2.
+  - **BN7 notes (`docs/bitnodes.md`):** redo-tax **3.33×**, ETA ~17–24 d (read
+    `docs/estimation-calibration.md` before quoting); full ladder skill stack ≈182,920 SP, more than
+    the ~133k banked at the gate, so expect to grind past it. ⚠️ `joinBladeburnerDivision()` under
+    SF7.3 would lock out Stanek's Gift (SF7.3 not held). Combat-100 gate must be paid first.
+    **Check `bladeburner-off.txt` on home before diagnosing a silent engine.** For live rank/rate,
+    recompute (`node tools/bb/cli.mjs stats`, `run ladderstatus.js`); no stamped numbers live here.
 
 - **[CLOSED 2026-10-16] BN11 goal block:** **🟢 IN BN11.1 (The Big Crash) — entered
 2026-10-03 ~14:36 UTC. Route: the Bladeburner black-op ladder, same as BN3** (hacking closed by

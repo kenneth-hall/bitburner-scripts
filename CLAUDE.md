@@ -9,21 +9,26 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **🟢 IN BN7 (entered 2026-10-16 ~18:00 UTC —
-  VERIFIED live: `logs/bitnodemults-1792191516668.json` `currentNode` 7).** Route: the Bladeburner
-  ladder — procedure and landmines in [`docs/bladeburner-ladder-runbook.md`](docs/bladeburner-ladder-runbook.md).
-  Held SFs **1.3 · 2 · 3 · 4.3 · 5 · 6 · 9 · 10 · 11**. History of every earlier node (BN11 → BN1):
-  [`docs/bitnode-history.md`](docs/bitnode-history.md) — closed, read for lessons only.
-  - **BN7 live multipliers (same log):** `BladeburnerRank` 0.6 · `BladeburnerSkillCost` 2 · combat 1.00 ·
-    `HackingLevelMultiplier` **0.35** (= BN6's, which measured 240-323 days → hacking closed) ·
-    `HackExpGain` 0.25 · `ServerMaxMoney` 0.2 · `ScriptHackMoney` 0.5 · `CrimeMoney` 0.75 ·
-    `AugmentationMoneyCost` 3 · `HomeComputerRamCost` 1 · `CloudServerCost` 1 · `WorldDaemonDifficulty` 2.
-  - **BN7 notes (`docs/bitnodes.md`):** redo-tax **3.33×**, ETA ~17–24 d (read
-    `docs/estimation-calibration.md` before quoting); full ladder skill stack ≈182,920 SP, more than
-    the ~133k banked at the gate, so expect to grind past it. ⚠️ `joinBladeburnerDivision()` under
-    SF7.3 would lock out Stanek's Gift (SF7.3 not held). Combat-100 gate must be paid first.
-    **Check `bladeburner-off.txt` on home before diagnosing a silent engine.** For live rank/rate,
-    recompute (`node tools/bb/cli.mjs stats`, `run ladderstatus.js`); no stamped numbers live here.
+- **Current goal (keep this line current):** **🟢 IN BN13 (entered 2026-10-31 03:07 UTC by
+  `bnclear.js` — VERIFIED live: `logs/bitnodemults-1793544771810.json` `currentNode` 13).** BN7 cleared
+  in ~14.4 d. Route: the Bladeburner ladder — procedure and landmines in
+  [`docs/bladeburner-ladder-runbook.md`](docs/bladeburner-ladder-runbook.md). Held SFs
+  **1.3 · 2 · 3 · 4.3 · 5 · 6 · 7.1 · 9 · 10 · 11** (SF7.1 new). History of every earlier node
+  (BN7 → BN1): [`docs/bitnode-history.md`](docs/bitnode-history.md) — closed, read for lessons only.
+  - **BN13 live multipliers (same log):** `BladeburnerRank` **0.45** · `BladeburnerSkillCost` 2 ·
+    combat level **0.70** · `HackingLevelMultiplier` **0.25** · `HackExpGain` 0.1 · `ServerMaxMoney`
+    0.3375 · `ScriptHackMoney` 0.2 · `CrimeMoney` 0.4 · `ClassGymExpGain` / `CrimeExpGain` 0.5 ·
+    `FactionWorkRepGain` 0.6 · `DaedalusAugsRequirement` 30 · `StaneksGiftPowerMultiplier` 2 ·
+    `WorldDaemonDifficulty` 3.
+  - **BN13 notes (`docs/bitnodes.md`):** redo-tax **4.44×** (highest yet bar BN15), ETA ~22 d, range
+    16–32 d (read `docs/estimation-calibration.md` before quoting). ⚠️ **ONE-WAY TRAP: accept Stanek's
+    Gift (Church of the Machine God, Chongqing) BEFORE buying ANY augmentation (NFG excepted)** — one
+    aug purchase locks the Gift out for the node. `aug-buy-off.txt` is on home (left by `bnclear.js`)
+    and is the guard; **don't delete it until the Gift is accepted.** SF7.1 only, so joining
+    Bladeburner does not lock the Gift. Combat 0.70 makes the combat-100 gate costlier than BN7's.
+    **Check `bladeburner-off.txt` on home before diagnosing a silent engine.** Fresh-node home RAM is
+    tiny (`bitnodemults.js` needed a `killall` to run). For live rank/rate, recompute
+    (`node tools/bb/cli.mjs stats`, `run ladderstatus.js`); no stamped numbers live here.
 - **Durable lessons (distilled from five node clears; evidence in `docs/bitnode-history.md`):**
   - A progress target is not a win condition (rank 400k is a gate; the clear is all 21 ops + destroy).
     Re-derive the goal periodically.
@@ -425,10 +430,10 @@ gets cleared.
 ⚠️ **`bn6-playbook.md`, `bn3-playbook.md` and `docs/phases/phase-43-bn9-opening.features.md` are
 NODE-SPECIFIC and their nodes are closed** — the engine's *mechanics* generalise, their per-node
 numbers do not (e.g. BN9's "never install an augmentation" rail was a Hacknet-Server argument).
-The **current node is BN7**: live state in the "Current goal" line, the clear procedure in
+The **current node is BN13**: live state in the "Current goal" line, the clear procedure in
 [`docs/bladeburner-ladder-runbook.md`](docs/bladeburner-ladder-runbook.md), cross-node comparisons in
 `docs/bitnodes.md`, closed-node history in `docs/bitnode-history.md`. `bn3-playbook.md` opens with a
-routing table saying where each fact lives; honour it. No BN7 phase doc exists, deliberately: if BN7
+routing table saying where each fact lives; honour it. No BN13 phase doc exists, deliberately: if BN13
 needs a work item with a spec and a test gate, that is the trigger to open `phase-NN-*.features.md`.
 
 **BitNode multipliers are MEASURED, not transcribed — `run bitnodemults.js`** (6.60 GB, read-only,
