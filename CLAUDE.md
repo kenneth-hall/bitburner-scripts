@@ -20,6 +20,12 @@ on request — hold to them even when the moment is uncomfortable.
     0.3375 · `ScriptHackMoney` 0.2 · `CrimeMoney` 0.4 · `ClassGymExpGain` / `CrimeExpGain` 0.5 ·
     `FactionWorkRepGain` 0.6 · `DaedalusAugsRequirement` 30 · `StaneksGiftPowerMultiplier` 2 ·
     `WorldDaemonDifficulty` 3.
+  - **BN13 progress (2026-11-05):** ✅ Stanek's Gift ACCEPTED (UI, Chongqing — Gift nav present) ·
+    ✅ Bladeburner division joined (combat was 187; `getRank()` read OK) · ✅ home 32→256 GB ($142.6m) ·
+    ✅ sleeve on Infiltrate Synthoids · manager running. ⚠️ ~6 days were lost idling on Mug before this
+    (combat gate met, nothing joined). Next: `bbskillbuy.js 25` at rank ~25k; Gift fragments not yet
+    placed/charged (no tooling); BN13 aug policy still to be re-priced vs Gift (`docs/bitnodes.md`
+    "Aug policy") — `aug-buy-off.txt` deliberately left on home until then.
   - **BN13 notes (`docs/bitnodes.md`):** redo-tax **4.44×** (highest yet bar BN15), ETA ~22 d, range
     16–32 d (read `docs/estimation-calibration.md` before quoting). ⚠️ **ONE-WAY TRAP: accept Stanek's
     Gift (Church of the Machine God, Chongqing) BEFORE buying ANY augmentation (NFG excepted)** — one
