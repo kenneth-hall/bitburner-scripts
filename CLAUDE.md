@@ -23,9 +23,14 @@ on request — hold to them even when the moment is uncomfortable.
   - **BN13 progress (2026-11-05):** ✅ Stanek's Gift ACCEPTED (UI, Chongqing — Gift nav present) ·
     ✅ Bladeburner division joined (combat was 187; `getRank()` read OK) · ✅ home 32→256 GB ($142.6m) ·
     ✅ sleeve on Infiltrate Synthoids · manager running. ⚠️ ~6 days were lost idling on Mug before this
-    (combat gate met, nothing joined). Next: `bbskillbuy.js 25` at rank ~25k; Gift fragments not yet
-    placed/charged (no tooling); BN13 aug policy still to be re-priced vs Gift (`docs/bitnodes.md`
-    "Aug policy") — `aug-buy-off.txt` deliberately left on home until then.
+    (combat gate met, nothing joined). **2026-11-13: Gift fragments placed + charging** (see runbook
+    "Stanek's Gift (BN13)"): 5 stat fragments (Str/Def/Dex/Agi/Bladeburner) + 2 boosters,
+    `stanekcharger.js` resident on home + 4 TB `stanek-0` worker; `xp-off.txt` + `share-off.txt` set
+    (both useless on this route). First read: combat ~175→~300, BB max stamina 90→163. ⚠️ The charger
+    is **not daemon-launched** — after a game restart `run stanekcharger.js` by hand (it relaunches
+    the `stanek-0` worker too). Next: `bbskillbuy.js 25` at rank ~25k. Aug policy: **default stays
+    no-aug (`aug-buy-off.txt` kept), re-decide by 2026-11-20** — open question is whether installs
+    weaken the Gift (unverified; read the Church UI text before deciding).
   - **BN13 notes (`docs/bitnodes.md`):** redo-tax **4.44×** (highest yet bar BN15), ETA ~22 d, range
     16–32 d (read `docs/estimation-calibration.md` before quoting). ⚠️ **ONE-WAY TRAP: accept Stanek's
     Gift (Church of the Machine God, Chongqing) BEFORE buying ANY augmentation (NFG excepted)** — one

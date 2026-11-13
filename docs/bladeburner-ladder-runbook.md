@@ -76,3 +76,21 @@ Lesson for future nodes: spend success-chance SP early, not just Reaper/Overcloc
 ~10,760 rank/h): 36,663 SP → BI 101→136, DO 104→141, success ×20.8→×33.7. Reaper is still 44: this ran the OLD order,
 because the dev server had stopped pushing (it was still pulling logs) and the fix hadn't synced. After a dev-server
 restart the fix is live. Check `dist/src/<file>` before trusting a run of freshly edited code.
+
+## Stanek's Gift (BN13, 2026-11-13)
+Biggest single lever found in BN13. Gift board 6x5; layout (`stanekplace.js`, offline exhaustive search,
+full tiling) = Str/Def/Dex/Agi/Bladeburner fragments + boosters 100 and 105.
+- **Effect law (fitted live, within 0.1%):** `chargedEffect - 1 ∝ ln(highestCharge + 1) × numCharge^0.07`.
+  `highestCharge` is the largest single `chargeFragment` call's thread count → **one big host beats many
+  small ones**. Raising highestCharge appears to rescale numCharge down (3,327 → 130 when hc 57 → 2048),
+  but net effect still rose.
+- Measured: fleet-only (biggest worker 38 threads) → stats ×1.44–1.49, BB ×1.09; adding a 4 TB cloud
+  server (2,048-thread worker, $3.78b) → stats ×1.70–1.77, BB ×1.14. Combat ~175 → ~300.
+- RAM sources: `xp-off.txt` + `share-off.txt` (`run marker.js on <file>`) free ~2.7 TB of fleet that
+  only fed hacking XP / faction share — both dead weight on the BB route.
+- Scripts: `stanekprobe.js` (read-only), `stanekplace.js` (refuses a non-empty board without `force`),
+  `stanekcharger.js` (resident, ~11 GB on home, fills ≤85% of non-home fleet, writes
+  `logs/stanek-state.json`; `run stanekcharger.js stop` kills workers), `stanekbuy.js <ram> [name]`
+  (buys a cloud server and fills it with a worker before the batcher can).
+- Offline time shows as "Bonus time" on the Gift page and speeds charging.
+- Not daemon-launched: restart `stanekcharger.js` by hand after a game restart.

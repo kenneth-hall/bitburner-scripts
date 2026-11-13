@@ -142,6 +142,8 @@ export default defineConfig({
         if (/^portlock-\d+\.json$/.test(file)) return `logs/${file}`; // src/portlock.js -- network value locked behind unbought port openers, split by whether hacking level also blocks it, one file per run
         if (/^bbteam-\d+\.json$/.test(file)) return `logs/${file}`; // src/bbteam.js -- team recruit + same-instant team0/teamN black-op estimate A/B
         if (/^citychaos-\d+\.json$/.test(file)) return `logs/${file}`; // src/citychaos.js -- read-only all-city chaos/pop snapshot
+        if (file === 'stanek-state.json') return 'logs/stanek-state.json'; // src/stanekcharger.js -- overwrite-in-place charger snapshot (fragments, charge, effects, threads)
+        if (/^stanek[a-z]*-\d+\.json$/.test(file)) return `logs/${file}`; // src/stanek*.js -- Stanek Gift probe (board, catalog, active fragments, mults) + placement record, one file per run
         if (/^bnclear-\d+\.json$/.test(file)) return `logs/${file}`; // src/bnclear.js -- unattended step-7 chain (skillbuy -> black ops -> destroy), one file per run
         if (/^ladderstatus-\d+\.json$/.test(file)) return `logs/${file}`; // src/ladderstatus.js -- LIVE re-derivation of the black-op win condition (next op, per-op rank requirement, done count), one file per run
         if (/^sleeverecon-\d+\.json$/.test(file)) return `logs/${file}`; // src/sleeverecon.js -- BN10 sleeve census (sync/shock/memory/prices/tasks), one file per run
