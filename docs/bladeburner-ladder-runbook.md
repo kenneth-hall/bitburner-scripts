@@ -102,3 +102,7 @@ Pre-spend baseline (`logs/bladeburner-state.json`): rank 93,769, rate **5,178 ra
 (xpfarm is switched off by `xp-off.txt` anyway) to clear 21.6 GB on home. **Next:** re-read the 1h rate
 after ≥2h; only a clear jump over 5,178/h counts (the rate was already rising as Gift charge grew).
 Gift state at spend: stat fragments ×2.15–2.27, Bladeburner ×1.23; combat 443–577.
+**2026-11-14 12:36: 32 TB `stanek-1` bought** ($123.8b, one 16,384-thread worker; money $177b → $54b).
+First read: a fragment's numCharge rescales on a new highestCharge (157k → 19.7k), so the effect steps up
+only partly at first (Str ×2.15 → ×2.27) and keeps rising as numCharge rebuilds. Fit-law ceiling at equal
+numCharge: ×1.27 on the bonus part (Str → ~×2.47). Check `logs/stanek-state.json` rather than quoting this.
