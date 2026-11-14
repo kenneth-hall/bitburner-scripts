@@ -94,3 +94,11 @@ full tiling) = Str/Def/Dex/Agi/Bladeburner fragments + boosters 100 and 105.
   (buys a cloud server and fills it with a worker before the batcher can).
 - Offline time shows as "Bonus time" on the Gift page and speeds charging.
 - Not daemon-launched: restart `stanekcharger.js` by hand after a game restart.
+
+### BN13 early SP spend (2026-11-14 12:34 CST) — overdue, done at rank 93.8k not 25k
+Pre-spend baseline (`logs/bladeburner-state.json`): rank 93,769, rate **5,178 rank/h (1h)** / 3,608 (24h).
+`run bbskillbuy.js` (default target) spent 26.3k SP: Overclock 17→90, Reaper 6→50, BI→52, DO→56
+(success ×3.50→×8.29, action time ×0.83→×0.10). Needed `kill backdoorwd.js` **and** `kill xpfarm.js`
+(xpfarm is switched off by `xp-off.txt` anyway) to clear 21.6 GB on home. **Next:** re-read the 1h rate
+after ≥2h; only a clear jump over 5,178/h counts (the rate was already rising as Gift charge grew).
+Gift state at spend: stat fragments ×2.15–2.27, Bladeburner ×1.23; combat 443–577.
