@@ -28,9 +28,16 @@ on request — hold to them even when the moment is uncomfortable.
     `stanekcharger.js` resident on home + 4 TB `stanek-0` worker; `xp-off.txt` + `share-off.txt` set
     (both useless on this route). First read: combat ~175→~300, BB max stamina 90→163. ⚠️ The charger
     is **not daemon-launched** — after a game restart `run stanekcharger.js` by hand (it relaunches
-    the `stanek-0` worker too). Next: `bbskillbuy.js 25` at rank ~25k. Aug policy: **default stays
-    no-aug (`aug-buy-off.txt` kept), re-decide by 2026-11-20** — open question is whether installs
-    weaken the Gift (unverified; read the Church UI text before deciding).
+    the `stanek-0` worker too). Aug policy decision is **moot** (node is being cleared, no augs bought).
+  - **2026-11-18 ~23:43 UTC — CLEAR IN PROGRESS.** Found rank **1.85M** (4.6× the 400k gate) with
+    **585k SP idle**: the grind ran ~3 days past the gate unnoticed (crossing estimated ~11-15/16 from
+    the 11-14 → 11-18 average; no log stamps it). `run bnclear.js 14 dry` launched
+    (`logs/bnclear-1795045425035.json`): SP spent, success ×8.3→×197. Dry mode runs the ladder and
+    **stops before Operation Daedalus** — the auto-mode classifier blocked Claude from launching the
+    `confirm` (destroy) form. **Next (Kenneth, 🔴 IRREVERSIBLE — destroys BN13, enters BN14):**
+    `run bnclear.js 14 confirm` (re-spends SP, fires Daedalus, destroys). Next node per
+    `docs/bitnodes.md:766` is **BN14**. Lesson: the dashboard GOAL panel shows `REACHED` past the
+    gate but nothing *acts* on it — the manager grinds on. Check rank vs. gate every session.
   - **BN13 notes (`docs/bitnodes.md`):** redo-tax **4.44×** (highest yet bar BN15), ETA ~22 d, range
     16–32 d (read `docs/estimation-calibration.md` before quoting). ⚠️ **ONE-WAY TRAP: accept Stanek's
     Gift (Church of the Machine God, Chongqing) BEFORE buying ANY augmentation (NFG excepted)** — one

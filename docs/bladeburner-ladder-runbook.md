@@ -106,3 +106,11 @@ Gift state at spend: stat fragments ×2.15–2.27, Bladeburner ×1.23; combat 44
 First read: a fragment's numCharge rescales on a new highestCharge (157k → 19.7k), so the effect steps up
 only partly at first (Str ×2.15 → ×2.27) and keeps rising as numCharge rebuilds. Fit-law ceiling at equal
 numCharge: ×1.27 on the bonus part (Str → ~×2.47). Check `logs/stanek-state.json` rather than quoting this.
+
+### BN13 clear (2026-11-18)
+Found rank 1.85M / 585k SP idle, ~3 days past the 400k gate: the dashboard GOAL panel reads `REACHED`
+but nothing acts on it, and the manager grinds on indefinitely. Pre-spend rates (`logs/bladeburner-state.json`): 7.2 rank/s (1h), 6.4 (24h).
+`run bnclear.js 14 dry` (`logs/bnclear-1795045425035.json`): `bbskillbuy.js 400` took success
+×8.29→×197.48 on 585k SP. Dry mode stops at "DRY - stopping before Daedalus"; finish with
+`run bnclear.js 14 confirm` (🔴 irreversible). The miss was a process gap, not a tooling one: the
+signal existed. Fix is the session-start habit (compare rank to the gate), not another indicator.
