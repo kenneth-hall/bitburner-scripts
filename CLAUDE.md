@@ -27,7 +27,12 @@ on request — hold to them even when the moment is uncomfortable.
     order says BN8, which has Bladeburner disabled (needs a stock route nobody has built). Default:
     decide before the BN14 gate is reached; if undecided at the gate, choose BN15. ⚠️ **ONE-WAY TRAP:
     accept the Gift BEFORE any aug purchase (NFG excepted).** `aug-buy-off.txt` on home is the guard.
-  - **BN14 opening (2026-11-19, Claude autonomous):** Mug running (unfocused). Removed `xp-off.txt`
+  - **BN14 opening (2026-11-19, Claude autonomous):** ✅ **Stanek's Gift ACCEPTED** (UI, Chongqing —
+    "your body is pure", Gift nav present; player is now in Chongqing). Fragments **not placed yet**:
+    `stanekplace.js` hard-codes BN13's 6x5 layout and BN14's board is smaller (ExtraSize −1) —
+    re-derive the layout once home RAM can run `stanekprobe.js` (7.9 GB); charging needs RAM anyway.
+    `aug-buy-off.txt` left in place on purpose (keeps money for home RAM; augfarmer can't fit anyway).
+    Mug running (unfocused). Removed `xp-off.txt`
     (BN13 leftover; at hacking 1 the batcher had no targets). Home 32 GB is saturated by daemon +
     companions, so `xpfarm.js` was scp'd to and run on **foodnstuff** (host-scoped: its state file
     won't reach `logs/`). `share-off.txt` still set (deliberate). Lesson carried from BN13: the
