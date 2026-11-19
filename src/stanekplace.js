@@ -1,23 +1,23 @@
 /**
- * stanekplace.js - place the BN13 Bladeburner-route layout on Stanek's Gift (6x5 board).
- * Layout found by an offline exhaustive search (full 30-cell tiling, 5 stat fragments +
- * 2 boosters):
- *   B S S S G G     S=Str(10) D=Def(12) X=Dex(14) G=Agi(16) B=Bladeburner(30)
- *   B B S G G F     A=booster 100, F=booster 105
- *   X B A A F F
- *   X A A F F D
- *   X X A D D D
+ * stanekplace.js - place the current node's Bladeburner-route layout on Stanek's Gift.
+ * BN14 (5x5 board, ExtraSize -1), offline exhaustive search: the four combat-stat fragments
+ * + one booster touching all four. The Bladeburner fragment (30) cannot fit alongside them on
+ * 5x5; dropped deliberately for the combat-gate phase (it does nothing pre-join).
+ *   . A A G G     S=Str(10) D=Def(12) X=Dex(14) G=Agi(16) A=booster 100
+ *   A A G G D
+ *   X A D D D
+ *   X S S S .
+ *   X X S . .
+ * BN13's 6x5 layout (adds B=Bladeburner(30) + booster 105) is in git history (15bce5d).
  * Refuses to touch a non-empty board unless passed "force" (which clears it first and
  * loses all charge). Writes stanekplace-<epoch>.json. ASCII-only.
  */
 export const LAYOUT = [
-  { id: 30, x: 0, y: 0, r: 1 },
-  { id: 10, x: 1, y: 0, r: 0 },
-  { id: 16, x: 3, y: 0, r: 0 },
+  { id: 100, x: 0, y: 0, r: 0 },
+  { id: 10, x: 1, y: 3, r: 0 },
+  { id: 12, x: 2, y: 1, r: 0 },
   { id: 14, x: 0, y: 2, r: 1 },
-  { id: 12, x: 3, y: 3, r: 0 },
-  { id: 105, x: 3, y: 1, r: 0 },
-  { id: 100, x: 1, y: 2, r: 0 },
+  { id: 16, x: 2, y: 0, r: 0 },
 ];
 
 /** @param {NS} ns */

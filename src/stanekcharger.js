@@ -13,7 +13,8 @@
  */
 const WORKER = "stanekworker.js";
 const LOOP_MS = 30_000;
-const CAP_FRAC = 0.85; // max share of non-home fleet RAM held by workers
+const DEFAULT_CAP_FRAC = 0.85; // max share of non-home fleet RAM held by workers
+// Usage: run stanekcharger.js [capFrac]   e.g. 0.5 leaves the batcher half the fleet (BN14 opening).
 const HEADROOM_FRAC = 0.05; // per-host free RAM left for batcher next-tick launches
 const STATE_FILE = "stanek-state.json";
 
@@ -39,6 +40,8 @@ export async function main(ns) {
     ns.tprint(`stanekcharger: killed workers on ${n} hosts`);
     return;
   }
+  const argCap = Number(ns.args[0]);
+  const CAP_FRAC = argCap > 0 && argCap <= 1 ? argCap : DEFAULT_CAP_FRAC;
   while (true) {
     const frags = ns.stanek.activeFragments();
     const chargeable = frags.filter((f) => f.type !== 18); // 18 = booster (FragmentType)

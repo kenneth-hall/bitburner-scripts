@@ -95,6 +95,17 @@ full tiling) = Str/Def/Dex/Agi/Bladeburner fragments + boosters 100 and 105.
 - Offline time shows as "Bonus time" on the Gift page and speeds charging.
 - Not daemon-launched: restart `stanekcharger.js` by hand after a game restart.
 
+### BN14 Gift (2026-11-19)
+Board **5x5** (`StaneksGiftExtraSize` -1, power 0.5). No 6-piece full tiling exists; offline search
+(4 combat stats + Bladeburner + any booster) best = **4 stats + booster 100 touching all four**, Bladeburner
+fragment dropped (does nothing pre-join; revisit at join, re-placing loses charge). Now in `stanekplace.js`.
+Why charge early here: BN14 combat mult 0.50 puts combat 100 at ~268k exp/stat (Mug measured ~3.3k in 1.5 h,
+i.e. ~120 h); a stat fragment raises the level mult, and x1.11 roughly halves the exp needed.
+`stanekcharger.js` now takes an optional cap: `run stanekcharger.js 0.5` leaves the batcher half the fleet.
+Landmines hit: `kill <script>` without args does not match a script launched with args; viteburner
+stopped pushing edits silently (game ran stale `stanekplace.js` twice) -- restart `npm run dev`, then
+confirm via the `hmr add ... (done)` line in its output before running edited code.
+
 ### BN13 early SP spend (2026-11-14 12:34 CST) — overdue, done at rank 93.8k not 25k
 Pre-spend baseline (`logs/bladeburner-state.json`): rank 93,769, rate **5,178 rank/h (1h)** / 3,608 (24h).
 `run bbskillbuy.js` (default target) spent 26.3k SP: Overclock 17→90, Reaper 6→50, BI→52, DO→56
