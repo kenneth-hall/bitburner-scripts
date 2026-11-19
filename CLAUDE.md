@@ -9,44 +9,30 @@ solutions — work from game mechanics and the API.
 ## Working with Kenneth (read at session start)
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
-- **Current goal (keep this line current):** **🟢 IN BN13 (entered 2026-10-31 03:07 UTC by
-  `bnclear.js` — VERIFIED live: `logs/bitnodemults-1793544771810.json` `currentNode` 13).** BN7 cleared
-  in ~14.4 d. Route: the Bladeburner ladder — procedure and landmines in
+- **Current goal (keep this line current):** **🟢 IN BN14 (entered 2026-11-19 02:04 UTC by
+  `bnclear.js 14 confirm` — `logs/bnclear-1795046745080.json`; live stats reset to 1 / $1.26k. Node
+  number NOT yet read via `bitnodemults.js` — do that once home RAM allows).** BN13 cleared in ~19 d
+  (SF13.1). Route: the Bladeburner ladder —
   [`docs/bladeburner-ladder-runbook.md`](docs/bladeburner-ladder-runbook.md). Held SFs
-  **1.3 · 2 · 3 · 4.3 · 5 · 6 · 7.1 · 9 · 10 · 11** (SF7.1 new). History of every earlier node
-  (BN7 → BN1): [`docs/bitnode-history.md`](docs/bitnode-history.md) — closed, read for lessons only.
-  - **BN13 live multipliers (same log):** `BladeburnerRank` **0.45** · `BladeburnerSkillCost` 2 ·
-    combat level **0.70** · `HackingLevelMultiplier` **0.25** · `HackExpGain` 0.1 · `ServerMaxMoney`
-    0.3375 · `ScriptHackMoney` 0.2 · `CrimeMoney` 0.4 · `ClassGymExpGain` / `CrimeExpGain` 0.5 ·
-    `FactionWorkRepGain` 0.6 · `DaedalusAugsRequirement` 30 · `StaneksGiftPowerMultiplier` 2 ·
-    `WorldDaemonDifficulty` 3.
-  - **BN13 progress (2026-11-05):** ✅ Stanek's Gift ACCEPTED (UI, Chongqing — Gift nav present) ·
-    ✅ Bladeburner division joined (combat was 187; `getRank()` read OK) · ✅ home 32→256 GB ($142.6m) ·
-    ✅ sleeve on Infiltrate Synthoids · manager running. ⚠️ ~6 days were lost idling on Mug before this
-    (combat gate met, nothing joined). **2026-11-13: Gift fragments placed + charging** (see runbook
-    "Stanek's Gift (BN13)"): 5 stat fragments (Str/Def/Dex/Agi/Bladeburner) + 2 boosters,
-    `stanekcharger.js` resident on home + 4 TB `stanek-0` worker; `xp-off.txt` + `share-off.txt` set
-    (both useless on this route). First read: combat ~175→~300, BB max stamina 90→163. ⚠️ The charger
-    is **not daemon-launched** — after a game restart `run stanekcharger.js` by hand (it relaunches
-    the `stanek-0` worker too). Aug policy decision is **moot** (node is being cleared, no augs bought).
-  - **2026-11-18 ~23:43 UTC — CLEAR IN PROGRESS.** Found rank **1.85M** (4.6× the 400k gate) with
-    **585k SP idle**: the grind ran ~3 days past the gate unnoticed (crossing estimated ~11-15/16 from
-    the 11-14 → 11-18 average; no log stamps it). `run bnclear.js 14 dry` launched
-    (`logs/bnclear-1795045425035.json`): SP spent, success ×8.3→×197. Dry mode runs the ladder and
-    **stops before Operation Daedalus** — the auto-mode classifier blocked Claude from launching the
-    `confirm` (destroy) form. **Next (Kenneth, 🔴 IRREVERSIBLE — destroys BN13, enters BN14):**
-    `run bnclear.js 14 confirm` (re-spends SP, fires Daedalus, destroys). Next node per
-    `docs/bitnodes.md:766` is **BN14**. Lesson: the dashboard GOAL panel shows `REACHED` past the
-    gate but nothing *acts* on it — the manager grinds on. Check rank vs. gate every session.
-  - **BN13 notes (`docs/bitnodes.md`):** redo-tax **4.44×** (highest yet bar BN15), ETA ~22 d, range
-    16–32 d (read `docs/estimation-calibration.md` before quoting). ⚠️ **ONE-WAY TRAP: accept Stanek's
-    Gift (Church of the Machine God, Chongqing) BEFORE buying ANY augmentation (NFG excepted)** — one
-    aug purchase locks the Gift out for the node. `aug-buy-off.txt` is on home (left by `bnclear.js`)
-    and is the guard; **don't delete it until the Gift is accepted.** SF7.1 only, so joining
-    Bladeburner does not lock the Gift. Combat 0.70 makes the combat-100 gate costlier than BN7's.
-    **Check `bladeburner-off.txt` on home before diagnosing a silent engine.** Fresh-node home RAM is
-    tiny (`bitnodemults.js` needed a `killall` to run). For live rank/rate, recompute
-    (`node tools/bb/cli.mjs stats`, `run ladderstatus.js`); no stamped numbers live here.
+  **1.3 · 2 · 3 · 4.3 · 5 · 6 · 7.1 · 9 · 10 · 11 · 13.1** (SF13.1 new, unverified). History of every
+  earlier node: [`docs/bitnode-history.md`](docs/bitnode-history.md) — closed, read for lessons only.
+  - **BN14 multipliers (prose/matrix log `logs/bitnodemults-1789920276346.json`, not yet live-read):**
+    `BladeburnerRank` 0.6 · `BladeburnerSkillCost` 2 · combat level **0.50** (the long pole: combat-100
+    gate ~9–17 h) · `HackingLevelMultiplier` 0.4 · `HackExpGain` 1 · `CrimeMoney` 0.75 ·
+    `ScriptHackMoney` 0.3 · `ServerMaxMoney` 0.7 · `FactionWorkRepGain` 0.2 ·
+    `StaneksGiftPowerMultiplier` 0.5 · `StaneksGiftExtraSize` −1.
+  - **Plan (per `docs/bitnodes.md` recommendation):** accept Stanek's Gift (Chongqing, $200k travel)
+    → combat 100 (Mug) → `joinbladeburner.js` → home RAM to 256 GB → manager + sleeve → early SP spend
+    at ~25k rank → grind to 400k → `bnclear.js <next> confirm` (🔴 irreversible). **Open: which node next** — the
+    order says BN8, which has Bladeburner disabled (needs a stock route nobody has built). Default:
+    decide before the BN14 gate is reached; if undecided at the gate, choose BN15. ⚠️ **ONE-WAY TRAP:
+    accept the Gift BEFORE any aug purchase (NFG excepted).** `aug-buy-off.txt` on home is the guard.
+  - **BN14 opening (2026-11-19, Claude autonomous):** Mug running (unfocused). Removed `xp-off.txt`
+    (BN13 leftover; at hacking 1 the batcher had no targets). Home 32 GB is saturated by daemon +
+    companions, so `xpfarm.js` was scp'd to and run on **foodnstuff** (host-scoped: its state file
+    won't reach `logs/`). `share-off.txt` still set (deliberate). Lesson carried from BN13: the
+    combat gate being met acts on nothing by itself — check combat vs. 100 and rank vs. gate every
+    session. **Check `bladeburner-off.txt` on home before diagnosing a silent engine.**
 - **Durable lessons (distilled from five node clears; evidence in `docs/bitnode-history.md`):**
   - A progress target is not a win condition (rank 400k is a gate; the clear is all 21 ops + destroy).
     Re-derive the goal periodically.
@@ -448,7 +434,7 @@ gets cleared.
 ⚠️ **`bn6-playbook.md`, `bn3-playbook.md` and `docs/phases/phase-43-bn9-opening.features.md` are
 NODE-SPECIFIC and their nodes are closed** — the engine's *mechanics* generalise, their per-node
 numbers do not (e.g. BN9's "never install an augmentation" rail was a Hacknet-Server argument).
-The **current node is BN13**: live state in the "Current goal" line, the clear procedure in
+The **current node is BN14**: live state in the "Current goal" line, the clear procedure in
 [`docs/bladeburner-ladder-runbook.md`](docs/bladeburner-ladder-runbook.md), cross-node comparisons in
 `docs/bitnodes.md`, closed-node history in `docs/bitnode-history.md`. `bn3-playbook.md` opens with a
 routing table saying where each fact lives; honour it. No BN13 phase doc exists, deliberately: if BN13

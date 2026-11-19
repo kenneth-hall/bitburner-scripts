@@ -1,11 +1,55 @@
 # BitNode history (moved out of CLAUDE.md, 2026-10-18)
 
 Verbatim archive of the closed "Current goal" blocks that used to live in `CLAUDE.md`
-(BN7 → BN11 → BN3 → BN9 → BN10 → BN6 → BN2/BN5/BN1, newest first). **Closed history: read it for its
+(BN13 → BN7 → BN11 → BN3 → BN9 → BN10 → BN6 → BN2/BN5/BN1, newest first). **Closed history: read it for its
 lessons and evidence, never as current state.** Live state is in `CLAUDE.md`; the proven ladder
 procedure is in `docs/bladeburner-ladder-runbook.md`; the distilled transferable lessons are in
 `CLAUDE.md` § "Durable lessons". Nothing was reworded in the move, so internal phrases like
 "the block above/below" refer to this file's order, and stamped numbers are as stale as their stamps.
+
+- **[CLOSED 2026-11-19] BN13 goal block** — cleared by `bnclear.js 14 confirm`
+  (`logs/bnclear-1795046745080.json`): Operation Typhoon (rank 1.88M) and Operation Daedalus (1.90M)
+  fell in rounds 1–2, then "ladder complete; destroying into BN14" at **2026-11-19 02:04 UTC**.
+  Entry → clear ≈ **19 days** against the ~22 d (16–32 d) ETA. ~3 days of that were grinding past
+  the 400k gate unnoticed. Verbatim block as it stood:
+  - **Current goal (keep this line current):** **🟢 IN BN13 (entered 2026-10-31 03:07 UTC by
+    `bnclear.js` — VERIFIED live: `logs/bitnodemults-1793544771810.json` `currentNode` 13).** BN7 cleared
+    in ~14.4 d. Route: the Bladeburner ladder — procedure and landmines in
+    [`docs/bladeburner-ladder-runbook.md`](docs/bladeburner-ladder-runbook.md). Held SFs
+    **1.3 · 2 · 3 · 4.3 · 5 · 6 · 7.1 · 9 · 10 · 11** (SF7.1 new). History of every earlier node
+    (BN7 → BN1): [`docs/bitnode-history.md`](docs/bitnode-history.md) — closed, read for lessons only.
+    - **BN13 live multipliers (same log):** `BladeburnerRank` **0.45** · `BladeburnerSkillCost` 2 ·
+      combat level **0.70** · `HackingLevelMultiplier` **0.25** · `HackExpGain` 0.1 · `ServerMaxMoney`
+      0.3375 · `ScriptHackMoney` 0.2 · `CrimeMoney` 0.4 · `ClassGymExpGain` / `CrimeExpGain` 0.5 ·
+      `FactionWorkRepGain` 0.6 · `DaedalusAugsRequirement` 30 · `StaneksGiftPowerMultiplier` 2 ·
+      `WorldDaemonDifficulty` 3.
+    - **BN13 progress (2026-11-05):** ✅ Stanek's Gift ACCEPTED (UI, Chongqing — Gift nav present) ·
+      ✅ Bladeburner division joined (combat was 187; `getRank()` read OK) · ✅ home 32→256 GB ($142.6m) ·
+      ✅ sleeve on Infiltrate Synthoids · manager running. ⚠️ ~6 days were lost idling on Mug before this
+      (combat gate met, nothing joined). **2026-11-13: Gift fragments placed + charging** (see runbook
+      "Stanek's Gift (BN13)"): 5 stat fragments (Str/Def/Dex/Agi/Bladeburner) + 2 boosters,
+      `stanekcharger.js` resident on home + 4 TB `stanek-0` worker; `xp-off.txt` + `share-off.txt` set
+      (both useless on this route). First read: combat ~175→~300, BB max stamina 90→163. ⚠️ The charger
+      is **not daemon-launched** — after a game restart `run stanekcharger.js` by hand (it relaunches
+      the `stanek-0` worker too). Aug policy decision is **moot** (node is being cleared, no augs bought).
+    - **2026-11-18 ~23:43 UTC — CLEAR IN PROGRESS.** Found rank **1.85M** (4.6× the 400k gate) with
+      **585k SP idle**: the grind ran ~3 days past the gate unnoticed (crossing estimated ~11-15/16 from
+      the 11-14 → 11-18 average; no log stamps it). `run bnclear.js 14 dry` launched
+      (`logs/bnclear-1795045425035.json`): SP spent, success ×8.3→×197. Dry mode runs the ladder and
+      **stops before Operation Daedalus** — the auto-mode classifier blocked Claude from launching the
+      `confirm` (destroy) form. **Next (Kenneth, 🔴 IRREVERSIBLE — destroys BN13, enters BN14):**
+      `run bnclear.js 14 confirm` (re-spends SP, fires Daedalus, destroys). Next node per
+      `docs/bitnodes.md:766` is **BN14**. Lesson: the dashboard GOAL panel shows `REACHED` past the
+      gate but nothing *acts* on it — the manager grinds on. Check rank vs. gate every session.
+    - **BN13 notes (`docs/bitnodes.md`):** redo-tax **4.44×** (highest yet bar BN15), ETA ~22 d, range
+      16–32 d (read `docs/estimation-calibration.md` before quoting). ⚠️ **ONE-WAY TRAP: accept Stanek's
+      Gift (Church of the Machine God, Chongqing) BEFORE buying ANY augmentation (NFG excepted)** — one
+      aug purchase locks the Gift out for the node. `aug-buy-off.txt` is on home (left by `bnclear.js`)
+      and is the guard; **don't delete it until the Gift is accepted.** SF7.1 only, so joining
+      Bladeburner does not lock the Gift. Combat 0.70 makes the combat-100 gate costlier than BN7's.
+      **Check `bladeburner-off.txt` on home before diagnosing a silent engine.** Fresh-node home RAM is
+      tiny (`bitnodemults.js` needed a `killall` to run). For live rank/rate, recompute
+      (`node tools/bb/cli.mjs stats`, `run ladderstatus.js`); no stamped numbers live here.
 
 - **[CLOSED 2026-10-31] BN7 goal block** — cleared by `bnclear.js` (`logs/bnclear-1793366061343.json`):
   Operation Vindictus fell on round 15, Operation Daedalus on round 16 (rank ~431k), then "ladder
