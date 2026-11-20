@@ -37,6 +37,25 @@ function recordTransaction(ns, record) {
 }
 
 /**
+ * recordTransaction for a script that may be running OFF home (e.g. a
+ * Singularity one-shot the daemon exec'd onto a fleet host because home was
+ * full). ns.write is host-scoped, so a plain recordTransaction there lands on
+ * the fleet host and never reaches logs/. Pull home's day-file here, append,
+ * push it back. Still synchronous end to end (scp/read/write, no await), so
+ * the single-writer invariant above holds across the round trip.
+ * If home has no file yet, start from an empty local copy rather than a stale
+ * leftover from an earlier remote run on this host.
+ */
+function recordTransactionHome(ns, record) {
+  const here = ns.getHostname();
+  if (here === "home") return recordTransaction(ns, record);
+  const filename = transactionsFileName(new Date());
+  if (!ns.scp(filename, here, "home")) ns.write(filename, "[]", "w");
+  recordTransaction(ns, record);
+  ns.scp(filename, "home", here);
+}
+
+/**
  * Pure. Decides whether an income delta landing at `nowTimestamp` should
  * fold into `lastRecord` or start a fresh record. Gates on the *projected*
  * window (nowTimestamp - firstTimestamp), not the current one -- gating on
@@ -73,4 +92,4 @@ function coalesceIndexForSource(entries, source, nowTimestamp) {
   return -1;
 }
 
-export { transactionsFileName, recordTransaction, shouldCoalesce, coalesceIndexForSource, INCOME_COALESCE_GAP_MS, INCOME_WINDOW_MAX_MS };
+export { transactionsFileName, recordTransaction, recordTransactionHome, shouldCoalesce, coalesceIndexForSource, INCOME_COALESCE_GAP_MS, INCOME_WINDOW_MAX_MS };

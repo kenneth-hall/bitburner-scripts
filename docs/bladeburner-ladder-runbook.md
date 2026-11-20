@@ -9,6 +9,10 @@ Interface/mechanics: `docs/bladeburner-reference.md`. Estimates: `docs/estimatio
    money and one stat at a time. Fund it with `Rob Store` if broke. Combat exp needed scales with the
    node's player mult — recompute, don't reuse another node's figure.
 2. `run joinbladeburner.js`; verify with a `getRank()` read, never the boolean.
+   **Automatic since 2026-11-20:** `daemon.js` (`planBbEntry`) runs `joinbladeburner.js auto` once all
+   four combat stats are ≥100, then buys home RAM one tier per 5 min up to 256 GB (step 3) — look for
+   `BB-ENTRY:` terminal lines / `bb-entry` events in `daemon-batch-log.json`. Opt out with
+   `bbentry-off.txt` on home (BN8, or any node where Bladeburner isn't the route). Still verify rank.
 3. `bladeburnermanager.js` (99 GB) needs a host. **On `home`**: buy home RAM to 256 GB (so logs land in
    `logs/` and `bbblackop.js` shares the host). With `daemon.js` running, a fresh cloud server is
    filled by workers within seconds, so it can't be the host. Home must keep ≥160 GB reserved

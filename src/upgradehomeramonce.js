@@ -12,9 +12,12 @@
 //
 // Singularity calls carry no home-only requirement, so this runs from any
 // server with enough free RAM (the fleet, typically -- home is usually the
-// thing that's too full, which is why you're running this).
+// thing that's too full, which is why you're running this). The purchase
+// record goes through recordTransactionHome so it reaches home's day-file
+// from a fleet host too. daemon.js execs this automatically after a
+// Bladeburner join while bladeburnermanager.js is waiting for home RAM.
 
-import { recordTransaction } from "./translog.js";
+import { recordTransactionHome } from "./translog.js";
 
 const MAX_SPEND = 500e6;
 
@@ -43,7 +46,7 @@ export async function main(ns) {
   }
 
   const after = ns.getServerMaxRam("home");
-  recordTransaction(ns, {
+  recordTransactionHome(ns, {
     type: "expense",
     source: "home-ram-upgrade",
     newRamGb: after,

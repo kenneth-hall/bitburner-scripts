@@ -1,16 +1,27 @@
-# Ch## 2026-10-28
-
-- **`bbskillbuy.js` now buys the bounded plan (Reaper 50 / Overclock 90) before the BI/DO success pass.**
-  The old order let the uncapped success pass take all the SP and starved Reaper (43→44 on a 42k-SP spend), and the dry run
-  hid it. Also: BN7 early SP spends measured ~3.1× (Overclock) and ~1.8× (BI/DO) rank-rate jumps; see the ladder runbook.
-
-angelog — completed work
+# Changelog — completed work
 
 Condensed record of finished phases and one-off changes, newest first. Each entry is a
 one-or-two-line summary; the full design/validation story lives in the linked phase doc
 (and in git history). Active work lives in [`BACKLOG.md`](../../BACKLOG.md).
 
 ---
+
+## 2026-11-20
+
+- **Bladeburner entry is now automatic (daemon `planBbEntry`).** Twice (BN13, BN14) combat crossed
+  the gate and nothing acted for hours. The supervisor (every 60 s) now execs `joinbladeburner.js auto`
+  once all four combat stats are ≥100 (no `stopAction` — Mug keeps running until the manager takes the
+  slot), then climbs home RAM one tier per 5 min to 256 GB via `upgradehomeramonce.js` (cap 75% of
+  money). One-shots run on home if they fit, else on a fleet host. New `recordTransactionHome` keeps an
+  off-home purchase in home's transactions log (synchronous scp round trip). Stand down:
+  `bbentry-off.txt`. Daemon RAM unchanged (16.30 GB). Join path NOT live-exercised yet (BN14 already
+  joined) — first real run is the next node.
+
+## 2026-10-28
+
+- **`bbskillbuy.js` now buys the bounded plan (Reaper 50 / Overclock 90) before the BI/DO success pass.**
+  The old order let the uncapped success pass take all the SP and starved Reaper (43→44 on a 42k-SP spend), and the dry run
+  hid it. Also: BN7 early SP spends measured ~3.1× (Overclock) and ~1.8× (BI/DO) rank-rate jumps; see the ladder runbook.
 
 ## 2026-09-24
 

@@ -166,6 +166,43 @@ export const GANG_GATED_COMPANIONS = ["gangmanager.js"];
 // documents. Filtered out of the supervised set until the division is joined.
 export const BLADEBURNER_GATED_COMPANIONS = ["bladeburnermanager.js"];
 
+// Bladeburner auto-entry (2026-11-20). Twice now (BN13, BN14) combat crossed
+// the division gate and nothing acted on it for hours -- the join and the
+// home-RAM climb that bladeburnermanager.js (99 GB) needs were both manual.
+// The supervisor now does both. Stand down with bbentry-off.txt on home
+// (e.g. a node where Bladeburner isn't the route, or BN8 where it's disabled).
+export const BB_ENTRY_OFF_MARKER = "bbentry-off.txt";
+export const BB_COMBAT_GATE = 100;
+export const BB_HOME_RAM_TARGET_GB = 256; // runbook step 3: manager + bbblackop.js share home, logs land in logs/
+export const BB_JOIN_RETRY_MS = 60_000;
+export const BB_HOMERAM_RETRY_MS = 5 * 60_000;
+export const BB_HOMERAM_SPEND_FRACTION = 0.75; // cap passed to upgradehomeramonce.js; it refuses a tier above it
+
+/**
+ * Pure. The one Bladeburner-entry step to attempt this supervisor check, or
+ * null. Pre-join: join once all four combat stats reach the gate. Post-join:
+ * climb home RAM one tier at a time to BB_HOME_RAM_TARGET_GB, spending at most
+ * BB_HOMERAM_SPEND_FRACTION of current money per tier. Each kind has its own
+ * retry clock so an unaffordable tier doesn't re-exec every minute.
+ * @param {{offMarker: boolean, inBladeburner: boolean, combatMin: number,
+ *   homeMaxRam: number, money: number, nowMs: number,
+ *   lastJoinMs?: number, lastHomeRamMs?: number}} s
+ * @returns {{kind: "join"|"home-ram", script: string, args: (string|number)[]} | null}
+ */
+export function planBbEntry(s) {
+  if (s.offMarker) return null;
+  if (!s.inBladeburner) {
+    if (s.combatMin < BB_COMBAT_GATE) return null;
+    if (s.nowMs - (s.lastJoinMs ?? -Infinity) < BB_JOIN_RETRY_MS) return null;
+    return { kind: "join", script: "joinbladeburner.js", args: ["auto"] };
+  }
+  if (s.homeMaxRam >= BB_HOME_RAM_TARGET_GB) return null;
+  if (s.nowMs - (s.lastHomeRamMs ?? -Infinity) < BB_HOMERAM_RETRY_MS) return null;
+  const cap = Math.floor(s.money * BB_HOMERAM_SPEND_FRACTION);
+  if (cap <= 0) return null;
+  return { kind: "home-ram", script: "upgradehomeramonce.js", args: [cap] };
+}
+
 // The five darkweb port openers, by filename. Duplicated from resourcemanager.js's
 // PORT_OPENER_COSTS rather than imported: importing charges this file that module's ENTIRE ns
 // footprint (the import-bleed trap in CLAUDE.md), and daemon.js is RAM-critical. The codebase
@@ -284,6 +321,22 @@ function inBladeburnerSafe(ns) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Exec a short-lived one-shot on home if it fits, else on the first fleet host
+ * with room (copying the script + translog.js there first). Home is routinely
+ * saturated by companions in a fresh node, which is exactly when the
+ * Bladeburner-entry one-shots need to run. Returns the host used, or null.
+ */
+function launchOneShotAnywhere(ns, fleet, script, args) {
+  const needGb = ns.getScriptRam(script, "home");
+  const roomOn = (h) => ns.getServerMaxRam(h) - ns.getServerUsedRam(h);
+  let host = roomOn("home") >= needGb ? "home" : null;
+  if (!host) host = fleet.map((h) => h.hostname).find((h) => h !== "home" && roomOn(h) >= needGb) ?? null;
+  if (!host) return null;
+  if (host !== "home") ns.scp([script, "translog.js"], host, "home");
+  return ns.exec(script, host, 1, ...args) !== 0 ? host : null;
 }
 
 /**
@@ -912,6 +965,7 @@ export async function main(ns) {
   // --- Phase 26 B1 companion-supervisor state ---
   let lastSupervisorCheck = 0; // 0 => check on the first tick
   let supervisorAttempts = {}; // script -> last relaunch-attempt timestamp (planRelaunches' lastAttemptMs)
+  const bbEntryLastMs = {}; // planBbEntry kind -> last attempt timestamp
   let companionMissingSince = {}; // script -> ms first observed missing (cleared once seen running again)
   let companionAttemptCount = {}; // script -> relaunch attempts since it went missing (cleared once running)
   let waitingRamAnnounced = new Set(); // scripts currently in the waiting-ram state we've already announced once
@@ -1180,6 +1234,37 @@ export async function main(ns) {
       }
       for (const script of [...waitingRamAnnounced]) {
         if (!supervisorPlan.waitingRam.includes(script)) waitingRamAnnounced.delete(script);
+      }
+
+      // Bladeburner auto-entry -- see planBbEntry. getPlayer is already
+      // charged to this script (factionless check), so is everything else here.
+      const bbPlayer = ns.getPlayer();
+      const bbStep = planBbEntry({
+        offMarker: ns.fileExists(BB_ENTRY_OFF_MARKER, "home"),
+        inBladeburner: inBladeburnerSafe(ns),
+        combatMin: Math.min(bbPlayer.skills.strength, bbPlayer.skills.defense, bbPlayer.skills.dexterity, bbPlayer.skills.agility),
+        homeMaxRam: ns.getServerMaxRam("home"),
+        money: ns.getServerMoneyAvailable("home"),
+        nowMs: supervisorNowMs,
+        lastJoinMs: bbEntryLastMs["join"],
+        lastHomeRamMs: bbEntryLastMs["home-ram"],
+      });
+      if (bbStep) {
+        bbEntryLastMs[bbStep.kind] = supervisorNowMs;
+        const bbHost = launchOneShotAnywhere(ns, hosts, bbStep.script, bbStep.args);
+        tprintTs(ns, bbHost
+          ? `BB-ENTRY: ${bbStep.kind} -- launched ${bbStep.script} ${bbStep.args.join(" ")} on ${bbHost}`
+          : `BB-ENTRY: ${bbStep.kind} -- no host with room for ${bbStep.script}, retrying later`);
+        logEntries = appendLogEvent(logEntries, openSkipRecords, {
+          event: "bb-entry",
+          time: new Date().toLocaleTimeString(),
+          timestamp: supervisorNowMs,
+          kind: bbStep.kind,
+          script: bbStep.script,
+          args: bbStep.args,
+          host: bbHost,
+        }, boundaryLog, supervisorNowMs, boundaryStartMs);
+        pendingImmediateFlush = true;
       }
     }
 

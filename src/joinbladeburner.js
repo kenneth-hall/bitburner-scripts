@@ -9,7 +9,12 @@
  * Does NOT call joinBladeburnerFaction() -- that needs rank >= 25, which requires
  * being in the division first and running actions. That's the real Stage 2/3 work.
  *
- * Writes joinbladeburner-<epoch>.json.
+ * Writes joinbladeburner-<epoch>.json (host-scoped: from a fleet host it stays there).
+ *
+ * `auto` arg (2026-11-20): the daemon's unattended path. Refuses below the
+ * combat-100 gate and does NOT stopAction() -- if bladeburnermanager.js can't
+ * fit yet, the running Mug keeps earning combat exp instead of the player
+ * going idle; the manager's startAction replaces it once it launches.
  */
 
 export async function main(ns) {
@@ -24,7 +29,12 @@ export async function main(ns) {
   };
   out.currentWorkBefore = ns.singularity.getCurrentWork();
 
-  ns.singularity.stopAction();
+  const auto = ns.args[0] === "auto";
+  if (auto && Math.min(...Object.values(out.combatBefore)) < 100) {
+    ns.tprint("joinbladeburner: auto -- combat gate (100) not met, nothing done");
+    return;
+  }
+  if (!auto) ns.singularity.stopAction();
 
   out.joined = ns.bladeburner.joinBladeburnerDivision();
   out.inBladeburnerAfter = ns.bladeburner.inBladeburner();
