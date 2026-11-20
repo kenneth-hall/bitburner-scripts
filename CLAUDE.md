@@ -10,11 +10,11 @@ solutions — work from game mechanics and the API.
 Act as a collaborator who pushes back, not a service that complies. These fire on triggers, not
 on request — hold to them even when the moment is uncomfortable.
 - **Current goal (keep this line current):** **🟢 IN BN14 (entered 2026-11-19 02:04 UTC by
-  `bnclear.js 14 confirm` — `logs/bnclear-1795046745080.json`; live stats reset to 1 / $1.26k. Node
-  number NOT yet read via `bitnodemults.js` — do that once home RAM allows).** BN13 cleared in ~19 d
+  `bnclear.js 14 confirm` — `logs/bnclear-1795046745080.json`; node live-confirmed BN14 by
+  `bitnodemults.js` 2026-11-20 — `logs/bitnodemults-1795135505428.json`, matches the prose below).** BN13 cleared in ~19 d
   (SF13.1). Route: the Bladeburner ladder —
   [`docs/bladeburner-ladder-runbook.md`](docs/bladeburner-ladder-runbook.md). Held SFs
-  **1.3 · 2 · 3 · 4.3 · 5 · 6 · 7.1 · 9 · 10 · 11 · 13.1** (SF13.1 new, unverified). History of every
+  **1.3 · 2 · 3 · 4.3 · 5 · 6 · 7.1 · 9 · 10 · 11 · 13.1** (SF13.1 live-confirmed 2026-11-20). History of every
   earlier node: [`docs/bitnode-history.md`](docs/bitnode-history.md) — closed, read for lessons only.
   - **BN14 multipliers (prose/matrix log `logs/bitnodemults-1789920276346.json`, not yet live-read):**
     `BladeburnerRank` 0.6 · `BladeburnerSkillCost` 2 · combat level **0.50** (the long pole: combat-100
@@ -27,6 +27,13 @@ on request — hold to them even when the moment is uncomfortable.
     order says BN8, which has Bladeburner disabled (needs a stock route nobody has built). Default:
     decide before the BN14 gate is reached; if undecided at the gate, choose BN15. ⚠️ **ONE-WAY TRAP:
     accept the Gift BEFORE any aug purchase (NFG excepted).** `aug-buy-off.txt` on home is the guard.
+  - **2026-11-20 00:45 UTC — DIVISION JOINED.** Combat had reached 113 (gate 100) with nothing acting
+    on it — the BN13 lesson recurring. Claude: `joinbladeburner.js` (rank read 0.16 and climbing =
+    verified), home RAM 64 → 256 GB ($31.9m + $100.7m via `upgradehomeramonce.js`), and the daemon
+    auto-launched `bladeburnermanager.js`. Stanek: 5x5 layout placed (60a82cf), 4 stat fragments
+    charging (×1.18 each at last read). **Next:** sleeve → `Infiltrate Synthoids` (UI, runbook step 4);
+    `bbskillbuy.js 25` at ~25k rank. Mind the daemon: it re-fills freed home RAM with `augfarmer.js`
+    (64 GB, observe-only under `aug-buy-off.txt`) within seconds.
   - **BN14 opening (2026-11-19, Claude autonomous):** ✅ **Stanek's Gift ACCEPTED** (UI, Chongqing —
     "your body is pure", Gift nav present; player is now in Chongqing). Fragments **not placed yet**:
     `stanekplace.js` hard-codes BN13's 6x5 layout and BN14's board is smaller (ExtraSize −1) —
