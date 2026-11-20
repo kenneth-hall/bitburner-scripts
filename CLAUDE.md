@@ -33,7 +33,7 @@ on request — hold to them even when the moment is uncomfortable.
     auto-launched `bladeburnermanager.js`. Stanek: 5x5 layout placed (60a82cf), 4 stat fragments
     charging (×1.18 each at last read). **Next:** sleeve → `Infiltrate Synthoids` (UI, runbook step 4);
     `bbskillbuy.js 25` at ~25k rank. **The join + home-RAM climb are now automated** (daemon
-    `planBbEntry`, branch `bb-autoentry`; opt out `bbentry-off.txt`) — first live run is next node. Mind the daemon: it re-fills freed home RAM with `augfarmer.js`
+    `planBbEntry`, d0dbd10; opt out `bbentry-off.txt`) — first live run is next node. Mind the daemon: it re-fills freed home RAM with `augfarmer.js`
     (64 GB, observe-only under `aug-buy-off.txt`) within seconds.
   - **BN14 opening (2026-11-19, Claude autonomous):** ✅ **Stanek's Gift ACCEPTED** (UI, Chongqing —
     "your body is pure", Gift nav present; player is now in Chongqing). Fragments **not placed yet**:
